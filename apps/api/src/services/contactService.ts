@@ -2,11 +2,12 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { eq } from "drizzle-orm";
 import { users, type Database } from "@wisdom/db";
 
-export interface MemberContactPayload {
+export interface ContactPayload {
   name: string;
   email: string;
   message: string;
   memberEmail?: string;
+  source: "public" | "member";
 }
 
 const DEFAULT_FROM_EMAIL = "no-reply@wisdomtransmissions.local";
@@ -40,10 +41,14 @@ function getTransporter(): Transporter | null {
   return cachedTransporter;
 }
 
-export async function resolveAdminContactEmail(db: Database): Promise<string> {
+export async function resolveAdminContactEmail(db?: Database | null): Promise<string> {
   const configuredAdminEmail = process.env.ADMIN_EMAIL?.trim();
   if (configuredAdminEmail) {
     return configuredAdminEmail;
+  }
+
+  if (!db) {
+    throw new Error("Admin contact email is not configured.");
   }
 
   const [adminUser] = await db
@@ -59,7 +64,7 @@ export async function resolveAdminContactEmail(db: Database): Promise<string> {
   return adminUser.email;
 }
 
-export async function sendMemberContactEmail(to: string, payload: MemberContactPayload): Promise<void> {
+export async function sendContactEmail(to: string, payload: ContactPayload): Promise<void> {
   const transporter = getTransporter();
   if (!transporter) {
     throw new Error("Contact delivery is not configured.");
@@ -72,15 +77,17 @@ export async function sendMemberContactEmail(to: string, payload: MemberContactP
   const safeName = payload.name.replace(/\r|\n/g, " ").trim();
   const safeEmail = payload.email.replace(/\r|\n/g, " ").trim();
   const safeMemberEmail = payload.memberEmail?.replace(/\r|\n/g, " ").trim();
+  const sourceLabel = payload.source === "member" ? "Member Contact" : "Public Contact";
 
   await transporter.sendMail({
     from,
     to,
     replyTo: safeEmail,
-    subject: `Member Contact: ${safeName}`,
+    subject: `${sourceLabel}: ${safeName}`,
     text: [
-      "New member contact submission",
+      `New ${payload.source} contact submission`,
       "",
+      `Source: ${payload.source}`,
       `Name: ${safeName}`,
       `Email: ${safeEmail}`,
       `Authenticated account: ${safeMemberEmail || "Unavailable"}`,

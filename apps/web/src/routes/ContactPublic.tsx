@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "../lib/api";
 
 interface ContactPublicContentProps {
   headingAs?: "h1" | "h2" | "h3";
@@ -9,10 +10,25 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitted(true);
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      await api.post("/contact", { name, email, message });
+      setSubmitted(true);
+      setName("");
+      setEmail("");
+      setMessage("");
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to send your message right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const fieldClassName =
@@ -31,23 +47,29 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
         </div>
       ) : (
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+          {submitError ? (
+            <div className="rounded-2xl border border-rose-400/25 bg-rose-950/30 px-4 py-3 text-sm text-rose-100">
+              {submitError}
+            </div>
+          ) : null}
           <label className="block text-sm text-white/70">
             Name
-            <input className={fieldClassName} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
+            <input className={fieldClassName} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required disabled={isSubmitting} />
           </label>
           <label className="block text-sm text-white/70">
             Email
-            <input className={fieldClassName} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+            <input className={fieldClassName} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required disabled={isSubmitting} />
           </label>
           <label className="block text-sm text-white/70">
             Message
-            <textarea className={fieldClassName} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="How can we help?" required />
+            <textarea className={fieldClassName} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="How can we help?" required disabled={isSubmitting} />
           </label>
           <button
             type="submit"
-            className="rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-300"
+            disabled={isSubmitting}
+            className="rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Send message
+            {isSubmitting ? "Sending..." : "Send message"}
           </button>
         </form>
       )}
