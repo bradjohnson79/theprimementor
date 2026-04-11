@@ -476,6 +476,7 @@ export async function buildApp() {
     reply.status(404).send({ error: "Route not found" });
   });
 
+  await app.register(healthRoutes);
   await app.register(healthRoutes, { prefix: "/api" });
   await app.register(syncUserRoutes, { prefix: "/api" });
   await app.register(meRoutes, { prefix: "/api" });

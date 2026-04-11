@@ -7,9 +7,9 @@
     "node": "22.x"
   },
   "scripts": {
-    "dev": "tsx watch src/bootstrap.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/bootstrap.js",
+    "start": "tsx dist/index.js",
     "membership:test-user": "tsx src/scripts/bootstrapMembershipTestUser.ts",
     "test": "OPENAI_API_KEY=test node --test --import tsx src/services/divin8/*.test.ts"
   },
@@ -33,12 +33,12 @@
     "puppeteer": "^24.40.0",
     "stripe": "^20.4.1",
     "svix": "^1.88.0",
-    "swisseph": "^0.5.17"
+    "swisseph": "^0.5.17",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.1",
     "@types/node": "^24.12.0",
-    "@types/nodemailer": "^8.0.0",
-    "tsx": "^4.21.0"
+    "@types/nodemailer": "^8.0.0"
   }
 }
