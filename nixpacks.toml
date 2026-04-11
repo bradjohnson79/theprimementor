@@ -1,5 +1,7 @@
 [phases.setup]
 nixPkgs = ["nodejs", "pnpm"]
+# swisseph postinstall runs node-gyp; Python + a compiler toolchain are required
+aptPkgs = ["python3", "build-essential"]
 
 [phases.install]
 cmds = [
