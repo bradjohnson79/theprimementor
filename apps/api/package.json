@@ -1,0 +1,41 @@
+{
+  "name": "@wisdom/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/bootstrap.ts",
+    "build": "tsc",
+    "start": "node dist/bootstrap.js",
+    "membership:test-user": "tsx src/scripts/bootstrapMembershipTestUser.ts",
+    "test": "OPENAI_API_KEY=test node --test --import tsx src/services/divin8/*.test.ts"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.2.1",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/multipart": "^9.4.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@wisdom/db": "workspace:*",
+    "@wisdom/utils": "workspace:*",
+    "date-fns-tz": "^3.2.0",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
+    "fastify": "^5.8.2",
+    "fastify-raw-body": "^5.0.0",
+    "html-to-docx": "^1.8.0",
+    "isomorphic-dompurify": "^3.5.1",
+    "jsdom": "^29.0.0",
+    "nodemailer": "^8.0.4",
+    "openai": "^6.32.0",
+    "puppeteer": "^24.40.0",
+    "stripe": "^20.4.1",
+    "svix": "^1.88.0",
+    "swisseph": "^0.5.17"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^24.12.0",
+    "@types/nodemailer": "^8.0.0",
+    "tsx": "^4.21.0"
+  }
+}

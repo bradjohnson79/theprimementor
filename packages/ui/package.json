@@ -1,0 +1,36 @@
+{
+  "name": "@wisdom/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./aurora.css": "./aurora.css",
+    "./timezone-select": {
+      "types": "./src/timezone/index.ts",
+      "import": "./src/timezone/index.ts",
+      "module": "./src/timezone/index.ts",
+      "browser": "./src/timezone/index.ts",
+      "development": "./src/timezone/index.ts",
+      "default": "./src/timezone/index.ts"
+    },
+    "./divin8-chat": {
+      "types": "./src/divin8-chat/index.ts",
+      "import": "./src/divin8-chat/index.ts",
+      "module": "./src/divin8-chat/index.ts",
+      "browser": "./src/divin8-chat/index.ts",
+      "development": "./src/divin8-chat/index.ts",
+      "default": "./src/divin8-chat/index.ts"
+    }
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.23",
+    "@wisdom/utils": "workspace:*",
+    "dompurify": "^3.3.3",
+    "framer-motion": "^12.38.0",
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
+  }
+}

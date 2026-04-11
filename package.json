@@ -1,0 +1,29 @@
+{
+  "name": "wisdom-transmissions",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter @wisdom/web dev",
+    "dev:api": "pnpm --filter @wisdom/api dev",
+    "dev:admin": "pnpm --filter @wisdom/admin dev",
+    "build:web": "pnpm --filter @wisdom/web build",
+    "build:api": "pnpm --filter @wisdom/api build",
+    "build:admin": "pnpm --filter @wisdom/admin build",
+    "db:generate": "pnpm --filter @wisdom/db generate",
+    "db:migrate": "pnpm --filter @wisdom/db migrate",
+    "db:studio": "pnpm --filter @wisdom/db studio",
+    "db:seed-admin": "pnpm --filter @wisdom/db seed-admin --",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.3",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@wisdom/shared-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.23",
+    "@wisdom/utils": "workspace:*",
+    "dompurify": "^3.3.3",
+    "react": "^19.2.4"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@wisdom/utils",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "module": "./src/index.ts",
+      "browser": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./reportMarkdown": {
+      "types": "./src/reportMarkdown.ts",
+      "import": "./src/reportMarkdown.ts",
+      "module": "./src/reportMarkdown.ts",
+      "browser": "./src/reportMarkdown.ts",
+      "development": "./src/reportMarkdown.ts",
+      "default": "./src/reportMarkdown.ts"
+    },
+    "./reportHtml": {
+      "types": "./src/reportHtml.ts",
+      "import": "./src/reportHtml.ts",
+      "module": "./src/reportHtml.ts",
+      "browser": "./src/reportHtml.ts",
+      "development": "./src/reportHtml.ts",
+      "default": "./src/reportHtml.ts"
+    },
+    "./reportSanitize": {
+      "types": "./src/reportSanitize.ts",
+      "import": "./src/reportSanitize.ts",
+      "module": "./src/reportSanitize.ts",
+      "browser": "./src/reportSanitize.ts",
+      "development": "./src/reportSanitize.ts",
+      "default": "./src/reportSanitize.ts"
+    }
+  },
+  "dependencies": {
+    "marked": "^15.0.7"
+  }
+}

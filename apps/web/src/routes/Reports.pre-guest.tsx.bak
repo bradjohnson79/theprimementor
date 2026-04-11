@@ -1,0 +1,443 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useAuth, useUser } from "@clerk/react";
+import {
+  divin8ReportTierListPrice,
+  getReportTierDefinition,
+  REPORT_TIER_ORDER,
+  type ReportTierId,
+} from "@wisdom/utils";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
+import { api } from "../lib/api";
+
+interface ReportFormState {
+  fullName: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  birthTime: string;
+  birthPlaceInput: string;
+  primaryFocus: string;
+  notes: string;
+  consentGiven: boolean;
+}
+
+const PRIMARY_FOCUS_OPTIONS = [
+  { value: "", label: "No specific focus" },
+  { value: "purpose", label: "Purpose and direction" },
+  { value: "relationships", label: "Relationships" },
+  { value: "career", label: "Career and work" },
+  { value: "finance", label: "Finance" },
+  { value: "health", label: "Health and vitality" },
+  { value: "timing", label: "Timing and next season" },
+  { value: "spiritual", label: "Spiritual growth" },
+];
+
+function normalizeText(value: string): string {
+  return value.trim();
+}
+
+function resolveBirthTimeInput(value: string): string {
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, 5) : "00:00";
+}
+
+function buildInitialFormState(prefill?: Partial<ReportFormState>): ReportFormState {
+  return {
+    fullName: prefill?.fullName ?? "",
+    email: prefill?.email ?? "",
+    phone: "",
+    birthDate: "",
+    birthTime: "00:00",
+    birthPlaceInput: "",
+    primaryFocus: "",
+    notes: "",
+    consentGiven: false,
+  };
+}
+
+function resolveTierFromPath(pathname: string): ReportTierId {
+  if (pathname.endsWith("/deep-dive")) return "deep_dive";
+  if (pathname.endsWith("/initiate")) return "initiate";
+  return "intro";
+}
+
+export default function Reports() {
+  const { getToken } = useAuth();
+  const { user: clerkUser } = useUser();
+  const { user: dbUser } = useCurrentUser();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [selectedTier, setSelectedTier] = useState<ReportTierId>("intro");
+  const [form, setForm] = useState<ReportFormState>(() => buildInitialFormState());
+  const [birthplace, setBirthplace] = useState<PlaceResult | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const {
+    error: placesError,
+    isResolving: resolvingPlace,
+    isSearching: searchingPlaces,
+    suggestions: placeSuggestions,
+    selectSuggestion,
+  } = useGooglePlaces(
+    form.birthPlaceInput,
+    (place) => {
+      setBirthplace(place);
+      setForm((current) => ({ ...current, birthPlaceInput: place.name }));
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next.birthPlace;
+        return next;
+      });
+    },
+  );
+
+  useEffect(() => {
+    const email = dbUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || "";
+    const fullName = clerkUser?.fullName || "";
+    setForm((current) => ({
+      ...current,
+      email: current.email || email,
+      fullName: current.fullName || fullName,
+    }));
+  }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email]);
+
+  useEffect(() => {
+    setSelectedTier(resolveTierFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const selectedTierDefinition = useMemo(
+    () => getReportTierDefinition(selectedTier),
+    [selectedTier],
+  );
+
+  const isPlaceSelected = Boolean(
+    birthplace
+      && birthplace.name === form.birthPlaceInput
+      && Number.isFinite(birthplace.lat)
+      && Number.isFinite(birthplace.lng),
+  );
+
+  const canSubmit = Boolean(
+    normalizeText(form.fullName)
+      && normalizeText(form.email)
+      && normalizeText(form.phone)
+      && normalizeText(form.birthDate)
+      && form.consentGiven
+      && isPlaceSelected
+      && !resolvingPlace
+      && !placesError,
+  );
+
+  function setFormField<K extends keyof ReportFormState>(field: K, value: ReportFormState[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function handleBirthplaceInputChange(value: string) {
+    setForm((current) => ({ ...current, birthPlaceInput: value }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.birthPlace;
+      return next;
+    });
+    if (!birthplace || value !== birthplace.name) {
+      setBirthplace(null);
+    }
+  }
+
+  function validateForm() {
+    const nextErrors: Record<string, string> = {};
+    if (!normalizeText(form.fullName)) nextErrors.fullName = "Full name is required.";
+    if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
+    if (!normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
+    if (!normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
+    if (!isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
+    if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
+    return nextErrors;
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    const nextErrors = validateForm();
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0 || !birthplace) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = await getToken();
+      await api.post(
+        "/member/reports",
+        {
+          tier: selectedTier,
+          fullName: normalizeText(form.fullName),
+          email: normalizeText(form.email),
+          phone: normalizeText(form.phone),
+          birthDate: form.birthDate,
+          birthTime: resolveBirthTimeInput(form.birthTime),
+          birthPlaceName: birthplace.name,
+          birthLat: birthplace.lat,
+          birthLng: birthplace.lng,
+          birthTimezone: birthplace.timezone || undefined,
+          primaryFocus: normalizeText(form.primaryFocus) || undefined,
+          consentGiven: form.consentGiven,
+          notes: normalizeText(form.notes) || undefined,
+        },
+        token,
+      );
+
+      setForm(buildInitialFormState({
+        fullName: form.fullName,
+        email: form.email,
+      }));
+      setBirthplace(null);
+      setSuccess("Your report is being prepared and will be delivered within 48 hours.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to submit your report request.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const fieldClassName =
+    "mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30";
+  const labelClassName = "block text-sm text-white/70";
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-6 py-10">
+      <header className="mb-6">
+        <h1 className="text-3xl font-semibold text-white">Reports</h1>
+        <p className="mt-3 max-w-2xl text-sm text-white/65">
+          Order your Divin8 report. Complete the intake below - your report will be delivered within 48 hours.
+        </p>
+      </header>
+
+      <section className="glass-card rounded-3xl p-6 sm:p-8">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Buy Report</h2>
+              <p className="mt-2 text-sm text-white/60">
+                Choose your tier, complete the intake, and submit your report purchase in one focused flow.
+              </p>
+            </div>
+            <div className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-medium text-amber-100">
+              48-hour delivery
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-300/12 text-amber-200">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M2 12h12L13 5l-3 3-2-4-2 4-3-3-1 7z" fill="currentColor" />
+                  <rect x="2" y="12" width="12" height="2" rx="0.5" fill="currentColor" />
+                </svg>
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-white">{selectedTierDefinition.label}</h3>
+                <p className="text-sm text-white/55">{divin8ReportTierListPrice(selectedTier)}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-white/65">{selectedTierDefinition.description}</p>
+          </div>
+
+          {error ? (
+            <div className="rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+              {error}
+            </div>
+          ) : null}
+
+          {success ? (
+            <div className="rounded-xl border border-emerald-400/25 bg-emerald-950/35 px-4 py-4 text-sm text-emerald-100">
+              {success}
+            </div>
+          ) : null}
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <label className={labelClassName}>
+              Report Tier
+              <select
+                value={selectedTier}
+                onChange={(event) => setSelectedTier(event.target.value as ReportTierId)}
+                className={`${fieldClassName} cursor-pointer`}
+              >
+                {REPORT_TIER_ORDER.map((tier) => (
+                  <option key={tier} value={tier} className="bg-slate-950">
+                    {getReportTierDefinition(tier).label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClassName}>
+                Full Name
+                <input
+                  className={fieldClassName}
+                  value={form.fullName}
+                  onChange={(event) => setFormField("fullName", event.target.value)}
+                  placeholder="Your full name"
+                />
+                {fieldErrors.fullName ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.fullName}</span> : null}
+              </label>
+
+              <label className={labelClassName}>
+                Email
+                <input className={fieldClassName} type="email" readOnly value={form.email} />
+                {fieldErrors.email ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.email}</span> : null}
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClassName}>
+                Phone Number
+                <input
+                  className={fieldClassName}
+                  value={form.phone}
+                  onChange={(event) => setFormField("phone", event.target.value)}
+                  placeholder="Your phone number"
+                />
+                {fieldErrors.phone ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.phone}</span> : null}
+              </label>
+
+              <label className={labelClassName}>
+                Birthdate
+                <input
+                  className={fieldClassName}
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(event) => setFormField("birthDate", event.target.value)}
+                />
+                {fieldErrors.birthDate ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.birthDate}</span> : null}
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClassName}>
+                Birthtime (optional)
+                <input
+                  className={fieldClassName}
+                  type="time"
+                  value={form.birthTime}
+                  onChange={(event) => setFormField("birthTime", event.target.value)}
+                />
+                <span className="mt-1 block text-xs text-white/45">If unknown, it will default to 12:00 AM.</span>
+              </label>
+
+              <label className={labelClassName}>
+                Birthplace
+                <input
+                  className={fieldClassName}
+                  value={form.birthPlaceInput}
+                  onChange={(event) => handleBirthplaceInputChange(event.target.value)}
+                  placeholder="Start typing and select your birthplace"
+                  autoComplete="off"
+                />
+                {placeSuggestions.length > 0 ? (
+                  <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
+                    {placeSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.placeId}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => void selectSuggestion(suggestion)}
+                        className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm text-white/75 transition last:border-b-0 hover:bg-white/5 hover:text-white"
+                      >
+                        <span className="block font-medium text-white">{suggestion.primaryText}</span>
+                        {suggestion.secondaryText ? (
+                          <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <span className="mt-1 block text-xs text-white/45">
+                  Start typing and select your birthplace from the list
+                </span>
+                {searchingPlaces ? <span className="mt-1 block text-xs text-white/45">Searching places...</span> : null}
+                {resolvingPlace ? <span className="mt-1 block text-xs text-white/45">Loading place details...</span> : null}
+                {placesError ? <span className="mt-1 block text-sm text-red-300">{placesError}</span> : null}
+                {fieldErrors.birthPlace ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.birthPlace}</span> : null}
+              </label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClassName}>
+                Primary Focus (optional)
+                <select
+                  value={form.primaryFocus}
+                  onChange={(event) => setFormField("primaryFocus", event.target.value)}
+                  className={`${fieldClassName} cursor-pointer`}
+                >
+                  {PRIMARY_FOCUS_OPTIONS.map((option) => (
+                    <option key={option.label} value={option.value} className="bg-slate-950">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className={labelClassName}>
+                Additional Notes (optional)
+                <textarea
+                  className={`${fieldClassName} min-h-[112px]`}
+                  value={form.notes}
+                  onChange={(event) => setFormField("notes", event.target.value)}
+                  placeholder="Anything helpful to know before preparing your report"
+                />
+              </label>
+            </div>
+
+            <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+              <input
+                type="checkbox"
+                checked={form.consentGiven}
+                onChange={(event) => setFormField("consentGiven", event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-accent-cyan"
+              />
+              <span>
+                I confirm these details are accurate and consent to using this intake for report preparation.
+                {fieldErrors.consentGiven ? <span className="mt-1 block text-red-300">{fieldErrors.consentGiven}</span> : null}
+              </span>
+            </label>
+
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="rounded-xl border border-white/15 px-4 py-3 text-sm font-medium text-white/80 transition hover:bg-white/5"
+              >
+                &larr; Back to Dashboard
+              </button>
+
+              <button
+                type="submit"
+                disabled={!canSubmit || submitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(255,215,0,0.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
+                  <path d="M2 12h12L13 5l-3 3-2-4-2 4-3-3-1 7z" fill="currentColor" />
+                  <rect x="2" y="12" width="12" height="2" rx="0.5" fill="currentColor" />
+                </svg>
+                {submitting ? "Processing..." : "Purchase Report"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  );
+}

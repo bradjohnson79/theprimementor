@@ -1,0 +1,181 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1773869509745,
+      "tag": "0000_greedy_mattie_franklin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773878400000,
+      "tag": "0001_refine_reports_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773899000000,
+      "tag": "0002_nullable_client_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773900000000,
+      "tag": "0003_reports_markdown_title_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773969000000,
+      "tag": "0004_report_tier_outputs",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773980000000,
+      "tag": "20260320_booking_system_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774060000000,
+      "tag": "20260326_payment_system_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774063600000,
+      "tag": "20260326_reports_workspace_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774140000000,
+      "tag": "20260327_divin8_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774654800000,
+      "tag": "20260327_divin8_conversation_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774656000000,
+      "tag": "20260327_divin8_conversation_summaries_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774660000000,
+      "tag": "20260327_divin8_insights",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774677000000,
+      "tag": "20260328_divin8_timeline_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775199000000,
+      "tag": "20260403_member_entitlements_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1775419200000,
+      "tag": "20260405_sessions_booking_refactor",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1775505600000,
+      "tag": "20260406_reports_purchase_birthplace",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1775512800000,
+      "tag": "20260406_birthtime_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1775520000000,
+      "tag": "20260406_mentoring_circle_registration",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1775523600000,
+      "tag": "20260406_stripe_webhooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1775692800000,
+      "tag": "20260409_invoice_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1775779200000,
+      "tag": "20260409_booking_availability_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1775865600000,
+      "tag": "20260410_session_checkout_pending_payment",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1775872800000,
+      "tag": "20260410_universal_purchase_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775880000000,
+      "tag": "20260410_timezone_archive_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1775883600000,
+      "tag": "20260410_mentor_training_orders",
+      "breakpoints": true
+    }
+  ]
+}

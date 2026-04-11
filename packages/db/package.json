@@ -1,0 +1,27 @@
+{
+  "name": "@wisdom/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "studio": "drizzle-kit studio",
+    "seed-admin": "tsx src/seed-admin.ts",
+    "check-drift": "tsx check-drift.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0"
+  }
+}

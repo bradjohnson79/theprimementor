@@ -1,0 +1,13 @@
+@theme {
+  --color-navy: #0A0F1C;
+  --color-navy-light: #111827;
+  --color-navy-medium: #0F172A;
+  --color-accent-cyan: #06B6D4;
+  --color-accent-violet: #8B5CF6;
+  --color-accent-indigo: #6366F1;
+  --color-accent-teal: #14B8A6;
+  --color-glass: rgba(255, 255, 255, 0.05);
+  --color-glass-hover: rgba(255, 255, 255, 0.08);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-glass-border-hover: rgba(255, 255, 255, 0.2);
+}
