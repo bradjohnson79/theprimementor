@@ -1,17 +1,24 @@
 [phases.setup]
-nixPkgs = ["nodejs", "pnpm"]
-# swisseph postinstall runs node-gyp; Python + a compiler toolchain are required
-aptPkgs = ["python3", "build-essential"]
+nixPkgs = [
+  "nodejs",
+  "pnpm",
+  "python3",
+  "gcc",
+  "gnumake",
+]
+
+[variables]
+PYTHON = "/usr/bin/python3"
 
 [phases.install]
 cmds = [
   "corepack enable",
-  "pnpm install"
+  "pnpm install",
 ]
 
 [phases.build]
 cmds = [
-  "pnpm --filter @wisdom/api build"
+  "pnpm --filter @wisdom/api build",
 ]
 
 [start]
