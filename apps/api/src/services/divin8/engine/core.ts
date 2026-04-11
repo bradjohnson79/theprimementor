@@ -87,17 +87,18 @@ export async function runCoreSystem(input: Divin8CoreSystemInput): Promise<Divin
     utcOffsetMinutes: resolvedBirthContext.utcOffsetMinutes,
   });
 
-  if (!validation.valid) {
-    const fieldHints = validation.error.missingFields?.length
-      ? validation.error.missingFields.join(", ")
+  if (validation.valid === false) {
+    const validationError = validation.error;
+    const fieldHints = validationError.missingFields?.length
+      ? validationError.missingFields.join(", ")
       : "valid date, time, and coordinates";
     const result: Divin8CoreSystemResult = {
       status: "error",
       route: input.route,
       engineRun: "FAIL",
-      errorCode: validation.error.errorCode,
-      error: `Input validation failed: ${validation.error.error} (missing: ${fieldHints})`,
-      userMessage: validation.error.errorCode === "MISSING_BIRTH_DATA"
+      errorCode: validationError.errorCode,
+      error: `Input validation failed: ${validationError.error} (missing: ${fieldHints})`,
+      userMessage: validationError.errorCode === "MISSING_BIRTH_DATA"
         ? `I need your ${fieldHints} to run the Swiss Ephemeris calculation. Just type them naturally, for example: "born March 22 1979 at 7:08pm in Vancouver BC".`
         : `Something about the birth data could not be parsed for the ephemeris engine. Could you resend your birth date, time, and location in one message? Example: "March 22, 1979 at 7:08 PM, Port Alberni, BC, Canada"`,
     };
