@@ -7,4 +7,7 @@ loadEnv({ path: resolve(bootstrapDir, "../.env"), override: true });
 
 const { main } = await import("./server.js");
 
-void main();
+void main().catch((err) => {
+  console.error("SERVER FAILED TO START:", err);
+  process.exit(1);
+});
