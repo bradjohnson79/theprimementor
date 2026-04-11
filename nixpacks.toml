@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs", "pnpm"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "pnpm install"
+]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @wisdom/api build"
+]
+
+[start]
+cmd = "pnpm --filter @wisdom/api start"
