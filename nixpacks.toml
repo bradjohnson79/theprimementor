@@ -1,18 +1,25 @@
 [phases.setup]
 nixPkgs = [
   "nodejs",
-  "pnpm",
+  "pnpm"
+]
+
+aptPkgs = [
   "python3",
-  "gcc",
-  "gnumake",
+  "python3-dev",
+  "build-essential"
 ]
 
 [variables]
 PYTHON = "/usr/bin/python3"
+npm_config_python = "/usr/bin/python3"
 
 [phases.install]
 cmds = [
-  "corepack enable",
+  "which python3 || true",
+  "python3 --version || true",
+  "export PYTHON=/usr/bin/python3",
+  "export npm_config_python=/usr/bin/python3",
   "pnpm install",
 ]
 

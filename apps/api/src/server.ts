@@ -38,7 +38,7 @@ logger.info("zoom_env_loaded", {
   hasClientSecret: Boolean(process.env.ZOOM_CLIENT_SECRET?.trim()),
 });
 
-const PORT = Number(process.env.PORT) || 3001;
+const port = Number(process.env.PORT) || 3000;
 const PHYSIOGNOMY_UPLOAD_MAX_AGE_MS =
   Number(process.env.PHYSIOGNOMY_UPLOAD_MAX_AGE_MS) || 48 * 60 * 60 * 1000;
 const PHYSIOGNOMY_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
@@ -505,8 +505,8 @@ export async function buildApp() {
 export async function main() {
   const app = await buildApp();
   try {
-    await app.listen({ port: PORT, host: "0.0.0.0" });
-    logger.info(`Server running on http://localhost:${PORT}`);
+    await app.listen({ port, host: "0.0.0.0" });
+    logger.info(`Server running on http://localhost:${port}`);
     startPhysiognomyCleanupLoop();
   } catch (err) {
     app.log.error(err);
