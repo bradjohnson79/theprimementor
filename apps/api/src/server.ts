@@ -375,7 +375,23 @@ function buildAllowedOrigins() {
   );
 }
 
-export async function main() {
+function startPhysiognomyCleanupLoop() {
+  deleteStalePhysiognomyUploads(PHYSIOGNOMY_UPLOAD_MAX_AGE_MS)
+    .then((n) => {
+      if (n > 0) logger.info("physiognomy_upload_cleanup_startup", { removed: n });
+    })
+    .catch((e) => logger.warn("physiognomy_upload_cleanup_failed", e));
+
+  return setInterval(() => {
+    deleteStalePhysiognomyUploads(PHYSIOGNOMY_UPLOAD_MAX_AGE_MS)
+      .then((n) => {
+        if (n > 0) logger.info("physiognomy_upload_cleanup", { removed: n });
+      })
+      .catch((e) => logger.warn("physiognomy_upload_cleanup_failed", e));
+  }, PHYSIOGNOMY_CLEANUP_INTERVAL_MS);
+}
+
+export async function buildApp() {
   assertMembershipStripeConfig();
   assertMentorTrainingStripeConfig();
 
@@ -482,23 +498,15 @@ export async function main() {
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 
+  return app;
+}
+
+export async function main() {
+  const app = await buildApp();
   try {
     await app.listen({ port: PORT, host: "0.0.0.0" });
     logger.info(`Server running on http://localhost:${PORT}`);
-
-    deleteStalePhysiognomyUploads(PHYSIOGNOMY_UPLOAD_MAX_AGE_MS)
-      .then((n) => {
-        if (n > 0) logger.info("physiognomy_upload_cleanup_startup", { removed: n });
-      })
-      .catch((e) => logger.warn("physiognomy_upload_cleanup_failed", e));
-
-    setInterval(() => {
-      deleteStalePhysiognomyUploads(PHYSIOGNOMY_UPLOAD_MAX_AGE_MS)
-        .then((n) => {
-          if (n > 0) logger.info("physiognomy_upload_cleanup", { removed: n });
-        })
-        .catch((e) => logger.warn("physiognomy_upload_cleanup_failed", e));
-    }, PHYSIOGNOMY_CLEANUP_INTERVAL_MS);
+    startPhysiognomyCleanupLoop();
   } catch (err) {
     app.log.error(err);
     process.exit(1);

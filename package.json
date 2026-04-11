@@ -16,7 +16,7 @@
     "format": "prettier --write ."
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "packageManager": "pnpm@9.15.4",
   "devDependencies": {
