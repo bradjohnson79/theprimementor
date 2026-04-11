@@ -1,0 +1,14 @@
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.setup]
+cmds = ["corepack enable"]
+
+[phases.install]
+cmds = ["pnpm install --filter @wisdom/api..."]
+
+[phases.build]
+cmds = ["pnpm --filter @wisdom/api build"]
+
+[start]
+cmd = "pnpm --filter @wisdom/api start"

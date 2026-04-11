@@ -1,0 +1,32 @@
+[phases.setup]
+nixPkgs = [
+  "nodejs",
+  "pnpm"
+]
+
+aptPkgs = [
+  "python3",
+  "python3-dev",
+  "build-essential"
+]
+
+[variables]
+PYTHON = "/usr/bin/python3"
+npm_config_python = "/usr/bin/python3"
+
+[phases.install]
+cmds = [
+  "which python3 || true",
+  "python3 --version || true",
+  "export PYTHON=/usr/bin/python3",
+  "export npm_config_python=/usr/bin/python3",
+  "pnpm install",
+]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @wisdom/api build",
+]
+
+[start]
+cmd = "pnpm --filter @wisdom/api start"
