@@ -61,6 +61,7 @@ const openai = new OpenAI({
 
 const MAX_CONTEXT_WINDOW = 10;
 const MAX_PAYLOAD_SIZE = 8000;
+const DIVIN8_CHAT_COMPLETION_TOKENS = 2200;
 const GPT_LIVE_TAG_REGEX = /\[DIVIN8_GPT_LIVE_[^\]]+\]/g;
 const COMPARISON_REGEX = /\b(compare|comparison|both|combined|synthesis|together|plus)\b/i;
 const CORRECTION_REGEX = /\b(correct(?:ion)?|actually|instead|update|not\s+at|i meant)\b/i;
@@ -951,7 +952,9 @@ function buildInstructionFromDecision(
   if (engineSummary) {
     const parts = [
       "Use the structured engine summary as authoritative for calculation-backed signals.",
-      "Structure the visible answer with clear section headings. Offer one primary section now; invite which area to deepen next unless the user already chose a focus.",
+      "Keep the visible answer concise and practical.",
+      "Return one short primary section now with a brief takeaway and at most 3 action-oriented bullets.",
+      "Invite which area to deepen next unless the user already chose a focus.",
     ];
     if (routingPlan.downgradedToGeneral) {
       parts.push("Frame as a general natal-style reading rather than a precise time-bound forecast.");
@@ -960,7 +963,8 @@ function buildInstructionFromDecision(
   }
   const parts = [
     "Respond conversationally and directly.",
-    "When giving a reading, use clear section headings and advance one section at a time unless the user requests a specific area.",
+    "Keep the answer concise and useful.",
+    "When giving a reading, use clear section headings and advance one short section at a time unless the user requests a specific area.",
   ];
   if (routingPlan.unsupportedReason) {
     parts.push("Do not imply an unsupported modality was calculated.");
@@ -1014,7 +1018,7 @@ async function requestStructuredAssistantReply(params: {
     systemMessages,
     history,
     userContent,
-    maxCompletionTokens: 1100,
+    maxCompletionTokens: DIVIN8_CHAT_COMPLETION_TOKENS,
   });
   let message = extractAssistantMessageText(
     response.choices[0]?.message?.content as unknown,
@@ -1036,13 +1040,14 @@ async function requestStructuredAssistantReply(params: {
     routeType: params.engineSummary ? "engine" : "chat",
     responseMode: params.responseMode,
     tier: params.tier,
+    payloadSize: estimatePayloadSize(systemMessages, history, userContent),
   });
 
   const fallbackResponse = await requestChatCompletion({
     systemMessages,
     history,
     userContent,
-    maxCompletionTokens: 1100,
+    maxCompletionTokens: DIVIN8_CHAT_COMPLETION_TOKENS,
     includeReasoningEffort: false,
   });
   message = extractAssistantMessageText(
