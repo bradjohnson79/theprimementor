@@ -30,9 +30,10 @@ test("notification previews expose template metadata", () => {
   });
 
   assert.equal(preview.recipientType, "admin");
-  assert.equal(preview.templateVersion, "admin-test-v1");
+  assert.equal(preview.templateVersion, "admin-test-v2");
   assert.match(preview.subject, /Admin test notification/i);
   assert.match(preview.html, /Pipeline check/i);
+  assert.match(preview.html, /The Prime Mentor/i);
 });
 
 test("notification event descriptors expose stable UI metadata", () => {
@@ -114,9 +115,11 @@ test("booking confirmed template falls back to TBD for missing schedule fields",
     timezone: "",
   });
 
-  assert.match(rendered.html, /Start: <strong>TBD<\/strong>/i);
-  assert.match(rendered.html, /End: <strong>TBD<\/strong>/i);
-  assert.match(rendered.html, /Timezone: <strong>TBD<\/strong>/i);
+  assert.match(rendered.html, /Your session access is ready/i);
+  assert.match(rendered.html, /Start[\s\S]*TBD/i);
+  assert.match(rendered.html, /End[\s\S]*TBD/i);
+  assert.match(rendered.html, /Timezone[\s\S]*TBD/i);
+  assert.match(rendered.html, /Open Mentoring Circle Page/i);
 });
 
 test("admin booking template falls back safely when optional fields are missing", () => {
@@ -127,7 +130,9 @@ test("admin booking template falls back safely when optional fields are missing"
   });
 
   assert.match(rendered.subject, /booking/i);
-  assert.match(rendered.html, /Customer: <strong>Unavailable<\/strong>/i);
-  assert.match(rendered.html, /Booking reference: <strong>Unavailable<\/strong>/i);
-  assert.match(rendered.html, /Timezone: <strong>TBD<\/strong>/i);
+  assert.match(rendered.html, /The Prime Mentor/i);
+  assert.match(rendered.html, /Customer[\s\S]*Unavailable/i);
+  assert.match(rendered.html, /Booking reference[\s\S]*Unavailable/i);
+  assert.match(rendered.html, /Timezone[\s\S]*TBD/i);
+  assert.match(rendered.html, /Open Bookings/i);
 });

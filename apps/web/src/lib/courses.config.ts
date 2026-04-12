@@ -122,17 +122,17 @@ export const TTT_LESSONS: readonly CourseLessonDefinition[] = [
 export const TTT_MATERIALS: readonly CourseMaterialDefinition[] = [
   {
     title: "Emotional Situations Checklist",
-    href: "https://example.com/ttt/emotional-situations-checklist.pdf",
+    href: "https://drive.google.com/file/d/1yNn6vBaLcx746AHjfUbQOqVJSNcy9rTe/view?usp=drive_link",
     relatedDay: 3,
   },
   {
     title: "Reactions & Desires Checklist",
-    href: "https://example.com/ttt/reactions-desires-checklist.pdf",
+    href: "https://drive.google.com/file/d/1WRIcM1cPsLBWzxqTE0FM5_XEsiBLqwlc/view?usp=drive_link",
     relatedDay: 8,
   },
   {
     title: "Example Prep Entries",
-    href: "https://example.com/ttt/example-prep-entries.pdf",
+    href: "https://drive.google.com/file/d/1s4j6HtUjOV8oI2p4x_-0kLqjIR4TYrwK/view?usp=drive_link",
     relatedDay: 10,
   },
 ] as const;

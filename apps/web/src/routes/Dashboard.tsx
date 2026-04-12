@@ -69,7 +69,8 @@ export default function Dashboard() {
   const { user: dbUser, isLoading, tierState, refetch } = useCurrentUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const [statsLoading, setStatsLoading] = useState(true);
-  const [upcomingSessions, setUpcomingSessions] = useState(0);
+  const [activeSessions, setActiveSessions] = useState(0);
+  const [purchasedSessionsAwaitingScheduling, setPurchasedSessionsAwaitingScheduling] = useState(0);
   const [completedSessions, setCompletedSessions] = useState(0);
   const [reportsOrdered, setReportsOrdered] = useState(0);
   const [reportsPending, setReportsPending] = useState(0);
@@ -96,12 +97,17 @@ export default function Dashboard() {
   const upgradeTarget = isFree ? "/subscriptions/seeker" : memberTier === "seeker" ? "/subscriptions/initiate" : null;
   const upgradeLabel = isFree ? "Upgrade" : "Upgrade to Initiate";
   const sessionSummary = useMemo(() => {
-    if (statsLoading) return "Loading session stats...";
-    if (upcomingSessions > 0) {
-      return `${upcomingSessions} upcoming ${upcomingSessions === 1 ? "session" : "sessions"}`;
+    if (statsLoading) {
+      return "Loading session stats...";
     }
-    return "No upcoming sessions";
-  }, [statsLoading, upcomingSessions]);
+    if (purchasedSessionsAwaitingScheduling > 0) {
+      return `${purchasedSessionsAwaitingScheduling} purchased ${purchasedSessionsAwaitingScheduling === 1 ? "session is" : "sessions are"} awaiting scheduling`;
+    }
+    if (activeSessions > 0) {
+      return `${activeSessions} active ${activeSessions === 1 ? "session" : "sessions"}`;
+    }
+    return "No purchased or upcoming sessions";
+  }, [activeSessions, purchasedSessionsAwaitingScheduling, statsLoading]);
   const reportSummary = useMemo(() => {
     if (statsLoading) return "Loading report stats...";
     if (reportsOrdered > 0) {
@@ -143,21 +149,28 @@ export default function Dashboard() {
         if (cancelled) return;
 
         const now = Date.now();
-        const upcoming = bookingsResponse.data.filter((booking) =>
-          booking.start_time_utc
-          && booking.status !== "cancelled"
+        const awaitingScheduling = bookingsResponse.data.filter((booking) =>
+          booking.status === "paid" && !booking.start_time_utc,
+        ).length;
+        const upcomingOrScheduled = bookingsResponse.data.filter((booking) =>
+          booking.status !== "cancelled"
           && booking.status !== "completed"
-          && new Date(booking.start_time_utc).getTime() > now
+          && (
+            booking.status === "paid"
+            || (booking.start_time_utc && new Date(booking.start_time_utc).getTime() > now)
+          ),
         ).length;
         const completed = bookingsResponse.data.filter((booking) => booking.status === "completed").length;
-        setUpcomingSessions(upcoming);
+        setActiveSessions(upcomingOrScheduled);
+        setPurchasedSessionsAwaitingScheduling(awaitingScheduling);
         setCompletedSessions(completed);
         setReportsOrdered(reportsResponse.data.counts.total);
         setReportsPending(reportsResponse.data.counts.pending);
         setMentoringCircle(circleResponse.data);
       } catch {
         if (!cancelled) {
-          setUpcomingSessions(0);
+          setActiveSessions(0);
+          setPurchasedSessionsAwaitingScheduling(0);
           setCompletedSessions(0);
           setReportsOrdered(0);
           setReportsPending(0);
@@ -226,8 +239,8 @@ export default function Dashboard() {
           <div className="space-y-4">
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="dashboard-stat-card">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Upcoming Sessions</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{statsLoading ? "..." : upcomingSessions}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Active Sessions</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{statsLoading ? "..." : activeSessions}</p>
               </div>
               <div className="dashboard-stat-card">
                 <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Sessions Completed</p>
@@ -306,23 +319,21 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className="dashboard-panel cosmic-motion">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Mentoring</h2>
-              <p className="mt-3 text-lg font-semibold text-white">
-                {memberTier === "initiate" ? "Mentor Training available" : "Mentoring Session required"}
-              </p>
-              <p className="mt-1 text-sm text-white/60">
-                {memberTier === "initiate"
-                  ? "Track your mentor training progress and next steps."
-                  : "Complete a Mentoring Session and maintain Initiate access to unlock Mentor Training."}
-              </p>
-              <Link
-                to={memberTier === "initiate" ? "/mentor-training" : "/sessions/mentoring"}
-                className="dashboard-action-secondary cosmic-motion mt-4"
-              >
-                {memberTier === "initiate" ? "Start Path" : "Book Mentoring Session"}
-              </Link>
-            </section>
+            {memberTier === "initiate" ? (
+              <section className="dashboard-panel cosmic-motion">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Mentoring</h2>
+                <p className="mt-3 text-lg font-semibold text-white">Mentor Training available</p>
+                <p className="mt-1 text-sm text-white/60">
+                  Track your mentor training progress and next steps.
+                </p>
+                <Link
+                  to="/mentor-training"
+                  className="dashboard-action-secondary cosmic-motion mt-4"
+                >
+                  Start Path
+                </Link>
+              </section>
+            ) : null}
 
             <section className="dashboard-panel cosmic-motion">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Mentoring Circle</h2>

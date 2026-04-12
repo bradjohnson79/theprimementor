@@ -1,34 +1,18 @@
 import type { NotificationPayloadMap } from "../events.js";
+import {
+  buildAdminUrl,
+  money,
+  renderInfoCard,
+  renderKeyValueTable,
+  renderParagraph,
+  renderPrimeMentorEmail,
+  text,
+} from "./emailLayout.js";
 
 interface RenderedTemplate {
   subject: string;
   html: string;
   templateVersion: string;
-}
-
-function text(value: string | number | null | undefined, fallback: string) {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-
-  return String(value);
-}
-
-function money(amount: number | null | undefined, currency: string | null | undefined) {
-  if (typeof amount !== "number") {
-    return "Unavailable";
-  }
-
-  return `${amount} ${text(currency?.toUpperCase(), "USD")}`;
-}
-
-function layout(title: string, body: string) {
-  return `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">
-      <h1 style="font-size:24px;margin-bottom:16px;">${title}</h1>
-      ${body}
-    </div>
-  `;
 }
 
 export function renderAdminPaymentReceivedTemplate(
@@ -37,17 +21,32 @@ export function renderAdminPaymentReceivedTemplate(
   const product = text(payload.product, "Unknown product");
   return {
     subject: `Admin alert: payment received for ${product}`,
-    templateVersion: "admin-payment-received-v1",
-    html: layout(
-      "Payment received",
-      `
-        <p>A payment was recorded.</p>
-        <p>Product: <strong>${product}</strong></p>
-        <p>Amount: <strong>${money(payload.amount, payload.currency)}</strong></p>
-        <p>Customer: <strong>${text(payload.userEmail, "Unavailable")}</strong></p>
-        <p>Payment reference: <strong>${text(payload.paymentId, "Unavailable")}</strong></p>
-      `,
-    ),
+    templateVersion: "admin-payment-received-v2",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Admin Payment Alert",
+      title: "A payment has been recorded",
+      intro: `A new payment for ${product} was successfully recorded in The Prime Mentor system.`,
+      sections: [
+        renderInfoCard(
+          "Payment details",
+          renderKeyValueTable([
+            { label: "Product", value: product },
+            { label: "Amount", value: money(payload.amount, payload.currency) },
+            { label: "Customer", value: text(payload.userEmail, "Unavailable") },
+            { label: "Payment reference", value: text(payload.paymentId, "Unavailable") },
+          ]),
+        ),
+      ],
+      callToAction: {
+        label: "Open Orders",
+        url: buildAdminUrl("/admin/orders"),
+      },
+      secondaryCallToAction: {
+        label: "Open Notifications",
+        url: buildAdminUrl("/admin/settings/notifications"),
+      },
+      footerNote: "Use the admin dashboard for full order context, retries, or follow-up actions.",
+    }),
   };
 }
 
@@ -57,18 +56,33 @@ export function renderAdminNewBookingTemplate(
   const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "booking");
   return {
     subject: `Admin alert: new ${bookingLabel} booking`,
-    templateVersion: "admin-new-booking-v2",
-    html: layout(
-      "New booking",
-      `
-        <p>A new booking was created.</p>
-        <p>Booking type: <strong>${bookingLabel}</strong></p>
-        <p>Customer: <strong>${text(payload.fullName ?? payload.userEmail, "Unavailable")}</strong></p>
-        <p>Booking reference: <strong>${text(payload.bookingId, "Unavailable")}</strong></p>
-        <p>Start: <strong>${text(payload.startTimeUtc, "TBD")}</strong></p>
-        <p>Timezone: <strong>${text(payload.timezone, "TBD")}</strong></p>
-      `,
-    ),
+    templateVersion: "admin-new-booking-v3",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Admin Booking Alert",
+      title: "A new booking requires visibility",
+      intro: `A new ${bookingLabel} booking has entered the system and is ready for review in the admin dashboard.`,
+      sections: [
+        renderInfoCard(
+          "Booking details",
+          renderKeyValueTable([
+            { label: "Booking type", value: bookingLabel },
+            { label: "Customer", value: text(payload.fullName ?? payload.userEmail, "Unavailable") },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Start", value: text(payload.startTimeUtc, "TBD") },
+            { label: "Timezone", value: text(payload.timezone, "TBD") },
+          ]),
+        ),
+      ],
+      callToAction: {
+        label: "Open Bookings",
+        url: buildAdminUrl("/bookings"),
+      },
+      secondaryCallToAction: {
+        label: "Open Notifications",
+        url: buildAdminUrl("/admin/settings/notifications"),
+      },
+      footerNote: "Review confirmations, follow-up timing, and any customer communication from the admin panel.",
+    }),
   };
 }
 
@@ -77,16 +91,31 @@ export function renderAdminNewUserTemplate(
 ): RenderedTemplate {
   return {
     subject: `Admin alert: new user signup ${text(payload.email, "unknown user")}`,
-    templateVersion: "admin-new-user-v1",
-    html: layout(
-      "New user signup",
-      `
-        <p>A new account was created.</p>
-        <p>Email: <strong>${text(payload.email, "Unavailable")}</strong></p>
-        <p>Name: <strong>${text(payload.name, "Unavailable")}</strong></p>
-        <p>Clerk ID: <strong>${text(payload.clerkId, "Unavailable")}</strong></p>
-      `,
-    ),
+    templateVersion: "admin-new-user-v2",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Admin User Alert",
+      title: "A new account has been created",
+      intro: "A new user signup has been recorded and is available for review in the admin system.",
+      sections: [
+        renderInfoCard(
+          "User details",
+          renderKeyValueTable([
+            { label: "Email", value: text(payload.email, "Unavailable") },
+            { label: "Name", value: text(payload.name, "Unavailable") },
+            { label: "Clerk ID", value: text(payload.clerkId, "Unavailable") },
+          ]),
+        ),
+      ],
+      callToAction: {
+        label: "Open Clients",
+        url: buildAdminUrl("/clients"),
+      },
+      secondaryCallToAction: {
+        label: "Open Notifications",
+        url: buildAdminUrl("/admin/settings/notifications"),
+      },
+      footerNote: "Use the client and account tools in admin if follow-up or cleanup is needed.",
+    }),
   };
 }
 
@@ -95,14 +124,26 @@ export function renderAdminTestTemplate(
 ): RenderedTemplate {
   return {
     subject: "Admin test notification",
-    templateVersion: "admin-test-v1",
-    html: layout(
-      "Notification test",
-      `
-        <p>This is a test notification from the admin dashboard.</p>
-        <p>Message: <strong>${text(payload.message, "Notification pipeline verified.")}</strong></p>
-        <p>Entity: <strong>${text(payload.entityId, "Unavailable")}</strong></p>
-      `,
-    ),
+    templateVersion: "admin-test-v2",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Admin Test",
+      title: "Notification pipeline check",
+      intro: "This is a branded test notification from The Prime Mentor admin dashboard.",
+      sections: [
+        renderInfoCard(
+          "Test details",
+          renderKeyValueTable([
+            { label: "Message", value: text(payload.message, "Notification pipeline verified.") },
+            { label: "Entity", value: text(payload.entityId, "Unavailable") },
+          ]),
+        ),
+        renderParagraph("If this email arrived with the expected styling and content, the notification pipeline is working end to end."),
+      ],
+      callToAction: {
+        label: "Open Notifications",
+        url: buildAdminUrl("/admin/settings/notifications"),
+      },
+      footerNote: "Use this test flow to validate delivery, branding, and recipient routing before sending customer-facing emails.",
+    }),
   };
 }
