@@ -27,6 +27,8 @@ const MEMBERSHIP_BILLING_PLANS: Record<MembershipTierKey, MembershipBillingPlan>
 
 export const MEMBERSHIP_CHECKOUT_APP = "prime-mentor";
 export const MEMBERSHIP_CHECKOUT_SCHEMA_VERSION = "membership-checkout-v1";
+const DEFAULT_PRODUCTION_FRONTEND_URL = "https://theprimementor.com";
+const DEFAULT_LOCAL_FRONTEND_URL = "http://localhost:3000";
 export const MEMBERSHIP_REQUIRED_ENV_KEYS = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
@@ -91,9 +93,22 @@ export function getMembershipCheckoutEnvironment() {
   return normalizeEnvironment(process.env.NODE_ENV);
 }
 
+function normalizeFrontendUrl(value: string) {
+  return value.trim().replace(/\/+$/, "");
+}
+
 export function getFrontendUrl() {
-  return process.env.FRONTEND_URL?.trim()
+  const configuredUrl = process.env.FRONTEND_URL?.trim()
     || process.env.APP_URL?.trim()
-    || process.env.VITE_APP_URL?.trim()
-    || "http://localhost:3000";
+    || process.env.VITE_APP_URL?.trim();
+
+  if (configuredUrl) {
+    return normalizeFrontendUrl(configuredUrl);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return DEFAULT_PRODUCTION_FRONTEND_URL;
+  }
+
+  return DEFAULT_LOCAL_FRONTEND_URL;
 }
