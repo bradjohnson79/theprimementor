@@ -12,13 +12,19 @@
     "build": "tsc",
     "start": "tsx dist/index.js",
     "membership:test-user": "tsx src/scripts/bootstrapMembershipTestUser.ts",
-    "test": "OPENAI_API_KEY=test node --test --import tsx src/services/divin8/*.test.ts"
+    "test": "SKIP_SCHEMA_VERIFY=true OPENAI_API_KEY=test node --test --import tsx $(rg --files src -g '*.test.ts' -g '!src/services/divin8/divin8Orchestrator.test.ts')",
+    "test:divin8:live": "node --test --import tsx src/services/divin8/divin8Orchestrator.test.ts",
+    "test:enforce": "SKIP_SCHEMA_VERIFY=true tsx src/scripts/enforceRouteInvariants.ts",
+    "verify": "pnpm build && pnpm test:enforce && pnpm test"
   },
   "dependencies": {
     "@clerk/backend": "^3.2.1",
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^24.12.0",
+    "@types/nodemailer": "^8.0.0",
     "@wisdom/db": "workspace:*",
     "@wisdom/utils": "workspace:*",
     "date-fns-tz": "^3.2.0",
@@ -32,14 +38,11 @@
     "nodemailer": "^8.0.4",
     "openai": "^6.32.0",
     "puppeteer": "^24.40.0",
+    "resend": "^6.10.0",
     "stripe": "^20.4.1",
     "svix": "^1.88.0",
     "swisseph": "^0.5.17",
-    "tsx": "^4.21.0"
-  },
-  "devDependencies": {
-    "@types/jsdom": "^28.0.1",
-    "@types/node": "^24.12.0",
-    "@types/nodemailer": "^8.0.0"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -24,8 +24,13 @@ import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sess
 import { getSessionStripePriceId } from "../config/stripePrices.js";
 import { createHttpError } from "./booking/errors.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
+import { createOrReuseMentoringCircleBooking } from "./booking/bookingService.js";
+import {
+  getActiveMentoringCirclePurchaseEvent,
+  getMentoringCircleEventOrThrow,
+} from "./mentoringCircleService.js";
 
-type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training";
+type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type CheckoutTier = "seeker" | "initiate";
 
 let stripeInstance: Stripe | null = null;
@@ -49,6 +54,7 @@ export interface CreateCheckoutSessionInput {
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;
+  eventId?: string;
 }
 
 function buildCheckoutMetadata(
@@ -62,6 +68,8 @@ function buildCheckoutMetadata(
     trainingOrderId?: string;
     packageType?: MentorTrainingPackageType;
     billingInterval?: "monthly" | "annual";
+    eventId?: string;
+    eventKey?: string;
   },
 ): Record<string, string> {
   const metadata: Record<string, string> = {
@@ -102,6 +110,12 @@ function buildCheckoutMetadata(
   }
   if (input.billingInterval) {
     metadata.billingInterval = input.billingInterval;
+  }
+  if (input.eventId?.trim()) {
+    metadata.eventId = input.eventId.trim();
+  }
+  if (input.eventKey?.trim()) {
+    metadata.eventKey = input.eventKey.trim();
   }
 
   return metadata;
@@ -201,7 +215,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -263,6 +277,13 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
   }
   if (booking.status !== "pending_payment") {
     throw createHttpError(400, `Booking is not in a payable state: ${booking.status}`);
+  }
+  if (
+    booking.sessionType !== "focus"
+    && booking.sessionType !== "mentoring"
+    && booking.sessionType !== "regeneration"
+  ) {
+    throw createHttpError(400, `Session checkout is not supported for ${booking.sessionType}`);
   }
 
   let payment = await getLatestPaymentForEntity(db, { entityType: "session", entityId: bookingId });
@@ -472,6 +493,133 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     priceId,
     productId: null,
     productName: packageDefinition.title,
+    userId: input.userId,
+    clerkId: input.clerkId,
+    customerId: stripeCustomerId,
+    environment: metadata.environment,
+  });
+
+  return session;
+}
+
+async function createMentoringCircleCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  const activeEvent = getActiveMentoringCirclePurchaseEvent();
+  if (!activeEvent) {
+    throw createHttpError(409, "No Mentoring Circle event is currently available for purchase.");
+  }
+  const requestedEventId = input.eventId?.trim();
+  const event = requestedEventId ? getMentoringCircleEventOrThrow(requestedEventId) : activeEvent;
+  if (event.eventId !== activeEvent.eventId) {
+    throw createHttpError(409, `Mentoring Circle sales are now open for ${activeEvent.eventId}.`);
+  }
+  const booking = await createOrReuseMentoringCircleBooking(db, {
+    userId: input.userId,
+    eventId: event.eventId,
+  });
+
+  if (booking.status === "paid" || booking.status === "scheduled" || booking.status === "completed") {
+    throw createHttpError(409, "Mentoring Circle has already been purchased.");
+  }
+
+  let payment = await getLatestPaymentForEntity(db, { entityType: "mentoring_circle", entityId: booking.id });
+  if (!payment) {
+    const created = await createPaymentRecordForEntity(db, {
+      userId: input.userId,
+      entityType: "mentoring_circle",
+      entityId: booking.id,
+      bookingId: booking.id,
+      amountCents: event.priceCents,
+      currency: event.currency,
+      status: "pending",
+      metadata: {
+        source: "mentoring_circle_checkout_recovery",
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+      },
+    });
+    payment = await getLatestPaymentForEntity(db, { entityType: "mentoring_circle", entityId: booking.id });
+    if (!payment) {
+      payment = {
+        id: created.id,
+        entityType: "mentoring_circle",
+        entityId: booking.id,
+        status: "pending",
+        providerPaymentIntentId: null,
+        providerCustomerId: null,
+        metadata: null,
+      };
+    }
+  }
+
+  if (payment.status === "paid") {
+    throw createHttpError(409, "Mentoring Circle has already been paid.");
+  }
+  if (payment.status === "refunded") {
+    throw createHttpError(400, "Refunded Mentoring Circle purchases require manual support before checkout can restart.");
+  }
+
+  const stripe = getStripe();
+  const metadata = buildCheckoutMetadata({
+    ...input,
+    type: "mentoring_circle",
+    entityId: booking.id,
+    bookingId: booking.id,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+  });
+  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const frontendUrl = getFrontendUrl();
+
+  logger.debug("mentoring_circle_checkout_prepared", {
+    eventId: event.eventId,
+    bookingId: booking.id,
+    paymentId: payment.id,
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: booking.id,
+    line_items: [{
+      price_data: {
+        currency: event.currency.toLowerCase(),
+        product_data: {
+          name: event.eventTitle,
+          description: `${event.eventTitle} live event access`,
+        },
+        unit_amount: event.priceCents,
+      },
+      quantity: 1,
+    }],
+    metadata,
+    success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}`,
+    cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
+    ...(stripeCustomerId
+      ? { customer: stripeCustomerId }
+      : { customer_email: input.userEmail.trim() }),
+  });
+
+  await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
+    source: "mentoring_circle_checkout_create",
+    stripeCheckoutSessionId: session.id,
+    stripeCheckoutMode: session.mode,
+    stripeCheckoutUrl: session.url,
+    stripePriceId: null,
+    stripeProductId: null,
+    stripeProductName: event.eventTitle,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+    bookingId: booking.id,
+    environment: metadata.environment,
+  });
+
+  logger.info("mentoring_circle_checkout_created", {
+    checkoutType: "mentoring_circle",
+    eventId: event.eventId,
+    bookingId: booking.id,
+    paymentId: payment.id,
+    sessionId: session.id,
+    productName: event.eventTitle,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -737,6 +885,9 @@ export async function createCheckoutSession(
   }
   if (type === "mentor_training") {
     return createMentorTrainingCheckoutSession(db, input);
+  }
+  if (type === "mentoring_circle") {
+    return createMentoringCircleCheckoutSession(db, input);
   }
 
   throw createHttpError(

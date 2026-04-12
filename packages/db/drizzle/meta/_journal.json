@@ -176,6 +176,20 @@
       "when": 1775883600000,
       "tag": "20260410_mentor_training_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1775958000000,
+      "tag": "20260412_notification_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1775961600000,
+      "tag": "20260412_mentoring_circle_purchase",
+      "breakpoints": true
     }
   ]
 }

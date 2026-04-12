@@ -6,6 +6,7 @@
  */
 
 import {
+  assertSwissEphemerisReady,
   getJulianDay,
   getPlanetPosition,
   PLANET_IDS,
@@ -152,6 +153,7 @@ export interface VedicAstrologyResult {
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
 function getAyanamsa(julianDay: number): number {
+  assertSwissEphemerisReady();
   swe.swe_set_sid_mode(SE_SIDM_LAHIRI, 0, 0);
   return swe.swe_get_ayanamsa_ut(julianDay) as number;
 }
@@ -206,6 +208,7 @@ async function getPlanetWithSpeed(
   julianDay: number,
   planetId: number,
 ): Promise<{ longitude: number; speed: number }> {
+  assertSwissEphemerisReady();
   return new Promise((resolve, reject) => {
     const SEFLG_SWIEPH = 2;
     const SEFLG_SPEED = 256;
@@ -225,6 +228,7 @@ async function computeAscendantTropical(
   latitude: number,
   longitude: number,
 ): Promise<number> {
+  assertSwissEphemerisReady();
   return new Promise((resolve, reject) => {
     // Use 'W' (Whole Sign) — all house systems give the same Ascendant longitude
     swe.swe_houses_ex(julianDay, 2 /* SEFLG_SWIEPH */, latitude, longitude, "W", (result: any) => {
@@ -446,6 +450,7 @@ export async function calculateVedicAstrology(
   longitude: number = 0,
   hasBirthTime: boolean = false,   // CRITICAL: must be true for valid Ascendant
 ): Promise<VedicAstrologyResult> {
+  assertSwissEphemerisReady();
   const hourDecimal = hour + minute / 60;
   const julianDay = getJulianDay(year, month, day, hourDecimal);
 

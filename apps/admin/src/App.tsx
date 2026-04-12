@@ -16,6 +16,7 @@ import Events from "./pages/Events";
 import Settings from "./pages/Settings";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
+import NotificationsSettings from "./routes/settings/Notifications";
 import { useUserSync } from "./hooks/useUserSync";
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
             <Route path="admin/settings" element={<Settings />} />
+            <Route path="admin/settings/notifications" element={<NotificationsSettings />} />
             <Route path="admin/divin8-chat/prompt" element={<Divin8Prompt />} />
             <Route path="blueprint" element={<Blueprint />} />
           </Route>

@@ -9,16 +9,32 @@ const swe = require("swisseph");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EPHE_PATH = path.resolve(__dirname, "../../../ephemeris");
 
-swe.swe_set_ephe_path(EPHE_PATH);
-
 // ---------------------------------------------------------------------------
 // Ephemeris file verification
 // ---------------------------------------------------------------------------
 
 const REQUIRED_EPHE_FILE = "sepl_18.se1";
 
+interface SwissEphemerisHealth {
+  initialized: boolean;
+  ephemerisPath: string;
+  requiredFile: string;
+  requiredFilePath: string;
+  initializedAt: string | null;
+  lastError: string | null;
+}
+
+const swissEphemerisHealthState: SwissEphemerisHealth = {
+  initialized: false,
+  ephemerisPath: EPHE_PATH,
+  requiredFile: REQUIRED_EPHE_FILE,
+  requiredFilePath: path.join(EPHE_PATH, REQUIRED_EPHE_FILE),
+  initializedAt: null,
+  lastError: null,
+};
+
 function verifyEphemerisFiles(): void {
-  const filePath = path.join(EPHE_PATH, REQUIRED_EPHE_FILE);
+  const filePath = swissEphemerisHealthState.requiredFilePath;
   if (!existsSync(filePath)) {
     throw new Error(
       `Missing ephemeris file: ${filePath}\n` +
@@ -28,13 +44,59 @@ function verifyEphemerisFiles(): void {
   }
 }
 
-verifyEphemerisFiles();
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const SEFLG_SWIEPH = swe.SEFLG_SWIEPH as number;
+
+function markSwissEphemerisError(error: unknown) {
+  swissEphemerisHealthState.initialized = false;
+  swissEphemerisHealthState.initializedAt = null;
+  swissEphemerisHealthState.lastError = error instanceof Error ? error.message : String(error);
+}
+
+export async function initSwissEphemeris(): Promise<SwissEphemerisHealth> {
+  if (swissEphemerisHealthState.initialized) {
+    return getSwissEphemerisHealth();
+  }
+
+  try {
+    swe.swe_set_ephe_path(EPHE_PATH);
+    verifyEphemerisFiles();
+    const testJulianDay = swe.swe_julday(2000, 1, 1, 12, swe.SE_GREG_CAL) as number;
+    await new Promise<void>((resolve, reject) => {
+      swe.swe_calc_ut(testJulianDay, PLANET_IDS.SUN, SEFLG_SWIEPH, (result: RawCalcResult) => {
+        if (result.error) {
+          reject(new Error(`Swiss Ephemeris startup probe failed: ${result.error}`));
+          return;
+        }
+        resolve();
+      });
+    });
+
+    swissEphemerisHealthState.initialized = true;
+    swissEphemerisHealthState.initializedAt = new Date().toISOString();
+    swissEphemerisHealthState.lastError = null;
+    return getSwissEphemerisHealth();
+  } catch (error) {
+    markSwissEphemerisError(error);
+    throw error;
+  }
+}
+
+export function getSwissEphemerisHealth(): SwissEphemerisHealth {
+  return { ...swissEphemerisHealthState };
+}
+
+export function assertSwissEphemerisReady() {
+  if (!swissEphemerisHealthState.initialized) {
+    const message = swissEphemerisHealthState.lastError
+      ? `Swiss Ephemeris is not initialized: ${swissEphemerisHealthState.lastError}`
+      : "Swiss Ephemeris is not initialized.";
+    throw new Error(message);
+  }
+}
 
 export const PLANET_IDS = {
   SUN: swe.SE_SUN as number,
@@ -84,6 +146,7 @@ export function getJulianDay(
   day: number,
   hourDecimal: number = 12,
 ): number {
+  assertSwissEphemerisReady();
   return swe.swe_julday(year, month, day, hourDecimal, swe.SE_GREG_CAL) as number;
 }
 
@@ -96,6 +159,7 @@ export function getPlanetPosition(
   julianDay: number,
   planetConstant: number,
 ): Promise<{ longitude: number }> {
+  assertSwissEphemerisReady();
   return new Promise((resolve, reject) => {
     swe.swe_calc_ut(
       julianDay,
@@ -137,6 +201,7 @@ interface AstrologyOutput {
  * Converts date/time → Julian Day → Sun & Moon longitudes.
  */
 export async function calculateAstrology(input: AstrologyInput): Promise<AstrologyOutput> {
+  assertSwissEphemerisReady();
   const hourDecimal = input.hour + input.minute / 60;
   const julianDay = getJulianDay(input.year, input.month, input.day, hourDecimal);
 
@@ -187,6 +252,7 @@ export function getPlanetName(id: number): string {
 
 if (process.env.EPHEMERIS_TEST === "1") {
   (async () => {
+    await initSwissEphemeris();
     const ephePath = path.join(EPHE_PATH, REQUIRED_EPHE_FILE);
     console.log(`Ephemeris file found: ${ephePath}`);
     console.log(`Ephemeris path: ${EPHE_PATH}`);

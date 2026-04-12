@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { Webhook } from "svix";
+import { ok, sendApiError } from "../apiContract.js";
 import { resolvePrimaryEmail } from "../services/clerkIdentityService.js";
+import { sendNotification } from "../services/notifications/notificationService.js";
 import { upsertUserFromIdentity } from "../services/userService.js";
 
 interface ClerkWebhookEvent {
@@ -22,7 +24,7 @@ export async function clerkWebhookRoutes(app: FastifyInstance) {
       const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
       if (!webhookSecret) {
         app.log.error("CLERK_WEBHOOK_SECRET not set");
-        return reply.status(500).send({ error: "Server configuration error" });
+        return sendApiError(reply, 500, "Server configuration error");
       }
 
       const svixId = request.headers["svix-id"] as string;
@@ -30,7 +32,7 @@ export async function clerkWebhookRoutes(app: FastifyInstance) {
       const svixSignature = request.headers["svix-signature"] as string;
 
       if (!svixId || !svixTimestamp || !svixSignature) {
-        return reply.status(400).send({ error: "Missing svix headers" });
+        return sendApiError(reply, 400, "Missing svix headers");
       }
 
       const rawBody = (request as unknown as { rawBody: string }).rawBody;
@@ -45,7 +47,7 @@ export async function clerkWebhookRoutes(app: FastifyInstance) {
         }) as ClerkWebhookEvent;
       } catch (err) {
         app.log.error(err, "Clerk webhook verification failed");
-        return reply.status(400).send({ error: "Webhook verification failed" });
+        return sendApiError(reply, 400, "Webhook verification failed");
       }
 
       app.log.info({ type: event.type }, "Clerk webhook received");
@@ -59,14 +61,32 @@ export async function clerkWebhookRoutes(app: FastifyInstance) {
           })),
         });
         if (email) {
-          await upsertUserFromIdentity(app.db, {
+          const user = await upsertUserFromIdentity(app.db, {
             clerkId: event.data.id,
             email,
           });
+          if (event.type === "user.created") {
+            const fullName = [event.data.first_name, event.data.last_name].filter(Boolean).join(" ").trim() || null;
+            void sendNotification(app.db, {
+              event: "admin.new.user",
+              payload: {
+                entityId: user.id,
+                clerkId: event.data.id,
+                email,
+                name: fullName,
+              },
+            }).catch((error) => {
+              app.log.error({
+                clerkId: event.data.id,
+                email,
+                error: error instanceof Error ? error.message : error,
+              }, "admin_new_user_notification_failed");
+            });
+          }
         }
       }
 
-      return reply.send({ received: true });
+      return ok({ received: true });
     },
   );
 }

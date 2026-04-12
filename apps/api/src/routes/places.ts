@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 
 interface GooglePlacesAutocompleteResponse {
   suggestions?: Array<{
@@ -149,12 +150,12 @@ export async function placesRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { input?: string } }>("/places/autocomplete", async (request, reply) => {
     const apiKey = getGooglePlacesApiKey();
     if (!apiKey) {
-      return reply.status(503).send({ error: "Google Places is not configured on the server." });
+      return sendApiError(reply, 503, "Google Places is not configured on the server.");
     }
 
     const input = request.query.input?.trim() || "";
     if (input.length < 2) {
-      return { data: [] };
+      return ok({ data: [] });
     }
 
     const referer = request.headers.origin?.trim()
@@ -162,24 +163,24 @@ export async function placesRoutes(app: FastifyInstance) {
       : request.headers.referer?.trim() || undefined;
 
     try {
-      return {
+      return ok({
         data: await fetchPlaceSuggestions(apiKey, input, referer),
-      };
+      });
     } catch (error) {
       request.log.warn({ error }, "places_autocomplete_failed");
-      return reply.status(502).send({ error: "Google Places suggestions are unavailable right now." });
+      return sendApiError(reply, 502, "Google Places suggestions are unavailable right now.");
     }
   });
 
   app.get<{ Params: { placeId: string } }>("/places/:placeId", async (request, reply) => {
     const apiKey = getGooglePlacesApiKey();
     if (!apiKey) {
-      return reply.status(503).send({ error: "Google Places is not configured on the server." });
+      return sendApiError(reply, 503, "Google Places is not configured on the server.");
     }
 
     const placeId = request.params.placeId?.trim();
     if (!placeId) {
-      return reply.status(400).send({ error: "placeId is required" });
+      return sendApiError(reply, 400, "placeId is required");
     }
 
     const referer = request.headers.origin?.trim()
@@ -190,15 +191,15 @@ export async function placesRoutes(app: FastifyInstance) {
       const place = await fetchPlaceDetails(apiKey, placeId, referer);
       const timezone = await fetchTimezone(apiKey, place.latitude, place.longitude, referer);
 
-      return {
+      return ok({
         data: {
           ...place,
           timezone,
         },
-      };
+      });
     } catch (error) {
       request.log.warn({ error, placeId }, "place_details_failed");
-      return reply.status(502).send({ error: "Place details are unavailable right now." });
+      return sendApiError(reply, 502, "Place details are unavailable right now.");
     }
   });
 }

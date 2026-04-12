@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ok } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { resolveMemberAccess } from "../services/divin8/memberAccessService.js";
 
@@ -15,10 +16,10 @@ export async function meRoutes(app: FastifyInstance) {
     try {
       const memberAccess = await resolveMemberAccess(app.db, user.id);
       if (!memberAccess) {
-        return response;
+        return ok(response);
       }
 
-      return {
+      return ok({
         ...response,
         member: {
           tier: memberAccess.tier,
@@ -27,10 +28,10 @@ export async function meRoutes(app: FastifyInstance) {
           capabilities: memberAccess.capabilities,
           usage: memberAccess.usage,
         },
-      };
+      });
     } catch (error) {
       request.log.warn({ err: error, userId: user.id }, "me_membership_resolution_failed");
-      return response;
+      return ok(response);
     }
   });
 }

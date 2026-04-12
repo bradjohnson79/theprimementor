@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 import { getLatestFacebookPost, isFacebookGraphConfigured } from "../services/facebookPageService.js";
 
 export async function socialRoutes(app: FastifyInstance) {
@@ -6,23 +7,21 @@ export async function socialRoutes(app: FastifyInstance) {
     reply.header("Cache-Control", "public, max-age=300");
 
     if (!isFacebookGraphConfigured()) {
-      return {
+      return ok({
         enabled: false,
         post: null,
-      };
+      });
     }
 
     try {
       const post = await getLatestFacebookPost();
-      return {
+      return ok({
         enabled: true,
         post,
-      };
+      });
     } catch (error) {
       app.log.error({ error }, "facebook_latest_post_fetch_failed");
-      return reply.status(502).send({
-        error: "Failed to load latest Facebook post.",
-      });
+      return sendApiError(reply, 502, "Failed to load latest Facebook post.");
     }
   });
 }

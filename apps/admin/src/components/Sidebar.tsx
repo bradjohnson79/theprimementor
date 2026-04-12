@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { to: "/admin/divin8-chat", label: "Divin8 Chat", icon: "✺", matchPrefix: "/admin/divin8-chat" },
   { to: "/admin/divin8-chat/prompt", label: "Prompt", icon: "↳", indent: true },
   { to: "/admin/settings", label: "Settings", icon: "⚙" },
+  { to: "/admin/settings/notifications", label: "Notifications", icon: "↳", indent: true, matchPrefix: "/admin/settings/notifications" },
 ];
 
 function SidebarToggleButton({
@@ -62,6 +63,8 @@ function navLabelKey(label: string) {
       return "nav.divin8Engine";
     case "Divin8 Chat":
       return "nav.divin8Chat";
+    case "Notifications":
+      return "nav.notifications";
     default:
       return `nav.${label.toLowerCase()}`;
   }

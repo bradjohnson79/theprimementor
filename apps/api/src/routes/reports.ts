@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import { ok } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireDatabase } from "../routeAssertions.js";
 import {
   createMemberReportOrder,
   getMemberReportDetail,
@@ -24,13 +26,11 @@ interface CreateMemberReportBody {
 }
 
 export async function reportsRoutes(app: FastifyInstance) {
-  app.post<{ Body: CreateMemberReportBody }>("/member/reports", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
+  app.post<{ Body: CreateMemberReportBody }>("/member/reports", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
 
     const body = request.body ?? {};
-    const report = await createMemberReportOrder(app.db, {
+    const report = await createMemberReportOrder(db, {
       userId: request.dbUser!.id,
       tier: body.tier,
       fullName: body.fullName,
@@ -48,31 +48,25 @@ export async function reportsRoutes(app: FastifyInstance) {
       notes: body.notes,
     });
 
-    return {
+    return ok({
       success: true,
       reportId: report.id,
       requiresPayment: true,
       data: report,
-    };
+    });
   });
 
-  app.get("/member/reports", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await listMemberReports(app.db, request.dbUser!.id),
-    };
+  app.get("/member/reports", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await listMemberReports(db, request.dbUser!.id),
+    });
   });
 
-  app.get<{ Params: { id: string } }>("/member/reports/:id", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await getMemberReportDetail(app.db, request.dbUser!.id, request.params.id),
-    };
+  app.get<{ Params: { id: string } }>("/member/reports/:id", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await getMemberReportDetail(db, request.dbUser!.id, request.params.id),
+    });
   });
 }

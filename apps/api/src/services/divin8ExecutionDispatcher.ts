@@ -9,6 +9,7 @@ import {
   persistOrderExecutionResult,
   type OrderExecutionState,
 } from "./divin8OrderPersistenceService.js";
+import { sendNotification } from "./notifications/notificationService.js";
 
 type DispatcherLogger = {
   info: (payload: unknown, message?: string) => void;
@@ -198,6 +199,28 @@ export async function dispatchOrderExecution(
       { orderId, userId: order.user_id, trigger: options.trigger, reportId: refreshedOrder.execution.report_id },
       "divin8_execution_completed",
     );
+    if (refreshedOrder.execution.report_id) {
+      void sendNotification(db, {
+        event: "report.generated",
+        userId: order.user_id,
+        payload: {
+          entityId: refreshedOrder.execution.report_id,
+          orderId,
+          reportId: refreshedOrder.execution.report_id,
+          title: refreshedOrder.metadata.invoice_label ?? refreshedOrder.metadata.report_type ?? "Divin8 Report",
+          reportTier: typeof order.metadata.report_type_id === "string" ? order.metadata.report_type_id : null,
+        },
+      }).catch((error) => {
+        logger?.error(
+          {
+            orderId,
+            reportId: refreshedOrder.execution.report_id,
+            error: error instanceof Error ? error.message : error,
+          },
+          "report_generated_notification_failed",
+        );
+      });
+    }
 
     return {
       order_id: orderId,

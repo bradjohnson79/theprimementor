@@ -1,21 +1,22 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import { getAllClients, getClientById } from "../services/clientService.js";
 
 export async function clientRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { page?: string; limit?: string } }>(
     "/clients",
     { preHandler: requireAuth },
-    async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
 
       const page = Math.max(1, parseInt(request.query.page || "1", 10) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit || "20", 10) || 20));
 
-      const result = await getAllClients(app.db, { page, limit });
-      return result;
+      const result = await getAllClients(db, { page, limit });
+      return ok(result);
     },
   );
 
@@ -23,15 +24,14 @@ export async function clientRoutes(app: FastifyInstance) {
     "/clients/:id",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
 
-      const client = await getClientById(app.db, request.params.id);
+      const client = await getClientById(db, request.params.id);
       if (!client) {
-        return reply.status(404).send({ error: "Client not found" });
+        return sendApiError(reply, 404, "Client not found");
       }
-      return client;
+      return ok(client);
     },
   );
 }

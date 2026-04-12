@@ -13,6 +13,17 @@ export interface ContactPayload {
 const DEFAULT_FROM_EMAIL = "no-reply@wisdomtransmissions.local";
 let cachedTransporter: Transporter | null = null;
 
+function normalizeEmailList(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
 function getTransporter(): Transporter | null {
   if (cachedTransporter) {
     return cachedTransporter;
@@ -42,9 +53,23 @@ function getTransporter(): Transporter | null {
 }
 
 export async function resolveAdminContactEmail(db?: Database | null): Promise<string> {
+  const recipients = await resolveAdminNotificationEmails(db);
+  const [primary] = recipients;
+  if (!primary) {
+    throw new Error("Admin contact email is not configured.");
+  }
+  return primary;
+}
+
+export async function resolveAdminNotificationEmails(db?: Database | null): Promise<string[]> {
+  const configuredAdminEmails = normalizeEmailList(process.env.ADMIN_NOTIFICATION_EMAILS?.trim() ?? "");
+  if (configuredAdminEmails.length > 0) {
+    return configuredAdminEmails;
+  }
+
   const configuredAdminEmail = process.env.ADMIN_EMAIL?.trim();
   if (configuredAdminEmail) {
-    return configuredAdminEmail;
+    return [configuredAdminEmail.toLowerCase()];
   }
 
   if (!db) {
@@ -61,7 +86,7 @@ export async function resolveAdminContactEmail(db?: Database | null): Promise<st
     throw new Error("Admin contact email is not configured.");
   }
 
-  return adminUser.email;
+  return [adminUser.email.toLowerCase()];
 }
 
 export async function sendContactEmail(to: string, payload: ContactPayload): Promise<void> {

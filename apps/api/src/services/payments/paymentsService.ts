@@ -10,7 +10,7 @@ type PaymentDbLike = Database | {
 };
 type PaymentReader = Pick<Database, "select">;
 
-export type PaymentEntityType = "session" | "report" | "subscription" | "mentor_training";
+export type PaymentEntityType = "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type PaymentStatus = "pending" | "requires_payment" | "paid" | "failed" | "refunded";
 
 interface PaymentRow {
@@ -213,7 +213,7 @@ function resolveBookingStatusAfterPayment(startTimeUtc: Date | null) {
 }
 
 async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) {
-  if (current.entityType === "session" && current.bookingId) {
+  if ((current.entityType === "session" || current.entityType === "mentoring_circle") && current.bookingId) {
     await db
       .update(bookings)
       .set({

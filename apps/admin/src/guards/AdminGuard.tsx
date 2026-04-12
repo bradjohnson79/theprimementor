@@ -1,13 +1,31 @@
-import { useEffect, useRef, useState } from "react";
-import { useAuth, useUser, SignIn } from "@clerk/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth, useClerk, useUser, SignIn } from "@clerk/react";
 import { Outlet } from "react-router-dom";
 import { api } from "../lib/api";
 import Loading from "../components/Loading";
 
 const CLIENT_APP_URL = import.meta.env.VITE_APP_URL?.trim() || "";
 
+function resolveClientAppUrl() {
+  if (CLIENT_APP_URL) {
+    return CLIENT_APP_URL;
+  }
+
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const { origin, hostname, protocol, port } = window.location;
+  if (hostname.startsWith("admin.")) {
+    return `${protocol}//${hostname.slice("admin.".length)}${port ? `:${port}` : ""}`;
+  }
+
+  return origin;
+}
+
 function getClientDashboardHref() {
-  return CLIENT_APP_URL ? new URL("/dashboard", CLIENT_APP_URL).toString() : "/dashboard";
+  const clientAppUrl = resolveClientAppUrl();
+  return clientAppUrl ? new URL("/dashboard", clientAppUrl).toString() : "/dashboard";
 }
 
 type GuardState =
@@ -19,10 +37,12 @@ type GuardState =
 
 export default function AdminGuard() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { signOut } = useClerk();
   const { user } = useUser();
   const [state, setState] = useState<GuardState>("loading");
   const [attempt, setAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const clientDashboardHref = useMemo(() => getClientDashboardHref(), []);
 
   /** Avoid full-screen loading + outlet unmount when Clerk refetches `user` with the same id. */
   const verifiedAdminRef = useRef(false);
@@ -139,12 +159,21 @@ export default function AdminGuard() {
             You do not have admin privileges. Contact your administrator if you
             believe this is an error.
           </p>
-          <a
-            href={getClientDashboardHref()}
-            className="mt-6 inline-block rounded-lg bg-accent-cyan/20 px-6 py-2.5 text-sm font-medium text-accent-cyan transition-colors hover:bg-accent-cyan/30"
-          >
-            Go to Client Dashboard
-          </a>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => void signOut({ redirectUrl: clientDashboardHref })}
+              className="rounded-lg border border-white/10 px-6 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Sign Out
+            </button>
+            <a
+              href={clientDashboardHref}
+              className="rounded-lg bg-accent-cyan/20 px-6 py-2.5 text-sm font-medium text-accent-cyan transition-colors hover:bg-accent-cyan/30"
+            >
+              Go to Client Dashboard
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -173,8 +202,15 @@ export default function AdminGuard() {
             >
               Retry Admin Check
             </button>
+            <button
+              type="button"
+              onClick={() => void signOut({ redirectUrl: clientDashboardHref })}
+              className="rounded-lg border border-white/10 px-6 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Sign Out
+            </button>
             <a
-              href={getClientDashboardHref()}
+              href={clientDashboardHref}
               className="rounded-lg border border-white/10 px-6 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
             >
               Go to Client Dashboard

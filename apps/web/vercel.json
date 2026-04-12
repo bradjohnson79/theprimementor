@@ -3,5 +3,11 @@
   "framework": "vite",
   "installCommand": "pnpm install --filter @wisdom/web...",
   "buildCommand": "pnpm --filter @wisdom/web build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

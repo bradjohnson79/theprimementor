@@ -1,20 +1,38 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
-import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useSearchParams } from "react-router-dom";
 import { formatPacificTime } from "@wisdom/utils";
 import { api } from "../lib/api";
+import { startMentoringCircleCheckout } from "../lib/mentoringCircleCheckout";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
 
-interface MentoringCircleState {
+interface MentoringCircleEventState {
+  eventId: string;
   eventKey: string;
   eventTitle: string;
   sessionDate: string;
+  salesOpenAt: string;
+  salesOpen: boolean;
   timezone: string;
   posterPath: string;
   priceCents: number;
+  currency: string;
+  bookingId: string | null;
+  paymentId: string | null;
+  paymentStatus: string | null;
+  purchaseStatus: "not_started" | "pending_payment" | "confirmed";
+  accessStatus: "locked" | "pending_payment" | "confirmed";
+  joinEligible: boolean;
   registered: boolean;
   joinUrl: string | null;
+}
+
+interface MentoringCircleState {
+  currentEvent: MentoringCircleEventState | null;
+  nextEvent: MentoringCircleEventState | null;
+  activeEventForPurchase: MentoringCircleEventState | null;
+  requestedEvent: MentoringCircleEventState | null;
 }
 
 const MENTORING_CIRCLE_POSTER_SRC = "/images/mentoring-circle-april-26.webp";
@@ -34,43 +52,104 @@ function CopyIcon() {
 
 export default function MentoringCircle() {
   const { getToken } = useAuth();
-  const { user: dbUser, isLoading: loadingUser } = useCurrentUser();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [circleState, setCircleState] = useState<MentoringCircleState | null>(null);
   const [loadingCircle, setLoadingCircle] = useState(true);
-  const [registering, setRegistering] = useState(false);
+  const [startingCheckout, setStartingCheckout] = useState(false);
+  const [pollingForAccess, setPollingForAccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const includesMentorCircle = dbUser?.member?.capabilities.includesMentorCircle === true;
+  const requestedEventId = searchParams.get("eventId");
+
+  const purchasableEvent = circleState?.activeEventForPurchase ?? circleState?.currentEvent ?? circleState?.nextEvent ?? null;
+  const accessibleEvent = circleState?.requestedEvent?.joinEligible
+    ? circleState.requestedEvent
+    : circleState?.currentEvent?.joinEligible
+    ? circleState.currentEvent
+    : circleState?.nextEvent?.joinEligible
+      ? circleState.nextEvent
+      : circleState?.activeEventForPurchase?.joinEligible
+        ? circleState.activeEventForPurchase
+        : null;
 
   useEffect(() => {
     let cancelled = false;
-    async function loadCircleState() {
-      setLoadingCircle(true);
+
+    async function loadCircleState(showLoading: boolean) {
+      if (showLoading) {
+        setLoadingCircle(true);
+      }
       try {
         const token = await getToken();
-        const response = (await api.get("/mentoring-circle/me", token)) as { data: MentoringCircleState };
+        const path = requestedEventId
+          ? `/mentoring-circle/me?eventId=${encodeURIComponent(requestedEventId)}`
+          : "/mentoring-circle/me";
+        const response = (await api.get(path, token)) as { data: MentoringCircleState };
         if (!cancelled) {
           setCircleState(response.data);
         }
+        return response.data;
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load event details.");
         }
+        return null;
       } finally {
-        if (!cancelled) {
+        if (!cancelled && showLoading) {
           setLoadingCircle(false);
         }
       }
     }
 
-    void loadCircleState();
+    void loadCircleState(true);
+
+    const checkoutState = searchParams.get("checkout");
+    if (checkoutState !== "success") {
+      if (checkoutState === "canceled") {
+        setSuccess(null);
+        setError("Checkout was canceled before payment completed.");
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setError(null);
+    setSuccess("Payment received. Confirming your access...");
+    setPollingForAccess(true);
+
+    void (async () => {
+      for (let attempt = 0; attempt < 6 && !cancelled; attempt += 1) {
+        const state = await loadCircleState(attempt === 0 ? false : false);
+        if (
+          state?.requestedEvent?.joinEligible
+          || state?.currentEvent?.joinEligible
+          || state?.nextEvent?.joinEligible
+          || state?.activeEventForPurchase?.joinEligible
+        ) {
+          setSuccess("Registration confirmed. Your Zoom link is ready.");
+          setPollingForAccess(false);
+          const next = new URLSearchParams(searchParams);
+          next.delete("checkout");
+          setSearchParams(next, { replace: true });
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+
+      if (!cancelled) {
+        setPollingForAccess(false);
+        setSuccess("Payment completed. Access is still syncing and should appear shortly.");
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [getToken, requestedEventId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!copied) return;
@@ -79,41 +158,35 @@ export default function MentoringCircle() {
   }, [copied]);
 
   const eventDateLabel = useMemo(() => {
-    const iso = circleState?.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO;
+    const iso = purchasableEvent?.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO;
     return formatPacificTime(iso);
-  }, [circleState]);
+  }, [purchasableEvent]);
 
-  async function handleRegister() {
+  async function handleCheckout() {
     setError(null);
     setSuccess(null);
-    setRegistering(true);
+    setStartingCheckout(true);
     try {
       const token = await getToken();
-      const response = (await api.post(
-        "/mentoring-circle/register",
-        {
-          accessMode: includesMentorCircle ? "included" : "placeholder_paid",
-        },
-        token,
-      )) as { data: MentoringCircleState };
-      setCircleState(response.data);
-      setSuccess("Registration confirmed. Your Zoom link is ready.");
+      const eventId = purchasableEvent?.eventId ?? requestedEventId;
+      if (!eventId) {
+        throw new Error("Mentoring Circle event could not be resolved.");
+      }
+      await startMentoringCircleCheckout(eventId, { token });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reserve your spot.");
     } finally {
-      setRegistering(false);
+      setStartingCheckout(false);
     }
   }
 
   async function copyLink() {
-    if (!circleState?.joinUrl) return;
-    await navigator.clipboard.writeText(circleState.joinUrl);
+    if (!accessibleEvent?.joinUrl) return;
+    await navigator.clipboard.writeText(accessibleEvent.joinUrl);
     setCopied(true);
   }
 
-  const ctaLabel = includesMentorCircle
-    ? "Free Sign Up"
-    : `Reserve Spot (${circleState ? formatPrice(circleState.priceCents) : "$25"})`;
+  const ctaLabel = `Reserve Spot (${purchasableEvent ? formatPrice(purchasableEvent.priceCents) : "$25"})`;
 
   return (
     <motion.div
@@ -150,17 +223,25 @@ export default function MentoringCircle() {
             <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-amber-100">
-                  Sunday, April 26
+                  {purchasableEvent ? new Date(purchasableEvent.sessionDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                  }) : "Live Event"}
                 </div>
                 <h2 className="mt-4 text-3xl font-semibold text-white">
-                  {circleState?.eventTitle ?? "Mentoring Circle: The Prime Law"}
+                  {purchasableEvent?.eventTitle ?? "Mentoring Circle: The Prime Law"}
                 </h2>
                 <p className="mt-2 text-sm text-white/60">{eventDateLabel}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right text-sm text-white/65">
                 <p className="text-xs uppercase tracking-wide text-white/40">Access</p>
                 <p className="mt-2 font-medium text-white">
-                  {includesMentorCircle ? "Included for Initiate" : `${formatPrice(circleState?.priceCents ?? 2500)} reservation`}
+                  {accessibleEvent?.joinEligible
+                    ? "Purchase confirmed"
+                    : purchasableEvent?.purchaseStatus === "pending_payment"
+                      ? "Payment pending"
+                      : `${formatPrice(purchasableEvent?.priceCents ?? 2500)} reservation`}
                 </p>
               </div>
             </div>
@@ -189,9 +270,8 @@ export default function MentoringCircle() {
             </div>
 
             <p className="mt-6 text-sm text-white/70">
-              This is our first Prime Mentor webinar. Sign up early for the opportunity to have your blueprint
-              exploration shared in class. Register to unlock your ZOOM access and return here anytime to copy or
-              join the event.
+              This is our first Prime Mentor webinar. Reserve your place now to unlock your Zoom access after payment
+              is confirmed, then return here anytime to copy or join the event.
             </p>
 
             {error ? (
@@ -211,11 +291,11 @@ export default function MentoringCircle() {
             ) : null}
 
             <div className="mt-6">
-              {loadingUser || loadingCircle ? (
+              {loadingCircle ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/55">
-                  Loading registration details...
+                  {pollingForAccess ? "Confirming your access..." : "Loading event details..."}
                 </div>
-              ) : circleState?.registered ? (
+              ) : accessibleEvent?.joinEligible ? (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -224,7 +304,7 @@ export default function MentoringCircle() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-semibold text-white">You're Registered</h3>
-                      <p className="mt-1 text-sm text-white/65">{eventDateLabel}</p>
+                      <p className="mt-1 text-sm text-white/65">{formatPacificTime(accessibleEvent.sessionDate)}</p>
                     </div>
                     <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-emerald-100">
                       Registered
@@ -235,12 +315,12 @@ export default function MentoringCircle() {
                     <p className="text-xs uppercase tracking-wide text-white/40">Zoom Join Link</p>
                     <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <a
-                        href={circleState.joinUrl ?? "#"}
+                        href={accessibleEvent.joinUrl ?? "#"}
                         target="_blank"
                         rel="noreferrer"
                         className="truncate text-sm text-accent-cyan hover:underline"
                       >
-                        {circleState.joinUrl}
+                        {accessibleEvent.joinUrl}
                       </a>
                       <div className="flex items-center gap-2">
                         <button
@@ -252,7 +332,7 @@ export default function MentoringCircle() {
                           Copy Link
                         </button>
                         <a
-                          href={circleState.joinUrl ?? "#"}
+                          href={accessibleEvent.joinUrl ?? "#"}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center rounded-lg bg-accent-cyan px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-accent-cyan/90"
@@ -272,20 +352,24 @@ export default function MentoringCircle() {
               ) : (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <h3 className="text-lg font-semibold text-white">
-                    {includesMentorCircle ? "Initiate Access" : "Reserve Your Spot"}
+                    {purchasableEvent?.purchaseStatus === "pending_payment" ? "Payment Processing" : "Reserve Your Spot"}
                   </h3>
                   <p className="mt-2 text-sm text-white/65">
-                    {includesMentorCircle
-                      ? "Your Initiate tier includes complimentary access to this live event."
-                      : "Reserve your place for this Mentoring Circle event. Payment is represented as a placeholder in this build, while registration and Zoom access are fully handled by the backend."}
+                    {purchasableEvent?.purchaseStatus === "pending_payment"
+                      ? "Your Stripe payment is being confirmed. This page will refresh your access automatically."
+                      : "Reserve your place for the currently active Mentoring Circle event and you will be redirected to Stripe checkout."}
                   </p>
                   <button
                     type="button"
-                    disabled={registering}
-                    onClick={() => void handleRegister()}
+                    disabled={startingCheckout || pollingForAccess}
+                    onClick={() => void handleCheckout()}
                     className="cosmic-motion mt-5 inline-flex items-center rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(255,215,0,0.18)] transition hover:scale-[1.01] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {registering ? "Preparing Access..." : ctaLabel}
+                    {pollingForAccess
+                      ? "Confirming Access..."
+                      : startingCheckout
+                        ? "Opening Checkout..."
+                        : ctaLabel}
                   </button>
                 </div>
               )}

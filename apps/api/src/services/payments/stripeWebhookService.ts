@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   invoices,
   mentorTrainingOrders,
@@ -10,12 +10,23 @@ import {
   type Database,
 } from "@wisdom/db";
 import type { BillingInterval, Divin8Tier } from "@wisdom/utils";
+import { toUtcIsoString } from "@wisdom/utils";
 import type Stripe from "stripe";
 import {
   deriveTierFromPriceId,
   syncEntitlementFromStoredSubscription,
 } from "../divin8/entitlementService.js";
 import { dispatchOrderExecution } from "../divin8ExecutionDispatcher.js";
+import { sendNotification } from "../notifications/notificationService.js";
+import {
+  sendAdminNewBookingNotification,
+  sendBookingConfirmedNotification,
+} from "../booking/notificationService.js";
+import { confirmMentoringCircleBooking } from "../booking/bookingService.js";
+import {
+  getMentoringCircleEventOrThrow,
+  upsertMentoringCircleRegistrationProjection,
+} from "../mentoringCircleService.js";
 import {
   createPersistedOrderFromInvoice,
   getInvoiceBySubscriptionId,
@@ -35,6 +46,7 @@ type DbExecutor = {
   select: Database["select"];
   insert: Database["insert"];
   update: Database["update"];
+  execute: Database["execute"];
 };
 
 type WebhookLogger = {
@@ -43,7 +55,7 @@ type WebhookLogger = {
   error: (payload: unknown, message?: string) => void;
 };
 
-type StripePaymentType = "webinar" | "session" | "report" | "subscription" | "mentor_training";
+type StripePaymentType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 
 interface StandardStripeMetadata {
   userId: string | null;
@@ -58,6 +70,8 @@ interface StandardStripeMetadata {
   packageType: string | null;
   version: string | null;
   entityId: string | null;
+  eventId: string | null;
+  eventKey: string | null;
   raw: Record<string, string>;
 }
 
@@ -186,6 +200,113 @@ function queueAutoExecution(
   });
 }
 
+async function getUserEmail(db: DbExecutor, userId: string | null | undefined) {
+  if (!userId) {
+    return null;
+  }
+
+  const [user] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return user?.email ?? null;
+}
+
+function queueNotification(
+  db: Database,
+  logger: WebhookLogger,
+  input: Parameters<typeof sendNotification>[1],
+  context: Record<string, unknown>,
+) {
+  void sendNotification(db, input).catch((error) => {
+    logger.error({
+      ...context,
+      event: input.event,
+      entityId: input.payload.entityId,
+      error: error instanceof Error ? error.message : error,
+    }, "notification_dispatch_failed");
+  });
+}
+
+async function emitPaymentSucceededNotifications(
+  db: DbExecutor,
+  logger: WebhookLogger,
+  input: {
+    userId: string | null;
+    userEmail?: string | null;
+    entityId: string;
+    paymentId: string;
+    amount: number;
+    currency: string;
+    product: string;
+    orderId?: string | null;
+  },
+) {
+  if (!input.userId) {
+    return;
+  }
+
+  const userEmail = input.userEmail ?? await getUserEmail(db, input.userId);
+  queueNotification(db as Database, logger, {
+    event: "payment.succeeded",
+    userId: input.userId,
+    payload: {
+      entityId: input.entityId,
+      paymentId: input.paymentId,
+      amount: input.amount,
+      currency: input.currency,
+      product: input.product,
+      orderId: input.orderId ?? null,
+    },
+  }, { paymentId: input.paymentId });
+
+  queueNotification(db as Database, logger, {
+    event: "admin.payment.received",
+    payload: {
+      entityId: input.entityId,
+      paymentId: input.paymentId,
+      amount: input.amount,
+      currency: input.currency,
+      product: input.product,
+      userEmail,
+    },
+  }, { paymentId: input.paymentId });
+}
+
+function emitPaymentFailedNotification(
+  db: DbExecutor,
+  logger: WebhookLogger,
+  input: {
+    userId: string | null;
+    entityId: string;
+    paymentId: string;
+    amount: number;
+    currency: string;
+    product: string;
+    reason: string;
+    orderId?: string | null;
+  },
+) {
+  if (!input.userId) {
+    return;
+  }
+
+  queueNotification(db as Database, logger, {
+    event: "payment.failed",
+    userId: input.userId,
+    payload: {
+      entityId: input.entityId,
+      paymentId: input.paymentId,
+      amount: input.amount,
+      currency: input.currency,
+      product: input.product,
+      reason: input.reason,
+      orderId: input.orderId ?? null,
+    },
+  }, { paymentId: input.paymentId });
+}
+
 function serializeWebhookPayload(event: Stripe.Event): Record<string, unknown> {
   return {
     id: event.id,
@@ -217,6 +338,7 @@ function parseMetadata(
       || raw.type === "report"
       || raw.type === "subscription"
       || raw.type === "mentor_training"
+      || raw.type === "mentoring_circle"
       ? raw.type
       : null,
     tier: clampTier(raw.tier),
@@ -227,6 +349,8 @@ function parseMetadata(
     packageType: typeof raw.packageType === "string" && raw.packageType.trim() ? raw.packageType.trim() : null,
     version: typeof raw.version === "string" && raw.version.trim() ? raw.version.trim() : null,
     entityId: typeof raw.entityId === "string" && raw.entityId.trim() ? raw.entityId.trim() : null,
+    eventId: typeof raw.eventId === "string" && raw.eventId.trim() ? raw.eventId.trim() : null,
+    eventKey: typeof raw.eventKey === "string" && raw.eventKey.trim() ? raw.eventKey.trim() : null,
     raw,
   };
 
@@ -243,10 +367,16 @@ function parseMetadata(
   return parsed;
 }
 
-function resolvePaymentEntity(metadata: StandardStripeMetadata): { entityType: "session" | "report" | "subscription" | "mentor_training"; entityId: string } | null {
+function resolvePaymentEntity(
+  metadata: StandardStripeMetadata,
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
+  }
+  if (metadata.type === "mentoring_circle") {
+    const entityId = metadata.entityId ?? metadata.bookingId;
+    return entityId ? { entityType: "mentoring_circle", entityId } : null;
   }
   if (metadata.type === "report") {
     const entityId = metadata.entityId ?? metadata.reportId;
@@ -440,7 +570,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -739,6 +869,15 @@ async function handleManagedInvoiceCheckoutSessionCompleted(
     },
     "order_created",
   );
+  await emitPaymentSucceededNotifications(db, logger, {
+    userId: updatedInvoice.user_id,
+    entityId: updatedInvoice.id,
+    paymentId: stripeRef(session.payment_intent) ?? session.id,
+    amount: updatedInvoice.amount,
+    currency: updatedInvoice.currency,
+    product: updatedInvoice.label,
+    orderId: updatedInvoice.id,
+  });
   return true;
 }
 
@@ -841,6 +980,15 @@ async function handleManagedInvoiceRecurringStatus(
       },
       "order_created",
     );
+    await emitPaymentSucceededNotifications(db, logger, {
+      userId: updatedInvoice.user_id,
+      entityId: updatedInvoice.id,
+      paymentId: paymentIntentId ?? invoiceEvent.id,
+      amount: updatedInvoice.amount,
+      currency: updatedInvoice.currency,
+      product: updatedInvoice.label,
+      orderId: updatedInvoice.id,
+    });
     return true;
   }
 
@@ -868,6 +1016,16 @@ async function handleManagedInvoiceRecurringStatus(
     },
     "payment_failed",
   );
+  emitPaymentFailedNotification(db, logger, {
+    userId: failedInvoice.user_id,
+    entityId: failedInvoice.id,
+    paymentId: paymentIntentId ?? invoiceEvent.id,
+    amount: failedInvoice.amount,
+    currency: failedInvoice.currency,
+    product: failedInvoice.label,
+    reason: "Subscription invoice payment failed.",
+    orderId: failedInvoice.id,
+  });
   return true;
 }
 
@@ -919,6 +1077,16 @@ async function handleManagedInvoicePaymentIntentFailed(
     },
     "payment_failed",
   );
+  emitPaymentFailedNotification(db, logger, {
+    userId: updatedInvoice.user_id,
+    entityId: updatedInvoice.id,
+    paymentId: intent.id,
+    amount: updatedInvoice.amount,
+    currency: updatedInvoice.currency,
+    product: updatedInvoice.label,
+    reason: normalized.rawMessage ?? "Payment failed.",
+    orderId: updatedInvoice.id,
+  });
   return true;
 }
 
@@ -967,6 +1135,16 @@ async function handleManagedInvoiceChargeFailed(
     },
     "payment_failed",
   );
+  emitPaymentFailedNotification(db, logger, {
+    userId: updatedInvoice.user_id,
+    entityId: updatedInvoice.id,
+    paymentId: stripeRef(charge.payment_intent) ?? charge.id,
+    amount: updatedInvoice.amount,
+    currency: updatedInvoice.currency,
+    product: updatedInvoice.label,
+    reason: normalized.rawMessage ?? "Payment failed.",
+    orderId: updatedInvoice.id,
+  });
   return true;
 }
 
@@ -1017,7 +1195,74 @@ async function handleManagedInvoiceAsyncCheckoutFailed(
     },
     "payment_failed",
   );
+  emitPaymentFailedNotification(db, logger, {
+    userId: updatedInvoice.user_id,
+    entityId: updatedInvoice.id,
+    paymentId: stripeRef(session.payment_intent) ?? session.id,
+    amount: updatedInvoice.amount,
+    currency: updatedInvoice.currency,
+    product: updatedInvoice.label,
+    reason: "Checkout session payment failed.",
+    orderId: updatedInvoice.id,
+  });
   return true;
+}
+
+async function finalizeMentoringCircleAccess(
+  db: DbExecutor,
+  logger: WebhookLogger,
+  input: {
+    bookingId: string;
+    userId: string;
+    eventId?: string | null;
+  },
+) {
+  const event = getMentoringCircleEventOrThrow(input.eventId);
+  const booking = await confirmMentoringCircleBooking(db as Database, {
+    bookingId: input.bookingId,
+    eventId: event.eventId,
+  });
+  await upsertMentoringCircleRegistrationProjection(db as Database, { bookingId: booking.id });
+
+  void sendBookingConfirmedNotification(db as Database, {
+    bookingId: booking.id,
+    userId: input.userId,
+    bookingType: event.eventTitle,
+    timezone: event.timezone,
+    startTimeUtc: booking.start_time_utc ?? toUtcIsoString(new Date(event.eventStartAt)),
+    endTimeUtc: booking.end_time_utc
+      ?? toUtcIsoString(new Date(new Date(event.eventStartAt).getTime() + event.durationMinutes * 60_000)),
+    eventId: event.eventId,
+    eventTitle: event.eventTitle,
+    joinUrl: event.zoomLink,
+    accessPagePath: "/mentoring-circle",
+  }).catch((error) => {
+    logger.error({
+      bookingId: booking.id,
+      userId: input.userId,
+      eventId: event.eventId,
+      error: error instanceof Error ? error.message : error,
+    }, "mentoring_circle_booking_confirmation_notification_failed");
+  });
+
+  void sendAdminNewBookingNotification(db as Database, {
+    bookingId: booking.id,
+    userId: input.userId,
+    bookingType: event.eventTitle,
+    timezone: event.timezone,
+    startTimeUtc: booking.start_time_utc ?? undefined,
+    eventId: event.eventId,
+    eventTitle: event.eventTitle,
+  }).catch((error) => {
+    logger.error({
+      bookingId: booking.id,
+      userId: input.userId,
+      eventId: event.eventId,
+      error: error instanceof Error ? error.message : error,
+    }, "mentoring_circle_admin_notification_failed");
+  });
+
+  return { booking, event };
 }
 
 async function handleCheckoutSessionCompleted(
@@ -1069,7 +1314,9 @@ async function handleCheckoutSessionCompleted(
   const providerPaymentIntentId = stripeRef(session.payment_intent);
   const entity = resolvePaymentEntity(metadata);
   const autoExecutionOrderId = resolveAutoExecutionOrderId(metadata);
-  const bookingId = entity?.entityType === "session" ? entity.entityId : metadata.bookingId;
+  const bookingId = entity?.entityType === "session" || entity?.entityType === "mentoring_circle"
+    ? entity.entityId
+    : metadata.bookingId;
 
   if (!entity) {
     logger.warn(
@@ -1129,6 +1376,13 @@ async function handleCheckoutSessionCompleted(
   }
 
   if (existingPayment?.status === "paid") {
+    if (entity.entityType === "mentoring_circle" && bookingId) {
+      await finalizeMentoringCircleAccess(db, logger, {
+        bookingId,
+        userId,
+        eventId: metadata.eventId ?? metadata.eventKey,
+      });
+    }
     logger.info(
       {
         checkoutSessionId: session.id,
@@ -1141,12 +1395,32 @@ async function handleCheckoutSessionCompleted(
     return;
   }
 
-  await markPaymentPaidFromWebhook(db as Database, {
+  const paidPayment = await markPaymentPaidFromWebhook(db as Database, {
     paymentId: existingPayment.id,
     providerPaymentIntentId,
     providerCustomerId: stripeCustomerId,
     metadata: nextMetadata,
   });
+
+  if (entity.entityType === "mentoring_circle" && bookingId) {
+    const finalized = await finalizeMentoringCircleAccess(db, logger, {
+      bookingId,
+      userId,
+      eventId: metadata.eventId ?? metadata.eventKey,
+    });
+
+    await emitPaymentSucceededNotifications(db, logger, {
+      userId,
+      userEmail: metadata.userEmail,
+      entityId: bookingId,
+      paymentId: paidPayment.id,
+      amount: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+      product: finalized.event.eventTitle,
+      orderId: bookingId,
+    });
+    return;
+  }
 
   if (entity.entityType === "subscription") {
     await updateMembershipPurchaseCheckoutState(db, {
@@ -1172,8 +1446,29 @@ async function handleCheckoutSessionCompleted(
       }, "stripe_subscription_checkout_recorded");
       await syncEntitlementFromStoredSubscription(db as Database, stripeSubscriptionId, logger);
     }
+    await emitPaymentSucceededNotifications(db, logger, {
+      userId,
+      userEmail: metadata.userEmail,
+      entityId: entity.entityId,
+      paymentId: paidPayment.id,
+      amount: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+      product: "subscription",
+      orderId: entity.entityId,
+    });
     return;
   }
+
+  await emitPaymentSucceededNotifications(db, logger, {
+    userId,
+    userEmail: metadata.userEmail,
+    entityId: entity.entityId,
+    paymentId: paidPayment.id,
+    amount: paidPayment.amount_cents,
+    currency: paidPayment.currency,
+    product: entity.entityType,
+    orderId: autoExecutionOrderId,
+  });
 
   if (entity.entityType === "report") {
     queueAutoExecution(db as Database, logger, autoExecutionOrderId, {
@@ -1502,6 +1797,8 @@ export async function processStripeWebhookEvent(
   // prevents duplicate side effects, and all downstream writes are upserts/updates so a
   // retried event remains safe even if it is re-processed during a race.
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${event.id}), 0)`);
+
     const [existing] = await tx
       .select({
         id: webhookEvents.id,

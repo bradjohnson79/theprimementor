@@ -25,7 +25,8 @@ export default function Settings() {
     }
     const used = user?.member?.usage.used ?? 0;
     const limit = user?.member?.usage.limit ?? 150;
-    return `${used} / ${limit} prompts used`;
+    const remaining = Math.max(limit - used, 0);
+    return `${remaining} of ${limit} prompts remaining`;
   }, [memberTier, user?.member?.capabilities.unlimitedChat, user?.member?.usage.limit, user?.member?.usage.used]);
 
   const inputClassName =

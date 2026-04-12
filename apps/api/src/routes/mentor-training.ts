@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { MentorTrainingPackageType } from "@wisdom/utils";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireClerkId, requireDatabase, requireDbUser } from "../routeAssertions.js";
 import { createCheckoutSession } from "../services/paymentService.js";
 import {
   getMentorTrainingPageData,
@@ -17,34 +19,28 @@ interface MentorTrainingStatusBody {
 }
 
 export async function mentorTrainingRoutes(app: FastifyInstance) {
-  app.get("/mentor-training", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await getMentorTrainingPageData(app.db, request.dbUser!.id),
-    };
+  app.get("/mentor-training", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await getMentorTrainingPageData(db, request.dbUser!.id),
+    });
   });
 
   app.post<{ Body: MentorTrainingCheckoutBody }>("/mentor-training/checkout", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-    if (!request.dbUser || !request.clerkId) {
-      return reply.status(401).send({ error: "Authenticated user context is required" });
-    }
+    const db = requireDatabase(app.db);
+    const user = requireDbUser(request);
+    const clerkId = requireClerkId(request);
     if (!request.body?.packageType) {
-      return reply.status(400).send({ error: "packageType is required" });
+      return sendApiError(reply, 400, "packageType is required");
     }
 
-    const prepared = await prepareMentorTrainingOrderForCheckout(app.db, {
-      userId: request.dbUser.id,
+    const prepared = await prepareMentorTrainingOrderForCheckout(db, {
+      userId: user.id,
       packageType: request.body.packageType,
     });
 
     if (prepared.kind === "already_paid") {
-      return reply.send({
+      return ok({
         alreadyPaid: true,
         trainingOrderId: prepared.order.id,
         status: prepared.order.status,
@@ -53,15 +49,15 @@ export async function mentorTrainingRoutes(app: FastifyInstance) {
       });
     }
 
-    const session = await createCheckoutSession(app.db, {
+    const session = await createCheckoutSession(db, {
       type: "mentor_training",
       trainingOrderId: prepared.order.id,
-      userId: request.dbUser.id,
-      userEmail: request.dbUser.email,
-      clerkId: request.clerkId,
+      userId: user.id,
+      userEmail: user.email,
+      clerkId,
     });
 
-    return reply.send({
+    return ok({
       alreadyPaid: false,
       requiresPayment: true,
       trainingOrderId: prepared.order.id,
@@ -74,22 +70,18 @@ export async function mentorTrainingRoutes(app: FastifyInstance) {
     "/admin/mentor-training/:orderId/status",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (!app.db) {
-        return reply.status(503).send({ error: "Database not available" });
-      }
-      if (request.dbUser?.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      const db = requireDatabase(app.db);
+      requireAdmin(request);
       if (request.body?.status !== "in_progress" && request.body?.status !== "completed") {
-        return reply.status(400).send({ error: "status must be in_progress or completed" });
+        return sendApiError(reply, 400, "status must be in_progress or completed");
       }
 
-      return {
-        data: await updateMentorTrainingOrderStatus(app.db, {
+      return ok({
+        data: await updateMentorTrainingOrderStatus(db, {
           orderId: request.params.orderId,
           status: request.body.status,
         }),
-      };
+      });
     },
   );
 }
