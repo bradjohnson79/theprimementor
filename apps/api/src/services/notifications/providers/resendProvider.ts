@@ -29,10 +29,6 @@ function resolveFromAddress() {
     return explicitFrom;
   }
 
-  if (process.env.NODE_ENV === "production") {
-    return null;
-  }
-
   return "onboarding@resend.dev";
 }
 
