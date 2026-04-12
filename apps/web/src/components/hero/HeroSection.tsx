@@ -1,4 +1,5 @@
 import heroHeaderFull from "../../assets/hero-header-full.webp";
+import mobileHeroHeader from "../../assets/mobile-hero-header.webp";
 import HeroContent from "./HeroContent";
 import HeroEnergyRibbons from "./HeroEnergyRibbons";
 import HeroSparkleField from "./HeroSparkleField";
@@ -16,9 +17,17 @@ export default function HeroSection({ onExploreReports }: HeroSectionProps) {
     >
       <div className="absolute inset-0">
         <img
+          src={mobileHeroHeader}
+          alt=""
+          className="h-full min-h-[100svh] w-full object-cover object-center sm:hidden"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+        />
+        <img
           src={heroHeaderFull}
           alt=""
-          className="h-full min-h-[100svh] w-full object-cover object-[52%_center] sm:object-center"
+          className="hidden h-full min-h-[100svh] w-full object-cover object-[52%_center] sm:block sm:object-center"
           loading="eager"
           decoding="async"
           fetchPriority="high"

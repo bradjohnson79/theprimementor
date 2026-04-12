@@ -211,15 +211,20 @@ export default function RootLayout() {
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen((open) => !open)}
-                  className={`rounded-full border px-4 py-2 text-sm transition ${
+                  className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition ${
                     isMarketingSurface
                       ? "border-white/15 bg-white/8 text-white hover:bg-white/12"
                       : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50"
                   }`}
                   aria-expanded={mobileMenuOpen}
                   aria-controls="mobile-primary-nav"
+                  aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 >
-                  Menu
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-5 w-5">
+                    <path d="M4 7h16" />
+                    <path d="M4 12h16" />
+                    <path d="M4 17h16" />
+                  </svg>
                 </button>
 
                 {mobileMenuOpen ? (
@@ -232,6 +237,46 @@ export default function RootLayout() {
                     }`}
                   >
                     <nav aria-label="Mobile navigation">
+                      <div className="mb-3 border-b border-white/10 pb-3">
+                        {isSignedIn ? (
+                          <Link
+                            to="/dashboard"
+                            onClick={closeMobileMenus}
+                            className={`block rounded-xl px-3 py-2 text-sm font-medium transition ${
+                              isMarketingSurface
+                                ? "text-white/85 hover:bg-white/8 hover:text-white"
+                                : "text-gray-800 hover:bg-gray-50 hover:text-gray-900"
+                            }`}
+                          >
+                            Dashboard
+                          </Link>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Link
+                              to="/sign-in"
+                              onClick={closeMobileMenus}
+                              className={`rounded-xl px-3 py-2 text-center text-sm transition ${
+                                isMarketingSurface
+                                  ? "text-white/80 hover:bg-white/8 hover:text-white"
+                                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                              }`}
+                            >
+                              Sign In
+                            </Link>
+                            <Link
+                              to="/sign-up"
+                              onClick={closeMobileMenus}
+                              className={`rounded-xl px-3 py-2 text-center text-sm transition ${
+                                isMarketingSurface
+                                  ? "border border-white/18 bg-white/10 text-white hover:bg-white/18"
+                                  : "bg-gray-900 text-white hover:bg-gray-800"
+                              }`}
+                            >
+                              Sign Up
+                            </Link>
+                          </div>
+                        )}
+                      </div>
                       <ul className="space-y-2">
                         {NAV_GROUPS.map((group) => (
                           <li key={group.label} className="rounded-xl border border-transparent">
@@ -330,13 +375,13 @@ export default function RootLayout() {
                 <>
                   <Link
                     to="/sign-in"
-                    className={`text-sm ${isMarketingSurface ? "text-white/72 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
+                    className={`hidden text-sm lg:inline ${isMarketingSurface ? "text-white/72 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/sign-up"
-                    className={`rounded-xl px-4 py-2 text-sm transition ${
+                    className={`hidden rounded-xl px-4 py-2 text-sm transition lg:inline-flex ${
                       isMarketingSurface
                         ? "border border-white/18 bg-white/10 text-white backdrop-blur-md hover:bg-white/18"
                         : "bg-gray-900 text-white hover:bg-gray-800"
