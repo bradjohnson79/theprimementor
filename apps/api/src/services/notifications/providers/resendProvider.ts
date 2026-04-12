@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 let cachedClient: Resend | null = null;
+const DEFAULT_SENDER_NAME = "The Prime Mentor";
 
 export interface ResendSendResult {
   success: boolean;
@@ -25,11 +26,13 @@ function resolveFromAddress() {
   const explicitFrom = process.env.EMAIL_FROM?.trim()
     || process.env.RESEND_FROM_EMAIL?.trim()
     || process.env.SMTP_FROM?.trim();
-  if (explicitFrom) {
-    return explicitFrom;
+  const baseAddress = explicitFrom || "onboarding@resend.dev";
+
+  if (baseAddress.includes("<")) {
+    return baseAddress;
   }
 
-  return "onboarding@resend.dev";
+  return `${DEFAULT_SENDER_NAME} <${baseAddress}>`;
 }
 
 export async function sendResendEmail(input: {
