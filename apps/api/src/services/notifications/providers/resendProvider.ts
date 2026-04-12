@@ -40,6 +40,8 @@ export async function sendResendEmail(input: {
   to: string[];
   subject: string;
   html: string;
+  text?: string;
+  replyTo?: string;
 }): Promise<ResendSendResult> {
   try {
     const client = getResendClient();
@@ -63,6 +65,8 @@ export async function sendResendEmail(input: {
       to: input.to,
       subject: input.subject,
       html: input.html,
+      ...(input.text ? { text: input.text } : {}),
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
     });
 
     const messageId = typeof response.data?.id === "string" ? response.data.id : null;

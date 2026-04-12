@@ -1,6 +1,6 @@
-import nodemailer, { type Transporter } from "nodemailer";
 import { eq } from "drizzle-orm";
 import { users, type Database } from "@wisdom/db";
+import { sendResendEmail } from "./notifications/providers/resendProvider.js";
 
 export interface ContactPayload {
   name: string;
@@ -9,9 +9,6 @@ export interface ContactPayload {
   memberEmail?: string;
   source: "public" | "member";
 }
-
-const DEFAULT_FROM_EMAIL = "no-reply@wisdomtransmissions.local";
-let cachedTransporter: Transporter | null = null;
 
 function normalizeEmailList(value: string) {
   return Array.from(
@@ -24,32 +21,13 @@ function normalizeEmailList(value: string) {
   );
 }
 
-function getTransporter(): Transporter | null {
-  if (cachedTransporter) {
-    return cachedTransporter;
-  }
-
-  const smtpUrl = process.env.SMTP_URL?.trim();
-  if (smtpUrl) {
-    cachedTransporter = nodemailer.createTransport(smtpUrl);
-    return cachedTransporter;
-  }
-
-  const host = process.env.SMTP_HOST?.trim();
-  const port = Number(process.env.SMTP_PORT || "");
-  if (!host || !Number.isFinite(port) || port <= 0) {
-    return null;
-  }
-
-  const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS?.trim();
-  cachedTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: user && pass ? { user, pass } : undefined,
-  });
-  return cachedTransporter;
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export async function resolveAdminContactEmail(db?: Database | null): Promise<string> {
@@ -90,36 +68,45 @@ export async function resolveAdminNotificationEmails(db?: Database | null): Prom
 }
 
 export async function sendContactEmail(to: string, payload: ContactPayload): Promise<void> {
-  const transporter = getTransporter();
-  if (!transporter) {
-    throw new Error("Contact delivery is not configured.");
-  }
-
-  const from = process.env.SMTP_FROM?.trim()
-    || process.env.ADMIN_EMAIL?.trim()
-    || DEFAULT_FROM_EMAIL;
   const submittedAt = new Date().toISOString();
   const safeName = payload.name.replace(/\r|\n/g, " ").trim();
   const safeEmail = payload.email.replace(/\r|\n/g, " ").trim();
   const safeMemberEmail = payload.memberEmail?.replace(/\r|\n/g, " ").trim();
   const sourceLabel = payload.source === "member" ? "Member Contact" : "Public Contact";
+  const text = [
+    `New ${payload.source} contact submission`,
+    "",
+    `Source: ${payload.source}`,
+    `Name: ${safeName}`,
+    `Email: ${safeEmail}`,
+    `Authenticated account: ${safeMemberEmail || "Unavailable"}`,
+    `Submitted at: ${submittedAt}`,
+    "",
+    "Message:",
+    payload.message,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">
+      <h1 style="font-size:24px;margin-bottom:16px;">${escapeHtml(sourceLabel)}</h1>
+      <p><strong>Source:</strong> ${escapeHtml(payload.source)}</p>
+      <p><strong>Name:</strong> ${escapeHtml(safeName)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(safeEmail)}</p>
+      <p><strong>Authenticated account:</strong> ${escapeHtml(safeMemberEmail || "Unavailable")}</p>
+      <p><strong>Submitted at:</strong> ${escapeHtml(submittedAt)}</p>
+      <h2 style="font-size:18px;margin:24px 0 8px;">Message</h2>
+      <p style="white-space:pre-wrap;">${escapeHtml(payload.message)}</p>
+    </div>
+  `;
 
-  await transporter.sendMail({
-    from,
-    to,
+  const sendResult = await sendResendEmail({
+    to: [to],
     replyTo: safeEmail,
     subject: `${sourceLabel}: ${safeName}`,
-    text: [
-      `New ${payload.source} contact submission`,
-      "",
-      `Source: ${payload.source}`,
-      `Name: ${safeName}`,
-      `Email: ${safeEmail}`,
-      `Authenticated account: ${safeMemberEmail || "Unavailable"}`,
-      `Submitted at: ${submittedAt}`,
-      "",
-      "Message:",
-      payload.message,
-    ].join("\n"),
+    text,
+    html,
   });
+
+  if (!sendResult.success) {
+    throw new Error(sendResult.error ?? "Contact delivery failed.");
+  }
 }
