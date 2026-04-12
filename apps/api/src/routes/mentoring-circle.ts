@@ -14,18 +14,14 @@ interface RegisterBody {
 export async function mentoringCircleRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { eventId?: string } }>("/mentoring-circle/me", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
-    return ok({
-      data: await getMentoringCircleStateForUser(db, request.dbUser!.id, request.query?.eventId),
-    });
+    return ok(await getMentoringCircleStateForUser(db, request.dbUser!.id, request.query?.eventId));
   });
 
   app.post<{ Body: RegisterBody }>("/mentoring-circle/register", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
-    return ok({
-      data: await registerForMentoringCircle(db, {
-        userId: request.dbUser!.id,
-        eventId: request.body?.eventId,
-      }),
-    });
+    return ok(await registerForMentoringCircle(db, {
+      userId: request.dbUser!.id,
+      eventId: request.body?.eventId,
+    }));
   });
 }
