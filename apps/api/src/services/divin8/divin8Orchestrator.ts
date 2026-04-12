@@ -5,6 +5,7 @@ import {
   SYSTEM_SYNONYMS,
   detectSystemsFromMessage,
   languageLabel,
+  logger,
   normalizeLanguage,
   type LanguageCode,
   type ResolvedSystemKey,
@@ -498,6 +499,7 @@ async function requestChatCompletion(params: {
   history: ChatHistoryMessage[];
   userContent: ChatUserContent;
   maxCompletionTokens: number;
+  includeReasoningEffort?: boolean;
 }) {
   const trimmedHistory = trimHistoryToFitPayload(params.systemMessages, params.history, params.userContent);
 
@@ -508,7 +510,7 @@ async function requestChatCompletion(params: {
       ...trimmedHistory,
       { role: "user", content: params.userContent },
     ],
-    reasoning_effort: DIVIN8_CHAT_REASONING_EFFORT,
+    ...(params.includeReasoningEffort === false ? {} : { reasoning_effort: DIVIN8_CHAT_REASONING_EFFORT }),
     max_completion_tokens: params.maxCompletionTokens,
   });
 }
@@ -1014,7 +1016,7 @@ async function requestStructuredAssistantReply(params: {
     userContent,
     maxCompletionTokens: 1100,
   });
-  const message = extractAssistantMessageText(
+  let message = extractAssistantMessageText(
     response.choices[0]?.message?.content as unknown,
     response.choices[0]?.message?.refusal,
   );
@@ -1027,6 +1029,45 @@ async function requestStructuredAssistantReply(params: {
       verificationTag,
     };
   }
+
+  logger.warn("divin8_chat_empty_completion_retrying_without_reasoning", {
+    finishReason: response.choices[0]?.finish_reason ?? null,
+    hasRefusal: Boolean(response.choices[0]?.message?.refusal),
+    routeType: params.engineSummary ? "engine" : "chat",
+    responseMode: params.responseMode,
+    tier: params.tier,
+  });
+
+  const fallbackResponse = await requestChatCompletion({
+    systemMessages,
+    history,
+    userContent,
+    maxCompletionTokens: 1100,
+    includeReasoningEffort: false,
+  });
+  message = extractAssistantMessageText(
+    fallbackResponse.choices[0]?.message?.content as unknown,
+    fallbackResponse.choices[0]?.message?.refusal,
+  );
+
+  if (message) {
+    return {
+      message,
+      gptLive: true,
+      gptFailed: false,
+      verificationTag,
+    };
+  }
+
+  logger.error("divin8_chat_empty_completion_unrecoverable", {
+    firstFinishReason: response.choices[0]?.finish_reason ?? null,
+    fallbackFinishReason: fallbackResponse.choices[0]?.finish_reason ?? null,
+    firstHasRefusal: Boolean(response.choices[0]?.message?.refusal),
+    fallbackHasRefusal: Boolean(fallbackResponse.choices[0]?.message?.refusal),
+    routeType: params.engineSummary ? "engine" : "chat",
+    responseMode: params.responseMode,
+    tier: params.tier,
+  });
 
   throw divin8UnavailableError();
 }
