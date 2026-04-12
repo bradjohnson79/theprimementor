@@ -184,7 +184,6 @@ export async function extractDivin8RequestAnalysis(message: string): Promise<Div
         { role: "user", content: message },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.1,
       max_completion_tokens: 400,
     });
 

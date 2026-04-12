@@ -29,6 +29,7 @@ export default function Divin8Chat() {
   const { resolvedTheme, settings } = useAdminSettings();
   const { t } = useI18n();
   const isLightTheme = resolvedTheme === "light";
+  const seekerPromptLimit = 150;
 
   const [tier, setTier] = useState<Divin8ChatTier>("seeker");
   const [activeTool, setActiveTool] = useState<"guide" | "timeline" | "debug" | null>(null);
@@ -67,6 +68,29 @@ export default function Divin8Chat() {
     return (
       <>
         <TierToggle value={tier} onChange={setTier} isLightTheme={isLightTheme} />
+        {tier === "seeker" ? (
+          <span
+            className={classNames(
+              "flex h-7 items-center rounded-full border px-2.5 text-[10px] font-medium",
+              isLightTheme
+                ? "border-slate-200 bg-slate-100 text-slate-600"
+                : "border-white/10 bg-white/5 text-white/65",
+            )}
+          >
+            {t("divin8.usage.remainingOfLimit", { count: seekerPromptLimit, limit: seekerPromptLimit })}
+          </span>
+        ) : (
+          <span
+            className={classNames(
+              "flex h-7 items-center rounded-full border px-2.5 text-[10px] font-medium",
+              isLightTheme
+                ? "border-purple-200 bg-purple-50 text-purple-700"
+                : "border-purple-500/30 bg-purple-500/10 text-purple-300",
+            )}
+          >
+            {t("divin8.usage.unlimited")}
+          </span>
+        )}
         <div className={classNames("mx-0.5 h-5 w-px", isLightTheme ? "bg-slate-200" : "bg-white/10")} />
         <button
           type="button"
@@ -170,7 +194,7 @@ export default function Divin8Chat() {
         </button>
       </>
     );
-  }, [handleTranscriptRef, isLightTheme, showExportMenu, t, tier]);
+  }, [handleTranscriptRef, isLightTheme, seekerPromptLimit, showExportMenu, t, tier]);
 
   const toolModals = useCallback((chat: UseDivin8ChatReturn) => (
     <>

@@ -497,7 +497,6 @@ async function requestChatCompletion(params: {
   systemMessages: string[];
   history: ChatHistoryMessage[];
   userContent: ChatUserContent;
-  temperature: number;
   maxCompletionTokens: number;
 }) {
   const trimmedHistory = trimHistoryToFitPayload(params.systemMessages, params.history, params.userContent);
@@ -509,7 +508,6 @@ async function requestChatCompletion(params: {
       ...trimmedHistory,
       { role: "user", content: params.userContent },
     ],
-    temperature: params.temperature,
     reasoning_effort: DIVIN8_CHAT_REASONING_EFFORT,
     max_completion_tokens: params.maxCompletionTokens,
   });
@@ -1014,7 +1012,6 @@ async function requestStructuredAssistantReply(params: {
     systemMessages,
     history,
     userContent,
-    temperature: 0.4,
     maxCompletionTokens: 1100,
   });
   const message = extractAssistantMessageText(

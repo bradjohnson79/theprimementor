@@ -87,6 +87,8 @@ export default function Dashboard() {
   const memberTier = tierState;
   const usage = dbUser?.member?.usage;
   const capabilities = dbUser?.member?.capabilities;
+  const seekerPromptLimit = usage?.limit ?? 150;
+  const seekerPromptsRemaining = Math.max(seekerPromptLimit - (usage?.used ?? 0), 0);
   const greetingName = getDashboardGreetingName(clerkUser);
   const isTierLoading = memberTier === "loading";
   const isFree = memberTier === "free";
@@ -252,7 +254,7 @@ export default function Dashboard() {
                   ? "Upgrade to unlock the full Divin8 chat experience."
                   : hasUnlimitedChat
                     ? "Unlimited prompts available."
-                    : `${usage?.used ?? 0} / ${usage?.limit ?? 150} prompts used`}
+                    : `${seekerPromptsRemaining} of ${seekerPromptLimit} prompts remaining`}
               </p>
               <div className="mt-4 flex gap-2">
                 {!isFree ? (
