@@ -5,10 +5,14 @@ import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import {
   ALL_NOTIFICATION_EVENTS,
   CONFIGURABLE_NOTIFICATION_EVENTS,
+  describeNotificationEvent,
+  getNotificationRecipientType,
   type NotificationEvent,
+  type NotificationPayload,
 } from "../services/notifications/events.js";
 import { previewNotification } from "../services/notifications/notificationPreview.js";
 import { retryFailedNotifications, listNotificationActivity } from "../services/notifications/notificationRetryService.js";
+import { getSamplePayload } from "../services/notifications/samplePayloads.js";
 import { getNotificationSettings, updateNotificationSettings } from "../services/notifications/notificationSettingsService.js";
 import { sendNotification } from "../services/notifications/notificationService.js";
 import { getNotificationDeliveryPolicy } from "../services/notifications/deliveryPolicy.js";
@@ -23,7 +27,11 @@ interface PreviewBody {
 }
 
 interface TestBody {
+  event?: NotificationEvent;
   message?: string;
+  payload?: Record<string, unknown>;
+  recipientOverride?: string | string[];
+  dryRun?: boolean;
 }
 
 interface RetryBody {
@@ -58,6 +66,60 @@ function normalizeAdminRecipientsOverride(value: unknown) {
     .map((entry) => entry.trim().toLowerCase());
 }
 
+function normalizeRecipientOverride(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const entries = typeof value === "string"
+    ? value.split(",")
+    : Array.isArray(value)
+      ? value
+      : null;
+
+  if (!entries) {
+    throw new Error("recipientOverride must be a string or an array of email addresses.");
+  }
+
+  const recipients = entries
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+  const invalid = recipients.find((entry) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry));
+  if (invalid) {
+    throw new Error(`Invalid recipientOverride email: ${invalid}`);
+  }
+
+  return recipients;
+}
+
+function buildNotificationPayload(
+  event: NotificationEvent,
+  input: {
+    payload?: unknown;
+    message?: string;
+    initiatedByUserId?: string | null;
+    entityId?: string;
+  },
+): NotificationPayload<NotificationEvent> {
+  const basePayload = getSamplePayload(event) as Record<string, unknown>;
+  const mergedPayload = isRecord(input.payload)
+    ? { ...basePayload, ...input.payload }
+    : { ...basePayload };
+
+  if (input.entityId) {
+    mergedPayload.entityId = input.entityId;
+  }
+
+  if (event === "admin.test") {
+    mergedPayload.message = input.message ?? mergedPayload.message ?? null;
+    mergedPayload.initiatedByUserId = input.initiatedByUserId ?? mergedPayload.initiatedByUserId ?? null;
+  }
+
+  return mergedPayload as NotificationPayload<NotificationEvent>;
+}
+
 export async function adminNotificationRoutes(app: FastifyInstance) {
   app.get<{ Querystring: NotificationsQuerystring }>(
     "/admin/notifications",
@@ -76,23 +138,10 @@ export async function adminNotificationRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Body: TestBody }>("/admin/notifications/test", { preHandler: requireAuth }, async (request) => {
+  app.get("/admin/notifications/events", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
-    const db = requireDatabase(app.db);
-    const entityId = `admin-test-${Date.now()}`;
-    const result = await sendNotification(db, {
-      event: "admin.test",
-      userId: request.dbUser?.id ?? null,
-      payload: {
-        entityId,
-        message: request.body?.message ?? null,
-        initiatedByUserId: request.dbUser?.id ?? null,
-      },
-    });
-
     return ok({
-      entityId,
-      result,
+      events: ALL_NOTIFICATION_EVENTS.map((event) => describeNotificationEvent(event)),
     });
   });
 
@@ -103,15 +152,79 @@ export async function adminNotificationRoutes(app: FastifyInstance) {
       return sendApiError(reply, 400, "A valid notification event is required.");
     }
 
-    if (!isRecord(request.body?.payload)) {
+    if (request.body?.payload !== undefined && !isRecord(request.body.payload)) {
       return sendApiError(reply, 400, "payload must be an object.");
     }
+
+    const payload = buildNotificationPayload(event, {
+      payload: request.body?.payload,
+    });
 
     return ok({
       ...previewNotification({
         event,
-        payload: request.body.payload as never,
+        payload,
       }),
+      dryRun: true,
+      payload,
+    });
+  });
+
+  app.post<{ Body: TestBody }>("/admin/notifications/test", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const event = request.body?.event;
+    if (!isNotificationEvent(event)) {
+      return sendApiError(reply, 400, "A valid notification event is required.");
+    }
+
+    if (request.body?.payload !== undefined && !isRecord(request.body.payload)) {
+      return sendApiError(reply, 400, "payload must be an object.");
+    }
+
+    let recipientOverride: string[] | undefined;
+    try {
+      recipientOverride = normalizeRecipientOverride(request.body?.recipientOverride);
+    } catch (error) {
+      return sendApiError(reply, 400, error instanceof Error ? error.message : "Invalid recipientOverride value.");
+    }
+
+    const db = requireDatabase(app.db);
+    const entityId = `${event.replace(/\./g, "-")}-admin-test-${Date.now()}`;
+    const payload = buildNotificationPayload(event, {
+      payload: request.body?.payload,
+      message: request.body?.message,
+      initiatedByUserId: request.dbUser?.id ?? null,
+      entityId,
+    });
+
+    const fallbackRecipients = recipientOverride && recipientOverride.length > 0
+      ? recipientOverride
+      : getNotificationRecipientType(event) === "user"
+        ? (await getNotificationSettings(db)).effectiveAdminRecipients
+        : undefined;
+
+    if (getNotificationRecipientType(event) === "user" && (!fallbackRecipients || fallbackRecipients.length === 0)) {
+      return sendApiError(reply, 400, "Admin recipients are required to test user notification events.");
+    }
+
+    const result = await sendNotification(db, {
+      event,
+      userId: null,
+      payload,
+      forceRecipients: fallbackRecipients,
+      dryRun: request.body?.dryRun === true,
+      testContext: {
+        source: "admin",
+        requestedByUserId: request.dbUser?.id ?? null,
+      },
+    });
+
+    return ok({
+      entityId,
+      event,
+      payload,
+      dryRun: request.body?.dryRun === true,
+      result,
     });
   });
 

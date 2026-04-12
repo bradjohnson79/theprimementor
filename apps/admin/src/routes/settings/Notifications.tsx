@@ -3,16 +3,27 @@ import { useEffect, useMemo, useState } from "react";
 import { useAdminSettings } from "../../context/AdminSettingsContext";
 import { api } from "../../lib/api";
 
-type NotificationEvent =
-  | "payment.succeeded"
-  | "payment.failed"
-  | "booking.created"
-  | "booking.confirmed"
-  | "report.generated"
-  | "admin.payment.received"
-  | "admin.new.booking"
-  | "admin.new.user"
-  | "admin.test";
+interface NotificationActivityRow {
+  id: string;
+  event_type: string;
+  entity_id: string;
+  recipient: string;
+  recipient_type: string;
+  status: string;
+  sent_at: string | null;
+  failure_reason: string | null;
+  template_version: string;
+  provider_message_id: string | null;
+}
+
+interface NotificationEventInfo {
+  event: string;
+  label: string;
+  recipientType: "user" | "admin";
+  configurable: boolean;
+}
+
+type NotificationEvent = NotificationEventInfo["event"];
 
 interface NotificationSettingsResponse {
   settings: {
@@ -24,19 +35,43 @@ interface NotificationSettingsResponse {
     mode: string;
     label: string;
   };
-  activity: Array<{
-    id: string;
-    event_type: string;
-    entity_id: string;
-    recipient: string;
-    recipient_type: string;
-    status: string;
-    sent_at: string | null;
-    failure_reason: string | null;
-    template_version: string;
-    provider_message_id: string | null;
-  }>;
-  configurableEvents: NotificationEvent[];
+  activity: NotificationActivityRow[];
+  configurableEvents: string[];
+}
+
+interface NotificationEventsResponse {
+  events: NotificationEventInfo[];
+}
+
+interface NotificationPreviewResponse {
+  event: string;
+  recipientType: string;
+  subject: string;
+  html: string;
+  templateVersion: string;
+  dryRun: boolean;
+  payload: Record<string, unknown>;
+}
+
+interface NotificationTestResult {
+  success: boolean;
+  skipped: boolean;
+  dryRun?: boolean;
+  recipients?: string[];
+  deliveryMode?: string;
+  preview?: {
+    subject: string;
+    html: string;
+    templateVersion: string;
+  };
+}
+
+interface NotificationTestResponse {
+  entityId: string;
+  event: string;
+  payload: Record<string, unknown>;
+  dryRun: boolean;
+  result: NotificationTestResult;
 }
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -47,87 +82,23 @@ function prettyEventLabel(event: string) {
   return event.replace(/\./g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-const defaultPreviewPayloads: Record<NotificationEvent, Record<string, unknown>> = {
-  "payment.succeeded": {
-    entityId: "payment_demo_1",
-    paymentId: "pay_demo_1",
-    amount: 199,
-    currency: "usd",
-    product: "Blueprint Reading",
-  },
-  "payment.failed": {
-    entityId: "payment_demo_2",
-    paymentId: "pay_demo_2",
-    amount: 199,
-    currency: "usd",
-    product: "Blueprint Reading",
-    reason: "Card declined",
-  },
-  "booking.created": {
-    entityId: "booking_demo_1",
-    bookingId: "booking_demo_1",
-    bookingType: "Mentoring Session",
-    fullName: "Preview Client",
-    timezone: "America/Vancouver",
-  },
-  "booking.confirmed": {
-    entityId: "booking_demo_1",
-    bookingId: "booking_demo_1",
-    bookingType: "Mentoring Session",
-    startTimeUtc: new Date().toISOString(),
-    endTimeUtc: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    timezone: "America/Vancouver",
-  },
-  "report.generated": {
-    entityId: "report_demo_1",
-    orderId: "order_demo_1",
-    reportId: "report_demo_1",
-    title: "Blueprint Report",
-    reportTier: "intro",
-  },
-  "admin.payment.received": {
-    entityId: "payment_demo_admin",
-    paymentId: "pay_demo_admin",
-    amount: 199,
-    currency: "usd",
-    product: "Blueprint Reading",
-    userEmail: "client@example.com",
-  },
-  "admin.new.booking": {
-    entityId: "booking_demo_admin",
-    bookingId: "booking_demo_admin",
-    bookingType: "Mentoring Session",
-    userEmail: "client@example.com",
-    fullName: "Preview Client",
-  },
-  "admin.new.user": {
-    entityId: "user_demo_1",
-    clerkId: "user_demo_clerk",
-    email: "newuser@example.com",
-    name: "Preview User",
-  },
-  "admin.test": {
-    entityId: "admin_test_preview",
-    message: "Preview the admin test template.",
-  },
-};
-
 export default function NotificationsSettings() {
   const { getToken } = useAuth();
   const { resolvedTheme } = useAdminSettings();
   const isLightTheme = resolvedTheme === "light";
   const [data, setData] = useState<NotificationSettingsResponse | null>(null);
+  const [notificationEvents, setNotificationEvents] = useState<NotificationEventInfo[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<NotificationEvent>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState("");
+  const [testRecipientOverride, setTestRecipientOverride] = useState("");
   const [testResult, setTestResult] = useState<string | null>(null);
-  const [previewEvent, setPreviewEvent] = useState<NotificationEvent>("admin.test");
-  const [previewPayload, setPreviewPayload] = useState(
-    JSON.stringify(defaultPreviewPayloads["admin.test"], null, 2),
-  );
-  const [previewResult, setPreviewResult] = useState<{ subject: string; html: string; templateVersion: string } | null>(null);
+  const [previewPayload, setPreviewPayload] = useState("{}");
+  const [previewResult, setPreviewResult] = useState<NotificationPreviewResponse | null>(null);
   const [adminRecipientsText, setAdminRecipientsText] = useState("");
 
   const inputClass = classNames(
@@ -153,14 +124,46 @@ export default function NotificationsSettings() {
       : "border-white/10 bg-white/5 text-white hover:bg-white/10",
   );
 
+  const eventMap = useMemo(
+    () => new Map(notificationEvents.map((eventInfo) => [eventInfo.event, eventInfo])),
+    [notificationEvents],
+  );
+  const effectiveRecipients = useMemo(
+    () => data?.settings.effectiveAdminRecipients.join(", ") ?? "Not configured",
+    [data],
+  );
+  const quickActions = useMemo(() => [
+    { event: "booking.confirmed", label: "Send Booking Confirmation" },
+    { event: "payment.succeeded", label: "Send Payment Receipt" },
+    { event: "admin.new.booking", label: "Send Booking Alert" },
+    { event: "admin.payment.received", label: "Send Payment Alert" },
+  ].filter((action) => eventMap.has(action.event)), [eventMap]);
+
+  async function fetchPreview(
+    event: NotificationEvent,
+    payload?: Record<string, unknown>,
+  ) {
+    const token = await getToken();
+    return (await api.post("/admin/notifications/preview", {
+      event,
+      ...(payload ? { payload } : {}),
+    }, token)) as NotificationPreviewResponse;
+  }
+
   async function load() {
     setLoading(true);
     setError(null);
     try {
       const token = await getToken();
-      const response = (await api.get("/admin/notifications", token)) as NotificationSettingsResponse;
-      setData(response);
-      setAdminRecipientsText(response.settings.adminRecipientsOverride.join(", "));
+      const [settingsResponse, eventsResponse] = await Promise.all([
+        api.get("/admin/notifications", token) as Promise<NotificationSettingsResponse>,
+        api.get("/admin/notifications/events", token) as Promise<NotificationEventsResponse>,
+      ]);
+
+      setData(settingsResponse);
+      setNotificationEvents(eventsResponse.events);
+      setAdminRecipientsText(settingsResponse.settings.adminRecipientsOverride.join(", "));
+      setSelectedEvent((current) => current || eventsResponse.events[0]?.event || "");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load notifications.");
     } finally {
@@ -173,13 +176,41 @@ export default function NotificationsSettings() {
   }, []);
 
   useEffect(() => {
-    setPreviewPayload(JSON.stringify(defaultPreviewPayloads[previewEvent], null, 2));
-  }, [previewEvent]);
+    if (!selectedEvent) {
+      return;
+    }
 
-  const effectiveRecipients = useMemo(
-    () => data?.settings.effectiveAdminRecipients.join(", ") ?? "Not configured",
-    [data],
-  );
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetchPreview(selectedEvent);
+        if (!active) {
+          return;
+        }
+
+        setPreviewResult(response);
+        setPreviewPayload(JSON.stringify(response.payload, null, 2));
+      } catch (previewError) {
+        if (!active) {
+          return;
+        }
+
+        setPreviewResult({
+          event: selectedEvent,
+          recipientType: eventMap.get(selectedEvent)?.recipientType ?? "unknown",
+          subject: "Preview failed",
+          html: previewError instanceof Error ? previewError.message : "Failed to load preview payload.",
+          templateVersion: "n/a",
+          dryRun: true,
+          payload: {},
+        });
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [eventMap, selectedEvent]);
 
   async function handleToggle(event: string, checked: boolean) {
     if (!data) {
@@ -230,35 +261,87 @@ export default function NotificationsSettings() {
   }
 
   async function handlePreview() {
+    if (!selectedEvent) {
+      return;
+    }
+
     try {
-      const token = await getToken();
       const payload = JSON.parse(previewPayload) as Record<string, unknown>;
-      const response = (await api.post("/admin/notifications/preview", {
-        event: previewEvent,
-        payload,
-      }, token)) as { subject: string; html: string; templateVersion: string };
+      const response = await fetchPreview(selectedEvent, payload);
       setPreviewResult(response);
+      setPreviewPayload(JSON.stringify(response.payload, null, 2));
     } catch (previewError) {
       setPreviewResult({
+        event: selectedEvent,
+        recipientType: eventMap.get(selectedEvent)?.recipientType ?? "unknown",
         subject: "Preview failed",
         html: previewError instanceof Error ? previewError.message : "Invalid preview payload.",
         templateVersion: "n/a",
+        dryRun: true,
+        payload: {},
       });
     }
   }
 
-  async function handleTestSend() {
+  async function handleTestSend(options?: {
+    event?: NotificationEvent;
+    dryRun?: boolean;
+    useSamplePayload?: boolean;
+  }) {
+    const event = options?.event ?? selectedEvent;
+    if (!event) {
+      return;
+    }
+
+    setSending(true);
+    setTestResult(null);
     try {
       const token = await getToken();
-      const response = (await api.post("/admin/notifications/test", {
-        message: testMessage,
-      }, token)) as { entityId: string; result: { success: boolean; skipped: boolean } };
-      setTestResult(response.result.success
-        ? `Test notification handled for ${response.entityId}.`
-        : `Test notification failed for ${response.entityId}.`);
-      await load();
+      const body: Record<string, unknown> = {
+        event,
+        dryRun: options?.dryRun === true,
+      };
+
+      if (testMessage.trim()) {
+        body.message = testMessage.trim();
+      }
+
+      if (testRecipientOverride.trim()) {
+        body.recipientOverride = testRecipientOverride;
+      }
+
+      if (!options?.useSamplePayload) {
+        body.payload = JSON.parse(previewPayload) as Record<string, unknown>;
+      }
+
+      const response = (await api.post("/admin/notifications/test", body, token)) as NotificationTestResponse;
+      if (response.result.dryRun && response.result.preview) {
+        setPreviewResult({
+          event: response.event,
+          recipientType: eventMap.get(response.event)?.recipientType ?? "unknown",
+          subject: response.result.preview.subject,
+          html: response.result.preview.html,
+          templateVersion: response.result.preview.templateVersion,
+          dryRun: true,
+          payload: response.payload,
+        });
+      }
+
+      setPreviewPayload(JSON.stringify(response.payload, null, 2));
+      const recipientSummary = response.result.recipients?.join(", ");
+      setTestResult(response.result.dryRun
+        ? `Dry run rendered ${response.event}${recipientSummary ? ` for ${recipientSummary}` : ""}.`
+        : response.result.success
+          ? `Sample email handled for ${response.entityId}${recipientSummary ? ` to ${recipientSummary}` : ""}.`
+          : `Sample email failed for ${response.entityId}.`);
+
+      if (!response.result.dryRun) {
+        await load();
+      }
     } catch (testError) {
       setTestResult(testError instanceof Error ? testError.message : "Test send failed.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -286,7 +369,7 @@ export default function NotificationsSettings() {
         <p className="text-sm font-medium text-accent-cyan">Notifications</p>
         <h2 className="mt-2 text-2xl font-semibold">Admin notification control plane</h2>
         <p className="mt-2 text-sm opacity-70">
-          Configure delivery, preview templates, inspect recent activity, and retry failed sends without bypassing the central service.
+          Configure delivery, render dry runs, send sample emails, inspect recent activity, and retry failures without bypassing the central service.
         </p>
       </div>
 
@@ -315,7 +398,7 @@ export default function NotificationsSettings() {
                 )}
               >
                 <span>
-                  <span className="block text-sm font-medium">{prettyEventLabel(event)}</span>
+                  <span className="block text-sm font-medium">{eventMap.get(event)?.label ?? prettyEventLabel(event)}</span>
                   <span className="mt-1 block text-xs opacity-70">{event}</span>
                 </span>
                 <input
@@ -348,45 +431,99 @@ export default function NotificationsSettings() {
 
         <div className="space-y-6">
           <div className={cardClass}>
-            <h3 className="text-lg font-semibold">Test send</h3>
-            <p className="mt-1 text-sm opacity-70">Sends the `admin.test` event through the same notification service used by production flows.</p>
-            <input
-              className={classNames(inputClass, "mt-4")}
-              value={testMessage}
-              onChange={(event) => setTestMessage(event.target.value)}
-              placeholder="Optional test message"
-            />
-            <div className="mt-4 flex items-center gap-3">
-              <button type="button" className={buttonClass} onClick={handleTestSend}>Send test notification</button>
-              {testResult ? <span className="text-sm opacity-70">{testResult}</span> : null}
+            <h3 className="text-lg font-semibold">Sample email testing</h3>
+            <p className="mt-1 text-sm opacity-70">
+              Trigger any notification event through the same pipeline used in production. User events fall back to the effective admin recipients unless you override them here.
+            </p>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {quickActions.map((action) => (
+                <button
+                  key={action.event}
+                  type="button"
+                  className={secondaryButtonClass}
+                  disabled={sending}
+                  onClick={() => {
+                    setSelectedEvent(action.event);
+                    void handleTestSend({ event: action.event, useSamplePayload: true });
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <select
+                className={inputClass}
+                value={selectedEvent}
+                onChange={(event) => setSelectedEvent(event.target.value)}
+              >
+                {notificationEvents.map((eventInfo) => (
+                  <option key={eventInfo.event} value={eventInfo.event}>
+                    {eventInfo.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                className={inputClass}
+                value={testRecipientOverride}
+                onChange={(event) => setTestRecipientOverride(event.target.value)}
+                placeholder="Optional recipient override (comma-separated)"
+              />
+              <input
+                className={inputClass}
+                value={testMessage}
+                onChange={(event) => setTestMessage(event.target.value)}
+                placeholder="Optional message override"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  className={buttonClass}
+                  disabled={sending || !selectedEvent}
+                  onClick={() => void handleTestSend()}
+                >
+                  {sending ? "Sending..." : "Send sample email"}
+                </button>
+                <button
+                  type="button"
+                  className={secondaryButtonClass}
+                  disabled={sending || !selectedEvent}
+                  onClick={() => void handleTestSend({ dryRun: true })}
+                >
+                  Dry run
+                </button>
+                {testResult ? <span className="text-sm opacity-70">{testResult}</span> : null}
+              </div>
             </div>
           </div>
 
           <div className={cardClass}>
-            <h3 className="text-lg font-semibold">Preview</h3>
+            <h3 className="text-lg font-semibold">Template preview</h3>
+            <p className="mt-1 text-sm opacity-70">
+              The payload starts from the backend sample contract for the selected event. Edit it here if you want to test a variant before sending.
+            </p>
             <div className="mt-4 space-y-4">
-              <select
-                className={inputClass}
-                value={previewEvent}
-                onChange={(event) => setPreviewEvent(event.target.value as NotificationEvent)}
-              >
-                {([...data.configurableEvents, "admin.test"] as NotificationEvent[]).map((event) => (
-                  <option key={event} value={event}>{prettyEventLabel(event)}</option>
-                ))}
-              </select>
               <textarea
                 className={classNames(inputClass, "min-h-[220px] font-mono text-xs")}
                 value={previewPayload}
                 onChange={(event) => setPreviewPayload(event.target.value)}
               />
-              <button type="button" className={secondaryButtonClass} onClick={handlePreview}>Render preview</button>
+              <button type="button" className={secondaryButtonClass} onClick={() => void handlePreview()}>
+                Render preview
+              </button>
               {previewResult ? (
                 <div className={classNames(
                   "rounded-2xl border p-4",
                   isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5",
                 )}>
                   <p className="text-sm font-medium">{previewResult.subject}</p>
-                  <p className="mt-1 text-xs opacity-70">Template: {previewResult.templateVersion}</p>
+                  <p className="mt-1 text-xs opacity-70">
+                    Template: {previewResult.templateVersion}
+                    {" · "}
+                    Recipient type: {previewResult.recipientType}
+                  </p>
                   <div
                     className="prose prose-sm mt-4 max-w-none"
                     dangerouslySetInnerHTML={{ __html: previewResult.html }}

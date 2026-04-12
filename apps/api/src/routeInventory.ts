@@ -94,6 +94,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "GET", url: "/api/admin/orders/:orderId", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/generate", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/divin8ExecutionDispatcher.ts"] },
   { method: "GET", url: "/api/admin/notifications", auth: "admin", validation: "none", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationRetryService.ts", "services/notifications/notificationSettingsService.ts"] },
+  { method: "GET", url: "/api/admin/notifications/events", auth: "admin", validation: "none", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/events.ts", "services/notifications/samplePayloads.ts"] },
   { method: "POST", url: "/api/admin/notifications/test", auth: "admin", validation: "service", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationService.ts"] },
   { method: "POST", url: "/api/admin/notifications/preview", auth: "admin", validation: "service", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationPreview.ts"] },
   { method: "POST", url: "/api/admin/notifications/retry", auth: "admin", validation: "service", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationRetryService.ts"] },

@@ -6,6 +6,22 @@ interface RenderedTemplate {
   templateVersion: string;
 }
 
+function text(value: string | number | null | undefined, fallback: string) {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  return String(value);
+}
+
+function money(amount: number | null | undefined, currency: string | null | undefined) {
+  if (typeof amount !== "number") {
+    return "Unavailable";
+  }
+
+  return `${amount} ${text(currency?.toUpperCase(), "USD")}`;
+}
+
 function layout(title: string, body: string) {
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">
@@ -18,17 +34,18 @@ function layout(title: string, body: string) {
 export function renderAdminPaymentReceivedTemplate(
   payload: NotificationPayloadMap["admin.payment.received"],
 ): RenderedTemplate {
+  const product = text(payload.product, "Unknown product");
   return {
-    subject: `Admin alert: payment received for ${payload.product}`,
+    subject: `Admin alert: payment received for ${product}`,
     templateVersion: "admin-payment-received-v1",
     html: layout(
       "Payment received",
       `
         <p>A payment was recorded.</p>
-        <p>Product: <strong>${payload.product}</strong></p>
-        <p>Amount: <strong>${payload.amount} ${payload.currency.toUpperCase()}</strong></p>
-        <p>Customer: <strong>${payload.userEmail ?? "Unavailable"}</strong></p>
-        <p>Payment reference: <strong>${payload.paymentId}</strong></p>
+        <p>Product: <strong>${product}</strong></p>
+        <p>Amount: <strong>${money(payload.amount, payload.currency)}</strong></p>
+        <p>Customer: <strong>${text(payload.userEmail, "Unavailable")}</strong></p>
+        <p>Payment reference: <strong>${text(payload.paymentId, "Unavailable")}</strong></p>
       `,
     ),
   };
@@ -37,7 +54,7 @@ export function renderAdminPaymentReceivedTemplate(
 export function renderAdminNewBookingTemplate(
   payload: NotificationPayloadMap["admin.new.booking"],
 ): RenderedTemplate {
-  const bookingLabel = payload.eventTitle ?? payload.bookingType;
+  const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "booking");
   return {
     subject: `Admin alert: new ${bookingLabel} booking`,
     templateVersion: "admin-new-booking-v2",
@@ -46,10 +63,10 @@ export function renderAdminNewBookingTemplate(
       `
         <p>A new booking was created.</p>
         <p>Booking type: <strong>${bookingLabel}</strong></p>
-        <p>Customer: <strong>${payload.fullName ?? payload.userEmail ?? "Unavailable"}</strong></p>
-        <p>Booking reference: <strong>${payload.bookingId}</strong></p>
-        ${payload.startTimeUtc ? `<p>Start: <strong>${payload.startTimeUtc}</strong></p>` : ""}
-        ${payload.timezone ? `<p>Timezone: <strong>${payload.timezone}</strong></p>` : ""}
+        <p>Customer: <strong>${text(payload.fullName ?? payload.userEmail, "Unavailable")}</strong></p>
+        <p>Booking reference: <strong>${text(payload.bookingId, "Unavailable")}</strong></p>
+        <p>Start: <strong>${text(payload.startTimeUtc, "TBD")}</strong></p>
+        <p>Timezone: <strong>${text(payload.timezone, "TBD")}</strong></p>
       `,
     ),
   };
@@ -59,15 +76,15 @@ export function renderAdminNewUserTemplate(
   payload: NotificationPayloadMap["admin.new.user"],
 ): RenderedTemplate {
   return {
-    subject: `Admin alert: new user signup ${payload.email}`,
+    subject: `Admin alert: new user signup ${text(payload.email, "unknown user")}`,
     templateVersion: "admin-new-user-v1",
     html: layout(
       "New user signup",
       `
         <p>A new account was created.</p>
-        <p>Email: <strong>${payload.email}</strong></p>
-        <p>Name: <strong>${payload.name ?? "Unavailable"}</strong></p>
-        <p>Clerk ID: <strong>${payload.clerkId}</strong></p>
+        <p>Email: <strong>${text(payload.email, "Unavailable")}</strong></p>
+        <p>Name: <strong>${text(payload.name, "Unavailable")}</strong></p>
+        <p>Clerk ID: <strong>${text(payload.clerkId, "Unavailable")}</strong></p>
       `,
     ),
   };
@@ -83,8 +100,8 @@ export function renderAdminTestTemplate(
       "Notification test",
       `
         <p>This is a test notification from the admin dashboard.</p>
-        <p>Message: <strong>${payload.message ?? "Notification pipeline verified."}</strong></p>
-        <p>Entity: <strong>${payload.entityId}</strong></p>
+        <p>Message: <strong>${text(payload.message, "Notification pipeline verified.")}</strong></p>
+        <p>Entity: <strong>${text(payload.entityId, "Unavailable")}</strong></p>
       `,
     ),
   };

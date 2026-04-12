@@ -11,6 +11,13 @@ export type NotificationEvent =
 
 export type NotificationRecipientType = "user" | "admin";
 
+export interface NotificationEventDescriptor {
+  event: NotificationEvent;
+  label: string;
+  recipientType: NotificationRecipientType;
+  configurable: boolean;
+}
+
 export interface NotificationPayloadMap {
   "payment.succeeded": {
     entityId: string;
@@ -135,8 +142,21 @@ export const ALL_NOTIFICATION_EVENTS = [
   "admin.test",
 ] as const satisfies readonly NotificationEvent[];
 
+export function getNotificationEventLabel(event: NotificationEvent) {
+  return event.replace(/\./g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 export function getNotificationRecipientType(event: NotificationEvent): NotificationRecipientType {
   return event.startsWith("admin.") ? "admin" : "user";
+}
+
+export function describeNotificationEvent(event: NotificationEvent): NotificationEventDescriptor {
+  return {
+    event,
+    label: getNotificationEventLabel(event),
+    recipientType: getNotificationRecipientType(event),
+    configurable: CONFIGURABLE_NOTIFICATION_EVENTS.includes(event as ConfigurableNotificationEvent),
+  };
 }
 
 export function getNotificationEntityId<TEvent extends NotificationEvent>(

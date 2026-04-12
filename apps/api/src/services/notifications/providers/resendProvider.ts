@@ -22,7 +22,9 @@ function getResendClient() {
 }
 
 function resolveFromAddress() {
-  const explicitFrom = process.env.RESEND_FROM_EMAIL?.trim() || process.env.SMTP_FROM?.trim();
+  const explicitFrom = process.env.EMAIL_FROM?.trim()
+    || process.env.RESEND_FROM_EMAIL?.trim()
+    || process.env.SMTP_FROM?.trim();
   if (explicitFrom) {
     return explicitFrom;
   }

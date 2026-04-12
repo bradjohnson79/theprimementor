@@ -35,6 +35,18 @@ interface NotificationRecipients {
   recipients: string[];
 }
 
+interface NotificationTestContext {
+  source: "admin";
+  requestedByUserId?: string | null;
+}
+
+export type SendNotificationInput<TEvent extends NotificationRequest["event"] = NotificationRequest["event"]> =
+  NotificationRequest<TEvent> & {
+    forceRecipients?: string[];
+    dryRun?: boolean;
+    testContext?: NotificationTestContext;
+  };
+
 async function withNotificationLock(db: NotificationDbLike, key: string) {
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('notification'), hashtext(${key}))`);
 }
@@ -206,9 +218,16 @@ async function resolveUserRecipients(db: NotificationDbLike, userId: string): Pr
 
 async function resolveRecipients(
   db: Database,
-  input: Pick<NotificationRequest, "event" | "userId">,
+  input: Pick<SendNotificationInput, "event" | "userId" | "forceRecipients">,
 ): Promise<NotificationRecipients> {
   const recipientType = getNotificationRecipientType(input.event);
+  if (input.forceRecipients && input.forceRecipients.length > 0) {
+    return {
+      recipientType,
+      recipients: input.forceRecipients,
+    };
+  }
+
   if (recipientType === "admin") {
     const settings = await getNotificationSettings(db);
     if (settings.effectiveAdminRecipients.length === 0) {
@@ -253,9 +272,27 @@ function logNotificationDelivery(input: {
   });
 }
 
+function logNotificationTestSend(input: {
+  event: NotificationRequest["event"];
+  recipients: string[];
+  payload: Record<string, unknown>;
+  dryRun: boolean;
+  requestedByUserId?: string | null;
+  deliveryMode: string;
+}) {
+  logger.info("notification_test_send", {
+    event: input.event,
+    recipients: input.recipients,
+    payload: input.payload,
+    dryRun: input.dryRun,
+    requestedByUserId: input.requestedByUserId ?? null,
+    deliveryMode: input.deliveryMode,
+  });
+}
+
 export async function sendNotification<TEvent extends NotificationRequest["event"]>(
   db: Database,
-  input: NotificationRequest<TEvent>,
+  input: SendNotificationInput<TEvent>,
 ) {
   const entityId = getNotificationEntityId(input.event, input.payload);
   const notificationEnabled = await isNotificationEnabled(db, input.event);
@@ -316,6 +353,33 @@ export async function sendNotification<TEvent extends NotificationRequest["event
     : appliedPolicy.resolvedRecipients;
   const recipientLabel = effectiveRecipients.join(", ");
   const providerName = appliedPolicy.suppressed ? "resend:suppressed" : "resend";
+
+  if (input.testContext?.source === "admin") {
+    logNotificationTestSend({
+      event: input.event,
+      recipients: effectiveRecipients,
+      payload: input.payload as Record<string, unknown>,
+      dryRun: Boolean(input.dryRun),
+      requestedByUserId: input.testContext.requestedByUserId,
+      deliveryMode: appliedPolicy.policy.mode,
+    });
+  }
+
+  if (input.dryRun) {
+    return {
+      success: true,
+      skipped: true,
+      dryRun: true,
+      recipients: effectiveRecipients,
+      deliveryMode: appliedPolicy.policy.mode,
+      preview: {
+        subject: template.subject,
+        html: template.html,
+        templateVersion: template.templateVersion,
+      },
+    };
+  }
+
   const reserved = await reserveNotificationRow({
     db,
     event: input.event,

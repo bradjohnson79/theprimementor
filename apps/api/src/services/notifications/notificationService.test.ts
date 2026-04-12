@@ -2,11 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ALL_NOTIFICATION_EVENTS,
+  describeNotificationEvent,
   getNotificationEntityId,
   getNotificationRecipientType,
 } from "./events.js";
 import { previewNotification } from "./notificationPreview.js";
 import { getNotificationDeliveryPolicy } from "./deliveryPolicy.js";
+import { getSamplePayload } from "./samplePayloads.js";
+import { renderBookingConfirmedTemplate } from "./templates/userTemplates.js";
+import { renderAdminNewBookingTemplate } from "./templates/adminTemplates.js";
 
 test("notification events map to the correct recipient types", () => {
   assert.equal(getNotificationRecipientType("payment.succeeded"), "user");
@@ -29,6 +33,23 @@ test("notification previews expose template metadata", () => {
   assert.equal(preview.templateVersion, "admin-test-v1");
   assert.match(preview.subject, /Admin test notification/i);
   assert.match(preview.html, /Pipeline check/i);
+});
+
+test("notification event descriptors expose stable UI metadata", () => {
+  const descriptor = describeNotificationEvent("booking.confirmed");
+
+  assert.equal(descriptor.event, "booking.confirmed");
+  assert.equal(descriptor.label, "Booking Confirmed");
+  assert.equal(descriptor.recipientType, "user");
+  assert.equal(descriptor.configurable, true);
+});
+
+test("sample payloads are generated from the typed notification event map", () => {
+  const payload = getSamplePayload("booking.confirmed");
+
+  assert.equal(payload.bookingType, "Mentoring Circle");
+  assert.equal(typeof payload.startTimeUtc, "string");
+  assert.equal(payload.joinUrl, "https://zoom.us/test");
 });
 
 test("entity ids are derived from typed payloads", () => {
@@ -81,4 +102,32 @@ test("non-production delivery policy redirects when a safe inbox is configured",
   } else {
     process.env.NOTIFICATION_REDIRECT_EMAILS = originalRedirect;
   }
+});
+
+test("booking confirmed template falls back to TBD for missing schedule fields", () => {
+  const rendered = renderBookingConfirmedTemplate({
+    entityId: "booking_sparse",
+    bookingId: "booking_sparse",
+    bookingType: "Mentoring Circle",
+    startTimeUtc: "",
+    endTimeUtc: "",
+    timezone: "",
+  });
+
+  assert.match(rendered.html, /Start: <strong>TBD<\/strong>/i);
+  assert.match(rendered.html, /End: <strong>TBD<\/strong>/i);
+  assert.match(rendered.html, /Timezone: <strong>TBD<\/strong>/i);
+});
+
+test("admin booking template falls back safely when optional fields are missing", () => {
+  const rendered = renderAdminNewBookingTemplate({
+    entityId: "admin_booking_sparse",
+    bookingId: "",
+    bookingType: "",
+  });
+
+  assert.match(rendered.subject, /booking/i);
+  assert.match(rendered.html, /Customer: <strong>Unavailable<\/strong>/i);
+  assert.match(rendered.html, /Booking reference: <strong>Unavailable<\/strong>/i);
+  assert.match(rendered.html, /Timezone: <strong>TBD<\/strong>/i);
 });
