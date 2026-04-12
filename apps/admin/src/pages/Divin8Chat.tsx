@@ -77,7 +77,10 @@ export default function Divin8Chat() {
                 : "border-white/10 bg-white/5 text-white/65",
             )}
           >
-            {t("divin8.usage.remainingOfLimit", { count: seekerPromptLimit, limit: seekerPromptLimit })}
+            {t("divin8.usage.seeker", {
+              used: Math.min(chat.usageCount, seekerPromptLimit),
+              limit: seekerPromptLimit,
+            })}
           </span>
         ) : (
           <span

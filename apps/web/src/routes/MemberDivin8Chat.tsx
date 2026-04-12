@@ -27,7 +27,7 @@ export default function MemberDivin8Chat() {
   const isInitiate = dbUser?.member?.capabilities.unlimitedChat === true;
   const usage = dbUser?.member?.usage;
   const seekerPromptLimit = usage?.limit ?? 150;
-  const seekerPromptsRemaining = Math.max(seekerPromptLimit - (usage?.used ?? 0), 0);
+  const seekerPromptsUsed = Math.min(usage?.used ?? 0, seekerPromptLimit);
   const capabilities: Divin8Capabilities = {
     showDebug: false,
     showTimeline: false,
@@ -101,7 +101,7 @@ export default function MemberDivin8Chat() {
         {/* Usage / unlimited badge */}
         {!isInitiate ? (
           <span className="flex h-7 items-center rounded-full border border-white/10 bg-white/5 px-2.5 text-[10px] font-medium text-white/65">
-            {`${seekerPromptsRemaining} / ${seekerPromptLimit} remaining`}
+            {`${seekerPromptsUsed} / ${seekerPromptLimit} used`}
           </span>
         ) : (
           <span className="flex h-7 items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 text-[10px] font-medium text-purple-300">
