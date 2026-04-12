@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import {
   cancelBooking,
   confirmBookingAvailability,
@@ -45,18 +47,13 @@ interface ConfirmBookingBody {
 }
 
 export async function bookingsRoutes(app: FastifyInstance) {
-  app.get("/booking-types", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return { data: await listActiveBookingTypes(app.db) };
+  app.get("/booking-types", { preHandler: requireAuth }, async () => {
+    const db = requireDatabase(app.db);
+    return ok({ data: await listActiveBookingTypes(db) });
   });
 
   app.post<{ Body: CreateBookingBody }>("/bookings", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
+    const db = requireDatabase(app.db);
 
     const {
       bookingTypeId,
@@ -80,13 +77,13 @@ export async function bookingsRoutes(app: FastifyInstance) {
       userId,
     } = request.body ?? {};
     if (!bookingTypeId && !sessionType) {
-      return reply.status(400).send({ error: "bookingTypeId or sessionType is required" });
+      return sendApiError(reply, 400, "bookingTypeId or sessionType is required");
     }
     if (!timezone) {
-      return reply.status(400).send({ error: "timezone is required" });
+      return sendApiError(reply, 400, "timezone is required");
     }
 
-    const booking = await createBooking(app.db, {
+    const booking = await createBooking(db, {
       actorUserId: request.dbUser!.id,
       actorRole: request.dbUser!.role,
       bookingTypeId,
@@ -110,80 +107,65 @@ export async function bookingsRoutes(app: FastifyInstance) {
       userId,
     });
 
-    return {
+    return ok({
       success: true,
       bookingId: booking.id,
       requiresPayment: true,
       data: booking,
-    };
+    });
   });
 
-  app.get("/bookings", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await listBookingsForUser(app.db, request.dbUser!.id),
-    };
+  app.get("/bookings", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await listBookingsForUser(db, request.dbUser!.id),
+    });
   });
 
-  app.get<{ Querystring: AdminBookingsQuery }>("/admin/bookings", { preHandler: requireAuth }, async (request, reply) => {
-    if (request.dbUser!.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+  app.get<{ Querystring: AdminBookingsQuery }>("/admin/bookings", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    const db = requireDatabase(app.db);
 
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await listBookingsForAdmin(app.db, new Date(), {
+    return ok({
+      data: await listBookingsForAdmin(db, new Date(), {
         showArchived: request.query.showArchived === "true",
       }),
-    };
+    });
   });
 
   app.patch<{ Params: BookingParams; Body: ConfirmBookingBody }>(
     "/admin/bookings/:id/confirm",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
-
-      if (!app.db) {
-        return reply.status(503).send({ error: "Database not available" });
-      }
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
 
       const { availabilityDay, availabilityTime } = request.body ?? {};
       if (!availabilityDay || !availabilityTime) {
-        return reply.status(400).send({ error: "availabilityDay and availabilityTime are required" });
+        return sendApiError(reply, 400, "availabilityDay and availabilityTime are required");
       }
 
-      return {
-        data: await confirmBookingAvailability(app.db, {
+      return ok({
+        data: await confirmBookingAvailability(db, {
           bookingId: request.params.id,
           actorUserId: request.dbUser!.id,
           actorRole: request.dbUser!.role,
           availabilityDay,
           availabilityTime,
         }),
-      };
+      });
     },
   );
 
-  app.delete<{ Params: BookingParams }>("/bookings/:id", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
+  app.delete<{ Params: BookingParams }>("/bookings/:id", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
 
-    return {
-      data: await cancelBooking(app.db, {
+    return ok({
+      data: await cancelBooking(db, {
         bookingId: request.params.id,
         actorUserId: request.dbUser!.id,
         actorRole: request.dbUser!.role,
       }),
-    };
+    });
   });
 }

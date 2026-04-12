@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { resolveAdminContactEmail, sendContactEmail } from "../services/contactService.js";
 
@@ -37,7 +38,7 @@ export async function contactRoutes(app: FastifyInstance) {
   app.post<{ Body: ContactBody }>("/contact", async (request, reply) => {
     const validated = validateContactBody(request.body);
     if ("error" in validated) {
-      return reply.status(400).send({ error: validated.error });
+      return sendApiError(reply, 400, validated.error ?? "Invalid contact request");
     }
 
     try {
@@ -49,17 +50,17 @@ export async function contactRoutes(app: FastifyInstance) {
         source: "public",
       });
 
-      return reply.send({ ok: true });
+      return ok({ ok: true });
     } catch (error) {
       request.log.error(error, "Failed to deliver public contact email");
-      return reply.status(500).send({ error: "Unable to send contact message" });
+      return sendApiError(reply, 500, "Unable to send contact message");
     }
   });
 
   app.post<{ Body: ContactBody }>("/member/contact", { preHandler: requireAuth }, async (request, reply) => {
     const validated = validateContactBody(request.body);
     if ("error" in validated) {
-      return reply.status(400).send({ error: validated.error });
+      return sendApiError(reply, 400, validated.error ?? "Invalid contact request");
     }
 
     try {
@@ -72,10 +73,10 @@ export async function contactRoutes(app: FastifyInstance) {
         source: "member",
       });
 
-      return reply.send({ ok: true });
+      return ok({ ok: true });
     } catch (error) {
       request.log.error(error, "Failed to deliver member contact email");
-      return reply.status(500).send({ error: "Unable to send contact message" });
+      return sendApiError(reply, 500, "Unable to send contact message");
     }
   });
 }

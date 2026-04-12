@@ -535,7 +535,17 @@ export async function createPersistedOrderFromInvoice(
       failure_message_normalized: input.failureMessageNormalized ?? null,
       metadata: input.metadata ?? null,
     })
+    .onConflictDoNothing({ target: orders.payment_reference })
     .returning();
+
+  if (!created) {
+    const duplicate = await getOrderByPaymentReference(db, input.paymentReference);
+    if (duplicate) {
+      return duplicate;
+    }
+
+    throw new Error(`Order could not be created for payment reference ${input.paymentReference}`);
+  }
 
   return created;
 }

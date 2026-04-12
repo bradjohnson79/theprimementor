@@ -8,7 +8,9 @@ import {
   slugForFilename,
   type ReportTierId,
 } from "@wisdom/utils";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin } from "../routeAssertions.js";
 import { interpretBlueprint } from "../services/blueprint/index.js";
 import type { BlueprintData } from "../services/blueprint/types.js";
 import type { InterpretationReport } from "../services/blueprint/types.js";
@@ -268,20 +270,18 @@ function pickActiveTierOutput(
 export async function blueprintRoutes(app: FastifyInstance) {
   // ── Admin report list (register before /reports/:param routes that could shadow) ──
   app.get("/reports", { preHandler: requireAuth }, async (request, reply) => {
-    if (request.dbUser!.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    requireAdmin(request);
     const q = request.query as { limit?: string; cursor?: string; showArchived?: string };
     const limit = Math.min(100, Math.max(1, parseInt(q.limit || "50", 10) || 50));
     const cursor = decodeReportsListCursor(q.cursor);
     const showArchived = q.showArchived === "true";
     if (q.cursor?.trim() && !cursor) {
-      return reply.status(400).send({ error: "Invalid reports cursor" });
+      return sendApiError(reply, 400, "Invalid reports cursor");
     }
 
     const cursorTs = cursor ? new Date(cursor.created_at) : null;
     if (cursor && (!cursorTs || Number.isNaN(cursorTs.getTime()))) {
-      return reply.status(400).send({ error: "Invalid reports cursor" });
+      return sendApiError(reply, 400, "Invalid reports cursor");
     }
 
     /** Keyset only — (created_at, id) strictly before cursor row in DESC order */
@@ -339,7 +339,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         ).toString("base64url")
       : null;
 
-    return {
+    return ok({
       data: page.map((r) => ({
         id: r.id,
         client_id: r.client_id,
@@ -358,16 +358,14 @@ export async function blueprintRoutes(app: FastifyInstance) {
         tier_outputs: tiersByReport.get(r.id) ?? [],
       })),
       nextCursor,
-    };
+    });
   });
 
   app.get<{ Params: { id: string } }>(
     "/reports/:id/docx",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
       const { id } = request.params;
       const q = request.query as { tier?: string };
       const [row] = await app.db
@@ -379,7 +377,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .leftJoin(clients, eq(reports.client_id, clients.id))
         .where(eq(reports.id, id))
         .limit(1);
-      if (!row) return reply.status(404).send({ error: "Report not found" });
+      if (!row) return sendApiError(reply, 404, "Report not found");
 
       const { client_name, ...rep } = row;
       const tierRows = await app.db
@@ -394,7 +392,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         activeTierOutput?.generated_report ?? rep.generated_report,
       );
       if (!md.trim()) {
-        return reply.status(400).send({ error: "No markdown content for this report" });
+        return sendApiError(reply, 400, "No markdown content for this report");
       }
 
       const title = activeTierOutput?.display_title ?? rep.display_title ?? "Soul Blueprint Report";
@@ -403,7 +401,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         buf = await exportDocxFromMarkdown(title, md);
       } catch (err) {
         app.log.warn({ err }, "docx_export_failed");
-        return reply.status(500).send({ error: "Export failed. Please try again." });
+        return sendApiError(reply, 500, "Export failed. Please try again.");
       }
       const tier = (activeTierOutput?.tier ?? rep.interpretation_tier ?? "intro") as string;
       const slug = slugForFilename(subjectFullName(rep, client_name ?? null));
@@ -419,9 +417,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:id/pdf",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
       const { id } = request.params;
       const q = request.query as { tier?: string };
       const [row] = await app.db
@@ -433,7 +429,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .leftJoin(clients, eq(reports.client_id, clients.id))
         .where(eq(reports.id, id))
         .limit(1);
-      if (!row) return reply.status(404).send({ error: "Report not found" });
+      if (!row) return sendApiError(reply, 404, "Report not found");
 
       const { client_name, ...rep } = row;
       const tierRows = await app.db
@@ -448,7 +444,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         activeTierOutput?.generated_report ?? rep.generated_report,
       );
       if (!md.trim()) {
-        return reply.status(400).send({ error: "No markdown content for this report" });
+        return sendApiError(reply, 400, "No markdown content for this report");
       }
 
       const title = activeTierOutput?.display_title ?? rep.display_title ?? "Soul Blueprint Report";
@@ -457,7 +453,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         buf = await exportPdfFromMarkdown(title, md);
       } catch (err) {
         app.log.warn({ err }, "pdf_export_failed");
-        return reply.status(500).send({ error: "Export failed. Please try again." });
+        return sendApiError(reply, 500, "Export failed. Please try again.");
       }
       const tier = (activeTierOutput?.tier ?? rep.interpretation_tier ?? "intro") as string;
       const slug = slugForFilename(subjectFullName(rep, client_name ?? null));
@@ -473,40 +469,34 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:id",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
       const { id } = request.params;
       const [deleted] = await app.db.delete(reports).where(eq(reports.id, id)).returning({ id: reports.id });
-      if (!deleted) return reply.status(404).send({ error: "Report not found" });
-      return { ok: true, id: deleted.id };
+      if (!deleted) return sendApiError(reply, 404, "Report not found");
+      return ok({ ok: true, id: deleted.id });
     },
   );
 
   app.post("/blueprints/generate", { preHandler: requireAuth }, async (request, reply) => {
-    if (request.dbUser!.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    requireAdmin(request);
     logger.info("blueprint_generate_requested", {
       route: "/api/blueprints/generate",
       userId: request.dbUser?.id ?? null,
     });
     const result = await generateBlueprintFromRequest(app, request.body);
-    return result;
+    return ok(result);
   });
 
   app.post<{ Params: { clientId: string } }>(
     "/blueprints/:clientId/interpret",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { clientId } = request.params;
 
       if (!clientId || clientId === "undefined" || clientId === "null") {
-        return reply.status(400).send({ error: "Missing or invalid clientId in URL" });
+        return sendApiError(reply, 400, "Missing or invalid clientId in URL");
       }
 
       app.log.info({ clientId }, "Interpretation requested (client mode)");
@@ -519,24 +509,24 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .limit(1);
 
       if (!report) {
-        return reply.status(404).send({ error: "No blueprint found for this client. Generate one first." });
+        return sendApiError(reply, 404, "No blueprint found for this client. Generate one first.");
       }
 
       if (!report.blueprint_data) {
-        return reply.status(400).send({ error: "Report exists but has no blueprint_data. Re-generate the blueprint." });
+        return sendApiError(reply, 400, "Report exists but has no blueprint_data. Re-generate the blueprint.");
       }
 
       let tier: ReportTierId;
       try {
         tier = parseInterpretTier(request.body);
       } catch (err) {
-        return reply.status(400).send({ error: err instanceof Error ? err.message : "Invalid interpretation tier" });
+        return sendApiError(reply, 400, err instanceof Error ? err.message : "Invalid interpretation tier");
       }
       app.log.info({ reportId: report.id, clientId, tier }, "Starting GPT interpretation (client mode)");
       await updateReportStatus(app, report.id, "interpreting", tier);
       try {
         const result = await finalizeInterpretation(app, report, tier);
-        return result;
+        return ok(result);
       } catch (err) {
         await updateReportStatus(
           app,
@@ -554,14 +544,12 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/blueprints/interpret/:reportId",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { reportId } = request.params;
 
       if (!reportId || reportId === "undefined" || reportId === "null") {
-        return reply.status(400).send({ error: "Missing or invalid reportId in URL" });
+        return sendApiError(reply, 400, "Missing or invalid reportId in URL");
       }
 
       app.log.info({ reportId }, "Interpretation requested (by report ID)");
@@ -569,11 +557,11 @@ export async function blueprintRoutes(app: FastifyInstance) {
       const [report] = await app.db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
 
       if (!report) {
-        return reply.status(404).send({ error: `Report ${reportId} not found. Generate a blueprint first.` });
+        return sendApiError(reply, 404, `Report ${reportId} not found. Generate a blueprint first.`);
       }
 
       if (!report.blueprint_data) {
-        return reply.status(400).send({ error: "Report has no blueprint_data. Re-generate the blueprint." });
+        return sendApiError(reply, 400, "Report has no blueprint_data. Re-generate the blueprint.");
       }
 
       const bp = report.blueprint_data as BlueprintData;
@@ -582,14 +570,14 @@ export async function blueprintRoutes(app: FastifyInstance) {
       try {
         tier = parseInterpretTier(request.body);
       } catch (err) {
-        return reply.status(400).send({ error: err instanceof Error ? err.message : "Invalid interpretation tier" });
+        return sendApiError(reply, 400, err instanceof Error ? err.message : "Invalid interpretation tier");
       }
 
       app.log.info({ reportId, systemsIncluded, tier, hasCore: !!bp.core }, "Starting chunked GPT interpretation");
       await updateReportStatus(app, report.id, "interpreting", tier);
       try {
         const result = await finalizeInterpretation(app, report, tier);
-        return result;
+        return ok(result);
       } catch (err) {
         await updateReportStatus(
           app,
@@ -607,9 +595,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/blueprints/reports/:id",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { id } = request.params;
       const q = request.query as { tier?: string };
@@ -625,7 +611,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .limit(1);
 
       if (!row) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
 
       const { client_name, ...report } = row;
@@ -640,7 +626,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         ? activeTierOutput.full_markdown.trim()
         : resolveFullMarkdown(report.full_markdown, report.generated_report);
 
-      return {
+      return ok({
         id: report.id,
         client_id: report.client_id,
         user_id: report.user_id,
@@ -663,7 +649,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         updated_at: activeTierOutput?.updated_at ?? report.updated_at,
         subject_name: subjectFullName(report, client_name ?? null),
         tier_outputs: tierRows.filter((row) => isReportTierId(row.tier)).map(mapTierOutput),
-      };
+      });
     },
   );
 
@@ -671,9 +657,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:clientId",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { clientId } = request.params;
 
@@ -685,7 +669,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .limit(1);
 
       if (!report) {
-        return reply.status(404).send({ error: "No report found for this client" });
+        return sendApiError(reply, 404, "No report found for this client");
       }
 
       const tierRows = await app.db
@@ -695,7 +679,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .orderBy(desc(reportTierOutputs.updated_at), desc(reportTierOutputs.created_at));
       const activeTierOutput = pickActiveTierOutput(tierRows);
 
-      return {
+      return ok({
         id: report.id,
         clientId: report.client_id,
         userId: report.user_id,
@@ -720,7 +704,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         createdAt: report.created_at,
         updatedAt: report.updated_at,
         tierOutputs: tierRows.filter((row) => isReportTierId(row.tier)).map(mapTierOutput),
-      };
+      });
     },
   );
 
@@ -736,9 +720,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:id",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { id } = request.params;
       const q = request.query as { tier?: string };
@@ -755,21 +737,21 @@ export async function blueprintRoutes(app: FastifyInstance) {
       const allowedMemberStatuses = new Set(["pending_payment", "paid", "fulfilled"]);
 
       if (full_markdown !== undefined && typeof full_markdown !== "string") {
-        return reply.status(400).send({ error: "full_markdown must be a string" });
+        return sendApiError(reply, 400, "full_markdown must be a string");
       }
       if (admin_notes !== undefined && typeof admin_notes !== "string") {
-        return reply.status(400).send({ error: "admin_notes must be a string" });
+        return sendApiError(reply, 400, "admin_notes must be a string");
       }
       if (status !== undefined && (typeof status !== "string" || !allowedStatuses.has(status))) {
-        return reply.status(400).send({ error: "Invalid report status" });
+        return sendApiError(reply, 400, "Invalid report status");
       }
       if (member_status !== undefined && (typeof member_status !== "string" || !allowedMemberStatuses.has(member_status))) {
-        return reply.status(400).send({ error: "Invalid member status" });
+        return sendApiError(reply, 400, "Invalid member status");
       }
 
       const [current] = await app.db.select().from(reports).where(eq(reports.id, id)).limit(1);
       if (!current) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
 
       const tierRows = await app.db
@@ -780,7 +762,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
       const activeTierOutput = pickActiveTierOutput(tierRows, q.tier);
       const activeStatus = activeTierOutput?.status ?? current.status;
       if (full_markdown !== undefined && isLockedReportStatus(activeStatus)) {
-        return reply.status(400).send({ error: "Final reports are locked and cannot be edited" });
+        return sendApiError(reply, 400, "Final reports are locked and cannot be edited");
       }
 
       const updateFields: Record<string, unknown> = {};
@@ -790,7 +772,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
       if (member_status !== undefined) updateFields.member_status = member_status;
 
       if (Object.keys(updateFields).length === 0) {
-        return reply.status(400).send({ error: "No fields to update" });
+        return sendApiError(reply, 400, "No fields to update");
       }
 
       await app.db.update(reports).set(updateFields).where(eq(reports.id, id));
@@ -812,7 +794,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         .where(eq(reports.id, id))
         .limit(1);
       if (!row) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
       const { client_name, ...updated } = row;
       const updatedTierRows = await app.db
@@ -826,7 +808,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         updatedActiveTierOutput?.generated_report ?? updated.generated_report,
       );
 
-      return {
+      return ok({
         id: updated.id,
         client_id: updated.client_id,
         user_id: updated.user_id,
@@ -849,7 +831,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
         updated_at: updatedActiveTierOutput?.updated_at ?? updated.updated_at,
         subject_name: subjectFullName(updated, client_name ?? null),
         tier_outputs: updatedTierRows.filter((row) => isReportTierId(row.tier)).map(mapTierOutput),
-      };
+      });
     },
   );
 
@@ -857,17 +839,15 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:id/regenerate",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { id } = request.params;
       const [report] = await app.db.select().from(reports).where(eq(reports.id, id)).limit(1);
       if (!report) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
       if (!report.blueprint_data) {
-        return reply.status(400).send({ error: "Report has no blueprint_data. Re-generate the blueprint." });
+        return sendApiError(reply, 400, "Report has no blueprint_data. Re-generate the blueprint.");
       }
 
       const tierRows = await app.db
@@ -880,7 +860,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
       const requestedTier = request.body?.tier;
       if (requestedTier !== undefined) {
         if (!isReportTierId(requestedTier)) {
-          return reply.status(400).send({ error: "Invalid interpretation tier" });
+          return sendApiError(reply, 400, "Invalid interpretation tier");
         }
         tier = requestedTier;
       } else if (tierRows[0] && isReportTierId(tierRows[0].tier)) {
@@ -890,12 +870,12 @@ export async function blueprintRoutes(app: FastifyInstance) {
       }
 
       if (!tier) {
-        return reply.status(400).send({ error: "Missing or invalid interpretation tier" });
+        return sendApiError(reply, 400, "Missing or invalid interpretation tier");
       }
 
       const activeTierOutput = pickActiveTierOutput(tierRows, tier);
       if (isLockedReportStatus(activeTierOutput?.status ?? report.status)) {
-        return reply.status(400).send({ error: "Final reports are locked and cannot be regenerated" });
+        return sendApiError(reply, 400, "Final reports are locked and cannot be regenerated");
       }
 
       await updateReportStatus(app, report.id, "interpreting", tier);
@@ -912,7 +892,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
             },
           })
           .where(eq(reports.id, report.id));
-        return result;
+        return ok(result);
       } catch (err) {
         await updateReportStatus(
           app,
@@ -930,14 +910,12 @@ export async function blueprintRoutes(app: FastifyInstance) {
     "/reports/:id/finalize",
     { preHandler: requireAuth },
     async (request, reply) => {
-      if (request.dbUser!.role !== "admin") {
-        return reply.status(403).send({ error: "Admin access required" });
-      }
+      requireAdmin(request);
 
       const { id } = request.params;
       const [report] = await app.db.select().from(reports).where(eq(reports.id, id)).limit(1);
       if (!report) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
 
       const tierRows = await app.db
@@ -950,7 +928,7 @@ export async function blueprintRoutes(app: FastifyInstance) {
       const requestedTier = request.body?.tier;
       if (requestedTier !== undefined) {
         if (!isReportTierId(requestedTier)) {
-          return reply.status(400).send({ error: "Invalid interpretation tier" });
+          return sendApiError(reply, 400, "Invalid interpretation tier");
         }
         tier = requestedTier;
       } else if (tierRows[0] && isReportTierId(tierRows[0].tier)) {
@@ -979,15 +957,15 @@ export async function blueprintRoutes(app: FastifyInstance) {
 
       const [updated] = await app.db.select().from(reports).where(eq(reports.id, report.id)).limit(1);
       if (!updated) {
-        return reply.status(404).send({ error: "Report not found" });
+        return sendApiError(reply, 404, "Report not found");
       }
 
-      return {
+      return ok({
         id: updated.id,
         status: "final",
         updated_at: updated.updated_at,
         meta: reportMetaValue(updated),
-      };
+      });
     },
   );
 }

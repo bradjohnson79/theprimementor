@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import {
   confirmPayment,
   createPaymentForBooking,
@@ -23,80 +25,63 @@ interface PaymentParams {
 }
 
 export async function paymentsRoutes(app: FastifyInstance) {
-  app.get("/payments", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await listPaymentsForUser(app.db, request.dbUser!.id),
-    };
+  app.get("/payments", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await listPaymentsForUser(db, request.dbUser!.id),
+    });
   });
 
-  app.get("/admin/payments", { preHandler: requireAuth }, async (request, reply) => {
-    if (request.dbUser!.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
-
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await listPaymentsForAdmin(app.db),
-    };
+  app.get("/admin/payments", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await listPaymentsForAdmin(db),
+    });
   });
 
   app.post<{ Body: CreatePaymentBody }>("/payments", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
+    const db = requireDatabase(app.db);
 
     const { bookingId, metadata } = request.body ?? {};
     if (!bookingId) {
-      return reply.status(400).send({ error: "bookingId is required" });
+      return sendApiError(reply, 400, "bookingId is required");
     }
 
-    return {
-      data: await createPaymentForBooking(app.db, {
+    return ok({
+      data: await createPaymentForBooking(db, {
         bookingId,
         actorUserId: request.dbUser!.id,
         actorRole: request.dbUser!.role,
         metadata: parsePaymentMetadata(metadata),
       }),
-    };
+    });
   });
 
   app.post<{ Params: PaymentParams; Body: ConfirmPaymentBody }>(
     "/payments/:id/confirm",
     { preHandler: requireAuth },
-    async (request, reply) => {
-      if (!app.db) {
-        return reply.status(503).send({ error: "Database not available" });
-      }
-
-      return {
-        data: await confirmPayment(app.db, {
+    async (request) => {
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await confirmPayment(db, {
           paymentId: request.params.id,
           actorUserId: request.dbUser!.id,
           actorRole: request.dbUser!.role,
           manual: request.body?.manual === true,
         }),
-      };
+      });
     },
   );
 
-  app.post<{ Params: PaymentParams }>("/payments/:id/refund", { preHandler: requireAuth }, async (request, reply) => {
-    if (!app.db) {
-      return reply.status(503).send({ error: "Database not available" });
-    }
-
-    return {
-      data: await refundPayment(app.db, {
+  app.post<{ Params: PaymentParams }>("/payments/:id/refund", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await refundPayment(db, {
         paymentId: request.params.id,
         actorUserId: request.dbUser!.id,
         actorRole: request.dbUser!.role,
       }),
-    };
+    });
   });
 }

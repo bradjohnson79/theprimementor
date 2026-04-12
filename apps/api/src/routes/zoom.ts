@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { logger } from "@wisdom/utils";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin } from "../routeAssertions.js";
 import { createZoomMeeting } from "../services/zoomService.js";
 
 export async function zoomRoutes(app: FastifyInstance) {
@@ -11,11 +13,9 @@ export async function zoomRoutes(app: FastifyInstance) {
       throw error;
     }
 
-    if (request.dbUser?.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    requireAdmin(request);
 
-    return {
+    return ok({
       data: {
         env: {
           accountId: Boolean(process.env.ZOOM_ACCOUNT_ID?.trim()),
@@ -23,7 +23,7 @@ export async function zoomRoutes(app: FastifyInstance) {
           clientSecret: Boolean(process.env.ZOOM_CLIENT_SECRET?.trim()),
         },
       },
-    };
+    });
   });
 
   app.post("/test/zoom-meeting", { preHandler: requireAuth }, async (request, reply) => {
@@ -33,9 +33,7 @@ export async function zoomRoutes(app: FastifyInstance) {
       throw error;
     }
 
-    if (request.dbUser?.role !== "admin") {
-      return reply.status(403).send({ error: "Admin access required" });
-    }
+    requireAdmin(request);
 
     try {
       const meeting = await createZoomMeeting({
@@ -49,17 +47,14 @@ export async function zoomRoutes(app: FastifyInstance) {
         startUrlPresent: Boolean(meeting.startUrl),
       });
 
-      return { data: meeting };
+      return ok({ data: meeting });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Zoom test failed";
       logger.error("zoom_test_meeting_failed", {
         message,
       });
 
-      return reply.status(500).send({
-        error: true,
-        message,
-      });
+      return sendApiError(reply, 500, message);
     }
   });
 }

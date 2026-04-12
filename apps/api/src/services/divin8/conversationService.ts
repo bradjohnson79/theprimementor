@@ -28,10 +28,16 @@ import {
   reserveUsageIdempotent,
   resolveUsageWindow,
 } from "./usageService.js";
+import {
+  createPendingExecutionArtifacts,
+  resolveThreadExecutionDecision,
+} from "./conversationExecutionState.js";
 
 const ADMIN_DIVIN8_USER_ID = "admin";
 const DEFAULT_THREAD_TITLE = "New Conversation";
 const SUMMARY_FALLBACK_LIMIT = 160;
+const THREAD_EXECUTION_TIMEOUT_MS = 90_000;
+const THREAD_LOCK_NAMESPACE = 6418;
 
 interface ConversationThreadRow {
   id: string;
@@ -82,6 +88,7 @@ export interface Divin8ConversationSummary {
   message_count: number;
   created_at: string;
   updated_at: string | null;
+  active_execution?: Divin8ActiveExecutionState | null;
 }
 
 export interface Divin8ConversationMessage {
@@ -106,6 +113,32 @@ export interface Divin8ConversationDetail {
   messages: Divin8ConversationMessage[];
   timeline: Divin8TimelineEventResponse[];
   last_pipeline_meta: import("./divin8Orchestrator.js").StoredPipelineMeta | null;
+  active_execution: Divin8ActiveExecutionState | null;
+}
+
+export interface Divin8ActiveExecutionState {
+  request_id: string;
+  status: "pending";
+  actor_role: string;
+  locked_at: string;
+  expires_at: string;
+  pending_message_id: string;
+}
+
+interface StoredConversationMessageMeta {
+  status?: "pending" | "completed" | "error";
+  requestId?: string;
+  lockedAt?: string;
+  expiresAt?: string;
+  resolvedAt?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  engine_used?: unknown;
+  systems_used?: unknown;
+  pipeline_status?: unknown;
+  route_type?: unknown;
+  stages?: unknown;
+  divin8?: unknown;
 }
 
 function createHttpError(statusCode: number, message: string, code?: string) {
@@ -115,8 +148,39 @@ function createHttpError(statusCode: number, message: string, code?: string) {
   return error;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function normalizeRole(role: string): "user" | "assistant" {
   return role === "assistant" ? "assistant" : "user";
+}
+
+function mapActiveExecution(meta: StoredDivin8SessionState | null): Divin8ActiveExecutionState | null {
+  const active = meta?.activeExecution;
+  if (!active) {
+    return null;
+  }
+
+  return {
+    request_id: active.requestId,
+    status: active.status,
+    actor_role: active.actorRole,
+    locked_at: active.lockedAt,
+    expires_at: active.expiresAt,
+    pending_message_id: active.pendingMessageId,
+  };
+}
+
+function mergeStoredMessageMeta(
+  current: unknown,
+  next: Partial<StoredConversationMessageMeta>,
+): StoredConversationMessageMeta {
+  const existing = isRecord(current) ? current as StoredConversationMessageMeta : {};
+  return {
+    ...existing,
+    ...next,
+  };
 }
 
 function threadSummaryFromRow(
@@ -124,6 +188,7 @@ function threadSummaryFromRow(
   preview: string | null,
   messageCount: number,
 ): Divin8ConversationSummary {
+  const storedState = asStoredState(row.meta);
   return {
     id: row.id,
     title: row.title,
@@ -132,6 +197,7 @@ function threadSummaryFromRow(
     message_count: messageCount,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at ? row.updated_at.toISOString() : null,
+    active_execution: mapActiveExecution(storedState),
   };
 }
 
@@ -390,6 +456,268 @@ async function getThreadTimeline(db: Database, threadId: string, userId: string,
   return rows.map(mapTimelineEvent);
 }
 
+async function withThreadAdvisoryLock(
+  db: Pick<Database, "execute">,
+  threadId: string,
+) {
+  await db.execute(sql`
+    SELECT pg_advisory_xact_lock(hashtext(${threadId}), ${THREAD_LOCK_NAMESPACE})
+  `);
+}
+
+async function claimPendingConversationWrite(
+  app: FastifyInstance,
+  input: {
+    threadId: string;
+    userId: string;
+    requestId: string;
+    message: string;
+    actorRole: string;
+  },
+) {
+  const lockedAt = new Date();
+  const expiresAt = new Date(lockedAt.getTime() + THREAD_EXECUTION_TIMEOUT_MS);
+
+  return app.db.transaction(async (tx) => {
+    await withThreadAdvisoryLock(tx, input.threadId);
+    const thread = await getThreadRow(tx as unknown as Database, input.threadId, input.userId);
+    const storedState = asStoredState(thread.meta) ?? {};
+    const decision = resolveThreadExecutionDecision(storedState, lockedAt);
+    const activeExecution = decision.activeExecution;
+
+    if (activeExecution) {
+      if (decision.action === "reject") {
+        throw createHttpError(409, "Another Divin8 response is already running for this conversation.", "THREAD_BUSY");
+      }
+
+      await tx
+        .update(conversationMessages)
+        .set({
+          meta: mergeStoredMessageMeta(null, {
+            status: "error",
+            requestId: activeExecution.requestId,
+            lockedAt: activeExecution.lockedAt,
+            expiresAt: activeExecution.expiresAt,
+            resolvedAt: lockedAt.toISOString(),
+            errorCode: "ORCHESTRATION_TIMEOUT",
+            errorMessage: "Previous Divin8 orchestration timed out before completion.",
+          }),
+        })
+        .where(eq(conversationMessages.id, activeExecution.pendingMessageId));
+
+      app.log.warn({
+        threadId: input.threadId,
+        userId: input.userId,
+        staleRequestId: activeExecution.requestId,
+        pendingMessageId: activeExecution.pendingMessageId,
+      }, "divin8_thread_execution_timeout_recovered");
+    }
+
+    const [pendingMessage] = await tx
+      .insert(conversationMessages)
+      .values({
+        thread_id: input.threadId,
+        role: "user",
+        content: input.message,
+        created_at: lockedAt,
+        meta: createPendingExecutionArtifacts({
+          requestId: input.requestId,
+          actorRole: input.actorRole,
+          lockedAt,
+          expiresAt,
+          pendingMessageId: "pending-message-id-will-be-overwritten",
+        }).pendingMessageMeta,
+      })
+      .returning();
+
+    const pendingExecution = createPendingExecutionArtifacts({
+      requestId: input.requestId,
+      actorRole: input.actorRole,
+      lockedAt,
+      expiresAt,
+      pendingMessageId: pendingMessage.id,
+    });
+
+    await tx
+      .update(conversationMessages)
+      .set({
+        meta: pendingExecution.pendingMessageMeta,
+      })
+      .where(eq(conversationMessages.id, pendingMessage.id));
+
+    await tx
+      .update(conversationThreads)
+      .set({
+        meta: {
+          ...storedState,
+          activeExecution: pendingExecution.activeExecution,
+          lastExecutionError: null,
+        },
+        updated_at: lockedAt,
+      })
+      .where(eq(conversationThreads.id, input.threadId));
+
+    app.log.info({
+      threadId: input.threadId,
+      userId: input.userId,
+      requestId: input.requestId,
+      pendingMessageId: pendingMessage.id,
+      expiresAt: expiresAt.toISOString(),
+    }, "divin8_thread_execution_locked");
+
+    return {
+      thread,
+      storedState,
+      pendingMessage: pendingMessage as ConversationMessageRow,
+      lockedAt,
+      expiresAt,
+    };
+  });
+}
+
+async function finalizeThreadExecutionSuccess(
+  app: FastifyInstance,
+  input: {
+    thread: ConversationThreadRow;
+    userId: string;
+    requestId: string;
+    pendingMessageId: string;
+    visibleAssistantMessage: string;
+    assistantMeta: StoredConversationMessageMeta;
+    nextTitle: string;
+    nextSummary: string;
+    nextSearchText: string;
+    savedAt: Date;
+    storedState: StoredDivin8SessionState;
+  },
+) {
+  return app.db.transaction(async (tx) => {
+    await withThreadAdvisoryLock(tx, input.thread.id);
+    const thread = await getThreadRow(tx as unknown as Database, input.thread.id, input.userId);
+    const currentState = asStoredState(thread.meta) ?? {};
+
+    if (currentState.activeExecution?.requestId !== input.requestId) {
+      throw createHttpError(409, "Conversation execution state changed before finalize.", "THREAD_STATE_MISMATCH");
+    }
+
+    await tx
+      .update(conversationMessages)
+      .set({
+        meta: mergeStoredMessageMeta(null, {
+          status: "completed",
+          requestId: input.requestId,
+          lockedAt: currentState.activeExecution?.lockedAt,
+          expiresAt: currentState.activeExecution?.expiresAt,
+          resolvedAt: input.savedAt.toISOString(),
+        }),
+      })
+      .where(eq(conversationMessages.id, input.pendingMessageId));
+
+    const [assistantMessage] = await tx
+      .insert(conversationMessages)
+      .values({
+        thread_id: input.thread.id,
+        role: "assistant",
+        content: input.visibleAssistantMessage,
+        meta: {
+          ...input.assistantMeta,
+          status: "completed",
+          requestId: input.requestId,
+          resolvedAt: input.savedAt.toISOString(),
+        },
+        created_at: input.savedAt,
+      })
+      .returning();
+
+    await tx
+      .update(conversationThreads)
+      .set({
+        title: input.nextTitle,
+        summary: input.nextSummary,
+        search_text: input.nextSearchText,
+        meta: {
+          ...input.storedState,
+          activeExecution: null,
+          lastExecutionError: null,
+        },
+        updated_at: input.savedAt,
+      })
+      .where(eq(conversationThreads.id, input.thread.id));
+
+    app.log.info({
+      threadId: input.thread.id,
+      userId: input.userId,
+      requestId: input.requestId,
+      status: "completed",
+    }, "divin8_thread_execution_unlocked");
+
+    return assistantMessage as ConversationMessageRow;
+  });
+}
+
+async function finalizeThreadExecutionFailure(
+  app: FastifyInstance,
+  input: {
+    threadId: string;
+    userId: string;
+    requestId: string;
+    pendingMessageId: string;
+    error: unknown;
+  },
+) {
+  const failedAt = new Date();
+  await app.db.transaction(async (tx) => {
+    await withThreadAdvisoryLock(tx, input.threadId);
+    const thread = await getThreadRow(tx as unknown as Database, input.threadId, input.userId);
+    const currentState = asStoredState(thread.meta) ?? {};
+
+    await tx
+      .update(conversationMessages)
+      .set({
+        meta: mergeStoredMessageMeta(null, {
+          status: "error",
+          requestId: input.requestId,
+          lockedAt: currentState.activeExecution?.lockedAt,
+          expiresAt: currentState.activeExecution?.expiresAt,
+          resolvedAt: failedAt.toISOString(),
+          errorCode:
+            input.error instanceof Error && "code" in input.error && typeof (input.error as { code?: unknown }).code === "string"
+              ? (input.error as { code: string }).code
+              : "DIVIN8_ORCHESTRATION_FAILED",
+          errorMessage: input.error instanceof Error ? input.error.message : "Divin8 orchestration failed.",
+        }),
+      })
+      .where(eq(conversationMessages.id, input.pendingMessageId));
+
+    await tx
+      .update(conversationThreads)
+      .set({
+        meta: {
+          ...currentState,
+          activeExecution: null,
+          lastExecutionError: {
+            requestId: input.requestId,
+            code:
+              input.error instanceof Error && "code" in input.error && typeof (input.error as { code?: unknown }).code === "string"
+                ? (input.error as { code: string }).code
+                : "DIVIN8_ORCHESTRATION_FAILED",
+            message: input.error instanceof Error ? input.error.message : "Divin8 orchestration failed.",
+            failedAt: failedAt.toISOString(),
+          },
+        },
+        updated_at: failedAt,
+      })
+      .where(eq(conversationThreads.id, input.threadId));
+
+    app.log.warn({
+      threadId: input.threadId,
+      userId: input.userId,
+      requestId: input.requestId,
+      status: "error",
+    }, "divin8_thread_execution_unlocked");
+  });
+}
+
 export async function getMonthlyUsageSummary(db: Database, userId = ADMIN_DIVIN8_USER_ID): Promise<Divin8UsageSummary> {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -628,6 +956,7 @@ export async function getConversationDetail(db: Database, threadId: string, user
     })),
     timeline,
     last_pipeline_meta: storedState?.lastPipelineMeta ?? null,
+    active_execution: mapActiveExecution(storedState),
   };
 }
 
@@ -646,21 +975,6 @@ export async function addMessageToConversation(
   options: AddMessageOptions = {},
 ) {
   const db = app.db;
-  const thread = await getThreadRow(db, threadId, userId);
-  const historyRows = await db
-    .select()
-    .from(conversationMessages)
-    .where(eq(conversationMessages.thread_id, threadId))
-    .orderBy(desc(conversationMessages.created_at))
-    .limit(MAX_HISTORY);
-
-  const history = [...historyRows]
-    .reverse()
-    .map((message) => ({
-      role: normalizeRole(message.role),
-      content: message.content,
-    }));
-
   const accessContext = await resolveAccessContext(db, userId, request, options.actorRole);
   if (!accessContext.canUse) {
     throw createHttpError(429, "You have reached your monthly limit.", "LIMIT_REACHED");
@@ -669,6 +983,9 @@ export async function addMessageToConversation(
   const effectiveTier = accessContext.tier;
   let usageSummary = accessContext.usageSummary;
   let reservedUsageCount = false;
+  let claimedExecution:
+    | Awaited<ReturnType<typeof claimPendingConversationWrite>>
+    | null = null;
 
   if (options.actorRole !== "admin" && accessContext.usageWindow) {
     const reserved = await reserveUsageIdempotent(db, {
@@ -682,23 +999,36 @@ export async function addMessageToConversation(
     reservedUsageCount = reserved.counted;
   }
 
-  const userNow = new Date();
   try {
-    const [savedUserMessage] = await db
-      .insert(conversationMessages)
-      .values({
-        thread_id: threadId,
-        role: "user",
-        content: request.message,
-        created_at: userNow,
-      })
-      .returning();
+    claimedExecution = await claimPendingConversationWrite(app, {
+      threadId,
+      userId,
+      requestId,
+      message: request.message,
+      actorRole: options.actorRole ?? "member",
+    });
+    const claimed = claimedExecution;
+
+    const historyRows = await db
+      .select()
+      .from(conversationMessages)
+      .where(eq(conversationMessages.thread_id, threadId))
+      .orderBy(desc(conversationMessages.created_at))
+      .limit(MAX_HISTORY + 1);
+
+    const history = [...historyRows]
+      .filter((message) => message.id !== claimed.pendingMessage.id)
+      .reverse()
+      .map((message) => ({
+        role: normalizeRole(message.role),
+        content: message.content,
+      }));
 
     const orchestration = await processDivin8Message({
       app,
       message: request.message,
       threadId,
-      userId: thread.user_id,
+      userId: claimed.thread.user_id,
       tier: effectiveTier,
       language: request.language,
       imageRef: request.image_ref,
@@ -706,18 +1036,18 @@ export async function addMessageToConversation(
         ...history,
         { role: "user" as const, content: request.message },
       ],
-      storedState: asStoredState(thread.meta),
+      storedState: claimed.storedState,
       debugAudit: request.debugAudit,
     });
     const response = orchestration.chat;
     const visibleAssistantMessage = stripVerificationTags(response.message) || response.message;
     const initialTitle =
-      thread.title === DEFAULT_THREAD_TITLE && history.length === 0
+      claimed.thread.title === DEFAULT_THREAD_TITLE && history.length === 0
         ? buildThreadTitle(request.message)
-        : thread.title;
+        : claimed.thread.title;
 
     const savedAt = new Date();
-    const assistantMeta = {
+    const assistantMeta: StoredConversationMessageMeta = {
       engine_used: response.engine_used,
       systems_used: response.systems_used,
       pipeline_status: response.meta.pipeline_status,
@@ -725,43 +1055,27 @@ export async function addMessageToConversation(
       stages: response.meta.stages,
       divin8: response.meta.divin8,
     };
-    const [savedAssistantMessage] = await db.transaction(async (tx) => {
-      await tx
-        .update(conversationThreads)
-        .set({
-          title: initialTitle,
-          meta: orchestration.storedState,
-          updated_at: savedAt,
-        })
-        .where(eq(conversationThreads.id, threadId));
-
-      const [assistantMessage] = await tx
-        .insert(conversationMessages)
-        .values({
-          thread_id: threadId,
-          role: "assistant",
-          content: visibleAssistantMessage,
-          meta: assistantMeta,
-          created_at: savedAt,
-        })
-        .returning();
-
-      return [assistantMessage];
-    });
 
     const nextSummary = buildDeterministicConversationSummary(orchestration.storedState, visibleAssistantMessage || request.message);
     const nextTitle = buildFallbackTitle(nextSummary, request.message) || initialTitle;
     const nextSearchText = buildThreadSearchText(nextTitle, nextSummary, request.message);
 
-    await db
-      .update(conversationThreads)
-      .set({
-        title: nextTitle,
-        summary: nextSummary,
-        search_text: nextSearchText,
-        updated_at: savedAt,
-      })
-      .where(eq(conversationThreads.id, threadId));
+    const savedAssistantMessage = await finalizeThreadExecutionSuccess(app, {
+      thread: claimed.thread,
+      userId,
+      requestId,
+      pendingMessageId: claimed.pendingMessage.id,
+      visibleAssistantMessage,
+      assistantMeta,
+      nextTitle,
+      nextSummary,
+      nextSearchText,
+      savedAt,
+      storedState: orchestration.storedState,
+    });
+    const finalizedPendingMessage = claimed.pendingMessage;
+    const finalizedThread = claimed.thread;
+    claimedExecution = null;
 
     if (options.actorRole === "admin") {
       const usage = await getMonthlyUsageSummary(db, userId);
@@ -806,20 +1120,25 @@ export async function addMessageToConversation(
     return {
       thread: threadSummaryFromRow(
         {
-          ...thread,
+          ...finalizedThread,
           title: nextTitle,
           summary: nextSummary,
           search_text: nextSearchText,
           updated_at: savedAt,
+          meta: {
+            ...orchestration.storedState,
+            activeExecution: null,
+            lastExecutionError: null,
+          },
         },
         clipPreview(visibleAssistantMessage),
         history.length + 2,
       ),
       user_message: {
-        id: savedUserMessage.id,
+        id: finalizedPendingMessage.id,
         role: "user" as const,
-        content: savedUserMessage.content,
-        created_at: savedUserMessage.created_at.toISOString(),
+        content: finalizedPendingMessage.content,
+        created_at: finalizedPendingMessage.created_at.toISOString(),
       },
       assistant_message: {
         id: savedAssistantMessage.id,
@@ -833,6 +1152,25 @@ export async function addMessageToConversation(
       meta: responseMeta,
     };
   } catch (error) {
+    if (claimedExecution) {
+      try {
+        await finalizeThreadExecutionFailure(app, {
+          threadId,
+          userId,
+          requestId,
+          pendingMessageId: claimedExecution.pendingMessage.id,
+          error,
+        });
+      } catch (finalizeError) {
+        app.log.error({
+          msg: "divin8_thread_execution_finalize_failure",
+          threadId,
+          userId,
+          requestId,
+          error: finalizeError,
+        });
+      }
+    }
     if (reservedUsageCount && options.actorRole !== "admin" && accessContext.usageWindow) {
       await releaseUsageReservation(db, {
         userId,

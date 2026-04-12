@@ -28,9 +28,12 @@ import { socialRoutes } from "./routes/social.js";
 import { ordersRoutes } from "./routes/orders.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { mentorTrainingRoutes } from "./routes/mentor-training.js";
+import { adminNotificationRoutes } from "./routes/admin-notifications.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
+import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
 import { assertMentorTrainingStripeConfig } from "./config/mentorTrainingPackages.js";
+import { assertInternalApiEnvelope, fail, isApiResult, shouldBypassApiEnvelope, toLegacyPayload } from "./apiContract.js";
 
 logger.info("zoom_env_loaded", {
   hasAccountId: Boolean(process.env.ZOOM_ACCOUNT_ID?.trim()),
@@ -60,6 +63,7 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "user_id",
     "booking_type_id",
     "session_type",
+    "event_key",
     "start_time_utc",
     "end_time_utc",
     "timezone",
@@ -124,6 +128,31 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "stripe_event_type",
     "payload",
     "processed_at",
+    "created_at",
+    "updated_at",
+  ],
+  notification_events: [
+    "id",
+    "event_type",
+    "entity_id",
+    "user_id",
+    "recipient_type",
+    "recipient",
+    "provider",
+    "provider_message_id",
+    "template_version",
+    "status",
+    "payload",
+    "failure_reason",
+    "sent_at",
+    "last_attempted_at",
+    "created_at",
+    "updated_at",
+  ],
+  notification_settings: [
+    "id",
+    "enabled_events",
+    "admin_recipients",
     "created_at",
     "updated_at",
   ],
@@ -316,6 +345,8 @@ async function verifySchema(db: Database) {
         'stripe_customers',
         'subscriptions',
         'webhook_events',
+        'notification_events',
+        'notification_settings',
         'invoices',
         'orders',
         'member_entitlements',
@@ -393,6 +424,7 @@ function startPhysiognomyCleanupLoop() {
 export async function buildApp() {
   assertMembershipStripeConfig();
   assertMentorTrainingStripeConfig();
+  await initSwissEphemeris();
 
   const app = Fastify({
     logger: true,
@@ -420,15 +452,27 @@ export async function buildApp() {
     reply.header("Referrer-Policy", "strict-origin-when-cross-origin");
     return payload;
   });
+  app.addHook("preSerialization", async (_request, reply, payload) => {
+    const contentType = String(reply.getHeader("content-type") || "");
+    if (shouldBypassApiEnvelope(payload, contentType)) {
+      return payload;
+    }
+
+    assertInternalApiEnvelope(payload);
+
+    if (!isApiResult(payload)) {
+      return payload;
+    }
+
+    return toLegacyPayload(payload);
+  });
   await app.register(rawBody, { global: false });
   // Multipart support for image uploads only — NOT registered globally
   await app.register(multipart, { attachFieldsToBody: false });
   await app.register(rateLimit, {
     max: process.env.NODE_ENV === "production" ? 100 : 1000,
     timeWindow: "1 minute",
-    errorResponseBuilder: () => ({
-      error: "Too many requests, please try again later",
-    }),
+    errorResponseBuilder: () => fail("Too many requests, please try again later"),
   });
 
   if (!process.env.DATABASE_URL) {
@@ -439,28 +483,37 @@ export async function buildApp() {
     ? createDb(process.env.DATABASE_URL)
     : (null as unknown as ReturnType<typeof createDb>);
 
-  if (process.env.DATABASE_URL) {
+  const skipSchemaVerify = process.env.SKIP_SCHEMA_VERIFY === "true";
+  if (process.env.DATABASE_URL && !skipSchemaVerify) {
     await verifySchema(db);
   }
 
   app.decorate("db", db);
+  app.decorate("routeInventory", []);
+  app.addHook("onRoute", (routeOptions) => {
+    const methods = Array.isArray(routeOptions.method) ? routeOptions.method : [routeOptions.method];
+    for (const method of methods) {
+      app.routeInventory.push({
+        method: String(method).toUpperCase(),
+        url: routeOptions.url,
+      });
+    }
+  });
 
   app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, _request, reply) => {
     app.log.error(error);
 
     const statusCode = error.statusCode ?? 500;
     if (error.code && error.code.startsWith("DIVIN8_")) {
-      reply.status(statusCode).send({
-        error: error.code,
+      reply.status(statusCode).send(fail(error.code, {
         message: error.message || "Divin8 is temporarily unavailable. Please try again.",
-      });
+      }));
       return;
     }
     if (error.code === "LIMIT_REACHED" || error.code === "AUTH_EXPIRED") {
-      reply.status(statusCode).send({
+      reply.status(statusCode).send(fail(error.message || "Request could not be completed.", {
         code: error.code,
-        message: error.message || "Request could not be completed.",
-      });
+      }));
       return;
     }
     const message =
@@ -468,11 +521,11 @@ export async function buildApp() {
         ? "Too many requests, please try again later"
         : error.message || "Internal Server Error";
 
-    reply.status(statusCode).send({ error: message });
+    reply.status(statusCode).send(fail(message));
   });
 
   app.setNotFoundHandler((_request, reply) => {
-    reply.status(404).send({ error: "Route not found" });
+    reply.status(404).send(fail("Route not found"));
   });
 
   await app.register(healthRoutes);
@@ -495,6 +548,7 @@ export async function buildApp() {
   await app.register(dashboardRoutes, { prefix: "/api" });
   await app.register(mentorTrainingRoutes, { prefix: "/api" });
   await app.register(ordersRoutes, { prefix: "/api" });
+  await app.register(adminNotificationRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 

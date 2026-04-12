@@ -168,6 +168,7 @@ interface BookingSourceRow {
   userId: string;
   archived: boolean;
   sessionType: string;
+  eventKey: string | null;
   startTimeUtc: Date | null;
   status: string;
   fullName: string | null;
@@ -1057,6 +1058,7 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         userId: bookings.user_id,
         archived: bookings.archived,
         sessionType: bookings.session_type,
+        eventKey: bookings.event_key,
         startTimeUtc: bookings.start_time_utc,
         status: bookings.status,
         fullName: bookings.full_name,
@@ -1257,9 +1259,9 @@ function createSessionCandidate(
       plan_name: null,
       billing_cycle: null,
       renewal_date: null,
-      event_name: null,
-      event_date: null,
-      access_link: null,
+      event_name: row.sessionType === "mentoring_circle" ? row.bookingTypeName : null,
+      event_date: row.sessionType === "mentoring_circle" ? toIso(row.startTimeUtc) : null,
+      access_link: row.sessionType === "mentoring_circle" ? (row.joinUrl ?? row.startUrl) : null,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
       payment_match_strategy: null,
@@ -1726,6 +1728,11 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const invoicesById = new Map(invoiceRows.map((row) => [row.id, row]));
   const paymentsByUser = buildPaymentMap(paymentRows);
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
+  const bookingBackedMentoringCircleEvents = new Set(
+    bookingRows
+      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey)
+      .map((row) => `${row.userId}:${row.eventKey}`),
+  );
   const persistedOrders = persistedOrderRows
     .map((row) =>
       createPersistedAdminOrder(
@@ -1772,6 +1779,9 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     }
   }
   for (const row of webinarRows) {
+    if (bookingBackedMentoringCircleEvents.has(`${row.userId}:${row.eventKey}`)) {
+      continue;
+    }
     try {
       const candidate = createWebinarCandidate(row, usersById, clientsByUserId, entitlementsByUserId);
       if (candidate) candidates.push(candidate);

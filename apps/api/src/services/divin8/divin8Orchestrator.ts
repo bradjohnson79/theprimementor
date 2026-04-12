@@ -200,6 +200,20 @@ export interface StoredDivin8SessionState {
   imageRef?: string;
   lastPipelineMeta?: StoredPipelineMeta;
   orchestration?: StoredOrchestrationState;
+  activeExecution?: {
+    requestId: string;
+    status: "pending";
+    actorRole: string;
+    lockedAt: string;
+    expiresAt: string;
+    pendingMessageId: string;
+  } | null;
+  lastExecutionError?: {
+    requestId: string;
+    code: string;
+    message: string;
+    failedAt: string;
+  } | null;
 }
 
 export interface Divin8DetectedSystem {

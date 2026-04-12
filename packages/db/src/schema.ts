@@ -24,6 +24,7 @@ export const bookingSessionTypeEnum = pgEnum("booking_session_type", [
   "focus",
   "mentoring",
   "regeneration",
+  "mentoring_circle",
 ]);
 
 export const bookingStatusEnum = pgEnum("booking_status", [
@@ -88,6 +89,18 @@ export const persistedOrderStatusEnum = pgEnum("persisted_order_status", [
   "pending",
   "completed",
   "failed",
+]);
+
+export const notificationRecipientTypeEnum = pgEnum("notification_recipient_type", [
+  "user",
+  "admin",
+]);
+
+export const notificationStatusEnum = pgEnum("notification_status", [
+  "pending",
+  "sent",
+  "failed",
+  "skipped_duplicate",
 ]);
 
 export const users = pgTable("users", {
@@ -185,6 +198,7 @@ export const bookings = pgTable("bookings", {
     .references(() => bookingTypes.id)
     .notNull(),
   session_type: bookingSessionTypeEnum("session_type").default("mentoring").notNull(),
+  event_key: text("event_key"),
   start_time_utc: timestamp("start_time_utc", { withTimezone: true }),
   end_time_utc: timestamp("end_time_utc", { withTimezone: true }),
   timezone: text("timezone").notNull(),
@@ -212,6 +226,10 @@ export const bookings = pgTable("bookings", {
 }, (table) => ({
   userStartIdx: index("bookings_user_start_idx").on(table.user_id, table.start_time_utc),
   statusStartIdx: index("bookings_status_start_idx").on(table.status, table.start_time_utc),
+  userEventUnique: uniqueIndex("bookings_user_type_event_uidx")
+    .on(table.user_id, table.booking_type_id, table.event_key)
+    .where(sql`${table.event_key} is not null`),
+  eventKeyIdx: index("bookings_event_key_idx").on(table.event_key, table.status),
 }));
 
 export const payments = pgTable("payments", {
@@ -282,6 +300,41 @@ export const webhookEvents = pgTable("webhook_events", {
   stripeEventIdx: uniqueIndex("webhook_events_stripe_event_uidx").on(table.stripe_event_id),
   providerCreatedIdx: index("webhook_events_provider_created_idx").on(table.provider, table.created_at),
   processedIdx: index("webhook_events_processed_idx").on(table.processed_at),
+}));
+
+export const notificationEvents = pgTable("notification_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  event_type: text("event_type").notNull(),
+  entity_id: text("entity_id").notNull(),
+  user_id: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  recipient_type: notificationRecipientTypeEnum("recipient_type").notNull(),
+  recipient: text("recipient").notNull(),
+  provider: text("provider").notNull(),
+  provider_message_id: text("provider_message_id"),
+  template_version: text("template_version").notNull(),
+  status: notificationStatusEnum("status").default("pending").notNull(),
+  payload: jsonb("payload").notNull(),
+  failure_reason: text("failure_reason"),
+  sent_at: timestamp("sent_at", { withTimezone: true }),
+  last_attempted_at: timestamp("last_attempted_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  uniqueDeliveryKey: uniqueIndex("notification_events_event_entity_recipient_uidx").on(
+    table.event_type,
+    table.entity_id,
+    table.recipient_type,
+  ),
+  statusAttemptedIdx: index("notification_events_status_attempted_idx").on(table.status, table.last_attempted_at),
+  recipientTypeSentIdx: index("notification_events_recipient_type_sent_idx").on(table.recipient_type, table.sent_at),
+}));
+
+export const notificationSettings = pgTable("notification_settings", {
+  id: text("id").primaryKey(),
+  enabled_events: jsonb("enabled_events").notNull(),
+  admin_recipients: jsonb("admin_recipients"),
+  ...timestamps,
+}, (table) => ({
+  createdIdx: index("notification_settings_created_idx").on(table.created_at),
 }));
 
 export const invoices = pgTable("invoices", {

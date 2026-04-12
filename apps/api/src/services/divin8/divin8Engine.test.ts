@@ -2,15 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { systemsConfigFromIncludeSystems } from "@wisdom/utils";
 import { assembleBlueprint, type ClientInput } from "../blueprint/index.js";
+import { initSwissEphemeris } from "../blueprint/swissEphemerisService.js";
 import { runCoreSystem } from "./engine/core.js";
+import { toCoreChartSnapshot } from "./engine/chartSnapshot.js";
+import { VANCOUVER_JANE_EXAMPLE_FIXTURE } from "./__fixtures__/coreChartSnapshots.js";
 import { validateStrictAstrologyInput } from "./engine/ephemeris.js";
 import { routeDivin8Request } from "./engine/router.js";
 
-const VANCOUVER_COORDINATES = {
-  latitude: 49.2827,
-  longitude: -123.1207,
-  formattedAddress: "Vancouver, BC, Canada",
-} as const;
+await initSwissEphemeris();
+
+const VANCOUVER_COORDINATES = VANCOUVER_JANE_EXAMPLE_FIXTURE.coordinates;
 
 const ASTROLOGY_ROUTE = routeDivin8Request({
   message: "Please do a vedic astrology reading for my career.",
@@ -89,13 +90,7 @@ test("strict runtime enforcement returns an error instead of astrology output wh
 });
 
 test("shared astrology computation stays aligned between chat core and blueprint assembly", async () => {
-  const client: ClientInput = {
-    id: "guest",
-    fullBirthName: "Jane Example",
-    birthDate: "1990-04-03",
-    birthTime: "06:45",
-    birthLocation: "Vancouver, BC, Canada",
-  };
+  const client: ClientInput = VANCOUVER_JANE_EXAMPLE_FIXTURE.client;
 
   const coreResult = await runCoreSystem({
     threadId: "thread-2",
@@ -106,7 +101,7 @@ test("shared astrology computation stays aligned between chat core and blueprint
       birthDate: client.birthDate,
       birthTime: client.birthTime,
       birthLocation: client.birthLocation,
-      timezone: "America/Vancouver",
+      timezone: VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.name,
     },
     route: ASTROLOGY_ROUTE,
     requestIntent: "Career reading",
@@ -115,8 +110,8 @@ test("shared astrology computation stays aligned between chat core and blueprint
     timingPeriod: null,
     resolvedBirthContext: {
       coordinates: VANCOUVER_COORDINATES,
-      timezone: "America/Vancouver",
-      utcOffsetMinutes: -480,
+      timezone: VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.name,
+      utcOffsetMinutes: VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.utcOffsetMinutes,
     },
   });
 
@@ -132,12 +127,12 @@ test("shared astrology computation stays aligned between chat core and blueprint
     systemsConfigFromIncludeSystems(["astrology"]),
     VANCOUVER_COORDINATES,
     undefined,
-    -480,
+    VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.utcOffsetMinutes,
   );
 
-  assert.equal(coreResult.data.astrology.ascendant?.sign, blueprint.astrology?.ascendant?.sign);
-  assert.equal(
-    coreResult.data.astrology.planets.find((planet) => planet.planet === "Moon")?.sign,
-    blueprint.astrology?.planets.find((planet) => planet.planet === "Moon")?.sign,
-  );
+  assert.ok(blueprint.astrology);
+  const coreSnapshot = toCoreChartSnapshot(coreResult.data.astrology);
+  const blueprintSnapshot = toCoreChartSnapshot(blueprint.astrology!);
+  assert.deepEqual(coreSnapshot, blueprintSnapshot);
+  assert.deepEqual(coreSnapshot, VANCOUVER_JANE_EXAMPLE_FIXTURE.expected);
 });

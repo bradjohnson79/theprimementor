@@ -28,12 +28,22 @@ interface MemberReportsListData {
   };
 }
 
-interface MentoringCircleState {
+interface MentoringCircleEventState {
+  eventId: string;
   eventTitle: string;
   sessionDate: string;
   timezone: string;
+  purchaseStatus: "not_started" | "pending_payment" | "confirmed";
+  joinEligible: boolean;
   registered: boolean;
   joinUrl: string | null;
+}
+
+interface MentoringCircleState {
+  currentEvent: MentoringCircleEventState | null;
+  nextEvent: MentoringCircleEventState | null;
+  activeEventForPurchase: MentoringCircleEventState | null;
+  requestedEvent: MentoringCircleEventState | null;
 }
 
 function getDashboardGreetingName(user: {
@@ -65,6 +75,14 @@ export default function Dashboard() {
   const [reportsPending, setReportsPending] = useState(0);
   const [mentoringCircle, setMentoringCircle] = useState<MentoringCircleState | null>(null);
   const [copiedCircleLink, setCopiedCircleLink] = useState(false);
+  const accessibleCircleEvent = mentoringCircle?.currentEvent?.joinEligible
+    ? mentoringCircle.currentEvent
+    : mentoringCircle?.nextEvent?.joinEligible
+      ? mentoringCircle.nextEvent
+      : mentoringCircle?.activeEventForPurchase?.joinEligible
+        ? mentoringCircle.activeEventForPurchase
+        : null;
+  const purchasableCircleEvent = mentoringCircle?.activeEventForPurchase ?? mentoringCircle?.currentEvent ?? mentoringCircle?.nextEvent ?? null;
 
   const memberTier = tierState;
   const usage = dbUser?.member?.usage;
@@ -157,8 +175,8 @@ export default function Dashboard() {
   }, [getToken]);
 
   async function copyMentoringCircleLink() {
-    if (!mentoringCircle?.joinUrl) return;
-    await navigator.clipboard.writeText(mentoringCircle.joinUrl);
+    if (!accessibleCircleEvent?.joinUrl) return;
+    await navigator.clipboard.writeText(accessibleCircleEvent.joinUrl);
     setCopiedCircleLink(true);
   }
 
@@ -306,12 +324,12 @@ export default function Dashboard() {
 
             <section className="dashboard-panel cosmic-motion">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Mentoring Circle</h2>
-              {mentoringCircle?.registered ? (
+              {accessibleCircleEvent?.joinEligible ? (
                 <>
                   <p className="mt-3 text-lg font-semibold text-white">
-                    {mentoringCircle.eventTitle}:{" "}
+                    {accessibleCircleEvent.eventTitle}:{" "}
                     {formatPacificDateOnly(
-                      mentoringCircle.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
+                      accessibleCircleEvent.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
                     )}
                   </p>
                   <p className="mt-1 text-sm text-white/60">Status: Registered</p>
@@ -324,7 +342,7 @@ export default function Dashboard() {
                       Copy Link
                     </button>
                     <a
-                      href={mentoringCircle.joinUrl ?? "#"}
+                      href={accessibleCircleEvent.joinUrl ?? "#"}
                       target="_blank"
                       rel="noreferrer"
                       className="cosmic-motion rounded-md bg-accent-cyan px-3 py-2 text-sm font-medium text-slate-950 hover:bg-accent-cyan/90"
@@ -337,13 +355,17 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="mt-3 text-lg font-semibold text-white">
-                    {mentoringCircle
+                    {purchasableCircleEvent
                       ? `Mentoring Circle: ${formatPacificDateOnly(
-                        mentoringCircle.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
+                        purchasableCircleEvent.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
                       )}`
                       : "No event scheduled"}
                   </p>
-                  <p className="mt-1 text-sm text-white/60">Join upcoming circles and replay available sessions.</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    {purchasableCircleEvent?.purchaseStatus === "pending_payment"
+                      ? "Payment is processing. Your access will appear here shortly."
+                      : "Join upcoming circles and purchase access to live sessions."}
+                  </p>
                   <Link to="/mentoring-circle" className="cosmic-motion mt-4 inline-block rounded-md border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5">
                     View Circle
                   </Link>

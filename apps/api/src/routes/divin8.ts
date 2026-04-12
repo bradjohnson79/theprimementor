@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { logger } from "@wisdom/utils";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireDatabase, requireDbUser } from "../routeAssertions.js";
 import { createHttpError } from "../services/booking/errors.js";
 import { runDivin8Reading } from "../services/divin8EngineService.js";
 import { resolveMemberAccess } from "../services/divin8/memberAccessService.js";
@@ -22,15 +24,6 @@ import {
   searchConversationThreads,
 } from "../services/divin8/conversationService.js";
 
-function ensureAdmin(app: FastifyInstance, role: string | undefined) {
-  if (role !== "admin") {
-    const error = new Error("Admin access required");
-    (error as Error & { statusCode?: number }).statusCode = 403;
-    throw error;
-  }
-  return app;
-}
-
 async function ensureMemberDivin8Access(app: FastifyInstance, userId: string) {
   const memberAccess = await resolveMemberAccess(app.db, userId);
   if (!memberAccess) {
@@ -40,17 +33,19 @@ async function ensureMemberDivin8Access(app: FastifyInstance, userId: string) {
 
 export async function divin8Routes(app: FastifyInstance) {
   app.post("/divin8/run", { preHandler: requireAuth }, async (request, reply) => {
-    if (request.dbUser?.role !== "admin") {
-      await ensureMemberDivin8Access(app, request.dbUser!.id);
+    requireDatabase(app.db);
+    const user = requireDbUser(request);
+    if (user.role !== "admin") {
+      await ensureMemberDivin8Access(app, user.id);
     }
 
     try {
       const body = request.body && typeof request.body === "object"
         ? request.body as Partial<Parameters<typeof runDivin8Reading>[0]>
         : {};
-      return runDivin8Reading({
+      return ok(await runDivin8Reading({
         mode: "client",
-        user_id: request.dbUser?.id ?? null,
+        user_id: user.id,
         order_id: null,
         birth_date: body.birth_date ?? "",
         birth_time: body.birth_time ?? null,
@@ -60,16 +55,18 @@ export async function divin8Routes(app: FastifyInstance) {
         questions: body.questions ?? null,
         notes: body.notes ?? null,
         metadata: body.metadata ?? null,
-      });
+      }));
     } catch (error) {
       const statusCode = error instanceof Error && "statusCode" in error
         ? (error as { statusCode?: number }).statusCode
         : undefined;
       if (statusCode === 400) {
-        return reply.status(400).send({
-          error: error instanceof Error ? error.message : "Invalid Divin8 input.",
+        const details = error instanceof Error && "details" in error
+          ? (error as { details?: unknown }).details
+          : undefined;
+        return sendApiError(reply, 400, error instanceof Error ? error.message : "Invalid Divin8 input.", {
           code: "DIVIN8_VALIDATION_ERROR",
-          details: error instanceof Error && "details" in error ? (error as { details?: unknown }).details : undefined,
+          ...(details !== undefined ? { details } : {}),
         });
       }
       throw error;
@@ -77,20 +74,20 @@ export async function divin8Routes(app: FastifyInstance) {
   });
 
   app.get("/divin8/prompt", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return getActiveDivin8Prompt();
+    requireAdmin(request);
+    return ok(await getActiveDivin8Prompt());
   });
 
   app.post("/divin8/prompt", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
+    requireAdmin(request);
 
     if (!request.body || typeof request.body !== "object") {
-      return getActiveDivin8Prompt();
+      return ok(await getActiveDivin8Prompt());
     }
 
     const body = request.body as Record<string, unknown>;
     if (body.reset === true) {
-      return clearDivin8PromptOverride();
+      return ok(await clearDivin8PromptOverride());
     }
 
     if (typeof body.prompt !== "string") {
@@ -99,62 +96,62 @@ export async function divin8Routes(app: FastifyInstance) {
       throw error;
     }
 
-    return saveDivin8PromptOverride(body.prompt);
+    return ok(await saveDivin8PromptOverride(body.prompt));
   });
 
   app.post("/divin8/generate", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
+    requireAdmin(request);
     logger.info("divin8_generate_requested", {
       route: "/api/divin8/generate",
       userId: request.dbUser?.id ?? null,
     });
-    return generateBlueprintFromRequest(app, request.body);
+    return ok(await generateBlueprintFromRequest(app, request.body));
   });
 
   app.post("/divin8/conversations", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return createConversationThread(app.db);
+    requireAdmin(request);
+    return ok(await createConversationThread(app.db));
   });
 
   app.get("/divin8/conversations", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return listConversationThreads(app.db, undefined, "admin");
+    requireAdmin(request);
+    return ok(await listConversationThreads(app.db, undefined, "admin"));
   });
 
   app.get<{ Querystring: { q?: string } }>("/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return searchConversationThreads(app.db, request.query.q ?? "");
+    requireAdmin(request);
+    return ok(await searchConversationThreads(app.db, request.query.q ?? ""));
   });
 
   app.get<{ Params: { id: string } }>("/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return getConversationDetail(app.db, request.params.id);
+    requireAdmin(request);
+    return ok(await getConversationDetail(app.db, request.params.id));
   });
 
   app.get<{ Params: { id: string } }>("/divin8/conversations/:id/timeline", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return getConversationTimeline(app.db, request.params.id);
+    requireAdmin(request);
+    return ok(await getConversationTimeline(app.db, request.params.id));
   });
 
   app.post<{ Params: { id: string } }>(
     "/divin8/conversations/:id/message",
     { preHandler: requireAuth },
     async (request) => {
-      ensureAdmin(app, request.dbUser?.role);
+      requireAdmin(request);
       const payload = validateDivin8ChatRequest(request.body);
-      return addMessageToConversation(app, request.params.id, payload, undefined, {
+      return ok(await addMessageToConversation(app, request.params.id, payload, undefined, {
         actorRole: "admin",
-      });
+      }));
     },
   );
 
   app.delete<{ Params: { id: string } }>("/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
-    ensureAdmin(app, request.dbUser?.role);
-    return archiveConversationThread(app.db, request.params.id);
+    requireAdmin(request);
+    return ok(await archiveConversationThread(app.db, request.params.id));
   });
 
   app.post("/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
-    ensureAdmin(app, request.dbUser?.role);
+    requireAdmin(request);
     if (!request.body || typeof request.body !== "object") {
       const error = new Error("threadId and format are required.");
       (error as Error & { statusCode?: number }).statusCode = 400;
@@ -189,27 +186,27 @@ export async function divin8Routes(app: FastifyInstance) {
   // Member-facing Divin8 route surface (same shared pipeline).
   app.post("/member/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return createConversationThread(app.db, request.dbUser!.id);
+    return ok(await createConversationThread(app.db, request.dbUser!.id));
   });
 
   app.get("/member/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return listConversationThreads(app.db, request.dbUser!.id, request.dbUser!.role);
+    return ok(await listConversationThreads(app.db, request.dbUser!.id, request.dbUser!.role));
   });
 
   app.get<{ Querystring: { q?: string } }>("/member/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return searchConversationThreads(app.db, request.query.q ?? "", request.dbUser!.id);
+    return ok(await searchConversationThreads(app.db, request.query.q ?? "", request.dbUser!.id));
   });
 
   app.get<{ Params: { id: string } }>("/member/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return getConversationDetail(app.db, request.params.id, request.dbUser!.id);
+    return ok(await getConversationDetail(app.db, request.params.id, request.dbUser!.id));
   });
 
   app.get<{ Params: { id: string } }>("/member/divin8/conversations/:id/timeline", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return getConversationTimeline(app.db, request.params.id, request.dbUser!.id);
+    return ok(await getConversationTimeline(app.db, request.params.id, request.dbUser!.id));
   });
 
   app.post<{ Params: { id: string } }>(
@@ -218,7 +215,7 @@ export async function divin8Routes(app: FastifyInstance) {
     async (request) => {
       await ensureMemberDivin8Access(app, request.dbUser!.id);
       const payload = validateDivin8MemberMessageRequest(request.body);
-      return addMessageToConversation(
+      return ok(await addMessageToConversation(
         app,
         request.params.id,
         {
@@ -234,13 +231,13 @@ export async function divin8Routes(app: FastifyInstance) {
           actorRole: request.dbUser!.role,
           requestId: payload.request_id,
         },
-      );
+      ));
     },
   );
 
   app.delete<{ Params: { id: string } }>("/member/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return archiveConversationThread(app.db, request.params.id, request.dbUser!.id);
+    return ok(await archiveConversationThread(app.db, request.params.id, request.dbUser!.id));
   });
 
   app.post("/member/divin8/export", { preHandler: requireAuth }, async (request, reply) => {

@@ -1,9 +1,20 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { bookings, bookingTypes, users, type Database } from "@wisdom/db";
+import { logger } from "@wisdom/utils";
 import { getBookingTypeForSessionTypeOrThrow, getBookingTypeOrThrow } from "./bookingTypesService.js";
 import { createHttpError } from "./errors.js";
-import { sendBookingCancelledNotification, sendBookingConfirmedNotification } from "./notificationService.js";
-import { createPaymentRecordForBooking, getReusablePaymentForBooking } from "../payments/paymentsService.js";
+import {
+  sendAdminNewBookingNotification,
+  sendBookingCancelledNotification,
+  sendBookingConfirmedNotification,
+  sendBookingCreatedNotification,
+} from "./notificationService.js";
+import {
+  createPaymentRecordForBooking,
+  createPaymentRecordForEntity,
+  getReusablePaymentForEntity,
+  getReusablePaymentForBooking,
+} from "../payments/paymentsService.js";
 import {
   addMinutes,
   assertValidTimeZone,
@@ -27,6 +38,10 @@ import {
   type BookingStatus,
 } from "./bookingConstants.js";
 import { normalizeStructuredBirthplace } from "../intake/placeSelection.js";
+import {
+  MENTORING_CIRCLE_BOOKING_TYPE_ID,
+  getMentoringCircleEventOrThrow,
+} from "../mentoringCircleService.js";
 
 interface BookingRow {
   id: string;
@@ -37,6 +52,7 @@ interface BookingRow {
   bookingTypeId: string;
   bookingTypeName: string;
   sessionType: BookingSessionType;
+  eventKey?: string | null;
   durationMinutes: number;
   priceCents: number;
   currency: string;
@@ -72,6 +88,7 @@ export interface BookingSummary {
   user_id: string;
   archived: boolean;
   session_type: BookingSessionType;
+  event_key?: string | null;
   start_time_utc: string | null;
   end_time_utc: string | null;
   timezone: string;
@@ -180,6 +197,7 @@ function serializeBooking(row: BookingRow, now: Date): BookingSummary {
     user_id: row.userId,
     archived: row.archived,
     session_type: row.sessionType,
+    event_key: row.eventKey ?? null,
     start_time_utc: toUtcIso(row.startTimeUtc),
     end_time_utc: toUtcIso(row.endTimeUtc),
     timezone: row.timezone,
@@ -235,6 +253,7 @@ async function getBookingSummaryById(db: Database, bookingId: string): Promise<B
       bookingTypeId: bookingTypes.id,
       bookingTypeName: bookingTypes.name,
       sessionType: bookings.session_type,
+      eventKey: bookings.event_key,
       durationMinutes: bookingTypes.duration_minutes,
       priceCents: bookingTypes.price_cents,
       currency: bookingTypes.currency,
@@ -662,6 +681,193 @@ async function resolveBookingTypeAndSessionType(db: Database, input: CreateBooki
   return { bookingType, sessionType: bookingType.session_type };
 }
 
+async function getMentoringCircleBookingRow(
+  db: Database,
+  input: { userId: string; eventKey: string },
+) {
+  const [row] = await db
+    .select({
+      id: bookings.id,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(and(
+      eq(bookings.user_id, input.userId),
+      eq(bookings.booking_type_id, MENTORING_CIRCLE_BOOKING_TYPE_ID),
+      eq(bookings.session_type, "mentoring_circle"),
+      eq(bookings.event_key, input.eventKey),
+    ))
+    .orderBy(desc(bookings.created_at))
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function createOrReuseMentoringCircleBooking(
+  db: Database,
+  input: { userId: string; eventId?: string | null; now?: Date },
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const event = getMentoringCircleEventOrThrow(input.eventId);
+  const existing = await getMentoringCircleBookingRow(db, {
+    userId: input.userId,
+    eventKey: event.eventKey,
+  });
+
+  if (existing) {
+    if (existing.status === "cancelled") {
+      throw createHttpError(400, "Cancelled Mentoring Circle purchases require manual support before repurchase.");
+    }
+
+    const reusablePayment = await getReusablePaymentForEntity(db, {
+      entityType: "mentoring_circle",
+      entityId: existing.id,
+    });
+    if (!reusablePayment && existing.status === "pending_payment") {
+      await createPaymentRecordForEntity(db, {
+        userId: input.userId,
+        entityType: "mentoring_circle",
+        entityId: existing.id,
+        bookingId: existing.id,
+        amountCents: event.priceCents,
+        currency: event.currency,
+        status: "pending",
+        metadata: {
+          source: "mentoring_circle_reuse",
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          bookingTypeId: MENTORING_CIRCLE_BOOKING_TYPE_ID,
+        },
+      });
+    }
+
+    const existingSummary = await getBookingSummaryById(db, existing.id);
+    if (!existingSummary) {
+      throw createHttpError(500, "Mentoring Circle booking could not be loaded");
+    }
+
+    return serializeBooking(existingSummary, now);
+  }
+
+  const eventStartUtc = new Date(event.eventStartAt);
+  const eventEndUtc = addMinutes(eventStartUtc, event.durationMinutes);
+  const [user] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+
+  if (!user) {
+    throw createHttpError(404, "User not found");
+  }
+
+  const inserted = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(bookings)
+      .values({
+        user_id: input.userId,
+        booking_type_id: MENTORING_CIRCLE_BOOKING_TYPE_ID,
+        session_type: "mentoring_circle",
+        event_key: event.eventKey,
+        start_time_utc: eventStartUtc,
+        end_time_utc: eventEndUtc,
+        timezone: event.timezone,
+        status: "pending_payment",
+        availability: null,
+        full_name: null,
+        email: user.email,
+        phone: null,
+        birth_date: null,
+        birth_time: "00:00",
+        birth_place: null,
+        birth_place_name: null,
+        birth_lat: null,
+        birth_lng: null,
+        birth_timezone: event.timezone,
+        consent_given: true,
+        intake: {
+          type: "mentoring_circle",
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          eventTitle: event.eventTitle,
+        },
+        intake_snapshot: {
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          eventTitle: event.eventTitle,
+          eventStartAt: event.eventStartAt,
+        },
+        join_url: null,
+        notes: null,
+      })
+      .returning({ id: bookings.id });
+
+    await createPaymentRecordForEntity(tx, {
+      userId: input.userId,
+      entityType: "mentoring_circle",
+      entityId: created.id,
+      bookingId: created.id,
+      amountCents: event.priceCents,
+      currency: event.currency,
+      status: "pending",
+      metadata: {
+        source: "mentoring_circle_create",
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+        bookingTypeId: MENTORING_CIRCLE_BOOKING_TYPE_ID,
+      },
+    });
+
+    return created;
+  });
+
+  const summary = await getBookingSummaryById(db, inserted.id);
+  if (!summary) {
+    throw createHttpError(500, "Mentoring Circle booking created but could not be loaded");
+  }
+
+  return serializeBooking(summary, now);
+}
+
+export async function confirmMentoringCircleBooking(
+  db: Database,
+  input: { bookingId: string; eventId?: string | null; now?: Date },
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const event = getMentoringCircleEventOrThrow(input.eventId);
+  const booking = await getBookingSummaryById(db, input.bookingId);
+  if (!booking) {
+    throw createHttpError(404, "Booking not found");
+  }
+
+  if (booking.sessionType !== "mentoring_circle" || booking.eventKey !== event.eventKey) {
+    throw createHttpError(400, "Booking is not a Mentoring Circle purchase");
+  }
+
+  if (!["paid", "scheduled", "completed"].includes(booking.status)) {
+    throw createHttpError(400, "Booking payment must be settled before access is confirmed");
+  }
+
+  await db
+    .update(bookings)
+    .set({
+      start_time_utc: new Date(event.eventStartAt),
+      end_time_utc: addMinutes(new Date(event.eventStartAt), event.durationMinutes),
+      timezone: event.timezone,
+      status: "scheduled",
+      join_url: event.zoomLink,
+      updated_at: new Date(),
+    })
+    .where(eq(bookings.id, booking.id));
+
+  const summary = await getBookingSummaryById(db, booking.id);
+  if (!summary) {
+    throw createHttpError(500, "Booking confirmed but could not be loaded");
+  }
+
+  return serializeBooking(summary, now);
+}
+
 export async function createBooking(db: Database, input: CreateBookingInput): Promise<BookingSummary> {
   const now = input.now ?? new Date();
   const bookingUserId = input.actorRole === "admin" && input.userId ? input.userId : input.actorUserId;
@@ -780,6 +986,33 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     throw createHttpError(500, "Booking created but could not be loaded");
   }
 
+  void sendBookingCreatedNotification(db, {
+    bookingId: summary.id,
+    userId: summary.userId,
+    bookingType: summary.bookingTypeName,
+    timezone: summary.timezone,
+    fullName: summary.fullName,
+    email: summary.email ?? summary.userEmail ?? null,
+  }).catch((error) => {
+    logger.error("booking_created_notification_failed", {
+      bookingId: summary.id,
+      error: error instanceof Error ? error.message : error,
+    });
+  });
+
+  void sendAdminNewBookingNotification(db, {
+    bookingId: summary.id,
+    userId: summary.userId,
+    bookingType: summary.bookingTypeName,
+    timezone: summary.timezone,
+    fullName: summary.fullName,
+    email: summary.email ?? summary.userEmail ?? null,
+  }).catch(() => {
+    logger.error("admin_booking_notification_failed", {
+      bookingId: summary.id,
+    });
+  });
+
   return serializeBooking(summary, now);
 }
 
@@ -865,12 +1098,18 @@ export async function confirmBookingAvailability(
   }
 
   if (summary.startTimeUtc && summary.endTimeUtc) {
-    await sendBookingConfirmedNotification({
+    void sendBookingConfirmedNotification(db, {
       bookingId: summary.id,
       userId: summary.userId,
-      bookingTypeId: summary.bookingTypeId,
+      bookingType: summary.bookingTypeName,
+      timezone: summary.timezone,
       startTimeUtc: summary.startTimeUtc.toISOString(),
       endTimeUtc: summary.endTimeUtc.toISOString(),
+    }).catch((error) => {
+      logger.error("booking_confirmed_notification_failed", {
+        bookingId: summary.id,
+        error: error instanceof Error ? error.message : error,
+      });
     });
   }
 
@@ -886,6 +1125,7 @@ export async function listBookingsForUser(db: Database, userId: string, now = ne
       bookingTypeId: bookingTypes.id,
       bookingTypeName: bookingTypes.name,
       sessionType: bookings.session_type,
+      eventKey: bookings.event_key,
       durationMinutes: bookingTypes.duration_minutes,
       priceCents: bookingTypes.price_cents,
       currency: bookingTypes.currency,
@@ -939,6 +1179,7 @@ export async function listBookingsForAdmin(
       bookingTypeId: bookingTypes.id,
       bookingTypeName: bookingTypes.name,
       sessionType: bookings.session_type,
+      eventKey: bookings.event_key,
       durationMinutes: bookingTypes.duration_minutes,
       priceCents: bookingTypes.price_cents,
       currency: bookingTypes.currency,
@@ -1022,7 +1263,8 @@ export async function cancelBooking(
     await sendBookingCancelledNotification({
       bookingId: summary.id,
       userId: summary.userId,
-      bookingTypeId: summary.bookingTypeId,
+      bookingType: summary.bookingTypeName,
+      timezone: summary.timezone,
       startTimeUtc: summary.startTimeUtc.toISOString(),
       endTimeUtc: summary.endTimeUtc.toISOString(),
     });
