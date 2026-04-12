@@ -1,21 +1,11 @@
-ALTER TYPE "public"."booking_status" RENAME TO "booking_status_old";
+ALTER TYPE "public"."booking_status" ADD VALUE IF NOT EXISTS 'paid';
 --> statement-breakpoint
-CREATE TYPE "public"."booking_status" AS ENUM('pending_payment', 'paid', 'scheduled', 'completed', 'cancelled');
+ALTER TYPE "public"."booking_status" ADD VALUE IF NOT EXISTS 'pending_payment';
 --> statement-breakpoint
-ALTER TABLE "bookings" ALTER COLUMN "status" DROP DEFAULT;
---> statement-breakpoint
-ALTER TABLE "bookings"
-ALTER COLUMN "status"
-TYPE "booking_status"
-USING (
-  CASE
-    WHEN "status"::text = 'pending_availability' THEN 'paid'
-    ELSE "status"::text
-  END
-)::"booking_status";
+UPDATE "bookings"
+SET "status" = 'paid'
+WHERE "status"::text = 'pending_availability';
 --> statement-breakpoint
 ALTER TABLE "bookings" ALTER COLUMN "status" SET DEFAULT 'pending_payment';
 --> statement-breakpoint
-DROP TYPE "public"."booking_status_old";
---> statement-breakpoint
-ALTER TABLE "bookings" ADD COLUMN "intake_snapshot" jsonb;
+ALTER TABLE "bookings" ADD COLUMN IF NOT EXISTS "intake_snapshot" jsonb;
