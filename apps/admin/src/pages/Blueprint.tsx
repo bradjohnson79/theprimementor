@@ -3,22 +3,18 @@ import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
 import { REPORT_TIER_DEFINITIONS, divin8ReportTierListPrice } from "@wisdom/utils";
 import { api } from "../lib/api";
+import type { AdminClientsResponse, ClientOption } from "../lib/clients";
+import { toClientOption } from "../lib/clients";
 import Loading from "../components/Loading";
 import GenerationTab, { type InterpretSuccessPayload } from "../components/GenerationTab";
 import ProductTierTab from "../components/ProductTierTab";
 import ReportsTab from "../components/ReportsTab";
 
-interface Client {
-  id: string;
-  full_birth_name: string;
-  email: string;
-}
-
 type TabId = "generation" | "reports" | "intro" | "deepDive" | "initiate";
 
 export default function Blueprint() {
   const { getToken } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("generation");
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -36,8 +32,8 @@ export default function Blueprint() {
     async function loadClients() {
       try {
         const token = await getToken();
-        const result = await api.get("/clients?limit=100", token);
-        if (!cancelled) setClients(result.data);
+        const result = await api.get("/clients?limit=100&offset=0&activeOnly=false", token) as AdminClientsResponse;
+        if (!cancelled) setClients((result.clients ?? []).map(toClientOption));
       } catch (err) {
         console.error("[Blueprint] failed to load clients:", err);
       } finally {

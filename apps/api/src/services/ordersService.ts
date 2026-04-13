@@ -138,6 +138,8 @@ export interface AdminOrdersListResult {
   };
 }
 
+export type AdminOrdersGroupedByUser = Map<string, AdminOrder[]>;
+
 interface AdminOrdersQuery {
   limit?: number;
   offset?: number;
@@ -1803,6 +1805,25 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   return [...persistedOrders, ...orders]
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+}
+
+export async function getOrdersGroupedByUser(
+  db: Database,
+  options: { showArchived?: boolean } = {},
+): Promise<AdminOrdersGroupedByUser> {
+  const grouped = new Map<string, AdminOrder[]>();
+  const allOrders = await buildAllOrders(db, options);
+
+  for (const order of allOrders) {
+    const existing = grouped.get(order.user_id);
+    if (existing) {
+      existing.push(order);
+      continue;
+    }
+    grouped.set(order.user_id, [order]);
+  }
+
+  return grouped;
 }
 
 export async function getAdminOrders(db: Database, query: AdminOrdersQuery = {}): Promise<AdminOrdersListResult> {

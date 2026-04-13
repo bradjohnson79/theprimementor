@@ -8,6 +8,8 @@ import Loading from "../components/Loading";
 import EmptyState from "../components/EmptyState";
 import OrderStatusBadge from "../components/OrderStatusBadge";
 import { api } from "../lib/api";
+import type { AdminClientsResponse, ClientOption } from "../lib/clients";
+import { toClientOption } from "../lib/clients";
 import type { AdminInvoiceResponse, AdminOrder, AdminOrderArchiveResponse, AdminOrdersResponse, OrderType } from "../lib/orders";
 import { ORDER_TYPE_TABS, formatOrderDate, formatOrderMoney, getOrderServiceLabel, getOrderTypeLabel } from "../lib/orders";
 
@@ -15,12 +17,6 @@ interface OrderColumn {
   key: keyof AdminOrder;
   label: ReactNode;
   render?: (value: AdminOrder[keyof AdminOrder], row: AdminOrder) => React.ReactNode;
-}
-
-interface ClientOption {
-  id: string;
-  full_birth_name: string;
-  email: string;
 }
 
 const PAGE_SIZE = 25;
@@ -175,9 +171,9 @@ export default function Orders() {
       setClientsLoading(true);
       try {
         const token = await getToken();
-        const response = await api.get("/clients?limit=100&page=1", token) as { data: ClientOption[] };
+        const response = await api.get("/clients?limit=100&offset=0&activeOnly=false", token) as AdminClientsResponse;
         if (!cancelled) {
-          setClients(response.data ?? []);
+          setClients((response.clients ?? []).map(toClientOption));
         }
       } catch (err) {
         if (!cancelled) {
