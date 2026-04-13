@@ -59,7 +59,7 @@ test("createPersistedOrderFromInvoice re-loads the existing order after an inser
       product_type: "report",
       label: "Report invoice",
       amount: 25000,
-      currency: "usd",
+      currency: "cad",
     } as never,
     paymentReference: "pi_123",
     status: "completed",

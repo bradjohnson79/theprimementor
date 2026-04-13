@@ -59,7 +59,7 @@ export function money(amount: number | null | undefined, currency: string | null
     return "Unavailable";
   }
 
-  return `${amount} ${text(currency?.toUpperCase(), "USD")}`;
+  return `${amount} ${text(currency?.toUpperCase(), "CAD")}`;
 }
 
 export function renderParagraph(value: string) {

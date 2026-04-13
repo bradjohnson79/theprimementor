@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startReportCheckout } from "../lib/reportCheckout";
 
 interface ReportFormState {
@@ -171,34 +172,65 @@ export default function Reports() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const checkoutState = params.get("checkout");
-    const fallbackEmail = dbUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || "";
-    const fallbackFullName = clerkUser?.fullName || "";
+    let cancelled = false;
 
-    if (checkoutState === "success") {
-      clearStoredReportDraft();
-      setBirthplace(null);
-      setTimezone("");
-      setTimezoneSource("user");
-      setForm(buildInitialFormState({
-        fullName: fallbackFullName,
-        email: fallbackEmail,
-      }));
-      setError(null);
-      setNotice(null);
-      setSuccess("Payment confirmed. Your report is now in the fulfillment queue and will appear once it is completed.");
-      return;
+    async function reconcileCheckoutState() {
+      const params = new URLSearchParams(location.search);
+      const checkoutState = params.get("checkout");
+      const reportId = params.get("reportId");
+      const checkoutSessionId = params.get("checkoutSessionId");
+      const fallbackEmail = dbUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || "";
+      const fallbackFullName = clerkUser?.fullName || "";
+
+      if (checkoutState === "success") {
+        try {
+          const token = await getToken();
+          await syncOwnedCheckoutSession({
+            token,
+            checkoutSessionId,
+            entityType: reportId ? "report" : undefined,
+            entityId: reportId,
+          });
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "Payment completed, but report fulfillment is still syncing.");
+          }
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        clearStoredReportDraft();
+        setBirthplace(null);
+        setTimezone("");
+        setTimezoneSource("user");
+        setForm(buildInitialFormState({
+          fullName: fallbackFullName,
+          email: fallbackEmail,
+        }));
+        setError(null);
+        setNotice(null);
+        setSuccess("Payment confirmed. Your report is now in the fulfillment queue and will appear once it is completed.");
+        return;
+      }
+
+      if (checkoutState === "canceled" && !cancelled) {
+        setSuccess(null);
+        setNotice("Checkout canceled. Your pending report is still ready if you want to retry payment.");
+        return;
+      }
+
+      if (!cancelled) {
+        setNotice(null);
+      }
     }
 
-    if (checkoutState === "canceled") {
-      setSuccess(null);
-      setNotice("Checkout canceled. Your pending report is still ready if you want to retry payment.");
-      return;
-    }
-
-    setNotice(null);
-  }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email, location.search]);
+    void reconcileCheckoutState();
+    return () => {
+      cancelled = true;
+    };
+  }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email, getToken, location.search]);
 
   const selectedTierDefinition = useMemo(
     () => getReportTierDefinition(selectedTier),

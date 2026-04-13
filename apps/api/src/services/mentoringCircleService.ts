@@ -69,7 +69,7 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     timezone: PLATFORM_TIMEZONE,
     durationMinutes: 90,
     priceCents: 2500,
-    currency: "USD",
+    currency: "CAD",
     posterPath: "/images/mentoring-circle-april-26.png",
     zoomLink: process.env.MENTORING_CIRCLE_ZOOM_LINK_APRIL?.trim()
       || process.env.MENTORING_CIRCLE_ZOOM_LINK?.trim()
@@ -85,7 +85,7 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     timezone: PLATFORM_TIMEZONE,
     durationMinutes: 90,
     priceCents: 2500,
-    currency: "USD",
+    currency: "CAD",
     posterPath: "/images/mentoring-circle-april-26.png",
     zoomLink: process.env.MENTORING_CIRCLE_ZOOM_LINK_MAY?.trim()
       || "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g",

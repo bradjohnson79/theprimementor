@@ -100,6 +100,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "POST", url: "/api/admin/notifications/retry", auth: "admin", validation: "service", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationRetryService.ts"] },
   { method: "PATCH", url: "/api/admin/notifications/settings", auth: "admin", validation: "service", handlerFile: "routes/admin-notifications.ts", serviceRefs: ["services/notifications/notificationSettingsService.ts"] },
   { method: "POST", url: "/api/create-checkout-session", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/paymentService.ts"] },
+  { method: "POST", url: "/api/checkout-session/sync", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/stripeWebhookService.ts"] },
   { method: "POST", url: "/api/admin/invoices", auth: "admin", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/invoiceService.ts"] },
   { method: "POST", url: "/api/admin/invoices/:invoiceId/regenerate", auth: "admin", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/invoiceService.ts"] },
   { method: "POST", url: "/api/stripe/webhook", auth: "stripe-webhook", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/stripeWebhookService.ts"] },

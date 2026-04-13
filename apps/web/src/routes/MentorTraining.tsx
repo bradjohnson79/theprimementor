@@ -4,6 +4,7 @@ import type { MentorTrainingPackageDefinition, MentorTrainingPackageType } from 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startMentorTrainingCheckout } from "../lib/mentorTrainingCheckout";
 
 interface MentorTrainingEligibilityData {
@@ -40,23 +41,53 @@ export default function MentorTraining() {
   }, [navigate, tierState]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const checkoutState = params.get("checkout");
-    if (checkoutState === "success") {
-      setSuccess("Payment confirmed. Your mentor training order is active and ready for the next step.");
-      setNotice(null);
-      setError(null);
-      return;
-    }
-    if (checkoutState === "canceled") {
-      setSuccess(null);
-      setNotice("Payment failed or was cancelled. Your training order is safe, and you can retry anytime.");
-      return;
+    let cancelled = false;
+
+    async function reconcileCheckoutState() {
+      const params = new URLSearchParams(location.search);
+      const checkoutState = params.get("checkout");
+      const trainingOrderId = params.get("trainingOrderId");
+      const checkoutSessionId = params.get("checkoutSessionId");
+
+      if (checkoutState === "success") {
+        try {
+          const token = await getToken();
+          await syncOwnedCheckoutSession({
+            token,
+            checkoutSessionId,
+            entityType: trainingOrderId ? "mentor_training" : undefined,
+            entityId: trainingOrderId,
+          });
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "Payment completed, but mentor training access is still syncing.");
+          }
+        }
+
+        if (!cancelled) {
+          setSuccess("Payment confirmed. Your mentor training order is active and ready for the next step.");
+          setNotice(null);
+          setError(null);
+        }
+        return;
+      }
+      if (checkoutState === "canceled" && !cancelled) {
+        setSuccess(null);
+        setNotice("Payment failed or was cancelled. Your training order is safe, and you can retry anytime.");
+        return;
+      }
+
+      if (!cancelled) {
+        setSuccess(null);
+        setNotice(null);
+      }
     }
 
-    setSuccess(null);
-    setNotice(null);
-  }, [location.search]);
+    void reconcileCheckoutState();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, location.search]);
 
   useEffect(() => {
     if (tierState !== "initiate") {

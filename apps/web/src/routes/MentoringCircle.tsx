@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/react";
 import { useSearchParams } from "react-router-dom";
 import { formatPacificTime } from "@wisdom/utils";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startMentoringCircleCheckout } from "../lib/mentoringCircleCheckout";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
 
@@ -37,8 +38,14 @@ interface MentoringCircleState {
 
 const MENTORING_CIRCLE_POSTER_SRC = "/images/mentoring-circle-april-26.webp";
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(0)}`;
+function formatPrice(cents: number, currency = "CAD") {
+  const amount = new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+  return `${amount} ${currency}`;
 }
 
 function CopyIcon() {
@@ -77,6 +84,16 @@ export default function MentoringCircle() {
 
   useEffect(() => {
     let cancelled = false;
+
+    function resolvePendingBookingId(state: MentoringCircleState | null) {
+      const candidates = [
+        state?.requestedEvent,
+        state?.currentEvent,
+        state?.nextEvent,
+        state?.activeEventForPurchase,
+      ];
+      return candidates.find((event) => event?.purchaseStatus === "pending_payment" && event.bookingId)?.bookingId ?? null;
+    }
 
     async function loadCircleState(showLoading: boolean) {
       if (showLoading) {
@@ -123,7 +140,27 @@ export default function MentoringCircle() {
 
     void (async () => {
       for (let attempt = 0; attempt < 6 && !cancelled; attempt += 1) {
-        const state = await loadCircleState(attempt === 0 ? false : false);
+        let state = await loadCircleState(false);
+        const checkoutSessionId = searchParams.get("checkoutSessionId");
+        const pendingBookingId = resolvePendingBookingId(state);
+
+        if ((checkoutSessionId || pendingBookingId) && attempt === 0) {
+          try {
+            const token = await getToken();
+            await syncOwnedCheckoutSession({
+              token,
+              checkoutSessionId,
+              entityType: pendingBookingId ? "mentoring_circle" : undefined,
+              entityId: pendingBookingId,
+            });
+            state = await loadCircleState(false);
+          } catch (err) {
+            if (!cancelled) {
+              setError(err instanceof Error ? err.message : "Payment completed, but access is still syncing.");
+            }
+          }
+        }
+
         if (
           state?.requestedEvent?.joinEligible
           || state?.currentEvent?.joinEligible
@@ -186,7 +223,9 @@ export default function MentoringCircle() {
     setCopied(true);
   }
 
-  const ctaLabel = `Reserve Spot (${purchasableEvent ? formatPrice(purchasableEvent.priceCents) : "$25"})`;
+  const ctaLabel = `Reserve Spot (${purchasableEvent
+    ? formatPrice(purchasableEvent.priceCents, purchasableEvent.currency)
+    : formatPrice(2500, "CAD")})`;
 
   return (
     <motion.div
@@ -241,7 +280,10 @@ export default function MentoringCircle() {
                     ? "Purchase confirmed"
                     : purchasableEvent?.purchaseStatus === "pending_payment"
                       ? "Payment pending"
-                      : `${formatPrice(purchasableEvent?.priceCents ?? 2500)} reservation`}
+                      : `${formatPrice(
+                        purchasableEvent?.priceCents ?? 2500,
+                        purchasableEvent?.currency ?? "CAD",
+                      )} reservation`}
                 </p>
               </div>
             </div>

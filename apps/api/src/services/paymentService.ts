@@ -347,7 +347,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     client_reference_id: bookingId,
     line_items: [{ price: priceId, quantity: 1 }],
     metadata,
-    success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}`,
+    success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
@@ -464,7 +464,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     client_reference_id: trainingOrderId,
     line_items: [{ price: priceId, quantity: 1 }],
     metadata,
-    success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
+    success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentor-training?checkout=canceled&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
@@ -592,7 +592,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
       quantity: 1,
     }],
     metadata,
-    success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}`,
+    success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
@@ -714,7 +714,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     client_reference_id: reportId,
     line_items: [{ price: priceId, quantity: 1 }],
     metadata,
-    success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}`,
+    success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
@@ -836,7 +836,7 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     line_items: [{ price: priceId, quantity: 1 }],
     metadata,
     subscription_data: { metadata },
-    success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}`,
+    success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&membershipId=${encodeURIComponent(membershipId)}`,
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }

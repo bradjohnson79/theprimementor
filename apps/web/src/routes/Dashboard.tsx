@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { formatPacificDateOnly } from "@wisdom/utils";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession, type CheckoutSyncEntityType } from "../lib/checkoutSessionSync";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
 
 interface BookingSummary {
@@ -33,6 +34,8 @@ interface MentoringCircleEventState {
   eventTitle: string;
   sessionDate: string;
   timezone: string;
+  bookingId: string | null;
+  paymentStatus: string | null;
   purchaseStatus: "not_started" | "pending_payment" | "confirmed";
   joinEligible: boolean;
   registered: boolean;
@@ -44,6 +47,43 @@ interface MentoringCircleState {
   nextEvent: MentoringCircleEventState | null;
   activeEventForPurchase: MentoringCircleEventState | null;
   requestedEvent: MentoringCircleEventState | null;
+}
+
+function collectPendingSyncTargets(
+  bookingsData: BookingSummary[],
+  reportsData: MemberReportsListData,
+  circleData: MentoringCircleState | null,
+): Array<{ entityType: CheckoutSyncEntityType; entityId: string }> {
+  const targets: Array<{ entityType: CheckoutSyncEntityType; entityId: string }> = [];
+
+  for (const booking of bookingsData) {
+    if (booking.status === "pending_payment") {
+      targets.push({ entityType: "session", entityId: booking.id });
+    }
+  }
+
+  for (const report of reportsData.pending) {
+    if (report.member_status === "pending_payment") {
+      targets.push({ entityType: "report", entityId: report.id });
+    }
+  }
+
+  for (const event of [
+    circleData?.requestedEvent,
+    circleData?.currentEvent,
+    circleData?.nextEvent,
+    circleData?.activeEventForPurchase,
+  ]) {
+    if (event?.purchaseStatus === "pending_payment" && event.bookingId) {
+      targets.push({ entityType: "mentoring_circle", entityId: event.bookingId });
+    }
+  }
+
+  return targets.filter((target, index, items) =>
+    items.findIndex((candidate) =>
+      candidate.entityType === target.entityType && candidate.entityId === target.entityId,
+    ) === index,
+  );
 }
 
 function getDashboardGreetingName(user: {
@@ -136,37 +176,72 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
+
+    function applyStats(
+      bookingsData: BookingSummary[],
+      reportsData: MemberReportsListData,
+      circleData: MentoringCircleState,
+    ) {
+      const now = Date.now();
+      const awaitingScheduling = bookingsData.filter((booking) =>
+        booking.status === "paid" && !booking.start_time_utc,
+      ).length;
+      const upcomingOrScheduled = bookingsData.filter((booking) =>
+        booking.status !== "cancelled"
+        && booking.status !== "completed"
+        && (
+          booking.status === "paid"
+          || (booking.start_time_utc && new Date(booking.start_time_utc).getTime() > now)
+        ),
+      ).length;
+      const completed = bookingsData.filter((booking) => booking.status === "completed").length;
+      setActiveSessions(upcomingOrScheduled);
+      setPurchasedSessionsAwaitingScheduling(awaitingScheduling);
+      setCompletedSessions(completed);
+      setReportsOrdered(reportsData.counts.total);
+      setReportsPending(reportsData.counts.pending);
+      setMentoringCircle(circleData);
+    }
+
+    async function fetchStats(token: string | null) {
+      const [bookingsResponse, reportsResponse, circleResponse] = await Promise.all([
+        api.get("/bookings", token) as Promise<{ data: BookingSummary[] }>,
+        api.get("/member/reports", token) as Promise<{ data: MemberReportsListData }>,
+        api.get("/mentoring-circle/me", token) as Promise<{ data: MentoringCircleState }>,
+      ]);
+
+      return {
+        bookingsData: bookingsResponse.data,
+        reportsData: reportsResponse.data,
+        circleData: circleResponse.data,
+      };
+    }
+
     async function loadStats() {
       setStatsLoading(true);
       try {
         const token = await getToken();
-        const [bookingsResponse, reportsResponse, circleResponse] = await Promise.all([
-          api.get("/bookings", token) as Promise<{ data: BookingSummary[] }>,
-          api.get("/member/reports", token) as Promise<{ data: MemberReportsListData }>,
-          api.get("/mentoring-circle/me", token) as Promise<{ data: MentoringCircleState }>,
-        ]);
+        let { bookingsData, reportsData, circleData } = await fetchStats(token);
 
         if (cancelled) return;
 
-        const now = Date.now();
-        const awaitingScheduling = bookingsResponse.data.filter((booking) =>
-          booking.status === "paid" && !booking.start_time_utc,
-        ).length;
-        const upcomingOrScheduled = bookingsResponse.data.filter((booking) =>
-          booking.status !== "cancelled"
-          && booking.status !== "completed"
-          && (
-            booking.status === "paid"
-            || (booking.start_time_utc && new Date(booking.start_time_utc).getTime() > now)
-          ),
-        ).length;
-        const completed = bookingsResponse.data.filter((booking) => booking.status === "completed").length;
-        setActiveSessions(upcomingOrScheduled);
-        setPurchasedSessionsAwaitingScheduling(awaitingScheduling);
-        setCompletedSessions(completed);
-        setReportsOrdered(reportsResponse.data.counts.total);
-        setReportsPending(reportsResponse.data.counts.pending);
-        setMentoringCircle(circleResponse.data);
+        const syncTargets = collectPendingSyncTargets(bookingsData, reportsData, circleData);
+        if (syncTargets.length > 0) {
+          await Promise.all(syncTargets.map((target) =>
+            syncOwnedCheckoutSession({
+              token,
+              entityType: target.entityType,
+              entityId: target.entityId,
+            }).catch(() => null)
+          ));
+
+          if (cancelled) return;
+
+          ({ bookingsData, reportsData, circleData } = await fetchStats(token));
+          if (cancelled) return;
+        }
+
+        applyStats(bookingsData, reportsData, circleData);
       } catch {
         if (!cancelled) {
           setActiveSessions(0);

@@ -12,7 +12,7 @@ test("mentoring circle resolves the default event definition", () => {
 
   assert.equal(event.eventId, "2026-04-26");
   assert.equal(event.priceCents, 2500);
-  assert.equal(event.currency, "USD");
+  assert.equal(event.currency, "CAD");
 });
 
 test("mentoring circle sales switch to may after april sales window opens", () => {

@@ -1481,6 +1481,32 @@ async function handleCheckoutSessionCompleted(
   }
 }
 
+export async function syncCheckoutSessionCompleted(
+  db: DbExecutor,
+  session: Stripe.Checkout.Session,
+  logger: WebhookLogger,
+) {
+  if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") {
+    logger.info({
+      checkoutSessionId: session.id,
+      paymentStatus: session.payment_status,
+      mode: session.mode,
+    }, "stripe_checkout_session_sync_skipped_unpaid");
+    return {
+      synchronized: false,
+      paymentStatus: session.payment_status ?? null,
+      mode: session.mode ?? null,
+    };
+  }
+
+  await handleCheckoutSessionCompleted(db, session, logger);
+  return {
+    synchronized: true,
+    paymentStatus: session.payment_status ?? null,
+    mode: session.mode ?? null,
+  };
+}
+
 async function handleSubscriptionCreatedOrUpdated(
   db: DbExecutor,
   event: Stripe.Event,

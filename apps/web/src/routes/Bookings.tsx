@@ -7,6 +7,7 @@ import TimezoneSelect from "@wisdom/ui/timezone-select";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
   AVAILABILITY_DAYS,
@@ -230,21 +231,49 @@ export default function Bookings() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const checkoutState = params.get("checkout");
+    let cancelled = false;
 
-    if (checkoutState === "success") {
-      setError(null);
-      setPurchaseError(null);
-      setSuccess("Payment received. Your booking is confirmed and will now move into the scheduling flow.");
-      return;
+    async function reconcileCheckoutState() {
+      const params = new URLSearchParams(location.search);
+      const checkoutState = params.get("checkout");
+      const bookingId = params.get("bookingId");
+      const checkoutSessionId = params.get("checkoutSessionId");
+
+      if (checkoutState === "success") {
+        setError(null);
+        setPurchaseError(null);
+
+        try {
+          const token = await getToken();
+          await syncOwnedCheckoutSession({
+            token,
+            checkoutSessionId,
+            entityType: bookingId ? "session" : undefined,
+            entityId: bookingId,
+          });
+        } catch (err) {
+          if (!cancelled) {
+            setPurchaseError(err instanceof Error ? err.message : "Payment completed, but booking confirmation is still syncing.");
+          }
+        }
+
+        if (!cancelled) {
+          setSuccess("Payment received. Your booking is confirmed and will now move into the scheduling flow.");
+        }
+        return;
+      }
+
+      if (checkoutState === "canceled" && !cancelled) {
+        setSuccess(null);
+        setPurchaseError("Checkout was canceled. Your pending booking was kept, so you can try again when you're ready.");
+      }
     }
 
-    if (checkoutState === "canceled") {
-      setSuccess(null);
-      setPurchaseError("Checkout was canceled. Your pending booking was kept, so you can try again when you're ready.");
-    }
-  }, [location.search]);
+    void reconcileCheckoutState();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, location.search]);
 
   useEffect(() => {
     async function loadBookingTypes() {
