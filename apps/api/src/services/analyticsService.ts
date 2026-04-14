@@ -111,7 +111,7 @@ const SESSION_BOOKED_STATUSES = new Set(["paid", "scheduled", "completed"]);
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 const DEFAULT_UMAMI_WEBSITE_ID = "db9c7631-014a-4dc3-b9c2-967afed009f7";
 const DEFAULT_UMAMI_DASHBOARD_URL = "https://cloud.umami.is";
-const DEFAULT_UMAMI_API_URL = `${DEFAULT_UMAMI_DASHBOARD_URL}/api`;
+const DEFAULT_UMAMI_API_URL = "https://api.umami.is/v1";
 
 function assertAdminAccess(actor: AnalyticsActor) {
   if (actor.actorRole !== "admin") {
@@ -141,7 +141,21 @@ function getUmamiWebsiteId() {
 }
 
 function getUmamiApiUrl() {
-  return process.env.UMAMI_API_URL?.trim() || DEFAULT_UMAMI_API_URL;
+  const configured = process.env.UMAMI_API_URL?.trim();
+  if (!configured) {
+    return DEFAULT_UMAMI_API_URL;
+  }
+
+  try {
+    const normalized = new URL(configured);
+    if (normalized.hostname === "cloud.umami.is" && /^\/api\/?$/.test(normalized.pathname)) {
+      return DEFAULT_UMAMI_API_URL;
+    }
+  } catch {
+    return configured;
+  }
+
+  return configured;
 }
 
 export function getPreviousRange(range: AnalyticsRange, endAt = Date.now()) {
