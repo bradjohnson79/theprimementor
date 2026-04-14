@@ -18,6 +18,8 @@ export interface ApiRouteManifestEntry {
 }
 
 export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
+  { method: "GET", url: "/", auth: "public", validation: "none", handlerFile: "routes/health.ts", serviceRefs: [] },
+  { method: "GET", url: "/api", auth: "public", validation: "none", handlerFile: "routes/health.ts", serviceRefs: [] },
   { method: "GET", url: "/health", auth: "public", validation: "none", handlerFile: "routes/health.ts", serviceRefs: [] },
   { method: "GET", url: "/health/ephemeris", auth: "public", validation: "none", handlerFile: "routes/health.ts", serviceRefs: ["services/blueprint/swissEphemerisService.ts"] },
   { method: "GET", url: "/api/health", auth: "public", validation: "none", handlerFile: "routes/health.ts", serviceRefs: [] },
