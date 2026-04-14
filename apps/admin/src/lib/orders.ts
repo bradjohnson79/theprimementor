@@ -58,6 +58,11 @@ export interface AdminOrder {
   membership_tier: string | null;
   available_actions: string[];
   execution: AdminOrderExecution;
+  recording_link: string | null;
+  recording_added_at: string | null;
+  refunded_at: string | null;
+  refund_reason: string | null;
+  refund_note: string | null;
   metadata: {
     source_status: string | null;
     source_created_at: string;

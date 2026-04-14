@@ -12,6 +12,7 @@ import Terms from "./routes/Terms";
 import Dashboard from "./routes/Dashboard";
 import MemberDivin8Chat from "./routes/MemberDivin8Chat";
 import Bookings from "./routes/Bookings";
+import Recordings from "./routes/Recordings";
 import MentoringCircle from "./routes/MentoringCircle";
 import MentorTraining from "./routes/MentorTraining";
 import Settings from "./routes/Settings";
@@ -52,6 +53,7 @@ export default function App() {
           <Route element={<MemberLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/divin8" element={<MemberDivin8Chat />} />
+            <Route path="/dashboard/recordings" element={<Recordings />} />
             <Route path="/sessions" element={<Bookings />} />
             <Route path="/sessions/focus" element={<Bookings />} />
             <Route path="/sessions/regeneration" element={<Bookings />} />

@@ -81,6 +81,11 @@ export interface AdminOrder {
   membership_tier: string | null;
   available_actions: string[];
   execution: AdminOrderExecution;
+  recording_link: string | null;
+  recording_added_at: string | null;
+  refunded_at: string | null;
+  refund_reason: string | null;
+  refund_note: string | null;
   metadata: {
     source_status: string | null;
     source_created_at: string;
@@ -305,9 +310,14 @@ interface PersistedOrderRow {
   paymentReference: string | null;
   stripePaymentIntentId: string | null;
   stripeSubscriptionId: string | null;
+  refundedAt: Date | null;
+  refundReason: string | null;
+  refundNote: string | null;
   failureCode: string | null;
   failureMessage: string | null;
   failureMessageNormalized: string | null;
+  recordingLink: string | null;
+  recordingAddedAt: Date | null;
   metadata: unknown;
   createdAt: Date;
 }
@@ -339,6 +349,11 @@ interface OrderCandidate {
   membershipTier: string | null;
   availableActions: string[];
   execution: AdminOrderExecution;
+  recordingLink: string | null;
+  recordingAddedAt: string | null;
+  refundedAt: string | null;
+  refundReason: string | null;
+  refundNote: string | null;
   metadata: AdminOrder["metadata"];
   directBookingId: string | null;
   sourcePaymentIntentIds: string[];
@@ -383,6 +398,29 @@ function isExecutionState(value: unknown): value is OrderExecutionState {
 
 function getOrderId(type: AdminOrderType, sourceId: string) {
   return `${type}_${sourceId}`;
+}
+
+function findPersistedOrderForSource(
+  rows: PersistedOrderRow[],
+  type: AdminOrderType,
+  sourceId: string,
+) {
+  return rows.find((entry) => persistedOrderMatchesSource(entry, type, sourceId)) ?? null;
+}
+
+function applyPersistedOrderState(candidate: OrderCandidate, persistedOrder: PersistedOrderRow | null): OrderCandidate {
+  if (!persistedOrder) {
+    return candidate;
+  }
+
+  return {
+    ...candidate,
+    recordingLink: persistedOrder.recordingLink ?? candidate.recordingLink,
+    recordingAddedAt: persistedOrder.recordingAddedAt?.toISOString() ?? candidate.recordingAddedAt,
+    refundedAt: persistedOrder.refundedAt?.toISOString() ?? candidate.refundedAt,
+    refundReason: persistedOrder.refundReason ?? candidate.refundReason,
+    refundNote: persistedOrder.refundNote ?? candidate.refundNote,
+  };
 }
 
 export function parseOrderId(orderId: string): ParsedOrderId {
@@ -896,6 +934,11 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     membership_tier: candidate.membershipTier,
     available_actions: candidate.availableActions,
     execution: candidate.execution,
+    recording_link: candidate.recordingLink,
+    recording_added_at: candidate.recordingAddedAt,
+    refunded_at: candidate.refundedAt,
+    refund_reason: candidate.refundReason,
+    refund_note: candidate.refundNote,
     metadata: {
       ...candidate.metadata,
       payment_match_strategy: paymentMatchStrategy,
@@ -1046,9 +1089,14 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         paymentReference: persistedOrdersTable.payment_reference,
         stripePaymentIntentId: persistedOrdersTable.stripe_payment_intent_id,
         stripeSubscriptionId: persistedOrdersTable.stripe_subscription_id,
+        refundedAt: persistedOrdersTable.refunded_at,
+        refundReason: persistedOrdersTable.refund_reason,
+        refundNote: persistedOrdersTable.refund_note,
         failureCode: persistedOrdersTable.failure_code,
         failureMessage: persistedOrdersTable.failure_message,
         failureMessageNormalized: persistedOrdersTable.failure_message_normalized,
+        recordingLink: persistedOrdersTable.recording_link,
+        recordingAddedAt: persistedOrdersTable.recording_added_at,
         metadata: persistedOrdersTable.metadata,
         createdAt: persistedOrdersTable.created_at,
       })
@@ -1236,6 +1284,11 @@ function createSessionCandidate(
     membershipTier: entitlementsByUserId.get(row.userId)?.tier ?? null,
     availableActions: getAvailableActions("session"),
     execution: buildOrderExecution(executionReport, orderId, row.userId),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
     metadata: {
       source_status: row.status,
       source_created_at: row.createdAt.toISOString(),
@@ -1334,6 +1387,11 @@ function createReportCandidate(
     membershipTier: entitlementsByUserId.get(row.userId)?.tier ?? null,
     availableActions: getAvailableActions("report"),
     execution: buildOrderExecution(row, getOrderId("report", row.id), row.userId),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
     metadata: {
       source_status: row.status,
       source_created_at: row.createdAt.toISOString(),
@@ -1406,6 +1464,11 @@ function createSubscriptionCandidate(
     membershipTier: entitlement?.tier ?? row.tier ?? null,
     availableActions: getAvailableActions("subscription"),
     execution: buildOrderExecution(null, getOrderId("subscription", row.id), row.userId),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
     metadata: {
       source_status: row.status,
       source_created_at: row.createdAt.toISOString(),
@@ -1478,6 +1541,11 @@ function createMentorTrainingCandidate(
     membershipTier: entitlement?.tier ?? null,
     availableActions: getAvailableActions("mentor_training"),
     execution: buildOrderExecution(null, getOrderId("mentor_training", row.id), row.userId),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
     metadata: {
       source_status: row.status,
       source_created_at: row.createdAt.toISOString(),
@@ -1547,6 +1615,11 @@ function createWebinarCandidate(
     membershipTier: entitlementsByUserId.get(row.userId)?.tier ?? null,
     availableActions: getAvailableActions("webinar"),
     execution: buildOrderExecution(null, getOrderId("webinar", row.id), row.userId),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
     metadata: {
       source_status: row.status,
       source_created_at: row.createdAt.toISOString(),
@@ -1589,7 +1662,7 @@ function normalizePersistedOrderType(type: string): AdminOrderType {
   if (type === "subscription" || type === "subscription_initial" || type === "subscription_renewal") {
     return "subscription";
   }
-  if (type === "session" || type === "report" || type === "webinar" || type === "custom") {
+  if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "custom") {
     return type;
   }
   logger.warn("orders_unknown_persisted_order_type", { type });
@@ -1600,6 +1673,8 @@ function normalizePersistedOrderStatus(status: string): AdminOrderStatus {
   switch (status) {
     case "completed":
       return "completed";
+    case "refunded":
+      return "refunded";
     case "failed":
       return "failed";
     case "pending":
@@ -1635,6 +1710,9 @@ function createPersistedAdminOrder(
     ?? getString(orderMetadata?.subscriptionStatus)
     ?? null;
   const createdAt = row.createdAt;
+  const sessionType = getString(orderMetadata?.sessionType) ?? getString(orderMetadata?.session_type);
+  const scheduledAt = getString(orderMetadata?.scheduledAt) ?? getString(orderMetadata?.scheduled_at);
+  const meetingLink = getString(orderMetadata?.meetingLink) ?? getString(orderMetadata?.meeting_link);
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -1659,6 +1737,11 @@ function createPersistedAdminOrder(
     membership_tier: entitlementsByUserId.get(row.userId)?.tier ?? null,
     available_actions: getAvailableActions(normalizedType),
     execution: buildOrderExecution(null, getOrderId(normalizedType, row.id), row.userId),
+    recording_link: row.recordingLink,
+    recording_added_at: row.recordingAddedAt?.toISOString() ?? null,
+    refunded_at: row.refundedAt?.toISOString() ?? null,
+    refund_reason: row.refundReason ?? null,
+    refund_note: row.refundNote ?? null,
     metadata: {
       source_status: row.status,
       source_created_at: createdAt.toISOString(),
@@ -1678,9 +1761,9 @@ function createPersistedAdminOrder(
       training_package_id: null,
       selected_systems: [],
       delivery_status: null,
-      session_type: null,
-      scheduled_at: null,
-      meeting_link: null,
+      session_type: normalizedType === "session" && sessionType ? titleCase(sessionType) : null,
+      scheduled_at: normalizedType === "session" ? scheduledAt : null,
+      meeting_link: normalizedType === "session" ? meetingLink : null,
       plan_name: normalizedType === "subscription" ? row.label : null,
       billing_cycle: getString(orderMetadata?.billingInterval)
         ?? getString(invoiceMetadata?.billingInterval)
@@ -1750,8 +1833,19 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const candidates: OrderCandidate[] = [];
   for (const row of bookingRows) {
     try {
-      const candidate = createSessionCandidate(row, usersById, clientsByUserId, entitlementsByUserId, sessionExecutionByOrderId);
-      if (candidate) candidates.push(candidate);
+      const candidate = createSessionCandidate(
+        row,
+        usersById,
+        clientsByUserId,
+        entitlementsByUserId,
+        sessionExecutionByOrderId,
+      );
+      if (candidate) {
+        candidates.push(applyPersistedOrderState(
+          candidate,
+          findPersistedOrderForSource(persistedOrderRows, "session", row.id),
+        ));
+      }
     } catch (error) {
       logger.warn("orders_booking_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
@@ -1759,7 +1853,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   for (const row of reportRows) {
     try {
       const candidate = createReportCandidate(row, usersById, clientsByUserId, clientsById, entitlementsByUserId);
-      if (candidate) candidates.push(candidate);
+      if (candidate) {
+        candidates.push(applyPersistedOrderState(
+          candidate,
+          findPersistedOrderForSource(persistedOrderRows, "report", row.id),
+        ));
+      }
     } catch (error) {
       logger.warn("orders_report_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
@@ -1767,7 +1866,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   for (const row of subscriptionRows) {
     try {
       const candidate = createSubscriptionCandidate(row, usersById, clientsByUserId, entitlementsByUserId);
-      if (candidate) candidates.push(candidate);
+      if (candidate) {
+        candidates.push(applyPersistedOrderState(
+          candidate,
+          findPersistedOrderForSource(persistedOrderRows, "subscription", row.id),
+        ));
+      }
     } catch (error) {
       logger.warn("orders_subscription_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
@@ -1775,7 +1879,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   for (const row of mentorTrainingRows) {
     try {
       const candidate = createMentorTrainingCandidate(row, usersById, clientsByUserId, entitlementsByUserId);
-      if (candidate) candidates.push(candidate);
+      if (candidate) {
+        candidates.push(applyPersistedOrderState(
+          candidate,
+          findPersistedOrderForSource(persistedOrderRows, "mentor_training", row.id),
+        ));
+      }
     } catch (error) {
       logger.warn("orders_mentor_training_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
@@ -1786,7 +1895,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     }
     try {
       const candidate = createWebinarCandidate(row, usersById, clientsByUserId, entitlementsByUserId);
-      if (candidate) candidates.push(candidate);
+      if (candidate) {
+        candidates.push(applyPersistedOrderState(
+          candidate,
+          findPersistedOrderForSource(persistedOrderRows, "webinar", row.id),
+        ));
+      }
     } catch (error) {
       logger.warn("orders_webinar_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
@@ -1794,6 +1908,14 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   candidates.sort((left, right) => right.sourceCreatedAt.getTime() - left.sourceCreatedAt.getTime());
   const claimedPaymentIds = new Set<string>();
+  const persistedSourceBackedOrderIds = new Set<string>();
+  for (const row of persistedOrderRows) {
+    for (const candidate of candidates) {
+      if (persistedOrderMatchesSource(row, candidate.type, candidate.sourceId)) {
+        persistedSourceBackedOrderIds.add(getOrderId(candidate.type, candidate.sourceId));
+      }
+    }
+  }
 
   const orders = candidates.map((candidate) => {
     const { payment, strategy } = matchPaymentForOrder(candidate, paymentsByUser, claimedPaymentIds);
@@ -1803,7 +1925,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     return buildAdminOrder(candidate, payment, strategy);
   });
 
-  return [...persistedOrders, ...orders]
+  return [...persistedOrders.filter((row) => !persistedSourceBackedOrderIds.has(row.id)), ...orders]
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
 }
 
@@ -1864,6 +1986,10 @@ function persistedOrderMatchesSource(row: {
 }, type: AdminOrderType, sourceId: string): boolean {
   const metadata = isRecord(row.metadata) ? row.metadata : null;
 
+  if (row.id === sourceId) {
+    return true;
+  }
+
   if (type === "custom") {
     return row.id === sourceId;
   }
@@ -1884,6 +2010,11 @@ function persistedOrderMatchesSource(row: {
 
   if (type === "webinar") {
     return getString(metadata?.eventKey) === sourceId || getString(metadata?.event_key) === sourceId;
+  }
+
+  if (type === "mentor_training") {
+    return getString(metadata?.trainingOrderId) === sourceId
+      || getString(metadata?.training_order_id) === sourceId;
   }
 
   return false;

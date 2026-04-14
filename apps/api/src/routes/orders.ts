@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
+import { upsertOrderRecordingLink } from "../services/orderRecordingService.js";
+import { refundAdminOrder } from "../services/orderRefundService.js";
 import { dispatchOrderExecution } from "../services/divin8ExecutionDispatcher.js";
 import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } from "../services/ordersService.js";
 
@@ -18,6 +20,15 @@ interface GenerateQuery {
 interface ArchiveOrdersBody {
   orderIds?: string[];
   archived?: boolean;
+}
+
+interface UpdateOrderRecordingBody {
+  link?: string;
+}
+
+interface RefundOrderBody {
+  reason?: string;
+  customReason?: string;
 }
 
 export async function ordersRoutes(app: FastifyInstance) {
@@ -91,6 +102,43 @@ export async function ordersRoutes(app: FastifyInstance) {
         report_id: result.report_id,
         details: result.details ?? null,
       }));
+    },
+  );
+
+  app.post<{ Params: { orderId: string }; Body: UpdateOrderRecordingBody }>(
+    "/admin/orders/:orderId/recording",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      await upsertOrderRecordingLink(db, {
+        orderId: request.params.orderId,
+        link: request.body?.link ?? "",
+      });
+
+      return ok({
+        data: await getAdminOrderById(db, request.params.orderId),
+      });
+    },
+  );
+
+  app.post<{ Params: { orderId: string }; Body: RefundOrderBody }>(
+    "/admin/orders/:orderId/refund",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      return ok({
+        data: await refundAdminOrder(db, {
+          orderId: request.params.orderId,
+          actorUserId: request.dbUser!.id,
+          actorRole: request.dbUser!.role,
+          reason: request.body?.reason ?? "",
+          customReason: request.body?.customReason,
+        }),
+      });
     },
   );
 }

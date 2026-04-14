@@ -44,6 +44,27 @@ function ExecutionBadge({ state }: { state: AdminOrder["execution"]["state"] }) 
   );
 }
 
+const REFUND_REASON_OPTIONS = [
+  { value: "requested_by_customer", label: "Requested by customer" },
+  { value: "fraudulent", label: "Fraudulent" },
+  { value: "duplicate", label: "Duplicate" },
+  { value: "other", label: "Other" },
+] as const;
+
+function getRefundPolicyNote(order: AdminOrder) {
+  if (order.type === "subscription") {
+    return "Subscriptions are non-refundable, but they can be canceled before the next billing cycle.";
+  }
+
+  if (order.type === "report") {
+    return order.metadata.delivery_status === "fulfilled" || order.execution.state === "completed"
+      ? "Reports are non-refundable after delivery."
+      : "Reports are generally non-refundable. Admin refunds are only allowed when a report has not been delivered within the projected timeframe.";
+  }
+
+  return "Stripe will process the refund immediately. Local order records will only update after Stripe confirms the refund request.";
+}
+
 export default function OrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const { getToken } = useAuth();
@@ -54,6 +75,12 @@ export default function OrderDetail() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [regeneratingLink, setRegeneratingLink] = useState(false);
+  const [recordingLinkInput, setRecordingLinkInput] = useState("");
+  const [savingRecording, setSavingRecording] = useState(false);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState<(typeof REFUND_REASON_OPTIONS)[number]["value"]>("requested_by_customer");
+  const [refundCustomReason, setRefundCustomReason] = useState("");
+  const [refunding, setRefunding] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -93,6 +120,10 @@ export default function OrderDetail() {
       cancelled = true;
     };
   }, [loadOrder]);
+
+  useEffect(() => {
+    setRecordingLinkInput(order?.recording_link ?? "");
+  }, [order?.recording_link]);
 
   const canGenerate = useMemo(
     () => Boolean(order?.available_actions.includes("generate_output")),
@@ -150,6 +181,83 @@ export default function OrderDetail() {
     }
   }
 
+  async function handleSaveRecording() {
+    if (!orderId || order?.type !== "session") return;
+
+    const trimmed = recordingLinkInput.trim();
+    if (!trimmed) {
+      setActionError("Recording link is required.");
+      setActionSuccess(null);
+      return;
+    }
+
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("unsupported");
+      }
+    } catch {
+      setActionError("Recording link must be a valid URL.");
+      setActionSuccess(null);
+      return;
+    }
+
+    setSavingRecording(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.post(
+        `/admin/orders/${orderId}/recording`,
+        { link: trimmed },
+        token,
+      )) as AdminOrderDetailResponse;
+      setOrder(response.data);
+      setActionSuccess(order.recording_link ? "Recording updated." : "Recording added.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save recording.");
+    } finally {
+      setSavingRecording(false);
+    }
+  }
+
+  async function handleRefundOrder() {
+    if (!orderId || !order) return;
+
+    const customReason = refundCustomReason.trim();
+    if (refundReason === "other" && !customReason) {
+      setActionError("Custom refund reason is required.");
+      setActionSuccess(null);
+      return;
+    }
+
+    setRefunding(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.post(
+        `/admin/orders/${orderId}/refund`,
+        {
+          reason: refundReason,
+          ...(refundReason === "other" ? { customReason } : {}),
+        },
+        token,
+      )) as AdminOrderDetailResponse;
+      setOrder(response.data);
+      setRefundModalOpen(false);
+      setRefundReason("requested_by_customer");
+      setRefundCustomReason("");
+      setActionSuccess("Refund processed.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Refund failed.");
+    } finally {
+      setRefunding(false);
+    }
+  }
+
   if (loading) {
     return <Loading />;
   }
@@ -167,6 +275,14 @@ export default function OrderDetail() {
 
   const isGenerating = generating || order.execution.state === "generating";
   const generateButtonLabel = isGenerating ? "Generating..." : "Generate Output";
+  const reportRefundEligible = order.type !== "report"
+    || (order.metadata.delivery_status !== "fulfilled" && order.execution.state !== "completed");
+  const canRefund = order.type !== "subscription"
+    && reportRefundEligible
+    && order.status !== "refunded"
+    && ["paid", "completed", "processing", "in_progress"].includes(order.status)
+    && Boolean(order.stripe_payment_id || order.payment_id);
+  const refundPolicyNote = getRefundPolicyNote(order);
 
   return (
     <motion.div
@@ -208,15 +324,34 @@ export default function OrderDetail() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void handleGenerate(false)}
-            disabled={!canGenerate || isGenerating}
-            className="rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/20 via-sky-400/20 to-violet-400/20 px-5 py-3 text-sm font-medium text-cyan-100 shadow-[0_0_24px_rgba(56,189,248,0.18)] transition hover:scale-[1.02] hover:shadow-[0_0_32px_rgba(99,102,241,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {generateButtonLabel}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleGenerate(false)}
+              disabled={!canGenerate || isGenerating}
+              className="rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/20 via-sky-400/20 to-violet-400/20 px-5 py-3 text-sm font-medium text-cyan-100 shadow-[0_0_24px_rgba(56,189,248,0.18)] transition hover:scale-[1.02] hover:shadow-[0_0_32px_rgba(99,102,241,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {generateButtonLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => canRefund && setRefundModalOpen(true)}
+              disabled={!canRefund || refunding}
+              className="rounded-xl border border-rose-300/30 bg-rose-500/10 px-5 py-3 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {order.status === "refunded"
+                ? "Order Refunded"
+                : order.type === "subscription"
+                  ? "Refund Unavailable"
+                  : order.type === "report" && !reportRefundEligible
+                    ? "Refund Restricted"
+                    : refunding
+                      ? "Processing Refund..."
+                      : "Refund / Cancel Order"}
+            </button>
+          </div>
         </div>
+        <p className="mt-4 text-sm text-white/55">{refundPolicyNote}</p>
         {order.metadata.invoice_link ? (
           <div className="mt-4 flex flex-wrap gap-3">
             <button
@@ -360,6 +495,57 @@ export default function OrderDetail() {
         </Card>
       </div>
 
+      {order.type === "session" ? (
+        <Card>
+          <h3 className="text-lg font-semibold text-white">Recording Delivery</h3>
+          <p className="mt-2 text-sm text-white/55">
+            Attach a watch link for this member. Once saved, it will appear in the member dashboard and recordings page.
+          </p>
+          <div className="mt-5 space-y-4">
+            <label className="block">
+              <span className="text-xs uppercase tracking-[0.2em] text-white/40">Recording Link</span>
+              <input
+                type="url"
+                value={recordingLinkInput}
+                onChange={(event) => setRecordingLinkInput(event.target.value)}
+                placeholder="https://..."
+                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+              />
+            </label>
+
+            {order.recording_link ? (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80">Current Recording</p>
+                <a
+                  href={order.recording_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 block break-all text-sm text-emerald-100 underline underline-offset-4"
+                >
+                  {order.recording_link}
+                </a>
+                <p className="mt-2 text-xs text-emerald-100/75">
+                  Added {order.recording_added_at ? formatOrderDate(order.recording_added_at) : "recently"}.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-white/50">No recording has been attached to this order yet.</p>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleSaveRecording()}
+                disabled={savingRecording}
+                className="rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/20 via-sky-400/20 to-violet-400/20 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingRecording ? "Saving..." : order.recording_link ? "Replace Recording" : "Save Recording"}
+              </button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <h3 className="text-lg font-semibold text-white">Intake Form Data</h3>
@@ -451,6 +637,18 @@ export default function OrderDetail() {
               <dd className="text-white/85">{renderValue(order.payment_status ?? order.status)}</dd>
             </div>
             <div>
+              <dt className="text-xs text-white/40">Refunded At</dt>
+              <dd className="text-white/85">{order.refunded_at ? formatOrderDate(order.refunded_at) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Refund Reason</dt>
+              <dd className="text-white/85">{renderValue(order.refund_reason)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Refund Note</dt>
+              <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.refund_note)}</dd>
+            </div>
+            <div>
               <dt className="text-xs text-white/40">Payment Match</dt>
               <dd className="text-white/85">{getPaymentMatchLabel(order.metadata.payment_match_strategy)}</dd>
             </div>
@@ -518,6 +716,77 @@ export default function OrderDetail() {
           </Card>
         )}
       </div>
+
+      {refundModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold text-white">Refund / Cancel Order</h3>
+                <p className="mt-2 text-sm text-white/55">
+                  {refundPolicyNote}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !refunding && setRefundModalOpen(false)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 transition hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <label className="block">
+                <span className="text-xs uppercase tracking-[0.2em] text-white/40">Refund Reason</span>
+                <select
+                  value={refundReason}
+                  onChange={(event) => setRefundReason(event.target.value as (typeof REFUND_REASON_OPTIONS)[number]["value"])}
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                >
+                  {REFUND_REASON_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {refundReason === "other" ? (
+                <label className="block">
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/40">Custom Reason</span>
+                  <input
+                    type="text"
+                    value={refundCustomReason}
+                    onChange={(event) => setRefundCustomReason(event.target.value)}
+                    placeholder="Explain the refund reason"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setRefundModalOpen(false)}
+                disabled={refunding}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRefundOrder()}
+                disabled={refunding}
+                className="rounded-xl border border-rose-300/30 bg-rose-500/15 px-5 py-3 text-sm font-medium text-rose-100 transition hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refunding ? "Processing..." : "Process Refund"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </motion.div>
   );
 }

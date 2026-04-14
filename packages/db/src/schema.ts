@@ -82,13 +82,22 @@ export const persistedOrderTypeEnum = pgEnum("persisted_order_type", [
   "subscription_initial",
   "subscription_renewal",
   "webinar",
+  "mentor_training",
   "custom",
 ]);
 
 export const persistedOrderStatusEnum = pgEnum("persisted_order_status", [
   "pending",
   "completed",
+  "refunded",
   "failed",
+]);
+
+export const orderRefundReasonEnum = pgEnum("order_refund_reason", [
+  "requested_by_customer",
+  "fraudulent",
+  "duplicate",
+  "other",
 ]);
 
 export const notificationRecipientTypeEnum = pgEnum("notification_recipient_type", [
@@ -393,9 +402,14 @@ export const orders = pgTable("orders", {
   payment_reference: text("payment_reference"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
   stripe_subscription_id: text("stripe_subscription_id"),
+  refunded_at: timestamp("refunded_at", { withTimezone: true }),
+  refund_reason: orderRefundReasonEnum("refund_reason"),
+  refund_note: text("refund_note"),
   failure_code: text("failure_code"),
   failure_message: text("failure_message"),
   failure_message_normalized: text("failure_message_normalized"),
+  recording_link: text("recording_link"),
+  recording_added_at: timestamp("recording_added_at", { withTimezone: true }),
   metadata: jsonb("metadata"),
   archived: boolean("archived").default(false).notNull(),
   archived_at: timestamp("archived_at", { withTimezone: true }),

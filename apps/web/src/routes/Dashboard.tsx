@@ -49,6 +49,14 @@ interface MentoringCircleState {
   requestedEvent: MentoringCircleEventState | null;
 }
 
+interface MemberRecordingSummary {
+  orderId: string;
+  orderNumber: string;
+  sessionDate: string | null;
+  recordingLink: string;
+  createdAt: string;
+}
+
 function collectPendingSyncTargets(
   bookingsData: BookingSummary[],
   reportsData: MemberReportsListData,
@@ -114,6 +122,7 @@ export default function Dashboard() {
   const [completedSessions, setCompletedSessions] = useState(0);
   const [reportsOrdered, setReportsOrdered] = useState(0);
   const [reportsPending, setReportsPending] = useState(0);
+  const [recordings, setRecordings] = useState<MemberRecordingSummary[]>([]);
   const [mentoringCircle, setMentoringCircle] = useState<MentoringCircleState | null>(null);
   const [copiedCircleLink, setCopiedCircleLink] = useState(false);
   const accessibleCircleEvent = mentoringCircle?.currentEvent?.joinEligible
@@ -181,6 +190,7 @@ export default function Dashboard() {
       bookingsData: BookingSummary[],
       reportsData: MemberReportsListData,
       circleData: MentoringCircleState,
+      recordingsData: MemberRecordingSummary[],
     ) {
       const now = Date.now();
       const awaitingScheduling = bookingsData.filter((booking) =>
@@ -200,20 +210,23 @@ export default function Dashboard() {
       setCompletedSessions(completed);
       setReportsOrdered(reportsData.counts.total);
       setReportsPending(reportsData.counts.pending);
+      setRecordings(recordingsData);
       setMentoringCircle(circleData);
     }
 
     async function fetchStats(token: string | null) {
-      const [bookingsResponse, reportsResponse, circleResponse] = await Promise.all([
+      const [bookingsResponse, reportsResponse, circleResponse, recordingsResponse] = await Promise.all([
         api.get("/bookings", token) as Promise<{ data: BookingSummary[] }>,
         api.get("/member/reports", token) as Promise<{ data: MemberReportsListData }>,
         api.get("/mentoring-circle/me", token) as Promise<{ data: MentoringCircleState }>,
+        api.get("/me/recordings", token) as Promise<{ recordings: MemberRecordingSummary[] }>,
       ]);
 
       return {
         bookingsData: bookingsResponse.data,
         reportsData: reportsResponse.data,
         circleData: circleResponse.data,
+        recordingsData: recordingsResponse.recordings ?? [],
       };
     }
 
@@ -221,7 +234,7 @@ export default function Dashboard() {
       setStatsLoading(true);
       try {
         const token = await getToken();
-        let { bookingsData, reportsData, circleData } = await fetchStats(token);
+        let { bookingsData, reportsData, circleData, recordingsData } = await fetchStats(token);
 
         if (cancelled) return;
 
@@ -237,11 +250,11 @@ export default function Dashboard() {
 
           if (cancelled) return;
 
-          ({ bookingsData, reportsData, circleData } = await fetchStats(token));
+          ({ bookingsData, reportsData, circleData, recordingsData } = await fetchStats(token));
           if (cancelled) return;
         }
 
-        applyStats(bookingsData, reportsData, circleData);
+        applyStats(bookingsData, reportsData, circleData, recordingsData);
       } catch {
         if (!cancelled) {
           setActiveSessions(0);
@@ -249,6 +262,7 @@ export default function Dashboard() {
           setCompletedSessions(0);
           setReportsOrdered(0);
           setReportsPending(0);
+          setRecordings([]);
           setMentoringCircle(null);
         }
       } finally {
@@ -332,6 +346,19 @@ export default function Dashboard() {
             </section>
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            {recordings.length > 0 ? (
+              <section className="dashboard-panel cosmic-motion">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Recordings</h2>
+                <p className="mt-3 text-lg font-semibold text-white">Your Recordings Are Ready</p>
+                <p className="mt-1 text-sm text-white/60">
+                  You have {recordings.length} recording{recordings.length === 1 ? "" : "s"} available.
+                </p>
+                <Link to="/dashboard/recordings" className="dashboard-action-primary cosmic-motion mt-4">
+                  View Recordings
+                </Link>
+              </section>
+            ) : null}
+
             <section className="dashboard-panel cosmic-motion">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Divin8</h2>
               <p className="mt-3 text-lg font-semibold text-white">

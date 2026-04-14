@@ -41,6 +41,11 @@ function makeOrder(input: {
       version: null,
       output: null,
     },
+    recording_link: null,
+    recording_added_at: null,
+    refunded_at: null,
+    refund_reason: null,
+    refund_note: null,
     metadata: {
       source_status: null,
       source_created_at: input.createdAt,

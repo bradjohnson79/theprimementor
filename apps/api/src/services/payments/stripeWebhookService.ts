@@ -39,6 +39,7 @@ import {
   touchInvoiceSubscriptionCheckout,
   updatePersistedOrderFailure,
 } from "./invoiceService.js";
+import { ensurePersistedSessionOrder } from "../orderRecordingService.js";
 import { markPaymentPaidFromWebhook } from "./paymentsService.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
 
@@ -1401,6 +1402,10 @@ async function handleCheckoutSessionCompleted(
     providerCustomerId: stripeCustomerId,
     metadata: nextMetadata,
   });
+
+  if (entity.entityType === "session" && bookingId) {
+    await ensurePersistedSessionOrder(db, bookingId);
+  }
 
   if (entity.entityType === "mentoring_circle" && bookingId) {
     const finalized = await finalizeMentoringCircleAccess(db, logger, {
