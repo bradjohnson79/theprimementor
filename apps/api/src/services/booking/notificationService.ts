@@ -1,4 +1,5 @@
-import type { Database } from "@wisdom/db";
+import { bookings, clients, users, type Database } from "@wisdom/db";
+import { desc, eq } from "drizzle-orm";
 import { logger } from "@wisdom/utils";
 import { sendNotification } from "../notifications/notificationService.js";
 
@@ -15,6 +16,62 @@ export interface BookingNotificationPayload {
   eventTitle?: string | null;
   joinUrl?: string | null;
   accessPagePath?: string | null;
+}
+
+interface BookingNotificationContactInput {
+  explicitFullName?: string | null;
+  bookingFullName?: string | null;
+  clientFullName?: string | null;
+  explicitEmail?: string | null;
+  bookingEmail?: string | null;
+  userEmail?: string | null;
+}
+
+export function resolveBookingNotificationContact(input: BookingNotificationContactInput) {
+  return {
+    fullName: input.explicitFullName
+      ?? input.bookingFullName
+      ?? input.clientFullName
+      ?? null,
+    email: input.explicitEmail
+      ?? input.bookingEmail
+      ?? input.userEmail
+      ?? null,
+  };
+}
+
+async function getBookingNotificationContact(db: Database, payload: BookingNotificationPayload) {
+  const [bookingRow, clientRow] = await Promise.all([
+    db
+      .select({
+        bookingFullName: bookings.full_name,
+        bookingEmail: bookings.email,
+        userEmail: users.email,
+      })
+      .from(bookings)
+      .innerJoin(users, eq(bookings.user_id, users.id))
+      .where(eq(bookings.id, payload.bookingId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select({
+        clientFullName: clients.full_birth_name,
+      })
+      .from(clients)
+      .where(eq(clients.user_id, payload.userId))
+      .orderBy(desc(clients.created_at))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+  ]);
+
+  return resolveBookingNotificationContact({
+    explicitFullName: payload.fullName,
+    bookingFullName: bookingRow?.bookingFullName ?? null,
+    clientFullName: clientRow?.clientFullName ?? null,
+    explicitEmail: payload.email,
+    bookingEmail: bookingRow?.bookingEmail ?? null,
+    userEmail: bookingRow?.userEmail ?? null,
+  });
 }
 
 export async function sendBookingCreatedNotification(
@@ -40,14 +97,16 @@ export async function sendAdminNewBookingNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  const contact = await getBookingNotificationContact(db, payload);
+
   await sendNotification(db, {
     event: "admin.new.booking",
     payload: {
       entityId: payload.bookingId,
       bookingId: payload.bookingId,
       bookingType: payload.bookingType,
-      userEmail: payload.email ?? null,
-      fullName: payload.fullName ?? null,
+      userEmail: contact.email,
+      fullName: contact.fullName,
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
       startTimeUtc: payload.startTimeUtc ?? null,

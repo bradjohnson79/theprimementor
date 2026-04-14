@@ -1215,6 +1215,7 @@ async function finalizeMentoringCircleAccess(
   input: {
     bookingId: string;
     userId: string;
+    userEmail?: string | null;
     eventId?: string | null;
   },
 ) {
@@ -1250,6 +1251,7 @@ async function finalizeMentoringCircleAccess(
     bookingId: booking.id,
     userId: input.userId,
     bookingType: event.eventTitle,
+    email: input.userEmail ?? null,
     timezone: event.timezone,
     startTimeUtc: booking.start_time_utc ?? undefined,
     eventId: event.eventId,
@@ -1411,6 +1413,7 @@ async function handleCheckoutSessionCompleted(
     const finalized = await finalizeMentoringCircleAccess(db, logger, {
       bookingId,
       userId,
+      userEmail: metadata.userEmail,
       eventId: metadata.eventId ?? metadata.eventKey,
     });
 
