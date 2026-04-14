@@ -3,13 +3,13 @@ import {
   clients,
   invoices,
   orders,
-  stripeCustomers,
   users,
   type Database,
 } from "@wisdom/db";
 import { desc, eq, or } from "drizzle-orm";
 import { createHttpError } from "../booking/errors.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
+import { ensureStripeCustomerId as ensureUsableStripeCustomerId } from "./stripeCustomerService.js";
 
 export type InvoiceProductType = "session" | "report" | "subscription" | "webinar" | "custom";
 export type InvoiceBillingMode = "one_time" | "subscription";
@@ -145,48 +145,14 @@ async function getInvoiceClient(db: DbExecutor, clientId: string): Promise<Invoi
   return client;
 }
 
-async function getExistingStripeCustomerId(db: DbExecutor, userId: string) {
-  const [mapping] = await db
-    .select({
-      stripeCustomerId: stripeCustomers.stripe_customer_id,
-    })
-    .from(stripeCustomers)
-    .where(eq(stripeCustomers.user_id, userId))
-    .limit(1);
-
-  return mapping?.stripeCustomerId ?? null;
-}
-
-async function upsertStripeCustomerId(
-  db: DbExecutor,
-  userId: string,
-  stripeCustomerId: string,
-) {
-  await db
-    .insert(stripeCustomers)
-    .values({
-      user_id: userId,
-      stripe_customer_id: stripeCustomerId,
-    })
-    .onConflictDoUpdate({
-      target: stripeCustomers.user_id,
-      set: {
-        stripe_customer_id: stripeCustomerId,
-      },
-    });
-}
-
-async function ensureStripeCustomerId(
+async function ensureInvoiceStripeCustomerId(
   db: DbExecutor,
   client: InvoiceClientRow,
 ) {
-  const existing = await getExistingStripeCustomerId(db, client.userId);
-  if (existing) {
-    return existing;
-  }
-
   const stripe = getStripe();
-  const created = await stripe.customers.create({
+  return ensureUsableStripeCustomerId(db, {
+    stripe,
+    userId: client.userId,
     email: client.email,
     name: client.fullBirthName,
     metadata: {
@@ -194,9 +160,6 @@ async function ensureStripeCustomerId(
       clientId: client.clientId,
     },
   });
-
-  await upsertStripeCustomerId(db, client.userId, created.id);
-  return created.id;
 }
 
 function validateInvoiceInput(input: CreateInvoicePaymentLinkInput) {
@@ -287,7 +250,7 @@ export async function createAdminInvoicePaymentLink(
   const currency = (input.currency ?? "CAD").toUpperCase();
   const amountCents = Math.round(input.amount * 100);
   const expiresAt = invoiceExpiryDate();
-  const stripeCustomerId = await ensureStripeCustomerId(db, client);
+  const stripeCustomerId = await ensureInvoiceStripeCustomerId(db, client);
 
   const [createdInvoice] = await db
     .insert(invoices)
@@ -388,7 +351,7 @@ export async function regenerateAdminInvoicePaymentLink(
   }
 
   const client = await getInvoiceClient(db, existing.client_id);
-  const stripeCustomerId = await ensureStripeCustomerId(db, client);
+  const stripeCustomerId = await ensureInvoiceStripeCustomerId(db, client);
   const stripeResources = await createStripePaymentLinkForInvoice({
     stripeCustomerId,
     invoiceId: existing.id,

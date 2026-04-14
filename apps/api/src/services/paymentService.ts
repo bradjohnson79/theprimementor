@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { bookingTypes, bookings, mentorTrainingOrders, payments, reports, stripeCustomers, subscriptions, type Database } from "@wisdom/db";
+import { bookingTypes, bookings, mentorTrainingOrders, payments, reports, subscriptions, type Database } from "@wisdom/db";
 import { and, desc, eq } from "drizzle-orm";
 import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
@@ -23,6 +23,7 @@ import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
 import { getSessionStripePriceId } from "../config/stripePrices.js";
 import { createHttpError } from "./booking/errors.js";
+import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
 import { createOrReuseMentoringCircleBooking } from "./booking/bookingService.js";
 import {
@@ -119,16 +120,6 @@ function buildCheckoutMetadata(
   }
 
   return metadata;
-}
-
-async function getExistingStripeCustomerId(db: Database, userId: string) {
-  const [mapping] = await db
-    .select({ stripeCustomerId: stripeCustomers.stripe_customer_id })
-    .from(stripeCustomers)
-    .where(eq(stripeCustomers.user_id, userId))
-    .limit(1);
-
-  return mapping?.stripeCustomerId ?? null;
 }
 
 async function getBookingForSessionCheckout(db: Database, bookingId: string) {
@@ -331,7 +322,15 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     entityId: bookingId,
     sessionType: booking.sessionType,
   });
-  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
   const frontendUrl = getFrontendUrl();
   const returnPath = getSessionCheckoutPath(booking.sessionType);
 
@@ -349,9 +348,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_email: input.userEmail.trim() }),
+    customer: stripeCustomerId,
   });
 
   await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
@@ -449,7 +446,15 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     trainingOrderId,
     packageType: trainingOrder.packageType,
   });
-  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
   const frontendUrl = getFrontendUrl();
 
   logger.debug("mentor_training_checkout_prepared", {
@@ -466,9 +471,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     metadata,
     success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentor-training?checkout=canceled&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_email: input.userEmail.trim() }),
+    customer: stripeCustomerId,
   });
 
   await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
@@ -567,7 +570,15 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     eventId: event.eventId,
     eventKey: event.eventKey,
   });
-  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
   const frontendUrl = getFrontendUrl();
 
   logger.debug("mentoring_circle_checkout_prepared", {
@@ -594,9 +605,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     metadata,
     success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_email: input.userEmail.trim() }),
+    customer: stripeCustomerId,
   });
 
   await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
@@ -698,7 +707,15 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     reportId,
     reportTier: tier,
   });
-  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
   const frontendUrl = getFrontendUrl();
   const returnPath = getReportCheckoutPath(tier);
 
@@ -716,9 +733,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_email: input.userEmail.trim() }),
+    customer: stripeCustomerId,
   });
 
   await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
@@ -825,7 +840,15 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     tier: membership.tier,
     billingInterval,
   });
-  const stripeCustomerId = await getExistingStripeCustomerId(db, input.userId);
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
   const frontendUrl = getFrontendUrl();
   const returnPath = `/subscriptions/${membership.tier}`;
 
@@ -838,9 +861,7 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     subscription_data: { metadata },
     success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&membershipId=${encodeURIComponent(membershipId)}`,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : { customer_email: input.userEmail.trim() }),
+    customer: stripeCustomerId,
   });
 
   await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
