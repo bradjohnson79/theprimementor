@@ -90,6 +90,8 @@ interface SocialWidgetCardProps {
   children?: React.ReactNode;
 }
 
+const SERVICE_PURCHASE_NOTE = "Free account created before purchase.";
+
 const MEMBERSHIP_CARDS: MembershipCardData[] = [
   {
     title: "Seeker Membership",
@@ -119,6 +121,7 @@ const EVENT_ITEMS = [
     description:
       "Register for our Mentoring Circle Webinar for the opportunity to have your blueprint explored and receive deeper teachings through Prime Mentoring.",
     cta: { label: "Register", href: "/events/mentoring-circle", external: false },
+    ctaNote: SERVICE_PURCHASE_NOTE,
   },
   {
     title: "Prime Mentor Podcast",
@@ -239,6 +242,7 @@ function SessionCard({ title, priceLabel, description, href, imageSrc }: Session
         >
           Book Now
         </Link>
+        <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
       </div>
     </div>
   );
@@ -271,6 +275,7 @@ function MembershipCard({ title, meta, description, imageSrc, href }: Membership
       >
         Sign Up
       </Link>
+      <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
     </div>
   );
 }
@@ -302,6 +307,7 @@ function ReportCard({ title, meta, description, imageSrc, href }: ReportCardData
       >
         Buy Report
       </Link>
+      <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
     </div>
   );
 }

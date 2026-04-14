@@ -15,6 +15,7 @@ interface CompactCardItem {
     href: string;
     external?: boolean;
   };
+  ctaNote?: string;
 }
 
 interface CompactCardGridProps {
@@ -96,6 +97,7 @@ export default function CompactCardGrid({ items, columns = 3, variant = "default
             {imageBlock}
             <p className={`text-sm leading-6 text-white/62 ${item.imageSrc ? "mt-3" : "mt-2"}`}>{item.description}</p>
             {ctaEl}
+            {item.ctaNote ? <p className="mt-2 text-center text-xs text-white/55">{item.ctaNote}</p> : null}
           </>
         );
 
@@ -105,6 +107,7 @@ export default function CompactCardGrid({ items, columns = 3, variant = "default
             {imageBlock}
             <p className="text-sm leading-relaxed text-white/60">{item.description}</p>
             {ctaEl}
+            {item.ctaNote ? <p className="text-center text-xs text-white/55">{item.ctaNote}</p> : null}
           </>
         );
 
