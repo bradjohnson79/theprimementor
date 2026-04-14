@@ -4,6 +4,7 @@ import type { MentorTrainingPackageDefinition, MentorTrainingPackageType } from 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
+import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startMentorTrainingCheckout } from "../lib/mentorTrainingCheckout";
 
@@ -65,6 +66,11 @@ export default function MentorTraining() {
         }
 
         if (!cancelled) {
+          trackEventOnce(`analytics:mentor-training:${trainingOrderId ?? "success"}`, "purchase", {
+            source: "mentor_training_checkout_success",
+            productType: "mentor_training",
+            trainingOrderId: trainingOrderId ?? null,
+          });
           setSuccess("Payment confirmed. Your mentor training order is active and ready for the next step.");
           setNotice(null);
           setError(null);
@@ -128,6 +134,11 @@ export default function MentorTraining() {
     setError(null);
     try {
       const token = await getToken();
+      trackEvent("cta_click", {
+        source: "mentor_training_page",
+        label: "mentor_training_purchase",
+        packageType,
+      });
       await startMentorTrainingCheckout(packageType, {
         token,
         onAlreadyPaid: (trainingOrderId) => {

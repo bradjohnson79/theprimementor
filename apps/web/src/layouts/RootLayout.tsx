@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth, UserButton, useUser } from "@clerk/react";
 import { LayoutDashboard } from "lucide-react";
 import PublicEnergyBackground from "../components/background/PublicEnergyBackground";
 import pmLogo from "../assets/prime-mentor-logo.webp";
+import { getUmamiScriptUrl, getUmamiWebsiteId } from "../lib/analytics";
+import { useUserSync } from "../hooks/useUserSync";
 
 interface NavItem {
   label: string;
@@ -90,6 +92,26 @@ export default function RootLayout() {
     location.pathname === "/"
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/");
+
+  useUserSync();
+
+  useEffect(() => {
+    const scriptId = "prime-mentor-umami";
+    if (document.getElementById(scriptId)) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.defer = true;
+    script.src = getUmamiScriptUrl();
+    script.setAttribute("data-website-id", getUmamiWebsiteId());
+    document.head.appendChild(script);
+
+    return () => {
+      script.remove();
+    };
+  }, []);
 
   function toggleMobileDropdown(label: string) {
     setMobileDropdown((current) => (current === label ? null : label));

@@ -7,6 +7,12 @@ interface CreateUserInput {
 }
 
 export async function findOrCreateUser(db: Database, input: CreateUserInput) {
+  const [existingBeforeUpsert] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clerk_id, input.clerkId))
+    .limit(1);
+
   const [user] = await db
     .insert(users)
     .values({
@@ -22,7 +28,10 @@ export async function findOrCreateUser(db: Database, input: CreateUserInput) {
     .returning();
 
   if (user) {
-    return user;
+    return {
+      user,
+      created: !existingBeforeUpsert,
+    };
   }
 
   const [existing] = await db
@@ -35,9 +44,17 @@ export async function findOrCreateUser(db: Database, input: CreateUserInput) {
     throw new Error(`Unable to upsert Clerk user ${input.clerkId}`);
   }
 
-  return existing;
+  return {
+    user: existing,
+    created: !existingBeforeUpsert,
+  };
+}
+
+export async function upsertUserFromIdentityWithResult(db: Database, input: CreateUserInput) {
+  return findOrCreateUser(db, input);
 }
 
 export async function upsertUserFromIdentity(db: Database, input: CreateUserInput) {
-  return findOrCreateUser(db, input);
+  const result = await findOrCreateUser(db, input);
+  return result.user;
 }

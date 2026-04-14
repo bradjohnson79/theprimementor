@@ -63,6 +63,19 @@ export const api = {
     return handleResponse(res);
   },
 
+  put: async (path: string, body?: unknown, token?: string | null) => {
+    const hasBody = body !== undefined && body !== null;
+    const headers: Record<string, string> = {};
+    if (hasBody) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(resolveApiUrl(path), {
+      method: "PUT",
+      headers,
+      body: hasBody ? JSON.stringify(body) : undefined,
+    });
+    return handleResponse(res);
+  },
+
   delete: async (path: string, token?: string | null) => {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;

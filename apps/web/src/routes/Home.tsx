@@ -27,6 +27,7 @@ import traumaTranscendenceBookCover from "../assets/trauma-transcendence-techniq
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
 import aetherxImage from "../assets/aetherx-3x3.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
+import { trackCtaClick } from "../lib/analytics";
 import { ContactPublicContent } from "./ContactPublic";
 
 interface SessionCardData {
@@ -238,6 +239,7 @@ function SessionCard({ title, priceLabel, description, href, imageSrc }: Session
 
         <Link
           to={href}
+          onClick={() => trackCtaClick("book_now", "home_sessions", { href, title })}
           className="mt-auto shrink-0 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
         >
           Book Now
@@ -271,6 +273,7 @@ function MembershipCard({ title, meta, description, imageSrc, href }: Membership
 
       <Link
         to={href}
+        onClick={() => trackCtaClick("sign_up", "home_subscriptions", { href, title })}
         className="mt-4 shrink-0 rounded-md bg-white/10 py-2 text-center text-sm text-white transition hover:bg-white/20"
       >
         Sign Up
@@ -303,6 +306,7 @@ function ReportCard({ title, meta, description, imageSrc, href }: ReportCardData
 
       <Link
         to={href}
+        onClick={() => trackCtaClick("buy_report", "home_reports", { href, title })}
         className="mt-4 shrink-0 rounded-md bg-white/10 py-2 text-center text-sm text-white transition hover:bg-white/20"
       >
         Buy Report
@@ -573,7 +577,19 @@ export default function Home() {
             title="Monthly Webinar & Live Weekly Podcast"
             description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for our monthly Mentoring Circle held on the last Sunday of every month."
           >
-            <CompactCardGrid items={EVENT_ITEMS} columns={2} />
+            <CompactCardGrid
+              items={EVENT_ITEMS.map((item) => item.cta ? {
+                ...item,
+                cta: {
+                  ...item.cta,
+                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
+                    href: item.cta?.href,
+                    title: item.title,
+                  }),
+                },
+              } : item)}
+              columns={2}
+            />
           </SectionContentBlock>
         </div>
       </LandingSection>

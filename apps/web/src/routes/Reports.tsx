@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
+import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startReportCheckout } from "../lib/reportCheckout";
 
@@ -212,6 +213,11 @@ export default function Reports() {
         setError(null);
         setNotice(null);
         setSuccess("Payment confirmed. Your report is now in the fulfillment queue and will appear once it is completed.");
+        trackEventOnce(`analytics:report:${reportId ?? "success"}`, "purchase", {
+          source: "reports_checkout_success",
+          productType: "report",
+          tier: selectedTier,
+        });
         return;
       }
 
@@ -230,7 +236,7 @@ export default function Reports() {
     return () => {
       cancelled = true;
     };
-  }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email, getToken, location.search]);
+  }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email, getToken, location.search, selectedTier]);
 
   const selectedTierDefinition = useMemo(
     () => getReportTierDefinition(selectedTier),

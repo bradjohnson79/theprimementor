@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/react";
 import { useSearchParams } from "react-router-dom";
 import { formatPacificTime } from "@wisdom/utils";
 import { api } from "../lib/api";
+import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startMentoringCircleCheckout } from "../lib/mentoringCircleCheckout";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
@@ -167,6 +168,11 @@ export default function MentoringCircle() {
           || state?.nextEvent?.joinEligible
           || state?.activeEventForPurchase?.joinEligible
         ) {
+          trackEventOnce(`analytics:mentoring-circle:${requestedEventId ?? "success"}`, "purchase", {
+            source: "mentoring_circle_checkout_success",
+            productType: "mentoring_circle",
+            eventId: requestedEventId ?? null,
+          });
           setSuccess("Registration confirmed. Your Zoom link is ready.");
           setPollingForAccess(false);
           const next = new URLSearchParams(searchParams);
@@ -209,6 +215,11 @@ export default function MentoringCircle() {
       if (!eventId) {
         throw new Error("Mentoring Circle event could not be resolved.");
       }
+      trackEvent("cta_click", {
+        source: "mentoring_circle_page",
+        label: "reserve_spot",
+        eventId,
+      });
       await startMentoringCircleCheckout(eventId, { token });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reserve your spot.");

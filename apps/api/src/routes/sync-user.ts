@@ -3,7 +3,7 @@ import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireClerkId, requireDatabase } from "../routeAssertions.js";
 import { getClerkIdentity } from "../services/clerkIdentityService.js";
-import { upsertUserFromIdentity } from "../services/userService.js";
+import { upsertUserFromIdentityWithResult } from "../services/userService.js";
 
 export async function syncUserRoutes(app: FastifyInstance) {
   app.post("/sync-user", { preHandler: requireAuth }, async (request, reply) => {
@@ -17,10 +17,11 @@ export async function syncUserRoutes(app: FastifyInstance) {
     }
 
     const identity = await getClerkIdentity(secretKey, clerkId);
-    const user = await upsertUserFromIdentity(db, identity);
+    const { user, created } = await upsertUserFromIdentityWithResult(db, identity);
 
     return ok({
       status: "synced",
+      created,
       user: {
         id: user.id,
         email: user.email,

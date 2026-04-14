@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useAuth } from "@clerk/react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useUserSync } from "../hooks/useUserSync";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { getUmamiScriptUrl, getUmamiWebsiteId } from "../lib/analytics";
 
 export default function ProtectedLayout() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -9,6 +11,20 @@ export default function ProtectedLayout() {
 
   useUserSync();
   useCurrentUser();
+
+  useEffect(() => {
+    const scriptId = "prime-mentor-umami";
+    if (document.getElementById(scriptId)) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.defer = true;
+    script.src = getUmamiScriptUrl();
+    script.setAttribute("data-website-id", getUmamiWebsiteId());
+    document.head.appendChild(script);
+  }, []);
 
   if (!isLoaded) {
     return (

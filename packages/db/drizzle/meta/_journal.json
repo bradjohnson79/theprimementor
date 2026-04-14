@@ -204,6 +204,13 @@
       "when": 1776124800000,
       "tag": "20260414_order_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1776128400000,
+      "tag": "20260414_seo_settings",
+      "breakpoints": true
     }
   ]
 }

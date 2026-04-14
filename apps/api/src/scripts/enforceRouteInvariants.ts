@@ -118,7 +118,7 @@ async function assertRouteManifestMatchesRuntime() {
   const app = await buildApp();
   try {
     const actual = app.routeInventory
-      .filter((route) => ["GET", "POST", "PATCH", "DELETE"].includes(route.method))
+      .filter((route) => ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(route.method))
       .map(normalizeRoute)
       .sort();
     const expected = API_ROUTE_MANIFEST

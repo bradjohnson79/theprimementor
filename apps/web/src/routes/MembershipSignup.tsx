@@ -11,6 +11,7 @@ import {
 } from "../config/membershipSignupPlans";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
+import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { startMembershipCheckoutSession } from "../lib/membershipCheckout";
 
 function resolveTierFromPath(pathname: string): MembershipSignupTierKey | null {
@@ -79,6 +80,17 @@ export default function MembershipSignup() {
         const tierLabel = typeof response.data?.tier === "string"
           ? `${response.data.tier.charAt(0).toUpperCase()}${response.data.tier.slice(1)}`
           : "Membership";
+        const tierKey = typeof response.data?.tier === "string" ? response.data.tier : selectedTier ?? "unknown";
+        const trackingKey = `analytics:membership:${membershipId}`;
+        trackEventOnce(trackingKey, "subscription_started", {
+          source: "membership_signup_success",
+          tier: tierKey,
+        });
+        trackEventOnce(`${trackingKey}:purchase`, "purchase", {
+          source: "membership_signup_success",
+          productType: "subscription",
+          tier: tierKey,
+        });
         setError(null);
         setNotice(`${tierLabel} membership is now active on your account.`);
       } catch (err) {
@@ -95,7 +107,7 @@ export default function MembershipSignup() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isLoaded, isSignedIn, refetch, searchParams]);
+  }, [getToken, isLoaded, isSignedIn, refetch, searchParams, selectedTier]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || tierState !== "initiate") {
@@ -143,6 +155,11 @@ export default function MembershipSignup() {
   const handleSelectPlan = useCallback(
     async (plan: MembershipSignupPlan) => {
       setError(null);
+      trackEvent("cta_click", {
+        source: "membership_signup_page",
+        label: "membership_plan_select",
+        tier: plan.tier,
+      });
 
       if (!isLoaded) return;
 

@@ -112,6 +112,11 @@ export const notificationStatusEnum = pgEnum("notification_status", [
   "skipped_duplicate",
 ]);
 
+export interface SeoKeywordBuckets {
+  primary: string[];
+  secondary: string[];
+}
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   clerk_id: text("clerk_id").unique().notNull(),
@@ -344,6 +349,20 @@ export const notificationSettings = pgTable("notification_settings", {
   ...timestamps,
 }, (table) => ({
   createdIdx: index("notification_settings_created_idx").on(table.created_at),
+}));
+
+export const seoSettings = pgTable("seo_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  page_key: text("page_key").notNull(),
+  title: text("title"),
+  meta_description: text("meta_description"),
+  keywords: jsonb("keywords").$type<SeoKeywordBuckets>().default({ primary: [], secondary: [] }).notNull(),
+  og_image: text("og_image"),
+  robots_index: boolean("robots_index").default(true).notNull(),
+  ...timestamps,
+}, (table) => ({
+  pageKeyUnique: uniqueIndex("seo_settings_page_key_uidx").on(table.page_key),
+  createdIdx: index("seo_settings_created_idx").on(table.created_at),
 }));
 
 export const invoices = pgTable("invoices", {

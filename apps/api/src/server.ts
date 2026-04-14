@@ -29,6 +29,8 @@ import { ordersRoutes } from "./routes/orders.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { mentorTrainingRoutes } from "./routes/mentor-training.js";
 import { adminNotificationRoutes } from "./routes/admin-notifications.js";
+import { analyticsRoutes } from "./routes/analytics.js";
+import { seoRoutes } from "./routes/seo.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
@@ -153,6 +155,17 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "id",
     "enabled_events",
     "admin_recipients",
+    "created_at",
+    "updated_at",
+  ],
+  seo_settings: [
+    "id",
+    "page_key",
+    "title",
+    "meta_description",
+    "keywords",
+    "og_image",
+    "robots_index",
     "created_at",
     "updated_at",
   ],
@@ -347,6 +360,7 @@ async function verifySchema(db: Database) {
         'webhook_events',
         'notification_events',
         'notification_settings',
+        'seo_settings',
         'invoices',
         'orders',
         'member_entitlements',
@@ -549,6 +563,8 @@ export async function buildApp() {
   await app.register(mentorTrainingRoutes, { prefix: "/api" });
   await app.register(ordersRoutes, { prefix: "/api" });
   await app.register(adminNotificationRoutes, { prefix: "/api" });
+  await app.register(analyticsRoutes, { prefix: "/api" });
+  await app.register(seoRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 

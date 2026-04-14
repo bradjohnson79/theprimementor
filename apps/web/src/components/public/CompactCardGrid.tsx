@@ -14,6 +14,7 @@ interface CompactCardItem {
     label: string;
     href: string;
     external?: boolean;
+    onClick?: () => void;
   };
   ctaNote?: string;
 }
@@ -59,11 +60,12 @@ export default function CompactCardGrid({ items, columns = 3, variant = "default
                 target="_blank"
                 rel="noopener noreferrer"
                 className={CTA_CLASS}
+                onClick={item.cta.onClick}
               >
                 {item.cta.label}
               </a>
             ) : (
-              <Link to={item.cta.href} className={CTA_CLASS}>
+              <Link to={item.cta.href} className={CTA_CLASS} onClick={item.cta.onClick}>
                 {item.cta.label}
               </Link>
             )

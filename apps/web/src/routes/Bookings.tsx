@@ -7,6 +7,7 @@ import TimezoneSelect from "@wisdom/ui/timezone-select";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
+import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
@@ -259,6 +260,11 @@ export default function Bookings() {
 
         if (!cancelled) {
           setSuccess("Payment received. Your booking is confirmed and will now move into the scheduling flow.");
+          trackEventOnce(`analytics:booking:${bookingId ?? "success"}`, "purchase", {
+            source: "session_checkout_success",
+            productType: "session",
+            sessionType: selectedSessionType ?? "unknown",
+          });
         }
         return;
       }
@@ -273,7 +279,7 @@ export default function Bookings() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, location.search]);
+  }, [getToken, location.search, selectedSessionType]);
 
   useEffect(() => {
     async function loadBookingTypes() {
@@ -466,6 +472,12 @@ export default function Bookings() {
       if (!bookingResponse.success || !bookingResponse.bookingId || bookingResponse.requiresPayment !== true) {
         throw new Error("Booking response was missing required payment information.");
       }
+
+      trackEventOnce(`analytics:session-booked:${bookingResponse.bookingId}`, "session_booked", {
+        source: "sessions_checkout_create",
+        sessionType: selectedSessionType,
+        bookingId: bookingResponse.bookingId,
+      });
 
       try {
         await startSessionCheckout(bookingResponse.bookingId, { token });
