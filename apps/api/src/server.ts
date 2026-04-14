@@ -398,6 +398,7 @@ function buildAllowedOrigins() {
       "http://127.0.0.1:5174",
       "http://127.0.0.1:5175",
       "https://theprimementor.com",
+      "https://www.theprimementor.com",
       "https://admin.theprimementor.com",
       process.env.FRONTEND_URL?.trim(),
       process.env.APP_URL?.trim(),
