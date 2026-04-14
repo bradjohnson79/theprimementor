@@ -66,10 +66,6 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
             The Prime Mentor is currently in beta. If you discover any bugs or issues while using the site, please
             contact us here so we can resolve them promptly.
           </p>
-          <p className="mt-2">
-            We are scheduled to exit beta on May 1st, 2026. This message will automatically be removed at 12:01 AM
-            Pacific Time (Vancouver/Seattle).
-          </p>
         </div>
       ) : null}
       <Heading className="text-3xl font-semibold tracking-tight">Contact</Heading>
