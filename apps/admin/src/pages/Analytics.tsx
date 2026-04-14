@@ -369,8 +369,7 @@ export default function Analytics() {
             isLightTheme ? "border-amber-200 bg-amber-50 text-amber-800" : "border-amber-400/25 bg-amber-400/10 text-amber-100",
           )}
         >
-          Umami is in degraded mode for part of this dashboard. Traffic cards are still safe to view, but short-term pageview
-          discrepancies can happen during the Wix to Cloudflare transition or brief upstream API issues.
+          {warnings[0] ?? "Traffic analytics are temporarily unavailable."}
         </div>
       ) : null}
 

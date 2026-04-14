@@ -24,8 +24,23 @@ const sectionTabs: Array<{ id: ServiceSection; label: string; eyebrow: string }>
 const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
   sessions: [
     {
-      id: "prime-mentor-session",
-      title: "Prime Mentor Session",
+      id: "focus-session",
+      title: "Focus Session",
+      price: "$199 CAD",
+      tag: "Guided Clarity",
+      description:
+        "A shorter live session built for a specific area of tension, clarity, or decision-making when you need direct insight and a focused next step.",
+      features: [
+        "45 minute live Zoom session",
+        "Divin8 synthesis preparation",
+        "Specific issue targeting",
+        "Clear next-step guidance",
+        "Action-oriented session summary",
+      ],
+    },
+    {
+      id: "mentoring-session",
+      title: "Mentoring Session",
       price: "$299 CAD",
       tag: "1:1 Experience",
       description:
@@ -39,9 +54,9 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
       ],
     },
     {
-      id: "offline-regeneration-session",
-      title: "Offline Regeneration Session",
-      price: "$129 CAD",
+      id: "regeneration-session",
+      title: "Regeneration Session",
+      price: "$99 CAD",
       tag: "Energy Work",
       description:
         "Offline regenerative session using deep-state Theta and Delta frequency work to support reset, clarity, and nervous-system restoration.",

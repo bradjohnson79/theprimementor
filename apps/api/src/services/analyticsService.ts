@@ -109,6 +109,9 @@ const analyticsCache = new Map<string, CachedEntry<unknown>>();
 const ORDER_METRIC_STATUSES = new Set(["completed"]);
 const SESSION_BOOKED_STATUSES = new Set(["paid", "scheduled", "completed"]);
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+const DEFAULT_UMAMI_WEBSITE_ID = "db9c7631-014a-4dc3-b9c2-967afed009f7";
+const DEFAULT_UMAMI_DASHBOARD_URL = "https://cloud.umami.is";
+const DEFAULT_UMAMI_API_URL = `${DEFAULT_UMAMI_DASHBOARD_URL}/api`;
 
 function assertAdminAccess(actor: AnalyticsActor) {
   if (actor.actorRole !== "admin") {
@@ -127,6 +130,18 @@ function getRangeDurationMs(range: AnalyticsRange) {
     default:
       return 7 * 24 * 60 * 60 * 1000;
   }
+}
+
+function getUmamiApiKey() {
+  return process.env.UMAMI_API_KEY?.trim() || process.env.UMANI_API_KEY?.trim() || "";
+}
+
+function getUmamiWebsiteId() {
+  return process.env.UMAMI_WEBSITE_ID?.trim() || DEFAULT_UMAMI_WEBSITE_ID;
+}
+
+function getUmamiApiUrl() {
+  return process.env.UMAMI_API_URL?.trim() || DEFAULT_UMAMI_API_URL;
 }
 
 export function getPreviousRange(range: AnalyticsRange, endAt = Date.now()) {
@@ -221,7 +236,7 @@ function buildDegradedMeta(reason: string) {
 }
 
 function buildUmamiRequestUrl(pathname: string, params: Record<string, string | number | undefined>) {
-  const baseUrl = process.env.UMAMI_API_URL?.trim();
+  const baseUrl = getUmamiApiUrl();
   if (!baseUrl) {
     return null;
   }
@@ -244,8 +259,8 @@ async function fetchUmamiJson<T>(
     operation: string;
   },
 ): Promise<T | null> {
-  const apiKey = process.env.UMAMI_API_KEY?.trim();
-  const websiteId = process.env.UMAMI_WEBSITE_ID?.trim();
+  const apiKey = getUmamiApiKey();
+  const websiteId = getUmamiWebsiteId();
   const url = buildUmamiRequestUrl(`websites/${websiteId ?? ""}/${input.pathname}`, input.params ?? {});
 
   if (!apiKey || !websiteId || !url) {
@@ -254,7 +269,7 @@ async function fetchUmamiJson<T>(
         operation: input.operation,
         hasApiKey: Boolean(apiKey),
         hasWebsiteId: Boolean(websiteId),
-        hasApiUrl: Boolean(process.env.UMAMI_API_URL?.trim()),
+        hasApiUrl: Boolean(getUmamiApiUrl()),
       },
       "Umami analytics running in degraded mode",
     );
@@ -312,6 +327,7 @@ export async function getAdminAnalyticsSummary(
 ) {
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
+  const websiteId = getUmamiWebsiteId();
 
   return getCachedOrLoad(`analytics:summary:${range}`, async () => {
     const stats = await fetchUmamiJson<UmamiStatsResponse>({
@@ -343,8 +359,8 @@ export async function getAdminAnalyticsSummary(
           sessions: getTrendMetric(0, 0, "previous period"),
         },
         umami: {
-          websiteId: process.env.UMAMI_WEBSITE_ID?.trim() ?? "",
-          dashboardUrl: "https://cloud.umami.is",
+          websiteId,
+          dashboardUrl: DEFAULT_UMAMI_DASHBOARD_URL,
           connected: false,
         },
       };
@@ -377,8 +393,8 @@ export async function getAdminAnalyticsSummary(
         sessions: getTrendMetric(numberValue(stats.visits), numberValue(stats.comparison?.visits), "previous period"),
       },
       umami: {
-        websiteId: process.env.UMAMI_WEBSITE_ID?.trim() ?? "",
-        dashboardUrl: "https://cloud.umami.is",
+        websiteId,
+        dashboardUrl: DEFAULT_UMAMI_DASHBOARD_URL,
         connected: true,
       },
     };
