@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+
+const BETA_NOTICE_EXPIRES_AT = Date.parse("2026-05-01T07:01:00.000Z");
 
 interface ContactPublicContentProps {
   headingAs?: "h1" | "h2" | "h3";
@@ -12,6 +14,27 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showBetaNotice, setShowBetaNotice] = useState(() => Date.now() < BETA_NOTICE_EXPIRES_AT);
+
+  useEffect(() => {
+    if (!showBetaNotice) {
+      return;
+    }
+
+    const remainingMs = BETA_NOTICE_EXPIRES_AT - Date.now();
+    if (remainingMs <= 0) {
+      setShowBetaNotice(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShowBetaNotice(false);
+    }, remainingMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [showBetaNotice]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,6 +59,19 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
 
   return (
     <div className="mx-auto max-w-2xl px-6">
+      {showBetaNotice ? (
+        <div className="mb-6 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-5 py-4 text-sm leading-7 text-amber-50/90">
+          <p className="font-semibold uppercase tracking-[0.18em] text-amber-200/90">Beta Site Notice</p>
+          <p className="mt-2">
+            The Prime Mentor is currently in beta. If you discover any bugs or issues while using the site, please
+            contact us here so we can resolve them promptly.
+          </p>
+          <p className="mt-2">
+            We are scheduled to exit beta on May 1st, 2026. This message will automatically be removed at 12:01 AM
+            Pacific Time (Vancouver/Seattle).
+          </p>
+        </div>
+      ) : null}
       <Heading className="text-3xl font-semibold tracking-tight">Contact</Heading>
       <p className="mt-3 text-sm leading-7 text-white/60">
         Have a question or want to connect? Send us a message and we will get back to you.

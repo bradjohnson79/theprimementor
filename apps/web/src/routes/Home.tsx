@@ -183,7 +183,7 @@ const ABOUT_ITEMS = [
 
 const PRIME_MENTOR_FACEBOOK_URL = "https://www.facebook.com/primementorfacebook";
 const PRIME_MENTOR_YOUTUBE_URL = "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA";
-const PRIME_MENTOR_YOUTUBE_UPLOADS_PLAYLIST = "UUQeHcVNo6CPWpgJaqEObrqA";
+const PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL = "https://www.youtube.com/embed/Gs_LDlzSwEw?rel=0&modestbranding=1";
 
 interface LandingSectionProps {
   id: string;
@@ -661,8 +661,8 @@ export default function Home() {
                   <div className="aspect-video">
                     <iframe
                       className="h-full w-full"
-                      src={`https://www.youtube.com/embed/videoseries?list=${PRIME_MENTOR_YOUTUBE_UPLOADS_PLAYLIST}`}
-                      title="Prime Mentor latest YouTube uploads"
+                      src={PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL}
+                      title="The Prime Mentor featured YouTube video"
                       loading="lazy"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       referrerPolicy="strict-origin-when-cross-origin"

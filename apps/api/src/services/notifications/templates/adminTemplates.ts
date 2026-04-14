@@ -20,12 +20,12 @@ export function renderAdminPaymentReceivedTemplate(
 ): RenderedTemplate {
   const product = text(payload.product, "Unknown product");
   return {
-    subject: `Admin alert: payment received for ${product}`,
+    subject: `Order Received: ${product}`,
     templateVersion: "admin-payment-received-v2",
     html: renderPrimeMentorEmail({
-      eyebrow: "Admin Payment Alert",
-      title: "A payment has been recorded",
-      intro: `A new payment for ${product} was successfully recorded in The Prime Mentor system.`,
+      eyebrow: "Order Received",
+      title: `${product} order received`,
+      intro: `A new ${product} order was successfully recorded in The Prime Mentor system.`,
       sections: [
         renderInfoCard(
           "Payment details",
@@ -55,11 +55,11 @@ export function renderAdminNewBookingTemplate(
 ): RenderedTemplate {
   const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "booking");
   return {
-    subject: `Admin alert: new ${bookingLabel} booking`,
+    subject: `Order Received: ${bookingLabel}`,
     templateVersion: "admin-new-booking-v3",
     html: renderPrimeMentorEmail({
-      eyebrow: "Admin Booking Alert",
-      title: "A new booking requires visibility",
+      eyebrow: "Order Received",
+      title: `${bookingLabel} booking received`,
       intro: `A new ${bookingLabel} booking has entered the system and is ready for review in the admin dashboard.`,
       sections: [
         renderInfoCard(
