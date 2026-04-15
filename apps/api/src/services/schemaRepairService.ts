@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 const REPAIRABLE_PREFIXES = [
   "profiles.",
+  "conversation_memories.",
   "seo_settings.",
   "seo_recommendations.",
   "seo_recommendation_apply_history.",
@@ -180,6 +181,36 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "profiles_user_tag_uidx" ON "profiles" USING btree ("user_id", "tag");`,
   `CREATE INDEX IF NOT EXISTS "profiles_user_idx" ON "profiles" USING btree ("user_id");`,
   `CREATE INDEX IF NOT EXISTS "profiles_tag_idx" ON "profiles" USING btree ("tag");`,
+  `CREATE TABLE IF NOT EXISTS "conversation_memories" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "conversation_id" uuid NOT NULL,
+    "user_id" text NOT NULL,
+    "type" text NOT NULL,
+    "content" text NOT NULL,
+    "relevance_score" double precision DEFAULT 0.5 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "conversation_id" uuid;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "user_id" text;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "type" text;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "content" text;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "relevance_score" double precision DEFAULT 0.5 NOT NULL;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "conversation_memories" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'conversation_memories_conversation_id_conversation_threads_id_fk') THEN
+      ALTER TABLE "conversation_memories"
+        ADD CONSTRAINT "conversation_memories_conversation_id_conversation_threads_id_fk"
+        FOREIGN KEY ("conversation_id") REFERENCES "public"."conversation_threads"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE INDEX IF NOT EXISTS "conversation_memories_conversation_created_idx" ON "conversation_memories" USING btree ("conversation_id", "created_at");`,
+  `CREATE INDEX IF NOT EXISTS "conversation_memories_user_created_idx" ON "conversation_memories" USING btree ("user_id", "created_at");`,
+  `CREATE INDEX IF NOT EXISTS "conversation_memories_user_type_created_idx" ON "conversation_memories" USING btree ("user_id", "type", "created_at");`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "conversation_memories_conversation_type_content_uidx" ON "conversation_memories" USING btree ("conversation_id", "type", "content");`,
 ] as const;
 
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {
