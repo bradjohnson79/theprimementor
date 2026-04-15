@@ -1,5 +1,5 @@
 import { useSignUp } from "@clerk/react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 interface CustomSignUpProps {
@@ -27,7 +27,7 @@ function mapClerkError(err: unknown): string {
 }
 
 export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: CustomSignUpProps) {
-  const { isLoaded, signUp, setActive } = useSignUp();
+  const { signUp, fetchStatus } = useSignUp();
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState("");
@@ -62,7 +62,21 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     }, 1000);
   }, []);
 
-  if (!isLoaded) {
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+      }
+    };
+  }, []);
+
+  function throwIfSignalError(error: unknown) {
+    if (error) {
+      throw error;
+    }
+  }
+
+  if (fetchStatus === "fetching") {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
         <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
@@ -79,12 +93,13 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     console.log("CLERK_FLOW", { step: "signup_started", email });
 
     try {
-      await signUp!.create({
+      const signUpResult = await signUp.password({
         emailAddress: email,
         password,
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
       });
+      throwIfSignalError(signUpResult.error);
       console.log("CLERK_FLOW", { step: "signup_created" });
 
       if (verificationStartedRef.current) {
@@ -94,7 +109,8 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
       }
 
       verificationStartedRef.current = true;
-      await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
+      const emailCodeResult = await signUp.verifications.sendEmailCode();
+      throwIfSignalError(emailCodeResult.error);
       console.log("CLERK_FLOW", { step: "verification_sent" });
 
       startResendCooldown();
@@ -117,15 +133,17 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     console.log("CLERK_FLOW", { step: "verification_attempt" });
 
     try {
-      const result = await signUp!.attemptEmailAddressVerification({ code });
+      const verificationResult = await signUp.verifications.verifyEmailCode({ code });
+      throwIfSignalError(verificationResult.error);
 
-      if (result.status === "complete") {
+      if (signUp.status === "complete") {
         console.log("CLERK_FLOW", { step: "verification_complete" });
-        await setActive!({ session: result.createdSessionId });
+        const finalizeResult = await signUp.finalize();
+        throwIfSignalError(finalizeResult.error);
         navigate(redirectUrl || "/dashboard", { replace: true });
       } else {
         setError("Verification incomplete. Please try again.");
-        console.log("CLERK_FLOW", { step: "verification_incomplete", status: result.status });
+        console.log("CLERK_FLOW", { step: "verification_incomplete", status: signUp.status });
       }
     } catch (err: unknown) {
       setError(mapClerkError(err));
@@ -143,7 +161,8 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     console.log("CLERK_FLOW", { step: "resend_requested" });
 
     try {
-      await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
+      const resendResult = await signUp.verifications.sendEmailCode();
+      throwIfSignalError(resendResult.error);
       startResendCooldown();
       setCode("");
       setResendNotice("A new code has been sent. Please check your latest email.");
@@ -219,7 +238,7 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
               ? "Sending..."
               : resendCooldown > 0
                 ? `Resend code in ${resendCooldown}s`
-                : "Didn\u2019t receive a code? Resend"}
+                : "Didn't receive a code? Resend"}
           </button>
         </div>
       </div>
