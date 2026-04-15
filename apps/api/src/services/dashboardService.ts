@@ -149,8 +149,33 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
       id: subscriptions.id,
       stripeSubscriptionId: subscriptions.stripe_subscription_id,
       status: subscriptions.status,
+      createdAt: subscriptions.created_at,
     }).from(subscriptions),
   ]);
+
+  const completedOrders = orderRows.filter((row) => row.status === "completed");
+  const orderStatusBreakdown: Record<string, number> = {};
+  for (const row of orderRows) {
+    orderStatusBreakdown[row.status] = (orderStatusBreakdown[row.status] ?? 0) + 1;
+  }
+
+  console.log("DASHBOARD_METRICS", {
+    clients: clientRows.length,
+    orders: orderRows.length,
+    orderStatuses: orderStatusBreakdown,
+    completedOrders: completedOrders.length,
+    invoices: invoiceRows.length,
+    subscriptions: subscriptionRows.length,
+    subscriptionStatuses: subscriptionRows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.status] = (acc[row.status] ?? 0) + 1;
+      return acc;
+    }, {}),
+    webhookEvents: webhookRows.length,
+    reports: reportRows.length,
+    stripeCustomers: stripeCustomerRows.length,
+    monthStart: monthStart.toISOString(),
+    thirtyDaysAgo: thirtyDaysAgo.toISOString(),
+  });
 
   const clientsThisWeek = clientRows.filter((row) => row.createdAt >= sevenDaysAgo).length;
   const clientsPrevWeek = clientRows.filter((row) => row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo).length;
@@ -160,21 +185,20 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
   const ordersPrevWeek = orderRows.filter((row) => row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo).length;
   const orderDelta = ordersThisWeek - ordersPrevWeek;
 
-  const revenueThisMonthCents = orderRows
-    .filter((row) => row.status === "completed" && row.createdAt >= monthStart)
+  const revenueThisMonthCents = completedOrders
+    .filter((row) => row.createdAt >= monthStart)
     .reduce((sum, row) => sum + row.amount, 0);
-  const revenueLastMonthCents = orderRows
-    .filter((row) => row.status === "completed" && row.createdAt >= previousMonthStart && row.createdAt < monthStart)
+  const revenueLastMonthCents = completedOrders
+    .filter((row) => row.createdAt >= previousMonthStart && row.createdAt < monthStart)
     .reduce((sum, row) => sum + row.amount, 0);
   const revenueDelta = formatPercentDelta(revenueThisMonthCents, revenueLastMonthCents);
 
-  const activeSubscriptions = invoiceRows.filter((row) =>
-    row.billingMode === "subscription"
-      && (getSubscriptionState(row.metadata) === "active" || getSubscriptionState(row.metadata) === "trialing"),
+  const activeSubscriptions = subscriptionRows.filter(
+    (row) => row.status === "active" || row.status === "trialing",
   ).length;
-  const newSubscriptionsThisWeek = invoiceRows.filter((row) => row.billingMode === "subscription" && row.createdAt >= sevenDaysAgo).length;
-  const newSubscriptionsPrevWeek = invoiceRows.filter((row) =>
-    row.billingMode === "subscription" && row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo,
+  const newSubscriptionsThisWeek = subscriptionRows.filter((row) => row.createdAt >= sevenDaysAgo).length;
+  const newSubscriptionsPrevWeek = subscriptionRows.filter(
+    (row) => row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo,
   ).length;
   const subscriptionDelta = newSubscriptionsThisWeek - newSubscriptionsPrevWeek;
 
