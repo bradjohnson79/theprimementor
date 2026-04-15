@@ -3,6 +3,7 @@ export type ApiRouteAuth =
   | "bearer"
   | "member"
   | "admin"
+  | "internal"
   | "stripe-webhook"
   | "clerk-webhook";
 
@@ -112,6 +113,11 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "GET", url: "/api/admin/seo", auth: "admin", validation: "manual", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoService.ts"] },
   { method: "POST", url: "/api/admin/seo", auth: "admin", validation: "service", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoService.ts"] },
   { method: "PUT", url: "/api/admin/seo/:pageKey", auth: "admin", validation: "service", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoService.ts"] },
+  { method: "POST", url: "/api/admin/seo/generate/:pageKey", auth: "admin", validation: "manual", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoAiService.ts"] },
+  { method: "GET", url: "/api/admin/seo/recommendations", auth: "admin", validation: "manual", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoAiService.ts"] },
+  { method: "POST", url: "/api/admin/seo/recommendations/:id/approve", auth: "admin", validation: "service", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoAiService.ts", "services/seoService.ts"] },
+  { method: "POST", url: "/api/admin/seo/recommendations/:id/reject", auth: "admin", validation: "service", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoAiService.ts"] },
+  { method: "POST", url: "/api/internal/seo/weekly-recommendations", auth: "internal", validation: "manual", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoAiService.ts", "services/analyticsService.ts"] },
   { method: "POST", url: "/api/create-checkout-session", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/paymentService.ts"] },
   { method: "POST", url: "/api/checkout-session/sync", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/stripeWebhookService.ts"] },
   { method: "POST", url: "/api/admin/invoices", auth: "admin", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/invoiceService.ts"] },

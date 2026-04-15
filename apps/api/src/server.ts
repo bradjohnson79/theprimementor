@@ -333,6 +333,48 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "type",
     "created_at",
   ],
+  seo_settings: [
+    "id",
+    "page_key",
+    "title",
+    "meta_description",
+    "keywords",
+    "og_image",
+    "robots_index",
+    "created_at",
+    "updated_at",
+  ],
+  seo_recommendations: [
+    "id",
+    "page_key",
+    "type",
+    "reason",
+    "expected_outcome",
+    "current_snapshot",
+    "suggested_snapshot",
+    "impact",
+    "admin_impact_override",
+    "intent",
+    "confidence",
+    "source",
+    "status",
+    "dedupe_hash",
+    "model_name",
+    "reviewed_at",
+    "reviewed_by",
+    "last_recommendation_at",
+    "created_at",
+    "updated_at",
+  ],
+  seo_recommendation_apply_history: [
+    "id",
+    "recommendation_id",
+    "page_key",
+    "previous_value",
+    "new_value",
+    "applied_at",
+    "applied_by",
+  ],
 };
 
 async function verifySchema(db: Database) {
@@ -361,7 +403,10 @@ async function verifySchema(db: Database) {
         'conversation_threads',
         'conversation_messages',
         'insights',
-        'conversation_timeline_events'
+        'conversation_timeline_events',
+        'seo_settings',
+        'seo_recommendations',
+        'seo_recommendation_apply_history'
       )
   `);
 

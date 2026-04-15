@@ -112,9 +112,50 @@ export const notificationStatusEnum = pgEnum("notification_status", [
   "skipped_duplicate",
 ]);
 
+export const seoRecommendationTypeEnum = pgEnum("seo_recommendation_type", [
+  "initial_generation",
+  "title_update",
+  "meta_description_update",
+  "keyword_update",
+  "no_change",
+]);
+
+export const seoRecommendationImpactEnum = pgEnum("seo_recommendation_impact", [
+  "low",
+  "medium",
+  "high",
+]);
+
+export const seoRecommendationSourceEnum = pgEnum("seo_recommendation_source", [
+  "initial_scan",
+  "weekly_optimization",
+]);
+
+export const seoRecommendationStatusEnum = pgEnum("seo_recommendation_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "applied",
+  "superseded",
+]);
+
+export const seoIntentEnum = pgEnum("seo_intent", [
+  "informational",
+  "transactional",
+  "navigational",
+]);
+
 export interface SeoKeywordBuckets {
   primary: string[];
   secondary: string[];
+}
+
+export interface SeoRecommendationSnapshot {
+  title: string | null;
+  metaDescription: string | null;
+  keywords: SeoKeywordBuckets;
+  ogImage: string | null;
+  robotsIndex: boolean;
 }
 
 export const users = pgTable("users", {
@@ -363,6 +404,49 @@ export const seoSettings = pgTable("seo_settings", {
 }, (table) => ({
   pageKeyUnique: uniqueIndex("seo_settings_page_key_uidx").on(table.page_key),
   createdIdx: index("seo_settings_created_idx").on(table.created_at),
+}));
+
+export const seoRecommendations = pgTable("seo_recommendations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  page_key: text("page_key").notNull(),
+  type: seoRecommendationTypeEnum("type").notNull(),
+  reason: text("reason"),
+  expected_outcome: text("expected_outcome"),
+  current_snapshot: jsonb("current_snapshot").$type<SeoRecommendationSnapshot>().notNull(),
+  suggested_snapshot: jsonb("suggested_snapshot").$type<SeoRecommendationSnapshot>().notNull(),
+  impact: seoRecommendationImpactEnum("impact"),
+  admin_impact_override: seoRecommendationImpactEnum("admin_impact_override"),
+  intent: seoIntentEnum("intent"),
+  confidence: doublePrecision("confidence").default(0).notNull(),
+  source: seoRecommendationSourceEnum("source").notNull(),
+  status: seoRecommendationStatusEnum("status").default("pending").notNull(),
+  dedupe_hash: text("dedupe_hash"),
+  model_name: text("model_name"),
+  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+  reviewed_by: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  last_recommendation_at: timestamp("last_recommendation_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  pageStatusCreatedIdx: index("seo_recommendations_page_status_created_idx").on(table.page_key, table.status, table.created_at),
+  statusCreatedIdx: index("seo_recommendations_status_created_idx").on(table.status, table.created_at),
+  dedupeHashIdx: index("seo_recommendations_dedupe_hash_idx").on(table.dedupe_hash, table.created_at),
+  reviewedByIdx: index("seo_recommendations_reviewed_by_idx").on(table.reviewed_by, table.reviewed_at),
+}));
+
+export const seoRecommendationApplyHistory = pgTable("seo_recommendation_apply_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  recommendation_id: uuid("recommendation_id")
+    .references(() => seoRecommendations.id, { onDelete: "cascade" })
+    .notNull(),
+  page_key: text("page_key").notNull(),
+  previous_value: jsonb("previous_value").$type<SeoRecommendationSnapshot>().notNull(),
+  new_value: jsonb("new_value").$type<SeoRecommendationSnapshot>().notNull(),
+  applied_at: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
+  applied_by: uuid("applied_by").references(() => users.id, { onDelete: "set null" }),
+}, (table) => ({
+  recommendationIdx: index("seo_recommendation_apply_history_recommendation_idx").on(table.recommendation_id),
+  pageAppliedIdx: index("seo_recommendation_apply_history_page_applied_idx").on(table.page_key, table.applied_at),
+  appliedByIdx: index("seo_recommendation_apply_history_applied_by_idx").on(table.applied_by, table.applied_at),
 }));
 
 export const invoices = pgTable("invoices", {

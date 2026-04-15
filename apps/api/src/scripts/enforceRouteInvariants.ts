@@ -150,6 +150,13 @@ async function assertProtectedRoutesUseRequireAuth() {
     const filePath = path.join(srcDir, entry.handlerFile);
     const content = await fs.readFile(filePath, "utf8");
     const snippet = extractRouteSnippet(content, entry);
+    if (entry.auth === "internal") {
+      if (!/assertInternalWeeklySeoAccess\(request\)/.test(snippet)) {
+        throw new Error(`Internal route is missing internal auth enforcement: ${normalizeRoute(entry)} in ${entry.handlerFile}`);
+      }
+      continue;
+    }
+
     if (!/preHandler:\s*requireAuth/.test(snippet)) {
       throw new Error(`Protected route is missing requireAuth preHandler: ${normalizeRoute(entry)} in ${entry.handlerFile}`);
     }

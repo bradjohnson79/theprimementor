@@ -114,3 +114,85 @@ test("runtime adapter rejects raw JSON payloads that bypass ok()/fail()", async 
     error: "Internal API responses must return ok()/fail() envelopes before serialization.",
   });
 });
+
+test("internal weekly SEO route rejects requests without the configured secret", async (t) => {
+  const restoreEnv = applyRequiredEnv();
+  process.env.SEO_WEEKLY_CRON_SECRET = "seo-test-secret";
+  const app = await buildApp();
+
+  t.after(async () => {
+    await app.close();
+    restoreEnv();
+    delete process.env.SEO_WEEKLY_CRON_SECRET;
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/internal/seo/weekly-recommendations",
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.json(), {
+    error: "Internal SEO route authentication failed",
+  });
+});
+
+test("internal weekly SEO route enforces optional IP allowlisting", async (t) => {
+  const restoreEnv = applyRequiredEnv();
+  process.env.SEO_WEEKLY_CRON_SECRET = "seo-test-secret";
+  process.env.SEO_WEEKLY_IP_ALLOWLIST = "203.0.113.10";
+  const app = await buildApp();
+
+  t.after(async () => {
+    await app.close();
+    restoreEnv();
+    delete process.env.SEO_WEEKLY_CRON_SECRET;
+    delete process.env.SEO_WEEKLY_IP_ALLOWLIST;
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/internal/seo/weekly-recommendations",
+    headers: {
+      "x-cron-secret": "seo-test-secret",
+      "x-forwarded-for": "198.51.100.22",
+    },
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.deepEqual(response.json(), {
+    error: "Internal SEO route IP is not allowed",
+  });
+});
+
+test("internal weekly SEO route checks auth before database availability", async (t) => {
+  const restoreEnv = applyRequiredEnv();
+  process.env.SEO_WEEKLY_CRON_SECRET = "seo-test-secret";
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  const app = await buildApp();
+
+  t.after(async () => {
+    await app.close();
+    restoreEnv();
+    delete process.env.SEO_WEEKLY_CRON_SECRET;
+    if (previousDatabaseUrl !== undefined) {
+      process.env.DATABASE_URL = previousDatabaseUrl;
+    } else {
+      delete process.env.DATABASE_URL;
+    }
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/internal/seo/weekly-recommendations",
+    headers: {
+      "x-cron-secret": "seo-test-secret",
+    },
+  });
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.json(), {
+    error: "Database not available",
+  });
+});
