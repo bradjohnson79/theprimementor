@@ -19,6 +19,7 @@ import {
   conversationThreads,
   conversationMessages,
   conversationTimelineEvents,
+  conversationMemories,
   reportTierOutputs,
   recordings,
 } from "./schema.js";
@@ -171,6 +172,7 @@ export const mentoringCircleRegistrationsRelations = relations(mentoringCircleRe
 export const conversationThreadsRelations = relations(conversationThreads, ({ many }) => ({
   messages: many(conversationMessages),
   timelineEvents: many(conversationTimelineEvents),
+  memories: many(conversationMemories),
 }));
 
 export const conversationMessagesRelations = relations(conversationMessages, ({ one }) => ({
@@ -183,6 +185,13 @@ export const conversationMessagesRelations = relations(conversationMessages, ({ 
 export const conversationTimelineEventsRelations = relations(conversationTimelineEvents, ({ one }) => ({
   thread: one(conversationThreads, {
     fields: [conversationTimelineEvents.thread_id],
+    references: [conversationThreads.id],
+  }),
+}));
+
+export const conversationMemoriesRelations = relations(conversationMemories, ({ one }) => ({
+  thread: one(conversationThreads, {
+    fields: [conversationMemories.conversation_id],
     references: [conversationThreads.id],
   }),
 }));

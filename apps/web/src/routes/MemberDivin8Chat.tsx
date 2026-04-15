@@ -31,6 +31,7 @@ export default function MemberDivin8Chat() {
   const capabilities: Divin8Capabilities = {
     showDebug: false,
     showTimeline: false,
+    showTimelineReading: isInitiate,
     showExport: false,
     showRegenerate: false,
     showTierToggle: false,
@@ -119,7 +120,7 @@ export default function MemberDivin8Chat() {
           aria-label="Guide"
           className="flex h-7 w-7 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label="Guide" role="img">
             <path d="M4 19.5v-15A2.5 2.5 0 016.5 2H20v20H6.5a2.5 2.5 0 010-5H20" />
           </svg>
         </button>
@@ -132,7 +133,7 @@ export default function MemberDivin8Chat() {
             aria-label="Timeline"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label="Timeline" role="img">
               <circle cx="12" cy="12" r="9" />
               <path d="M12 7v5l3 3" />
             </svg>
@@ -155,12 +156,12 @@ export default function MemberDivin8Chat() {
               )}
             >
               {chat.isExporting ? (
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-label="Exporting" role="img">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
                   <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label="Export" role="img">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                 </svg>
               )}

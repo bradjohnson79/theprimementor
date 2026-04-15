@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildResolvedDivin8SystemPrompt, DIVIN8_NON_NEGOTIABLE_SAFETY_LAYER } from "./divin8SystemPrompt.js";
 import {
+  buildResolvedDivin8SystemPrompt,
+  DEFAULT_DIVIN8_STYLE_PROMPT,
+  DIVIN8_NON_NEGOTIABLE_SAFETY_LAYER,
+} from "./divin8SystemPrompt.js";
+import {
+  buildStructuredPayload,
   buildConversationSummary,
   decideNextAction,
   extractDivin8Observations,
@@ -17,6 +22,7 @@ import { searchWeb } from "./searchWebService.js";
 import type { Divin8RoutingPlan } from "./divin8RoutingTypes.js";
 import { selectTimelineHighlights, type Divin8TimelineEvent } from "./insightService.js";
 import { createDeprecatedDivin8ChatError, runDivin8Chat } from "./chatService.js";
+import { buildCurrentTimeContext } from "./timeContextService.js";
 
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "sk-test-placeholder";
 
@@ -320,6 +326,75 @@ test("prompt overrides preserve the non-negotiable safety layer", async () => {
       await clearDivin8PromptOverride();
     }
   }
+});
+
+test("default system prompt reinforces leader mode guidance", () => {
+  const prompt = buildResolvedDivin8SystemPrompt(DEFAULT_DIVIN8_STYLE_PROMPT);
+  assert.match(prompt, /leading interpretive intelligence/i);
+  assert.match(prompt, /turning points/i);
+  assert.match(prompt, /current date, current time, and timezone/i);
+  assert.match(prompt, /memory mechanics/i);
+});
+
+test("structured payload includes authoritative time context and retrieved memory", () => {
+  const payload = JSON.parse(buildStructuredPayload({
+    message: "Compare this to last month.",
+    memory: hydrateConversationMemory(),
+    timeContext: buildCurrentTimeContext(
+      { profileTimezone: "America/Vancouver" },
+      new Date("2026-04-14T21:32:00.000Z"),
+    ),
+    relevantMemory: [
+      {
+        id: "mem-1",
+        conversationId: "conv-1",
+        userId: "user-1",
+        type: "preference",
+        content: "User prefers Vedic astrology.",
+        relevanceScore: 0.92,
+        createdAt: "2026-04-10T00:00:00.000Z",
+      },
+    ],
+    extracted: makeExtraction({
+      rawText: "Compare this to last month.",
+      intentHints: {
+        summary: "Compare this to last month",
+        wantsComparison: true,
+        wantsForecast: false,
+        explicitMultiSystem: false,
+        correction: false,
+      },
+    }),
+    engineSummary: null,
+    profiles: [],
+    profileReadings: [],
+    webContext: null,
+    timelineHighlights: [],
+    responseMode: "chat",
+    execDecision: {
+      action: "proceed",
+      confidence: 0.9,
+      missingFields: [],
+      uncertainFields: [],
+      toolRequired: false,
+      toolType: "none",
+    },
+    readingState: {
+      currentSection: "overview",
+      completedSections: [],
+    },
+    telemetry: {
+      usedSwissEph: false,
+      usedWebSearch: false,
+      searchInputUsed: false,
+      queryType: "factual",
+    },
+  }));
+
+  assert.equal(payload.currentDate, "2026-04-14");
+  assert.equal(payload.currentTime, "14:32");
+  assert.equal(payload.timezone, "America/Vancouver");
+  assert.equal(payload.memory[0].content, "User prefers Vedic astrology.");
 });
 
 test("unsupported western astrology does not partially map to engine", () => {

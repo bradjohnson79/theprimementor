@@ -2,8 +2,12 @@ import type { FastifyInstance } from "fastify";
 import {
   DIVIN8_LIMITS,
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
+  MAX_DIVIN8_TIMELINES_PER_MESSAGE,
+  extractDivin8TimelineTags,
   normalizeLanguage,
+  validateDivin8TimelineRequest,
   type LanguageCode,
+  type Divin8TimelineRequest,
 } from "@wisdom/utils";
 
 export type Divin8ChatTier = "seeker" | "initiate";
@@ -12,6 +16,7 @@ export interface Divin8ChatRequest {
   message: string;
   image_ref?: string;
   profile_tags?: string[];
+  timeline?: Divin8TimelineRequest;
   tier: Divin8ChatTier;
   language?: LanguageCode;
   debugAudit?: boolean;
@@ -21,6 +26,7 @@ export interface Divin8MemberMessageRequest {
   message: string;
   image_ref?: string;
   profile_tags?: string[];
+  timeline?: Divin8TimelineRequest;
   language?: LanguageCode;
   debugAudit?: boolean;
   request_id?: string;
@@ -109,6 +115,26 @@ export function stripVerificationTags(text: string) {
   return text.replace(GPT_LIVE_TAG_REGEX, "").trim();
 }
 
+function validateTimelineInput(message: string, rawTimeline: unknown) {
+  const timelineTags = extractDivin8TimelineTags(message);
+  if (timelineTags.length > MAX_DIVIN8_TIMELINES_PER_MESSAGE) {
+    throw new Error("Only one timeline range can be used per reading.");
+  }
+
+  if (rawTimeline == null) {
+    if (timelineTags.length > 0) {
+      throw new Error("Timeline tags must be created with the calendar selector so the system and date range are preserved.");
+    }
+    return undefined;
+  }
+
+  const timeline = validateDivin8TimelineRequest(rawTimeline);
+  if (!message.includes(timeline.tag)) {
+    throw new Error("Timeline payload must match the visible timeline tag in the message.");
+  }
+  return timeline;
+}
+
 export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   if (!body || typeof body !== "object") {
     throw new Error("Request body is required.");
@@ -121,6 +147,7 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
+  const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
 
@@ -140,11 +167,16 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
     throw new Error(`A maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles may be sent per reading.`);
   }
 
+  if (tier === "seeker" && timeline) {
+    throw new Error("Timeline readings are available for Initiate members only.");
+  }
+
   return {
     message,
     tier,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
     profile_tags: profileTags,
+    timeline,
     language,
     debugAudit,
   };
@@ -161,6 +193,7 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
+  const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
   const requestId = typeof input.request_id === "string" ? input.request_id.trim() : "";
@@ -181,6 +214,7 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
     message,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
     profile_tags: profileTags,
+    timeline,
     language,
     debugAudit,
     request_id: requestId || undefined,

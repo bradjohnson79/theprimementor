@@ -239,6 +239,13 @@
       "when": 1776042000000,
       "tag": "20260412_currency_defaults_cad",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776229200000,
+      "tag": "20260415_divin8_memory_time",
+      "breakpoints": true
     }
   ]
 }

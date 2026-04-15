@@ -10,8 +10,15 @@ import type {
   Divin8ConversationsResponse,
   Divin8MessageMetaResponse,
   Divin8TimelineEventResponse,
+  Divin8TimelineRequest,
 } from "@wisdom/utils";
-import { DIVIN8_LIMITS, MAX_DIVIN8_PROFILES_PER_MESSAGE, extractDivin8ProfileTags } from "@wisdom/utils";
+import {
+  DIVIN8_LIMITS,
+  MAX_DIVIN8_PROFILES_PER_MESSAGE,
+  MAX_DIVIN8_TIMELINES_PER_MESSAGE,
+  extractDivin8ProfileTags,
+  extractDivin8TimelineTags,
+} from "@wisdom/utils";
 import type {
   Divin8ChatMessage,
   Divin8ChatMeta,
@@ -20,6 +27,7 @@ import type {
   Divin8ConversationThread,
   Divin8RetryPayload,
   Divin8TimelineEvent,
+  Divin8TimelineDraft,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -74,8 +82,12 @@ export interface UseDivin8ChatReturn {
   isSavingProfile: boolean;
   deletingProfileId: string | null;
   isProfileModalOpen: boolean;
+  isTimelineModalOpen: boolean;
   profileError: string | null;
+  timelineError: string | null;
   profileLimitMessage: string | null;
+  timelineLimitMessage: string | null;
+  activeTimeline: Divin8TimelineDraft | null;
   usageCount: number;
   threadError: string | null;
   sendError: string | null;
@@ -87,6 +99,9 @@ export interface UseDivin8ChatReturn {
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
   handleOpenProfileModal: () => void;
   handleCloseProfileModal: () => void;
+  handleOpenTimelineModal: () => void;
+  handleCloseTimelineModal: () => void;
+  handleGenerateTimeline: (timeline: Divin8TimelineRequest) => void;
   handleCreateProfile: (input: Divin8ProfileCreateRequest) => Promise<void>;
   handleDeleteProfile: (profileId: string) => Promise<void>;
   insertProfileTag: (tag: string) => void;
@@ -121,6 +136,24 @@ export interface UseDivin8ChatReturn {
 
 const GPT_LIVE_TAG_REGEX = /\[DIVIN8_GPT_LIVE_[^\]]+\]/g;
 const NEAR_BOTTOM_THRESHOLD = 100;
+const TIMELINE_LIMIT_MESSAGE = "⚠️ Only one timeline range can be used per reading.";
+const SEEKER_TIMELINE_MESSAGE = "⚠️ Timeline readings are available for Initiate members only.";
+
+function replaceTimelineTagInDraft(
+  inputText: string,
+  nextTimeline: Divin8TimelineRequest,
+  previousTimeline: Divin8TimelineRequest | null,
+) {
+  const existingTags = extractDivin8TimelineTags(inputText);
+  const stripped = existingTags
+    .reduce((draft, tag) => draft.replace(tag, " "), inputText)
+    .replace(/\s+/g, " ")
+    .trim();
+  const base = previousTimeline && inputText.includes(previousTimeline.tag)
+    ? inputText.replace(previousTimeline.tag, "").replace(/\s+/g, " ").trim()
+    : stripped;
+  return base ? `${base} ${nextTimeline.tag}` : nextTimeline.tag;
+}
 
 function createMessage(
   role: "user" | "assistant",
@@ -391,7 +424,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [timelineDraftsByThread, setTimelineDraftsByThread] = useState<Record<string, Divin8TimelineRequest | null>>({});
 
   const [imageRef, setImageRef] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
@@ -415,6 +451,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const loadRequestIdRef = useRef(0);
 
   const inputText = activeThreadId ? draftsByThread[activeThreadId] ?? "" : "";
+  const activeTimeline = activeThreadId ? timelineDraftsByThread[activeThreadId] ?? null : null;
   const isGenerating = generatingThreadId === activeThreadId;
   const isExporting = exportingThreadId === activeThreadId ? exporting : null;
 
@@ -422,8 +459,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const isBlocked = tier === "seeker" && usageCount >= maxUsage;
   const blockMessage = isBlocked ? `You've reached your monthly limit of ${DIVIN8_LIMITS.seeker} prompts.` : null;
   const activeProfileTags = extractDivin8ProfileTags(inputText);
+  const activeTimelineTags = extractDivin8TimelineTags(inputText);
   const profileLimitMessage = activeProfileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE
     ? `Maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles allowed per reading.`
+    : null;
+  const timelineLimitMessage = activeTimelineTags.length > MAX_DIVIN8_TIMELINES_PER_MESSAGE
+    ? TIMELINE_LIMIT_MESSAGE
     : null;
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
   const chatTitle = activeThread?.title && activeThread.title !== "New Conversation"
@@ -436,7 +477,15 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     if (!activeThreadIdRef.current) return;
     const threadId = activeThreadIdRef.current;
     setSendError(null);
+    setTimelineError(null);
     setDraftsByThread((cur) => ({ ...cur, [threadId]: value }));
+    setTimelineDraftsByThread((current) => {
+      const existing = current[threadId];
+      if (!existing || value.includes(existing.tag)) {
+        return current;
+      }
+      return { ...current, [threadId]: null };
+    });
   }, []);
 
   // -- Image helpers --
@@ -450,6 +499,16 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   // -- Sync refs --
   useEffect(() => { activeThreadIdRef.current = activeThreadId; }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!activeThreadId || !activeTimeline) {
+      return;
+    }
+    if (inputText.includes(activeTimeline.tag)) {
+      return;
+    }
+    setTimelineDraftsByThread((current) => ({ ...current, [activeThreadId]: null }));
+  }, [activeThreadId, activeTimeline, inputText]);
 
   // -- Archive notice auto-clear --
   useEffect(() => {
@@ -672,6 +731,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       setMessages([]);
       setTimelineEvents([]);
       setDraftsByThread((cur) => ({ ...cur, [created.id]: "" }));
+      setTimelineDraftsByThread((cur) => ({ ...cur, [created.id]: null }));
     } finally {
       setIsCreatingThread(false);
     }
@@ -682,6 +742,37 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     setInputText(current ? `${current} ${tag}` : tag);
     window.requestAnimationFrame(() => composerInputRef.current?.focus());
   }, [inputText, setInputText]);
+
+  const handleOpenTimelineModal = useCallback(() => {
+    setTimelineError(null);
+    if (tier !== "initiate") {
+      setTimelineError(SEEKER_TIMELINE_MESSAGE);
+      return;
+    }
+    setIsTimelineModalOpen(true);
+  }, [tier]);
+
+  const handleCloseTimelineModal = useCallback(() => {
+    setTimelineError(null);
+    setIsTimelineModalOpen(false);
+  }, []);
+
+  const handleGenerateTimeline = useCallback((timeline: Divin8TimelineRequest) => {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+    if (tier !== "initiate") {
+      setTimelineError(SEEKER_TIMELINE_MESSAGE);
+      setIsTimelineModalOpen(false);
+      return;
+    }
+    setTimelineError(null);
+    setTimelineDraftsByThread((current) => ({ ...current, [threadId]: timeline }));
+    setInputText(replaceTimelineTagInDraft(draftsByThread[threadId] ?? "", timeline, timelineDraftsByThread[threadId] ?? null));
+    setIsTimelineModalOpen(false);
+    window.requestAnimationFrame(() => composerInputRef.current?.focus());
+  }, [draftsByThread, setInputText, tier, timelineDraftsByThread]);
 
   const handleCreateProfile = useCallback(async (input: Divin8ProfileCreateRequest) => {
     setIsSavingProfile(true);
@@ -766,6 +857,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
             message: payload.text,
             image_ref: payload.imageRef,
             profile_tags: payload.profileTags,
+            timeline: payload.timeline,
             tier: payload.tier,
             language: payload.language,
             request_id: payload.requestId,
@@ -874,7 +966,17 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isGenerating || isBlocked || profileLimitMessage || !activeThreadId || (!inputText.trim() && !imageRef)) return;
+    if (isGenerating || isBlocked || profileLimitMessage || timelineLimitMessage || !activeThreadId || (!inputText.trim() && !imageRef)) {
+      return;
+    }
+    if (tier !== "initiate" && activeTimeline) {
+      setTimelineError(SEEKER_TIMELINE_MESSAGE);
+      return;
+    }
+    if (activeTimelineTags.length === 1 && !activeTimeline) {
+      setTimelineError("Use the calendar icon to generate a valid timeline range.");
+      return;
+    }
 
     const nextText = inputText.trim() || "Please interpret the uploaded image symbolically.";
     const messageId = createMessage("user", nextText).id;
@@ -884,11 +986,13 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       imageName,
       imagePreviewUrl,
       profileTags: extractDivin8ProfileTags(nextText),
+      timeline: activeTimeline,
       tier,
       language,
       requestId: messageId,
     };
     setInputText("");
+    setTimelineDraftsByThread((current) => ({ ...current, [activeThreadId]: null }));
     clearImageSelection();
     void sendMessageInternal(activeThreadId, messageId, payload);
   }
@@ -925,7 +1029,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           setThreadError(null);
         }
         clearImageSelection();
-        setArchiveNotice("Conversation archived");
+        setArchiveNotice("Conversation deleted");
         setArchiveTarget(null);
       } finally {
         setArchivingThreadId(null);
@@ -981,8 +1085,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     isSavingProfile,
     deletingProfileId,
     isProfileModalOpen,
+    isTimelineModalOpen,
     profileError,
+    timelineError,
     profileLimitMessage,
+    timelineLimitMessage,
+    activeTimeline,
     usageCount,
     threadError,
     sendError,
@@ -1001,6 +1109,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         setIsProfileModalOpen(false);
       }
     },
+    handleOpenTimelineModal,
+    handleCloseTimelineModal,
+    handleGenerateTimeline,
     handleCreateProfile,
     handleDeleteProfile,
     insertProfileTag,

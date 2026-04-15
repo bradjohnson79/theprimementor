@@ -363,6 +363,16 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "type",
     "created_at",
   ],
+  conversation_memories: [
+    "id",
+    "conversation_id",
+    "user_id",
+    "type",
+    "content",
+    "relevance_score",
+    "created_at",
+    "updated_at",
+  ],
   seo_settings: [
     "id",
     "page_key",
@@ -436,6 +446,7 @@ async function getMissingSchemaEntries(db: Database) {
         'profiles',
         'insights',
         'conversation_timeline_events',
+        'conversation_memories',
         'seo_settings',
         'seo_recommendations',
         'seo_recommendation_apply_history'

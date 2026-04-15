@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject, type UIEvent } from "react";
-import { extractDivin8ProfileTags } from "@wisdom/utils";
-import type { Divin8Profile } from "./types";
+import { extractDivin8ProfileTags, extractDivin8TimelineTags } from "@wisdom/utils";
+import type { Divin8Profile, Divin8TimelineDraft } from "./types";
 import { classNames, darkChatStyles } from "./utils";
 
 type SpeechRecognitionStatus = "idle" | "listening" | "error" | "disabled";
@@ -20,10 +20,13 @@ interface ChatComposerProps {
   speechStatus: SpeechRecognitionStatus;
   speechButtonTitle: string;
   onToggleSpeech: () => void;
+  onOpenTimeline: () => void;
   isUploadingImage: boolean;
   isLightTheme: boolean;
   blockMessage: string | null;
   submitError: string | null;
+  activeTimeline: Divin8TimelineDraft | null;
+  showTimelineButton: boolean;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   placeholder?: string;
 }
@@ -43,15 +46,17 @@ export default function ChatComposer({
   speechStatus,
   speechButtonTitle,
   onToggleSpeech,
+  onOpenTimeline,
   isUploadingImage,
   isLightTheme,
   blockMessage,
   submitError,
+  activeTimeline,
+  showTimelineButton,
   inputRef,
   placeholder = "Share what you want guidance on...",
 }: ChatComposerProps) {
   const localInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const highlightRef = useRef<HTMLDivElement | null>(null);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
 
   function setRefs(element: HTMLTextAreaElement | null) {
@@ -133,11 +138,7 @@ export default function ChatComposer({
     });
   }
 
-  function handleTextareaScroll(event: UIEvent<HTMLTextAreaElement>) {
-    if (highlightRef.current) {
-      highlightRef.current.scrollTop = event.currentTarget.scrollTop;
-    }
-  }
+  function handleTextareaScroll(_event: UIEvent<HTMLTextAreaElement>) {}
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (profileSuggestions.length > 0) {
@@ -174,8 +175,8 @@ export default function ChatComposer({
   }
 
   const canSend = !disabled && (inputText.trim().length > 0 || !!imagePreviewUrl);
-  const highlightedSegments = inputText.split(/(\B@[A-Za-z0-9]+\b)/g);
   const detectedTags = extractDivin8ProfileTags(inputText);
+  const detectedTimelineTags = extractDivin8TimelineTags(inputText);
 
   return (
     <form onSubmit={onSubmit} className="space-y-2" aria-label="Divin8 chat composer">
@@ -200,7 +201,7 @@ export default function ChatComposer({
               isLightTheme ? "text-slate-500 hover:bg-slate-200 hover:text-slate-900" : "text-white/50 hover:bg-white/10 hover:text-white",
             )}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5" aria-label="Remove image" role="img">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -211,30 +212,6 @@ export default function ChatComposer({
         className={classNames("relative rounded-2xl border", isLightTheme ? "border-slate-200 bg-white" : "")}
         style={!isLightTheme ? darkChatStyles.panelElevated : undefined}
       >
-        {inputText ? (
-          <div
-            ref={highlightRef}
-            aria-hidden="true"
-            className={classNames(
-              "pointer-events-none absolute inset-x-0 top-0 max-h-[10.5rem] overflow-hidden whitespace-pre-wrap break-words px-3 pt-2.5 pb-0 text-sm leading-6",
-              isLightTheme ? "text-slate-400" : "text-white/35",
-            )}
-          >
-            {highlightedSegments.map((segment, index) => segment.match(/\B@[A-Za-z0-9]+\b/)
-              ? (
-                <span
-                  key={`${segment}-${index}`}
-                  className={classNames(
-                    "rounded-md px-0.5 font-medium",
-                    isLightTheme ? "bg-cyan-100 text-cyan-700" : "bg-cyan-500/15 text-cyan-200",
-                  )}
-                >
-                  {segment}
-                </span>
-              )
-              : <span key={`${segment}-${index}`}>{segment}</span>)}
-          </div>
-        ) : null}
         <textarea
           ref={setRefs}
           value={inputText}
@@ -246,11 +223,9 @@ export default function ChatComposer({
           aria-label={placeholder}
           className={classNames(
             "relative z-[1] max-h-[10.5rem] min-h-[2.5rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-0 text-sm leading-6 outline-none caret-accent-cyan",
-            inputText
-              ? "text-transparent"
-              : isLightTheme
-                ? "text-slate-900 placeholder:text-slate-400"
-                : "text-white placeholder:text-white/35",
+            isLightTheme
+              ? "text-slate-900 placeholder:text-slate-400"
+              : "text-white placeholder:text-white/35",
           )}
         />
 
@@ -309,7 +284,8 @@ export default function ChatComposer({
               strokeLinejoin="round"
               className="h-4 w-4"
               style={{ width: "16px", height: "16px" }}
-              aria-hidden="true"
+              aria-label="Attach image"
+              role="img"
             >
               <rect x="3" y="5" width="18" height="14" rx="2.5" />
               <circle cx="9" cy="10" r="1.5" />
@@ -324,6 +300,48 @@ export default function ChatComposer({
               style={{ display: "none" }}
             />
           </label>
+
+          <div className="flex-1" />
+
+          {showTimelineButton ? (
+            <button
+              type="button"
+              onClick={onOpenTimeline}
+              disabled={disabled}
+              title="Timeline reading"
+              aria-label="Timeline reading"
+              className={classNames(
+                "inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70",
+                disabled
+                  ? "pointer-events-none opacity-40"
+                  : activeTimeline
+                    ? isLightTheme
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-indigo-400/15 text-indigo-200 shadow-[0_0_0_1px_rgba(129,140,248,0.25)]"
+                    : isLightTheme
+                      ? "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      : "text-white/50 hover:bg-white/10 hover:text-white/80",
+              )}
+              style={{ width: "28px", height: "28px" }}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+                style={{ width: "16px", height: "16px" }}
+                aria-label="Timeline reading"
+                role="img"
+              >
+                <rect x="3" y="4" width="18" height="17" rx="2.5" />
+                <path d="M8 2v4M16 2v4M3 9h18" />
+                <path d="M8 13h3M13 13h3M8 17h3" />
+              </svg>
+            </button>
+          ) : null}
 
           <button
             type="button"
@@ -356,7 +374,8 @@ export default function ChatComposer({
               strokeLinejoin="round"
               className="h-4 w-4"
               style={{ width: "16px", height: "16px" }}
-              aria-hidden="true"
+              aria-label="Speech input"
+              role="img"
             >
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M6.5 11a5.5 5.5 0 0 0 11 0" />
@@ -364,8 +383,6 @@ export default function ChatComposer({
               <path d="M9 21h6" />
             </svg>
           </button>
-
-          <div className="flex-1" />
 
           <button
             type="submit"
@@ -390,7 +407,8 @@ export default function ChatComposer({
               strokeLinejoin="round"
               className="h-4 w-4"
               style={{ width: "16px", height: "16px" }}
-              aria-hidden="true"
+              aria-label="Send"
+              role="img"
             >
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
@@ -399,8 +417,34 @@ export default function ChatComposer({
       </div>
 
       {detectedTags.length > 0 ? (
-        <div className={classNames("px-1 text-[11px]", isLightTheme ? "text-slate-500" : "text-white/50")}>
-          Tagged profiles: {detectedTags.join(", ")}
+        <div className="flex flex-wrap gap-2 px-1">
+          {detectedTags.map((tag) => (
+            <span
+              key={tag}
+              className={classNames(
+                "rounded-full px-2 py-1 text-[11px] font-medium",
+                isLightTheme ? "bg-amber-100 text-amber-700" : "bg-amber-400/15 text-amber-200",
+              )}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {detectedTimelineTags.length > 0 ? (
+        <div className="flex flex-wrap gap-2 px-1">
+          {detectedTimelineTags.map((tag) => (
+            <span
+              key={tag}
+              className={classNames(
+                "rounded-full px-2 py-1 text-[11px] font-medium",
+                isLightTheme ? "bg-indigo-100 text-indigo-700" : "bg-indigo-400/15 text-indigo-200",
+              )}
+            >
+              {tag}
+            </span>
+          ))}
         </div>
       ) : null}
 

@@ -105,25 +105,27 @@ export default function Divin8Chat() {
             isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-700" : "text-white/50 hover:bg-white/10 hover:text-white/80",
           )}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label={t("divin8.tools.guide")} role="img">
             <path d="M4 19.5v-15A2.5 2.5 0 016.5 2H20v20H6.5a2.5 2.5 0 010-5H20" />
           </svg>
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveTool("timeline")}
-          title={t("divin8.tools.timeline")}
-          aria-label={t("divin8.tools.timeline")}
-          className={classNames(
-            "flex h-7 w-7 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70",
-            isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-700" : "text-white/50 hover:bg-white/10 hover:text-white/80",
-          )}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 3" />
-          </svg>
-        </button>
+        {tier === "initiate" ? (
+          <button
+            type="button"
+            onClick={() => setActiveTool("timeline")}
+            title={t("divin8.tools.timeline")}
+            aria-label={t("divin8.tools.timeline")}
+            className={classNames(
+              "flex h-7 w-7 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70",
+              isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-700" : "text-white/50 hover:bg-white/10 hover:text-white/80",
+            )}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label={t("divin8.tools.timeline")} role="img">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+          </button>
+        ) : null}
         <div className="relative">
           <button
             type="button"
@@ -141,12 +143,12 @@ export default function Divin8Chat() {
             )}
           >
             {chat.isExporting ? (
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-label={t("divin8.window.exporting")} role="img">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
                 <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label={t("divin8.tools.export")} role="img">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
             )}
@@ -191,7 +193,7 @@ export default function Divin8Chat() {
             isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-700" : "text-white/50 hover:bg-white/10 hover:text-white/80",
           )}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-label={t("divin8.tools.debug")} role="img">
             <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
           </svg>
         </button>
@@ -241,6 +243,9 @@ export default function Divin8Chat() {
         language: settings.language,
       }}
       isLightTheme={isLightTheme}
+      capabilities={{
+        showTimelineReading: tier === "initiate",
+      }}
       headerActions={headerActions}
       toolModals={toolModals}
       speech={{

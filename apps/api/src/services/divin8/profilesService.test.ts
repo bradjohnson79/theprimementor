@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Database } from "@wisdom/db";
-import { validateDivin8ChatRequest } from "./chatService.js";
+import { validateDivin8ChatRequest, validateDivin8MemberMessageRequest } from "./chatService.js";
 import {
   createDivin8Profile,
   deleteDivin8Profile,
@@ -203,4 +203,81 @@ test("validateDivin8ChatRequest rejects more than two explicit profile tags", ()
     }),
     /maximum of 2 profiles/i,
   );
+});
+
+test("validateDivin8ChatRequest accepts a structured timeline payload", () => {
+  const request = validateDivin8ChatRequest({
+    message: "@JohnSmith #April1-30-2026",
+    tier: "initiate",
+    profile_tags: ["@JohnSmith"],
+    timeline: {
+      tag: "#April1-30-2026",
+      system: "vedic",
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+    },
+  });
+
+  assert.deepEqual(request.timeline, {
+    tag: "#April1-30-2026",
+    system: "vedic",
+    startDate: "2026-04-01",
+    endDate: "2026-04-30",
+  });
+});
+
+test("validateDivin8ChatRequest rejects multiple timeline tags", () => {
+  assert.throws(
+    () => validateDivin8ChatRequest({
+      message: "#April1-10-2026 #April11-20-2026",
+      tier: "initiate",
+      timeline: {
+        tag: "#April1-10-2026",
+        system: "vedic",
+        startDate: "2026-04-01",
+        endDate: "2026-04-10",
+      },
+    }),
+    /only one timeline range/i,
+  );
+});
+
+test("validateDivin8ChatRequest rejects timeline tags without structured payload", () => {
+  assert.throws(
+    () => validateDivin8ChatRequest({
+      message: "#April1-30-2026 global forecast",
+      tier: "initiate",
+    }),
+    /calendar selector/i,
+  );
+});
+
+test("validateDivin8ChatRequest rejects seeker timeline access", () => {
+  assert.throws(
+    () => validateDivin8ChatRequest({
+      message: "#April1-30-2026",
+      tier: "seeker",
+      timeline: {
+        tag: "#April1-30-2026",
+        system: "western",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+      },
+    }),
+    /Initiate members only/i,
+  );
+});
+
+test("validateDivin8MemberMessageRequest allows timeline-only global readings", () => {
+  const request = validateDivin8MemberMessageRequest({
+    message: "#April1-30-2026 global forecast",
+    timeline: {
+      tag: "#April1-30-2026",
+      system: "vedic",
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+    },
+  });
+
+  assert.equal(request.timeline?.tag, "#April1-30-2026");
 });

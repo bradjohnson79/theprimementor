@@ -29,6 +29,7 @@ export * from "./memberPricing.js";
 export * from "./mentorTraining.js";
 export * from "./divin8Conversation.js";
 export * from "./divin8Profiles.js";
+export * from "./divin8Timeline.js";
 export * from "./languages.js";
 export * from "./systemSynonyms.js";
 export * from "./seo.js";

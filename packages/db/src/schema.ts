@@ -679,6 +679,27 @@ export const conversationTimelineEvents = pgTable("conversation_timeline_events"
   typeCreatedIdx: index("conversation_timeline_events_type_created_idx").on(table.type, table.created_at),
 }));
 
+export const conversationMemories = pgTable("conversation_memories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversation_id: uuid("conversation_id")
+    .references(() => conversationThreads.id, { onDelete: "cascade" })
+    .notNull(),
+  user_id: text("user_id").notNull(),
+  type: text("type").notNull(),
+  content: text("content").notNull(),
+  relevance_score: doublePrecision("relevance_score").default(0.5).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}, (table) => ({
+  conversationCreatedIdx: index("conversation_memories_conversation_created_idx").on(table.conversation_id, table.created_at),
+  userCreatedIdx: index("conversation_memories_user_created_idx").on(table.user_id, table.created_at),
+  userTypeCreatedIdx: index("conversation_memories_user_type_created_idx").on(table.user_id, table.type, table.created_at),
+  conversationTypeContentUnique: uniqueIndex("conversation_memories_conversation_type_content_uidx")
+    .on(table.conversation_id, table.type, table.content),
+}));
+
 export const reportTierOutputs = pgTable(
   "report_tier_outputs",
   {

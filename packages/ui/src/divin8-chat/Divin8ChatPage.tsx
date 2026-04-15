@@ -5,6 +5,7 @@ import ChatWindow from "./ChatWindow";
 import ConversationList from "./ConversationList";
 import Divin8ChatShell from "./Divin8ChatShell";
 import Divin8ProfileModal from "./Divin8ProfileModal";
+import Divin8TimelineModal from "./Divin8TimelineModal";
 import type { Divin8Capabilities } from "./capabilities";
 import { classNames } from "./utils";
 import { useDivin8Chat, type UseDivin8ChatConfig, type UseDivin8ChatReturn } from "./useDivin8Chat";
@@ -46,6 +47,7 @@ export default function Divin8ChatPage({
   const mergedCapabilities: Divin8Capabilities = {
     showDebug: true,
     showTimeline: true,
+    showTimelineReading: true,
     showExport: true,
     showRegenerate: true,
     showTierToggle: true,
@@ -115,15 +117,18 @@ export default function Divin8ChatPage({
                 imageName={chat.imageName}
                 imagePreviewUrl={chat.imagePreviewUrl}
                 imageError={chat.imageError || speech?.error || null}
-                disabled={chat.isGenerating || !!chat.blockMessage || !!chat.profileLimitMessage || chat.isLoadingThread || chat.isBootstrapping}
+                disabled={chat.isGenerating || !!chat.blockMessage || !!chat.profileLimitMessage || !!chat.timelineLimitMessage || chat.isLoadingThread || chat.isBootstrapping}
                 isSpeechSupported={speech?.isSupported ?? false}
                 speechStatus={speech?.status ?? "disabled"}
                 speechButtonTitle={speech?.buttonTitle ?? "Speech unavailable"}
                 onToggleSpeech={speech?.toggle ?? (() => {})}
+                onOpenTimeline={chat.handleOpenTimelineModal}
                 isUploadingImage={chat.isUploadingImage}
                 isLightTheme={isLightTheme}
-                blockMessage={chat.blockMessage ?? chat.profileLimitMessage}
+                blockMessage={chat.blockMessage ?? chat.profileLimitMessage ?? chat.timelineLimitMessage ?? chat.timelineError}
                 submitError={chat.sendError}
+                activeTimeline={chat.activeTimeline}
+                showTimelineButton={mergedCapabilities.showTimelineReading}
                 inputRef={chat.composerInputRef}
               />
             }
@@ -152,7 +157,7 @@ export default function Divin8ChatPage({
           >
             <h3 className="text-base font-semibold">Delete conversation?</h3>
             <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-600" : "text-white/65")}>
-              This will archive the conversation from your dashboard.
+              This permanently deletes the conversation and its stored recall.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -191,6 +196,14 @@ export default function Divin8ChatPage({
         onSave={chat.handleCreateProfile}
         isSaving={chat.isSavingProfile}
         errorMessage={chat.profileError}
+      />
+
+      <Divin8TimelineModal
+        open={chat.isTimelineModalOpen}
+        isLightTheme={isLightTheme}
+        onClose={chat.handleCloseTimelineModal}
+        onGenerate={chat.handleGenerateTimeline}
+        errorMessage={chat.timelineError}
       />
 
       {toolModals?.(chat, mergedCapabilities)}

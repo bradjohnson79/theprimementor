@@ -1,3 +1,5 @@
+import type { Divin8TimelineRequest } from "@wisdom/utils";
+
 export type Divin8ChatTier = "seeker" | "initiate";
 
 export interface Divin8RetryPayload {
@@ -6,6 +8,7 @@ export interface Divin8RetryPayload {
   imageName: string | null;
   imagePreviewUrl: string | null;
   profileTags: string[];
+  timeline: Divin8TimelineRequest | null;
   tier: Divin8ChatTier;
   language: string;
   requestId: string;
@@ -78,6 +81,8 @@ export interface Divin8Profile {
   timezone: string;
   createdAt: string;
 }
+
+export interface Divin8TimelineDraft extends Divin8TimelineRequest {}
 
 export interface Divin8TimelineEvent {
   id: string;

@@ -109,6 +109,7 @@ export const PLANET_IDS = {
   URANUS: swe.SE_URANUS as number,
   NEPTUNE: swe.SE_NEPTUNE as number,
   PLUTO: swe.SE_PLUTO as number,
+  NORTH_NODE: swe.SE_MEAN_NODE as number,
 };
 
 const ZODIAC_SIGNS = [
@@ -174,6 +175,33 @@ export function getPlanetPosition(
       },
     );
   });
+}
+
+export function getPlanetPositionWithSpeed(
+  julianDay: number,
+  planetConstant: number,
+): Promise<{ longitude: number; speed: number }> {
+  assertSwissEphemerisReady();
+  return new Promise((resolve, reject) => {
+    swe.swe_calc_ut(
+      julianDay,
+      planetConstant,
+      SEFLG_SWIEPH | (swe.SEFLG_SPEED as number),
+      (result: RawCalcResult) => {
+        if (result.error) {
+          reject(new Error(`Swiss Ephemeris error (planet ${planetConstant}): ${result.error}`));
+          return;
+        }
+        resolve({ longitude: result.longitude, speed: result.longitudeSpeed });
+      },
+    );
+  });
+}
+
+export function getAyanamsaUt(julianDay: number) {
+  assertSwissEphemerisReady();
+  swe.swe_set_sid_mode(swe.SE_SIDM_LAHIRI as number, 0, 0);
+  return swe.swe_get_ayanamsa_ut(julianDay) as number;
 }
 
 // ---------------------------------------------------------------------------

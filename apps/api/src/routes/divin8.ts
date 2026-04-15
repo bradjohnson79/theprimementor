@@ -20,8 +20,8 @@ import {
 } from "../services/divin8/promptStore.js";
 import {
   addMessageToConversation,
-  archiveConversationThread,
   createConversationThread,
+  deleteConversationThread,
   exportConversation,
   getConversationDetail,
   getConversationTimeline,
@@ -34,6 +34,7 @@ async function ensureMemberDivin8Access(app: FastifyInstance, userId: string) {
   if (!memberAccess) {
     throw createHttpError(403, "An active subscription is required to access Divin8 chat");
   }
+  return memberAccess;
 }
 
 export async function divin8Routes(app: FastifyInstance) {
@@ -173,7 +174,7 @@ export async function divin8Routes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>("/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
-    return ok(await archiveConversationThread(app.db, request.params.id));
+    return ok(await deleteConversationThread(app.db, request.params.id));
   });
 
   app.post("/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
@@ -260,8 +261,11 @@ export async function divin8Routes(app: FastifyInstance) {
     "/member/divin8/conversations/:id/message",
     { preHandler: requireAuth },
     async (request) => {
-      await ensureMemberDivin8Access(app, request.dbUser!.id);
+      const memberAccess = await ensureMemberDivin8Access(app, request.dbUser!.id);
       const payload = validateDivin8MemberMessageRequest(request.body);
+      if (memberAccess.tier !== "initiate" && payload.timeline) {
+        throw createHttpError(403, "Timeline readings are available for Initiate members only.");
+      }
       return ok(await addMessageToConversation(
         app,
         request.params.id,
@@ -269,6 +273,7 @@ export async function divin8Routes(app: FastifyInstance) {
           message: payload.message,
           image_ref: payload.image_ref,
           profile_tags: payload.profile_tags,
+          timeline: payload.timeline,
           language: payload.language,
           debugAudit: payload.debugAudit,
           // Server resolves final tier from entitlement snapshot.
@@ -285,7 +290,7 @@ export async function divin8Routes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>("/member/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return ok(await archiveConversationThread(app.db, request.params.id, request.dbUser!.id));
+    return ok(await deleteConversationThread(app.db, request.params.id, request.dbUser!.id));
   });
 
   app.post("/member/divin8/export", { preHandler: requireAuth }, async (request, reply) => {

@@ -37,7 +37,9 @@ interface Divin8ProfileModalProps {
 interface FormState {
   fullName: string;
   birthDate: string;
-  birthTime: string;
+  birthHour: string;
+  birthMinute: string;
+  birthPeriod: "AM" | "PM" | "";
   birthPlace: string;
   lat: number | null;
   lng: number | null;
@@ -47,24 +49,35 @@ interface FormState {
 const INITIAL_FORM: FormState = {
   fullName: "",
   birthDate: "",
-  birthTime: "",
+  birthHour: "",
+  birthMinute: "",
+  birthPeriod: "",
   birthPlace: "",
   lat: null,
   lng: null,
   timezone: "",
 };
 
-const TIME_OPTIONS = Array.from({ length: 24 * 60 }, (_, minuteOfDay) => {
-  const hour24 = Math.floor(minuteOfDay / 60);
-  const minute = minuteOfDay % 60;
-  const value = `${hour24.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-  const hour12 = hour24 % 12 || 12;
-  const meridiem = hour24 >= 12 ? "PM" : "AM";
-  return {
-    value,
-    label: `${hour12.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")} ${meridiem}`,
-  };
-});
+function buildBirthTime(hour: string, minute: string, period: "AM" | "PM" | "") {
+  if (!hour || !minute || !period) {
+    return "";
+  }
+  return `${hour}:${minute} ${period}`;
+}
+
+function isValidBirthTimeParts(hour: string, minute: string, period: "AM" | "PM" | "") {
+  const parsedHour = Number(hour);
+  const parsedMinute = Number(minute);
+  return Boolean(
+    period
+    && Number.isInteger(parsedHour)
+    && Number.isInteger(parsedMinute)
+    && parsedHour >= 1
+    && parsedHour <= 12
+    && parsedMinute >= 0
+    && parsedMinute <= 59,
+  );
+}
 
 function FieldLabel({ children, isLightTheme }: { children: string; isLightTheme: boolean }) {
   return (
@@ -148,7 +161,7 @@ export default function Divin8ProfileModal({
   const canSubmit = useMemo(() => Boolean(
     form.fullName.trim()
     && form.birthDate
-    && form.birthTime
+    && isValidBirthTimeParts(form.birthHour, form.birthMinute, form.birthPeriod)
     && form.birthPlace.trim()
     && form.lat !== null
     && form.lng !== null
@@ -187,6 +200,10 @@ export default function Divin8ProfileModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isValidBirthTimeParts(form.birthHour, form.birthMinute, form.birthPeriod)) {
+      setValidationError("Birth time must be entered as hour, minute, and AM or PM.");
+      return;
+    }
     if (!canSubmit || form.lat === null || form.lng === null) {
       setValidationError("All profile fields are required, including a valid birthplace selection.");
       return;
@@ -197,7 +214,7 @@ export default function Divin8ProfileModal({
       await onSave({
         fullName: form.fullName.trim(),
         birthDate: form.birthDate,
-        birthTime: form.birthTime,
+        birthTime: buildBirthTime(form.birthHour, form.birthMinute, form.birthPeriod),
         birthPlace: form.birthPlace.trim(),
         lat: form.lat,
         lng: form.lng,
@@ -280,19 +297,54 @@ export default function Divin8ProfileModal({
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <FieldLabel isLightTheme={isLightTheme}>Birth Time</FieldLabel>
-              <select
-                value={form.birthTime}
-                onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
-                className={fieldClassName}
-                required
-              >
-                <option value="">Select a birth time</option>
-                {TIME_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-[1fr_1fr_1.1fr] gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  inputMode="numeric"
+                  value={form.birthHour}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    birthHour: event.target.value.slice(0, 2),
+                  }))}
+                  className={fieldClassName}
+                  placeholder="HH"
+                  required
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  inputMode="numeric"
+                  value={form.birthMinute}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    birthMinute: event.target.value.slice(0, 2),
+                  }))}
+                  className={fieldClassName}
+                  placeholder="MM"
+                  required
+                />
+                <select
+                  value={form.birthPeriod}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    birthPeriod: event.target.value === "AM" || event.target.value === "PM"
+                      ? event.target.value
+                      : "",
+                  }))}
+                  className={fieldClassName}
+                  required
+                >
+                  <option value="">AM/PM</option>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+              <span className={classNames("mt-2 block text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
+                Enter birth time as hour, minute, and AM/PM.
+              </span>
             </label>
 
             <label className="block">

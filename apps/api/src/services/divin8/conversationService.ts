@@ -32,6 +32,7 @@ import {
   createPendingExecutionArtifacts,
   resolveThreadExecutionDecision,
 } from "./conversationExecutionState.js";
+import { persistDivin8Memories } from "./memoryService.js";
 
 const ADMIN_DIVIN8_USER_ID = "admin";
 const DEFAULT_THREAD_TITLE = "New Conversation";
@@ -903,34 +904,23 @@ export async function searchConversationThreads(
   };
 }
 
-export async function archiveConversationThread(
+export async function deleteConversationThread(
   db: Database,
   threadId: string,
   userId = ADMIN_DIVIN8_USER_ID,
 ) {
-  await getThreadRow(db, threadId, userId);
-
-  const archivedAt = new Date();
-  const [archived] = await db
-    .update(conversationThreads)
-    .set({
-      is_archived: true,
-      updated_at: archivedAt,
-    })
+  const thread = await getThreadRow(db, threadId, userId);
+  await db
+    .delete(conversationThreads)
     .where(and(
       eq(conversationThreads.id, threadId),
       eq(conversationThreads.user_id, userId),
       eq(conversationThreads.is_archived, false),
-    ))
-    .returning();
-
-  if (!archived) {
-    throw createHttpError(404, "Conversation not found");
-  }
+    ));
 
   return {
-    id: archived.id,
-    archived: true as const,
+    id: thread.id,
+    deleted: true as const,
   };
 }
 
@@ -1034,6 +1024,7 @@ export async function addMessageToConversation(
       language: request.language,
       imageRef: request.image_ref,
       profileTags: request.profile_tags,
+      timeline: request.timeline,
       history: [
         ...history,
         { role: "user" as const, content: request.message },
@@ -1075,6 +1066,11 @@ export async function addMessageToConversation(
       nextSearchText,
       savedAt,
       storedState: orchestration.storedState,
+    });
+    await persistDivin8Memories(db, {
+      conversationId: threadId,
+      userId,
+      candidates: orchestration.memoryCandidates,
     });
     const finalizedPendingMessage = claimed.pendingMessage;
     const finalizedThread = claimed.thread;
