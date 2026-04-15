@@ -1,6 +1,11 @@
 export type SessionType = "focus" | "mentoring" | "regeneration";
 export type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
 export type AvailabilitySelection = Record<AvailabilityDay, string[]>;
+export type HealthCondition = {
+  name: string;
+  severity: number;
+};
+export const MAX_HEALTH_FOCUS_AREAS = 5;
 
 export const SESSION_TYPE_ORDER: SessionType[] = [
   "regeneration",
@@ -37,7 +42,7 @@ export const SESSION_TYPE_OPTIONS: Array<{
   {
     type: "regeneration",
     label: "Regeneration Session",
-    description: "An offline regeneration request that still begins with your submitted availability windows.",
+    description: "An offline regeneration request shaped by the areas you want addressed most deeply.",
   },
   {
     type: "focus",
@@ -81,6 +86,6 @@ export function createEmptyAvailabilitySelection(): AvailabilitySelection {
   };
 }
 
-export function sessionTypeRequiresSchedule(_sessionType: SessionType) {
-  return true;
+export function sessionTypeRequiresSchedule(sessionType: SessionType) {
+  return sessionType === "focus" || sessionType === "mentoring";
 }

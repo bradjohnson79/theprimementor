@@ -15,6 +15,7 @@ import {
   AVAILABILITY_DAY_LABELS,
   AVAILABILITY_SLOTS,
   FOCUS_TOPICS,
+  MAX_HEALTH_FOCUS_AREAS,
   MENTORING_GOALS,
   SESSION_TYPE_OPTIONS,
   SESSION_TYPE_ORDER,
@@ -22,6 +23,7 @@ import {
   sessionTypeRequiresSchedule,
   type AvailabilityDay,
   type AvailabilitySelection,
+  type HealthCondition,
   type SessionType,
 } from "./bookings.constants";
 
@@ -56,9 +58,14 @@ interface IntakeFormState {
   birthPlace: string;
   additionalNotes: string;
   focusTopics: string[];
+  healthFocusAreas: Array<{ name: string; severity: string }>;
   mentoringGoal: string;
   otherDetail: string;
   consentGiven: boolean;
+}
+
+function createEmptyHealthFocusAreas() {
+  return Array.from({ length: MAX_HEALTH_FOCUS_AREAS }, () => ({ name: "", severity: "" }));
 }
 
 function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormState {
@@ -71,6 +78,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     birthPlace: "",
     additionalNotes: "",
     focusTopics: [],
+    healthFocusAreas: createEmptyHealthFocusAreas(),
     mentoringGoal: "",
     otherDetail: "",
     consentGiven: false,
@@ -141,6 +149,22 @@ function hasSelectedAvailability(selection: AvailabilitySelection) {
   return countSelectedAvailability(selection) > 0;
 }
 
+function normalizeHealthFocusAreas(
+  areas: IntakeFormState["healthFocusAreas"],
+): HealthCondition[] {
+  return areas
+    .map((area) => ({
+      name: normalizeText(area.name),
+      severity: Number(area.severity),
+    }))
+    .filter((area) => area.name)
+    .map((area) => ({
+      name: area.name,
+      severity: area.severity,
+    }))
+    .filter((area) => Number.isInteger(area.severity));
+}
+
 export default function Bookings() {
   const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
@@ -203,6 +227,8 @@ export default function Bookings() {
   );
 
   const requiresSchedule = selectedSessionType ? sessionTypeRequiresSchedule(selectedSessionType) : false;
+  const isRegeneration = selectedSessionType === "regeneration";
+  const isLiveSession = selectedSessionType === "focus" || selectedSessionType === "mentoring";
   const canShowIntake = Boolean(selectedSessionType);
   const suggestedTimezone = useMemo(
     () =>
@@ -307,6 +333,7 @@ export default function Bookings() {
       const next = { ...current };
       delete next.availability;
       delete next.focusTopics;
+      delete next.healthFocusAreas;
       delete next.mentoringGoal;
       delete next.otherDetail;
       return next;
@@ -314,6 +341,7 @@ export default function Bookings() {
     setForm((current) => ({
       ...current,
       focusTopics: [],
+      healthFocusAreas: createEmptyHealthFocusAreas(),
       mentoringGoal: "",
       otherDetail: "",
     }));
@@ -370,6 +398,20 @@ export default function Bookings() {
     });
   }
 
+  function updateHealthCondition(index: number, patch: Partial<IntakeFormState["healthFocusAreas"][number]>) {
+    setForm((current) => ({
+      ...current,
+      healthFocusAreas: current.healthFocusAreas.map((area, currentIndex) => (
+        currentIndex === index ? { ...area, ...patch } : area
+      )),
+    }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.healthFocusAreas;
+      return next;
+    });
+  }
+
   function validateForm() {
     const nextErrors: Record<string, string> = {};
 
@@ -401,6 +443,18 @@ export default function Bookings() {
       nextErrors.mentoringGoal = "Choose a goal.";
     }
 
+    if (selectedSessionType === "regeneration") {
+      const namedAreas = form.healthFocusAreas.filter((area) => normalizeText(area.name));
+      if (namedAreas.length === 0) {
+        nextErrors.healthFocusAreas = "Please enter at least one health focus area.";
+      } else if (namedAreas.some((area) => {
+        const severity = Number(area.severity);
+        return !Number.isInteger(severity) || severity < 1 || severity > 10;
+      })) {
+        nextErrors.healthFocusAreas = "Each health focus area needs a severity from 1 to 10.";
+      }
+    }
+
     const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
       || (selectedSessionType === "mentoring" && form.mentoringGoal === "Other");
     if (needsOtherDetail && !normalizeText(form.otherDetail)) {
@@ -422,6 +476,10 @@ export default function Bookings() {
 
     if (selectedSessionType === "mentoring") {
       intake.goals = form.mentoringGoal ? [form.mentoringGoal] : undefined;
+    }
+
+    if (selectedSessionType === "regeneration") {
+      intake.healthFocusAreas = normalizeHealthFocusAreas(form.healthFocusAreas);
     }
 
     if (normalizeText(form.otherDetail)) {
@@ -515,7 +573,7 @@ export default function Bookings() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-white">Sessions</h1>
         <p className="max-w-2xl text-white/60">
-          Choose your session type, share your availability if needed, and complete the intake when you are ready.
+          Choose your session type, complete the intake that fits it, and submit when you are ready.
         </p>
       </div>
 
@@ -579,96 +637,85 @@ export default function Bookings() {
         {fieldErrors.sessionType ? <p className="mt-3 text-sm text-red-300">{fieldErrors.sessionType}</p> : null}
       </section>
 
-      {selectedSessionType ? (
+      {selectedSessionType && isLiveSession ? (
         <section className="glass-card cosmic-motion mt-6 rounded-2xl p-5 sm:p-6">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">
-              {requiresSchedule ? "2. Availability" : "2. Intake"}
+              2. Availability
             </h2>
-            {requiresSchedule ? (
-              <p className="mt-2 text-sm text-white/60">
-                Share your general availability in <span className="font-medium text-white">{timezone}</span>. Your
-                final session time will be personally scheduled from the times you select below.
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-white/60">
-                Mentoring Circle registrations do not require availability windows. Complete the intake below and your
-                webinar access details will follow the standard confirmation flow.
-              </p>
-            )}
+            <p className="mt-2 text-sm text-white/60">
+              Share your general availability in <span className="font-medium text-white">{timezone}</span>. Your
+              final session time will be personally scheduled from the times you select below.
+            </p>
           </div>
 
-          {requiresSchedule ? (
-            <>
-              <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-white/85">
-                <p>Please select your availability below.</p>
-                <p className="mt-2 text-white/65">
-                  This does not confirm a specific booking time. Your session will be personally scheduled based on your
-                  submitted availability, and you will receive a confirmation with your finalized session time.
-                </p>
-              </div>
+          <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-white/85">
+            <p>Please select your availability below.</p>
+            <p className="mt-2 text-white/65">
+              This does not confirm a specific booking time. Your session will be personally scheduled based on your
+              submitted availability, and you will receive a confirmation with your finalized session time.
+            </p>
+          </div>
 
-              <div className="mt-6 space-y-5">
-                {AVAILABILITY_DAYS.map((day) => (
-                  <div key={day} className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-white/55">
-                        {AVAILABILITY_DAY_LABELS[day]}
-                      </h3>
-                      {availabilitySelection[day].length > 0 ? (
-                        <span className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-3 py-1 text-xs text-accent-cyan">
-                          {availabilitySelection[day].length} selected
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {AVAILABILITY_SLOTS[day].map((time) => {
-                        const active = availabilitySelection[day].includes(time);
-                        return (
-                          <button
-                            key={`${day}-${time}`}
-                            type="button"
-                            onClick={() => toggleAvailability(day, time)}
-                            className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
-                              active
-                                ? "border-accent-cyan/60 bg-accent-cyan/10 text-white shadow-[0_0_20px_rgba(6,182,212,0.08)]"
-                                : "border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white"
-                            }`}
-                          >
-                            <span className="font-medium">{formatAvailabilityTime(time)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+          <div className="mt-6 space-y-5">
+            {AVAILABILITY_DAYS.map((day) => (
+              <div key={day} className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white/55">
+                    {AVAILABILITY_DAY_LABELS[day]}
+                  </h3>
+                  {availabilitySelection[day].length > 0 ? (
+                    <span className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-3 py-1 text-xs text-accent-cyan">
+                      {availabilitySelection[day].length} selected
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {AVAILABILITY_SLOTS[day].map((time) => {
+                    const active = availabilitySelection[day].includes(time);
+                    return (
+                      <button
+                        key={`${day}-${time}`}
+                        type="button"
+                        onClick={() => toggleAvailability(day, time)}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                          active
+                            ? "border-accent-cyan/60 bg-accent-cyan/10 text-white shadow-[0_0_20px_rgba(6,182,212,0.08)]"
+                            : "border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white"
+                        }`}
+                      >
+                        <span className="font-medium">{formatAvailabilityTime(time)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {fieldErrors.availability ? <p className="mt-4 text-sm text-red-300">{fieldErrors.availability}</p> : null}
+
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-wide text-white/40">Your Selected Availability</p>
+            {availabilitySummary.length > 0 ? (
+              <div className="mt-3 space-y-2 text-sm text-white/75">
+                {availabilitySummary.map((entry) => (
+                  <p key={entry.day}>
+                    <span className="font-medium text-white">{entry.label}:</span> {entry.times.join(", ")}
+                  </p>
                 ))}
               </div>
-
-              {fieldErrors.availability ? <p className="mt-4 text-sm text-red-300">{fieldErrors.availability}</p> : null}
-
-              <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-wide text-white/40">Your Selected Availability</p>
-                {availabilitySummary.length > 0 ? (
-                  <div className="mt-3 space-y-2 text-sm text-white/75">
-                    {availabilitySummary.map((entry) => (
-                      <p key={entry.day}>
-                        <span className="font-medium text-white">{entry.label}:</span> {entry.times.join(", ")}
-                      </p>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-white/50">No availability selected yet.</p>
-                )}
-              </div>
-            </>
-          ) : null}
+            ) : (
+              <p className="mt-3 text-sm text-white/50">No availability selected yet.</p>
+            )}
+          </div>
         </section>
       ) : null}
 
       {canShowIntake ? (
         <section className="glass-card cosmic-motion mt-6 rounded-2xl p-5 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">
-            {requiresSchedule ? "3. Intake Form" : "2. Intake Form"}
+            {isLiveSession ? "3. Intake Form" : "2. Intake Form"}
           </h2>
           <p className="mt-2 text-sm text-white/60">
             Share the details we need before the session. Required fields must be completed before submission.
@@ -874,6 +921,43 @@ export default function Bookings() {
               </label>
             ) : null}
 
+            {isRegeneration ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-sm font-semibold text-white">Health Focus Areas</h3>
+                <p className="mt-2 text-sm text-white/60">
+                  Focus on physical, emotional, or energetic areas you want addressed.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {form.healthFocusAreas.map((area, index) => (
+                    <div key={`health-focus-${index + 1}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                      <input
+                        className={fieldClassName}
+                        type="text"
+                        value={area.name}
+                        onChange={(event) => updateHealthCondition(index, { name: event.target.value })}
+                        placeholder={`Condition ${index + 1}`}
+                      />
+                      <select
+                        className={`${fieldClassName} cursor-pointer`}
+                        value={area.severity}
+                        onChange={(event) => updateHealthCondition(index, { severity: event.target.value })}
+                      >
+                        <option value="" className="bg-slate-950">Severity</option>
+                        {Array.from({ length: 10 }, (_, severityIndex) => severityIndex + 1).map((severity) => (
+                          <option key={severity} value={severity} className="bg-slate-950">
+                            {severity}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                {fieldErrors.healthFocusAreas ? (
+                  <p className="mt-3 text-sm text-red-300">{fieldErrors.healthFocusAreas}</p>
+                ) : null}
+              </div>
+            ) : null}
+
             {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))
               || (selectedSessionType === "mentoring" && form.mentoringGoal === "Other")) ? (
                 <label className={labelClassName}>
@@ -918,7 +1002,9 @@ export default function Bookings() {
 
       {canShowIntake ? (
         <section className="glass-card cosmic-motion mt-6 rounded-2xl p-5 sm:p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">4. Purchase</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">
+            {isLiveSession ? "4. Purchase" : "3. Purchase"}
+          </h2>
           <p className="mt-2 text-sm text-white/60">
             Complete your booking by confirming payment.
           </p>

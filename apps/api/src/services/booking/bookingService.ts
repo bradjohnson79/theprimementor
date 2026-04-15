@@ -29,6 +29,7 @@ import {
   FOCUS_TOPICS,
   MENTORING_GOALS,
   createEmptyBookingAvailability,
+  type BookingHealthFocusArea,
   isBookingSessionType,
   type BookingAvailability,
   type BookingAvailabilityDay,
@@ -339,6 +340,45 @@ function normalizeStringArray(value: unknown): string[] {
     .filter((item) => Boolean(item));
 }
 
+export function normalizeHealthFocusAreas(
+  value: unknown,
+  options: { requireAtLeastOne: boolean },
+): BookingHealthFocusArea[] {
+  if (value == null) {
+    if (options.requireAtLeastOne) {
+      throw createHttpError(400, "Please enter at least one health focus area.");
+    }
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw createHttpError(400, "healthFocusAreas must be an array");
+  }
+
+  const normalized = value
+    .slice(0, 5)
+    .flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return [];
+      }
+      const row = item as Record<string, unknown>;
+      const name = normalizeText(row.name);
+      if (!name) {
+        return [];
+      }
+      const severity = typeof row.severity === "number" ? row.severity : Number(row.severity);
+      if (!Number.isInteger(severity) || severity < 1 || severity > 10) {
+        throw createHttpError(400, "Health focus severity must be between 1 and 10.");
+      }
+      return [{ name, severity }];
+    });
+
+  if (options.requireAtLeastOne && normalized.length === 0) {
+    throw createHttpError(400, "Please enter at least one health focus area.");
+  }
+
+  return normalized;
+}
+
 function normalizeBookingAvailability(
   value: unknown,
   options: { requireSelection: boolean },
@@ -404,9 +444,11 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   const goals = normalizeStringArray(raw.goals);
   const other = normalizeText(raw.other);
   const notes = normalizeText(raw.notes);
+  const healthFocusAreas = normalizeHealthFocusAreas(raw.healthFocusAreas, { requireAtLeastOne: false });
 
   if (topics.length > 0) intake.topics = topics;
   if (goals.length > 0) intake.goals = goals;
+  if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
   if (other) intake.other = other;
   if (notes) intake.notes = notes;
 
@@ -583,6 +625,15 @@ function buildNormalizedIntake(
 
   if (sessionType === "regeneration" && other) {
     normalized.other = other;
+  }
+
+  if (sessionType === "regeneration") {
+    const healthFocusAreas = normalizeHealthFocusAreas(intake.healthFocusAreas, {
+      requireAtLeastOne: !allowAdminFallbacks,
+    });
+    if (healthFocusAreas.length > 0) {
+      normalized.healthFocusAreas = healthFocusAreas;
+    }
   }
 
   return {

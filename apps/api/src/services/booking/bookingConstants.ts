@@ -15,6 +15,10 @@ export const BOOKING_AVAILABILITY_SLOTS: Record<BookingAvailabilityDay, readonly
 };
 
 export type BookingAvailability = Record<BookingAvailabilityDay, string[]>;
+export interface BookingHealthFocusArea {
+  name: string;
+  severity: number;
+}
 
 export const FOCUS_TOPICS = [
   "Personal conflicts",
@@ -45,6 +49,7 @@ export interface BookingIntakePayload {
   type: BookingSessionType;
   topics?: string[];
   goals?: string[];
+  healthFocusAreas?: BookingHealthFocusArea[];
   other?: string;
   notes?: string;
 }
@@ -71,5 +76,5 @@ export function createEmptyBookingAvailability(): BookingAvailability {
 }
 
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
-  return sessionType !== "mentoring_circle";
+  return sessionType === "focus" || sessionType === "mentoring";
 }
