@@ -81,8 +81,8 @@ export default function GenerationTab({ clients, onInterpretationSuccess }: Gene
     setReportId(null);
 
     try {
-      if (!client.clientId) {
-        throw new Error("Client ID is required for blueprint generation");
+      if (!client.clientId && !client.email) {
+        throw new Error("Client identifier is required for blueprint generation");
       }
       const token = await getToken();
       const body: Record<string, unknown> = {

@@ -57,6 +57,6 @@ export function toClientOption(client: Pick<AdminClientSummary, "id" | "clientId
     full_birth_name: fullBirthName,
     email: client.email,
     label: `${fullBirthName} (${client.email})`,
-    value: authoritativeClientId,
+    value: authoritativeClientId || client.email,
   };
 }

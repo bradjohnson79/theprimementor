@@ -219,14 +219,14 @@ export async function generateBlueprint(
   let dbUserId: string | null = null;
 
   if (params.mode === "client") {
-    if (!params.clientId?.trim()) {
-      const error = new Error("Client ID is required for blueprint generation");
+    if (!params.clientId?.trim() && !params.email?.trim()) {
+      const error = new Error("Client ID or email is required for blueprint generation");
       (error as Error & { statusCode?: number }).statusCode = 400;
       throw error;
     }
 
     const client = await resolveBlueprintClient(
-      { clientId: params.clientId, email: params.email },
+      { clientId: params.clientId ?? "", email: params.email },
       {
         findByClientId: (clientId) => findBlueprintClientById(app, clientId),
         findByEmail: (email) => findBlueprintClientByEmail(app, email),

@@ -65,7 +65,7 @@ export default function MemberLayout() {
   ];
 
   return (
-    <div className="relative isolate flex min-h-screen bg-navy text-white">
+    <div className="relative isolate flex h-screen overflow-hidden bg-navy text-white">
       <CosmicBackground />
       <aside
         className={`sticky top-0 z-10 hidden h-screen shrink-0 flex-col border-r border-glass-border bg-navy-medium/80 backdrop-blur-md transition-[width] duration-300 md:flex ${
@@ -135,7 +135,7 @@ export default function MemberLayout() {
         )}
       </aside>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-20 border-b border-glass-border bg-navy/85 px-4 py-3 backdrop-blur-md md:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -161,7 +161,7 @@ export default function MemberLayout() {
             </div>
           </div>
         </header>
-        <main className="flex min-h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+        <main className="flex w-full min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
           <Outlet />
         </main>
       </div>

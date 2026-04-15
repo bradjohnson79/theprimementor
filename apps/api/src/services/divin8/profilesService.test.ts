@@ -194,6 +194,23 @@ test("resolveDivin8ProfilesForMessage returns ordered resolved profiles", async 
   assert.deepEqual(result.profiles.map((profile) => profile.tag), ["@JohnSmith", "@JaneDoe"]);
 });
 
+test("resolveDivin8ProfilesForMessage fails when userId does not match profile owner", async () => {
+  const db = createMockDb({ selectRows: [] });
+  await assert.rejects(
+    () => resolveDivin8ProfilesForMessage(db, "admin", "@BradJohnson give me a reading"),
+    /Unknown profile tag.*@BradJohnson/i,
+  );
+});
+
+test("resolveDivin8ProfilesForMessage succeeds when correct owner ID is used", async () => {
+  const db = createMockDb({
+    selectRows: [makeProfileRow({ tag: "@BradJohnson", full_name: "Brad Johnson" })],
+  });
+  const result = await resolveDivin8ProfilesForMessage(db, "user_clerk_real_id", "@BradJohnson give me a reading");
+  assert.equal(result.profiles.length, 1);
+  assert.equal(result.profiles[0]?.tag, "@BradJohnson");
+});
+
 test("validateDivin8ChatRequest rejects more than two explicit profile tags", () => {
   assert.throws(
     () => validateDivin8ChatRequest({

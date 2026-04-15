@@ -179,6 +179,10 @@ export async function getAdminClients(db: Database, query: AdminClientsQuery = {
     getOrdersGroupedByUser(db),
   ]);
 
+  if (!userRows.length) {
+    console.warn("CLIENT_LOAD_WARNING: No user rows found — check DB connection or query");
+  }
+
   return buildAdminClientsResult({
     userRows,
     clientRows,

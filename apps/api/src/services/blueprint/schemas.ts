@@ -61,8 +61,10 @@ export function validateGenerateRequest(body: unknown): {
 
   // Validate based on mode
   if (mode === "client") {
-    if (!clientId || typeof clientId !== "string") {
-      return { valid: false, error: "clientId (string) is required for client mode" };
+    const hasClientId = typeof clientId === "string" && clientId.trim().length > 0;
+    const hasEmail = typeof email === "string" && email.trim().length > 0;
+    if (!hasClientId && !hasEmail) {
+      return { valid: false, error: "clientId or email is required for client mode" };
     }
     if (email !== undefined && email !== null && (typeof email !== "string" || !email.trim())) {
       return { valid: false, error: "email must be a non-empty string when provided" };
@@ -191,7 +193,7 @@ export function validateGenerateRequest(body: unknown): {
     valid: true,
     mode,
     tier: validatedTier,
-    clientId: mode === "client" ? (clientId as string) : undefined,
+    clientId: mode === "client" && typeof clientId === "string" && clientId.trim() ? clientId.trim() : undefined,
     email: mode === "client" && typeof email === "string" && email.trim() ? email.trim().toLowerCase() : undefined,
     guest: guestOut,
     coordinates: validatedCoordinates,

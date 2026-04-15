@@ -347,6 +347,10 @@ export interface ProcessDivin8MessageParams {
   message: string;
   threadId: string;
   userId: string;
+  /** When the conversation owner differs from the profile owner (e.g. admin
+   *  threads stored under "admin" while profiles use the real Clerk user ID),
+   *  pass the actual profile owner here so profile resolution succeeds. */
+  profileOwnerId?: string;
   tier: Divin8ChatRequest["tier"];
   language?: LanguageCode;
   imageRef?: string;
@@ -1843,9 +1847,10 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     const memory = hydrateConversationMemory(params.storedState);
     const extracted = await extractDivin8Observations(params.message);
     const storedMemory = mergeConversationMemory(memory, extracted, params.language);
+    const profileLookupUserId = params.profileOwnerId ?? params.userId;
     const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
       params.app.db,
-      params.userId,
+      profileLookupUserId,
       params.message,
       params.profileTags,
     );

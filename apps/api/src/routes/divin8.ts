@@ -164,10 +164,11 @@ export async function divin8Routes(app: FastifyInstance) {
     "/divin8/conversations/:id/message",
     { preHandler: requireAuth },
     async (request) => {
-      requireAdmin(request);
+      const user = requireAdmin(request);
       const payload = validateDivin8ChatRequest(request.body);
       return ok(await addMessageToConversation(app, request.params.id, payload, undefined, {
         actorRole: "admin",
+        profileOwnerId: user.id,
       }));
     },
   );

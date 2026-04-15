@@ -752,6 +752,7 @@ function buildRequestId(explicitRequestId: string | undefined, threadId: string,
 interface AddMessageOptions {
   actorRole?: string;
   requestId?: string;
+  profileOwnerId?: string;
 }
 
 async function resolveAccessContext(
@@ -1021,6 +1022,7 @@ export async function addMessageToConversation(
       message: request.message,
       threadId,
       userId: claimed.thread.user_id,
+      profileOwnerId: options.profileOwnerId,
       tier: effectiveTier,
       language: request.language,
       imageRef: request.image_ref,

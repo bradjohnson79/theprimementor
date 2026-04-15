@@ -59,7 +59,7 @@ export default function BlueprintGeneratorForm({
   const isLocked = Boolean(tierDefinition);
   const requiresTimezone = useMemo(() => selectedSystems.includes("astrology"), [selectedSystems]);
   const clientOptions = useMemo(
-    () => clients.filter((client) => Boolean(client.clientId?.trim() && client.value.trim())),
+    () => clients.filter((client) => Boolean(client.value.trim())),
     [clients],
   );
 
@@ -71,8 +71,8 @@ export default function BlueprintGeneratorForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const selectedClient = clientOptions.find((client) => client.value === selectedClientId);
-    if (!selectedClient?.clientId) {
-      alert("Client ID is required for blueprint generation");
+    if (!selectedClient?.clientId && !selectedClient?.email) {
+      alert("A client identifier is required for blueprint generation");
       return;
     }
     if (requiresTimezone && !selectedTimezone) {
@@ -84,7 +84,7 @@ export default function BlueprintGeneratorForm({
       return;
     }
     onGenerate(
-      { clientId: selectedClient.clientId, email: selectedClient.email },
+      { clientId: selectedClient.clientId ?? "", email: selectedClient.email },
       selectedSystems,
       selectedTimezone,
       timezoneSource,
