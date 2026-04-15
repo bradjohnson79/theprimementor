@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { clients, reports, users } from "@wisdom/db";
 import {
   getReportTierDefinition,
@@ -175,10 +175,19 @@ async function findBlueprintClientByEmail(app: FastifyInstance, email: string): 
     })
     .from(clients)
     .innerJoin(users, eq(clients.user_id, users.id))
-    .where(eq(users.email, email))
+    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
     .orderBy(desc(clients.created_at))
     .limit(1);
   return client ?? null;
+}
+
+async function userExistsByEmail(app: FastifyInstance, email: string): Promise<boolean> {
+  const [row] = await app.db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
+    .limit(1);
+  return !!row;
 }
 
 export async function generateBlueprintFromRequest(
@@ -237,8 +246,13 @@ export async function generateBlueprint(
     );
 
     if (!client) {
-      const error = new Error("Client not found. Please reselect the client.");
-      (error as Error & { statusCode?: number }).statusCode = 404;
+      const lookupEmail = params.email?.trim().toLowerCase();
+      const userExists = lookupEmail ? await userExistsByEmail(app, lookupEmail) : false;
+      const message = userExists
+        ? "This client has no birth data on file. Please add their birth information under Clients, or use Guest Mode with their details."
+        : "Client not found. Please reselect the client.";
+      const error = new Error(message);
+      (error as Error & { statusCode?: number }).statusCode = userExists ? 400 : 404;
       throw error;
     }
 
