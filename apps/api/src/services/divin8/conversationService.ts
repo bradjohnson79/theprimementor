@@ -138,6 +138,7 @@ interface StoredConversationMessageMeta {
   systems_used?: unknown;
   pipeline_status?: unknown;
   route_type?: unknown;
+  time_context?: unknown;
   stages?: unknown;
   divin8?: unknown;
   telemetry?: unknown;
@@ -1045,6 +1046,7 @@ export async function addMessageToConversation(
       systems_used: response.systems_used,
       pipeline_status: response.meta.pipeline_status,
       route_type: response.meta.route_type,
+      time_context: response.meta.time_context,
       stages: response.meta.stages,
       divin8: response.meta.divin8,
       telemetry: response.meta.telemetry,

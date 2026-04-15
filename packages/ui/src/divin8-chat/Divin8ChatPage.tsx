@@ -105,6 +105,7 @@ export default function Divin8ChatPage({
             onViewportScroll={chat.handleViewportScroll}
             scrollViewportRef={chat.messageViewportRef}
             liveAnnouncement={chat.liveAnnouncement}
+            serverTimeContext={chat.debugMeta?.timeContext ?? null}
             headerActions={headerActions?.(chat, mergedCapabilities) ?? null}
             composer={
               <ChatComposer

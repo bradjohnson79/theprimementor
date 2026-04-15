@@ -122,10 +122,10 @@ export default function Divin8TimelineModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/60 p-6">
+    <div className="fixed inset-0 z-[200] isolate flex items-center justify-center bg-slate-950/60 p-6">
       <div
         className={classNames(
-          "w-full max-w-xl rounded-[28px] border p-6 shadow-2xl transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
+          "relative z-[201] w-full max-w-xl rounded-[28px] border p-6 shadow-2xl transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={{

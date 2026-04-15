@@ -2,6 +2,13 @@ import type { Divin8TimelineRequest } from "@wisdom/utils";
 
 export type Divin8ChatTier = "seeker" | "initiate";
 
+export interface Divin8ServerTimeContext {
+  currentDate: string;
+  currentTime: string;
+  currentDateTime: string;
+  timezone: string;
+}
+
 export interface Divin8RetryPayload {
   text: string;
   imageRef: string | null;
@@ -24,6 +31,7 @@ export interface Divin8ChatMeta {
   routeConfidence?: number;
   routeStrict?: boolean;
   systemDecision?: string;
+  timeContext?: Divin8ServerTimeContext;
   stages?: {
     inputReceived: boolean;
     routed: "ASTROLOGY" | "GENERAL";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode, type RefObject, type UIEvent } from "react";
 import MessageThread from "./MessageThread";
-import type { Divin8ChatMessage } from "./types";
+import type { Divin8ChatMessage, Divin8ServerTimeContext } from "./types";
 import { classNames, darkChatStyles, visuallyHiddenStyle } from "./utils";
 
 interface ChatWindowProps {
@@ -19,6 +19,33 @@ interface ChatWindowProps {
   composer: ReactNode;
   liveAnnouncement: string;
   headerActions?: ReactNode;
+  serverTimeContext?: Divin8ServerTimeContext | null;
+}
+
+function formatServerTime(context: Divin8ServerTimeContext) {
+  const date = new Date(context.currentDateTime);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      dayLabel: context.currentDate,
+      timeLabel: context.currentTime,
+      zoneLabel: context.timezone,
+    };
+  }
+  return {
+    dayLabel: new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: context.timezone,
+    }).format(date),
+    timeLabel: new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: context.timezone,
+    }).format(date),
+    zoneLabel: context.timezone.replaceAll("_", " "),
+  };
 }
 
 function LoadingSkeleton({ isLightTheme }: { isLightTheme: boolean }) {
@@ -51,6 +78,7 @@ export default function ChatWindow({
   composer,
   liveAnnouncement,
   headerActions,
+  serverTimeContext,
 }: ChatWindowProps) {
   const [composerHeight, setComposerHeight] = useState(0);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
@@ -83,6 +111,8 @@ export default function ChatWindow({
     return () => observer.disconnect();
   }, [composer, scrollElement]);
 
+  const formattedTime = serverTimeContext ? formatServerTime(serverTimeContext) : null;
+
   return (
     <section
       className={classNames(
@@ -99,7 +129,30 @@ export default function ChatWindow({
         style={!isLightTheme ? darkChatStyles.header : undefined}
       >
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold">{title}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-sm font-semibold">{title}</h3>
+            {formattedTime ? (
+              <div
+                className={classNames(
+                  "inline-flex max-w-full items-center gap-2 overflow-hidden rounded-full border px-2.5 py-1 text-[11px] shadow-[0_0_24px_rgba(34,211,238,0.14)]",
+                  isLightTheme
+                    ? "border-cyan-200 bg-gradient-to-r from-cyan-50 via-white to-violet-50 text-slate-700"
+                    : "border-cyan-400/25 bg-[linear-gradient(135deg,rgba(18,26,46,0.96),rgba(38,16,60,0.92))] text-white/88",
+                )}
+                title={`Authoritative server time in ${formattedTime.zoneLabel}`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan shadow-[0_0_10px_rgba(34,211,238,0.85)]" aria-hidden="true" />
+                <span className="truncate font-medium">{formattedTime.dayLabel}</span>
+                <span className={classNames("hidden h-1 w-1 rounded-full md:inline-block", isLightTheme ? "bg-slate-300" : "bg-white/25")} aria-hidden="true" />
+                <span className="font-semibold text-accent-cyan">{formattedTime.timeLabel}</span>
+              </div>
+            ) : null}
+          </div>
+          {formattedTime ? (
+            <p className={classNames("mt-1 truncate text-[11px]", isLightTheme ? "text-slate-400" : "text-white/38")}>
+              Synced to {formattedTime.zoneLabel}
+            </p>
+          ) : null}
         </div>
         {headerActions ? (
           <div className="flex shrink-0 items-center gap-1">{headerActions}</div>

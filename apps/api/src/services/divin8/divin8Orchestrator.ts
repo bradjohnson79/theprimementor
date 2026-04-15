@@ -196,6 +196,12 @@ export interface StoredPipelineMeta {
   route_confidence: number;
   route_strict: boolean;
   system_decision: string;
+  time_context?: {
+    current_date: string;
+    current_time: string;
+    current_date_time: string;
+    timezone: string;
+  };
   stages: {
     input_received: boolean;
     routed: string;
@@ -214,6 +220,15 @@ export interface StoredPipelineMeta {
     used_web_search: boolean;
     search_input_used: boolean;
     query_type: Divin8QueryType;
+  };
+}
+
+function serializeTimeContext(timeContext: Divin8CurrentTimeContext) {
+  return {
+    current_date: timeContext.currentDate,
+    current_time: timeContext.currentTime,
+    current_date_time: timeContext.currentDateTime,
+    timezone: timeContext.timezone,
   };
 }
 
@@ -1458,6 +1473,7 @@ async function processStructuredTimelineMode(params: {
   extracted: Divin8ExtractionResult;
   memory: Divin8ConversationMemory;
   timeline: Divin8TimelineRequest;
+  timeContext: Divin8CurrentTimeContext;
   resolvedProfileContext: Awaited<ReturnType<typeof resolveDivin8ProfilesForMessage>>;
 }) {
   const routingPlan: Divin8RoutingPlan = {
@@ -1541,6 +1557,7 @@ async function processStructuredTimelineMode(params: {
     route_confidence: 1,
     route_strict: true,
     system_decision: `${reading.systemLabel} timeline analysis`,
+    time_context: serializeTimeContext(params.timeContext),
     stages: {
       input_received: true,
       routed: "ASTROLOGY" as const,
@@ -1618,6 +1635,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       extracted,
       memory: storedMemory,
       timeline: params.timeline,
+      timeContext,
       resolvedProfileContext,
     });
   }
@@ -1956,6 +1974,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     route_confidence: routeDecision.confidence,
     route_strict: routeDecision.strict,
     system_decision: formatSystemDecisionLabel(routeDecision),
+    time_context: serializeTimeContext(timeContext),
     stages: pipelineStages,
     divin8: {
       action: execDecision.action,

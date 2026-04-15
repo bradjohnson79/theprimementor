@@ -26,6 +26,7 @@ import type {
   Divin8ChatTier,
   Divin8ConversationThread,
   Divin8RetryPayload,
+  Divin8ServerTimeContext,
   Divin8TimelineEvent,
   Divin8TimelineDraft,
 } from "./types";
@@ -216,6 +217,7 @@ function mapStoredMessage(message: Divin8ConversationMessageResponse): Divin8Cha
       engineSuccess: stages.engine_run === "SUCCESS",
       pipelineStatus: (meta.pipeline_status as Divin8ChatMeta["pipelineStatus"]) ?? "ok",
       routeType: meta.route_type as "ASTROLOGY" | "GENERAL",
+      timeContext: mapTimeContext(meta.time_context),
       stages: {
         inputReceived: stages.input_received,
         routed: stages.routed,
@@ -263,6 +265,25 @@ function mapTimelineEvent(event: Divin8TimelineEventResponse): Divin8TimelineEve
   };
 }
 
+function mapTimeContext(
+  context: {
+    current_date: string;
+    current_time: string;
+    current_date_time: string;
+    timezone: string;
+  } | null | undefined,
+): Divin8ServerTimeContext | undefined {
+  if (!context) {
+    return undefined;
+  }
+  return {
+    currentDate: context.current_date,
+    currentTime: context.current_time,
+    currentDateTime: context.current_date_time,
+    timezone: context.timezone,
+  };
+}
+
 type StoredPipelineMeta = NonNullable<Divin8ConversationDetailResponse["last_pipeline_meta"]>;
 
 function rehydratePipelineMeta(stored: StoredPipelineMeta): Divin8ChatMeta {
@@ -276,6 +297,7 @@ function rehydratePipelineMeta(stored: StoredPipelineMeta): Divin8ChatMeta {
     routeConfidence: stored.route_confidence,
     routeStrict: stored.route_strict,
     systemDecision: stored.system_decision,
+    timeContext: mapTimeContext(stored.time_context),
     stages: {
       inputReceived: stored.stages.input_received,
       routed: stored.stages.routed,
@@ -878,6 +900,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           routeConfidence: res.chat.meta.route_confidence,
           routeStrict: res.chat.meta.route_strict,
           systemDecision: res.chat.meta.system_decision,
+          timeContext: mapTimeContext(res.chat.meta.time_context),
           stages: {
             inputReceived: res.chat.meta.stages.input_received,
             routed: res.chat.meta.stages.routed,

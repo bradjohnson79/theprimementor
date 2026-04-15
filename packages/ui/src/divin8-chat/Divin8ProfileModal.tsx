@@ -237,10 +237,10 @@ export default function Divin8ProfileModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-6">
+    <div className="fixed inset-0 z-[200] isolate flex items-center justify-center bg-slate-950/60 p-6">
       <div
         className={classNames(
-          "w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl",
+          "relative z-[201] w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={!isLightTheme ? darkChatStyles.panelElevated : undefined}

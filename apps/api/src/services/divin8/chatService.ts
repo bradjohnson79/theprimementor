@@ -75,6 +75,12 @@ export interface Divin8ChatResponse {
     route_confidence: number;
     route_strict: boolean;
     system_decision: string;
+    time_context?: {
+      current_date: string;
+      current_time: string;
+      current_date_time: string;
+      timezone: string;
+    };
     stages: {
       input_received: boolean;
       routed: "ASTROLOGY" | "GENERAL";

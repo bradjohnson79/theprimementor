@@ -31,6 +31,12 @@ export interface Divin8MessageMetaResponse {
   systems_used?: string[];
   pipeline_status?: string;
   route_type?: string;
+  time_context?: {
+    current_date: string;
+    current_time: string;
+    current_date_time: string;
+    timezone: string;
+  };
   stages?: {
     input_received: boolean;
     routed: "ASTROLOGY" | "GENERAL";
@@ -73,6 +79,7 @@ export interface Divin8ChatPayloadResponse {
     route_confidence: number;
     route_strict: boolean;
     system_decision: string;
+    time_context?: Divin8MessageMetaResponse["time_context"];
     stages: {
       input_received: boolean;
       routed: "ASTROLOGY" | "GENERAL";
@@ -104,6 +111,7 @@ export interface Divin8ConversationDetailResponse {
     route_confidence: number;
     route_strict: boolean;
     system_decision: string;
+    time_context?: Divin8MessageMetaResponse["time_context"];
     stages: {
       input_received: boolean;
       routed: "ASTROLOGY" | "GENERAL";
