@@ -36,6 +36,7 @@ import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.j
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
 import { assertMentorTrainingStripeConfig } from "./config/mentorTrainingPackages.js";
 import { assertInternalApiEnvelope, fail, isApiResult, shouldBypassApiEnvelope, toLegacyPayload } from "./apiContract.js";
+import { canRepairKnownSchemaGaps, repairKnownSchemaGaps } from "./services/schemaRepairService.js";
 
 logger.info("zoom_env_loaded", {
   hasAccountId: Boolean(process.env.ZOOM_ACCOUNT_ID?.trim()),
@@ -406,7 +407,7 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
   ],
 };
 
-async function verifySchema(db: Database) {
+async function getMissingSchemaEntries(db: Database) {
   const result = await db.execute(sql<{ table_name: string; column_name: string }>`
     SELECT table_name, column_name
     FROM information_schema.columns
@@ -453,6 +454,12 @@ async function verifySchema(db: Database) {
     const missingColumns = requiredColumns.filter((column) => !existing.has(column));
     return missingColumns.map((column) => `${tableName}.${column}`);
   });
+
+  return missingEntries;
+}
+
+async function verifySchema(db: Database) {
+  const missingEntries = await getMissingSchemaEntries(db);
 
   if (missingEntries.length > 0) {
     logger.error("database_schema_out_of_sync", {
@@ -564,6 +571,13 @@ export async function buildApp() {
 
   const skipSchemaVerify = process.env.SKIP_SCHEMA_VERIFY === "true";
   if (process.env.DATABASE_URL && !skipSchemaVerify) {
+    const missingEntries = await getMissingSchemaEntries(db);
+    if (missingEntries.length > 0 && canRepairKnownSchemaGaps(missingEntries)) {
+      logger.warn("database_schema_repair_attempting", {
+        missingColumns: missingEntries,
+      });
+      await repairKnownSchemaGaps(db);
+    }
     await verifySchema(db);
   }
 
