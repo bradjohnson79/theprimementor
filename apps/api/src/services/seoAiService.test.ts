@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { SeoRecommendationSnapshot } from "@wisdom/db";
 import { __seoAiTestUtils } from "./seoAiService.js";
 
-const CURRENT_SNAPSHOT = {
+const CURRENT_SNAPSHOT: SeoRecommendationSnapshot = {
   title: "Current Title",
   metaDescription: "Current description",
   keywords: {
@@ -11,7 +12,7 @@ const CURRENT_SNAPSHOT = {
   },
   ogImage: null,
   robotsIndex: true,
-} as const;
+};
 
 test("parseInitialSeoResponse normalizes structured JSON safely", () => {
   const parsed = __seoAiTestUtils.parseInitialSeoResponse({
