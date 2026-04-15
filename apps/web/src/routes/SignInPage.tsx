@@ -1,5 +1,6 @@
 import { SignIn } from "@clerk/react";
 import { useState } from "react";
+import { clerkAuthAppearance } from "../lib/authFormStyles";
 
 const REDIRECT_STORAGE_KEY = "clerk_signin_redirect";
 
@@ -19,8 +20,14 @@ export default function SignInPage() {
   );
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center">
-      <SignIn routing="path" path="/sign-in" signUpUrl={signUpUrl} fallbackRedirectUrl={redirectUrl || "/dashboard"} />
+    <div className="flex min-h-[80vh] items-center justify-center px-4 py-10">
+      <SignIn
+        routing="path"
+        path="/sign-in"
+        signUpUrl={signUpUrl}
+        fallbackRedirectUrl={redirectUrl || "/dashboard"}
+        appearance={clerkAuthAppearance}
+      />
     </div>
   );
 }

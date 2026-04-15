@@ -1,6 +1,13 @@
 import { useSignUp } from "@clerk/react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  authCardClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryButtonClass,
+} from "../lib/authFormStyles";
 
 interface CustomSignUpProps {
   redirectUrl?: string;
@@ -174,35 +181,31 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     }
   }
 
-  const inputClass =
-    "w-full rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-cyan-400/50 focus:bg-white/[0.07]";
-  const labelClass = "mb-1.5 block text-xs text-white/50";
-
   if (pendingVerification) {
     return (
-      <div className="w-full max-w-sm space-y-6 rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-lg">
+      <div className={authCardClass}>
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-white">Verify your email</h2>
-          <p className="mt-2 text-sm text-white/55">
-            We sent a verification code to <span className="text-white/80">{email}</span>
+          <h2 className="text-xl font-semibold text-slate-900">Verify your email</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            We sent a verification code to <span className="font-medium text-slate-800">{email}</span>
           </p>
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {resendNotice && (
-          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-300">
+          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
             {resendNotice}
           </div>
         )}
 
         <form onSubmit={handleVerify} className="space-y-4">
           <div>
-            <label className={labelClass}>Verification Code</label>
+            <label className={authLabelClass}>Verification Code</label>
             <input
               type="text"
               inputMode="numeric"
@@ -210,10 +213,10 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="Enter 6-digit code"
-              className={inputClass}
+              className={authInputClass}
               autoFocus
             />
-            <p className="mt-1.5 text-xs text-white/35">
+            <p className="mt-1.5 text-xs text-slate-500">
               Enter the most recent code sent to your email. Previous codes will not work.
             </p>
           </div>
@@ -221,7 +224,7 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
           <button
             type="submit"
             disabled={isVerifying || code.length < 6}
-            className="w-full rounded-lg bg-cyan-500/20 px-4 py-2.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+            className={authPrimaryButtonClass}
           >
             {isVerifying ? "Verifying..." : "Verify Email"}
           </button>
@@ -232,7 +235,7 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
             type="button"
             onClick={handleResend}
             disabled={isResending || resendCooldown > 0}
-            className="text-xs text-white/40 transition hover:text-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+            className="text-xs font-medium text-cyan-700 transition hover:text-cyan-600 disabled:cursor-not-allowed disabled:text-slate-400"
           >
             {isResending
               ? "Sending..."
@@ -246,14 +249,14 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
   }
 
   return (
-    <div className="w-full max-w-sm space-y-6 rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur-lg">
+    <div className={authCardClass}>
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-white">Create your account</h2>
-        <p className="mt-2 text-sm text-white/55">Join The Prime Mentor</p>
+        <h2 className="text-xl font-semibold text-slate-900">Create your account</h2>
+        <p className="mt-2 text-sm text-slate-600">Join The Prime Mentor</p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -261,63 +264,63 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
       <form onSubmit={handleSignUp} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>First Name</label>
+            <label className={authLabelClass}>First Name</label>
             <input
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="First"
-              className={inputClass}
+              className={authInputClass}
             />
           </div>
           <div>
-            <label className={labelClass}>Last Name</label>
+            <label className={authLabelClass}>Last Name</label>
             <input
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="Last"
-              className={inputClass}
+              className={authInputClass}
             />
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Email</label>
+          <label className={authLabelClass}>Email</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
-            className={inputClass}
+            className={authInputClass}
           />
         </div>
 
         <div>
-          <label className={labelClass}>Password</label>
+          <label className={authLabelClass}>Password</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Create a password"
             required
-            className={inputClass}
+            className={authInputClass}
           />
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting || !email || !password}
-          className="w-full rounded-lg bg-cyan-500/20 px-4 py-2.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+          className={authPrimaryButtonClass}
         >
           {isSubmitting ? "Creating account..." : "Create Account"}
         </button>
       </form>
 
-      <p className="text-center text-xs text-white/40">
+      <p className="text-center text-xs text-slate-600">
         Already have an account?{" "}
-        <Link to={signInUrl} className="text-cyan-400 hover:text-cyan-300 transition">
+        <Link to={signInUrl} className={authLinkClass}>
           Sign in
         </Link>
       </p>
