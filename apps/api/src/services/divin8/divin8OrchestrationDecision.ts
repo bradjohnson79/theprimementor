@@ -35,7 +35,7 @@ export type Divin8Decision = {
   inquiry?: { question: string; field: string };
   confirmation?: { message: string; field: string };
   toolRequired: boolean;
-  toolType?: "astrology" | "search" | "hybrid" | "none";
+  toolType?: "astrology" | "system" | "search" | "hybrid" | "none";
   toolBlockedReason?: "low_confidence" | "not_required" | "missing_minimum_data";
 };
 
@@ -130,7 +130,7 @@ export function buildSearchExecutionPlan(params: {
 }): Divin8SearchExecutionPlan {
   const message = params.message.trim();
   const missingMinimumAstroKeys = getMissingMinimumAstroKeys(params.memory);
-  const hasAstrology = params.routingPlan.systemsToRun.includes("astrology" as SystemName) || params.route.type === "ASTROLOGY";
+  const hasAstrology = params.routingPlan.systemsToRun.includes("astrology" as SystemName);
 
   if (hasAstrology) {
     const hybridQuery = buildHybridSearchQuery(params.memory, params.extracted, missingMinimumAstroKeys);
@@ -358,7 +358,8 @@ export function buildDivin8Decision(params: {
   }
 
   const hasAstrology = routingPlan.systemsToRun.includes("astrology" as SystemName);
-  if (routingPlan.systemsToRun.length === 0 || (!hasAstrology && !routingPlan.needsEngine)) {
+  const hasDeterministicSystems = routingPlan.systemsToRun.length > 0;
+  if (routingPlan.systemsToRun.length === 0 || (!hasDeterministicSystems && !routingPlan.needsEngine)) {
     const d: Divin8Decision = {
       action: "proceed",
       confidence: clamp01(route.confidence),
@@ -390,7 +391,12 @@ export function buildDivin8Decision(params: {
     && route.type === "ASTROLOGY"
     && route.requiresEngine;
 
-  if (!wantsAstrologyTools) {
+  const wantsDeterministicTools =
+    routingPlan.systemsToRun.length > 0
+    && route.type === "ASTROLOGY"
+    && route.requiresEngine;
+
+  if (!wantsDeterministicTools) {
     const conf = clamp01(0.7 + route.confidence * 0.15);
     const d: Divin8Decision = {
       action: conf >= CONFIDENCE_THRESHOLDS.PROCEED ? "proceed" : "proceed_with_confirmation",
@@ -414,6 +420,34 @@ export function buildDivin8Decision(params: {
       extractedData: serializeProfileSnapshot(memory),
       confidence: conf,
       routingPlanSummary: "non_astrology_engine_request",
+    });
+    return {
+      decision: d,
+      orchestration: {
+        ...orch,
+        readingState: advanceReadingState(orch.readingState, params.extracted.rawText, params.extracted),
+        loopGuardTriggered: false,
+      },
+    };
+  }
+
+  if (!wantsAstrologyTools && wantsDeterministicTools) {
+    const conf = clamp01(Math.max(0.78, route.confidence));
+    const d: Divin8Decision = {
+      action: "proceed",
+      confidence: conf,
+      missingFields,
+      uncertainFields,
+      toolRequired: true,
+      toolType: "system",
+      toolBlockedReason: undefined,
+    };
+    logDecision({
+      threadId: params.threadId,
+      decision: d,
+      extractedData: serializeProfileSnapshot(memory),
+      confidence: conf,
+      routingPlanSummary: "deterministic_multi_system",
     });
     return {
       decision: d,

@@ -73,6 +73,15 @@ import {
   buildCurrentTimeContext,
   type Divin8CurrentTimeContext,
 } from "./timeContextService.js";
+import {
+  buildSystemExecutionPlan,
+  isDeterministicSystem,
+  listDeterministicSystems,
+  listInterpretiveSystems,
+  type Divin8DeterministicSystem,
+  type Divin8NormalizedSystem,
+  type Divin8SystemExecutionPlan,
+} from "./systemRouting.js";
 
 export type { Divin8ConversationState, Divin8RoutingPlan } from "./divin8RoutingTypes.js";
 export type { Divin8Decision, ReadingState, StoredOrchestrationState } from "./divin8OrchestrationDecision.js";
@@ -196,6 +205,8 @@ export interface StoredPipelineMeta {
   route_confidence: number;
   route_strict: boolean;
   system_decision: string;
+  mode?: "timeline" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
+  systems_degraded?: string[];
   time_context?: {
     current_date: string;
     current_time: string;
@@ -288,6 +299,7 @@ export interface Divin8IntentHints {
 export interface Divin8ExtractionResult {
   rawText: string;
   detectedSystems: Divin8DetectedSystem[];
+  requestedSystems: string[];
   extractedEntities: Divin8ExtractedEntities;
   intentHints: Divin8IntentHints;
 }
@@ -338,6 +350,7 @@ export interface ProcessDivin8MessageParams {
   language?: LanguageCode;
   imageRef?: string;
   profileTags?: string[];
+  systems?: string[];
   timeline?: Divin8TimelineRequest;
   history: SessionHistoryItem[];
   storedState?: StoredDivin8SessionState | null;
@@ -351,20 +364,9 @@ export interface ProcessDivin8MessageResult {
   memoryCandidates: DistilledDivin8MemoryCandidate[];
 }
 
-const SYSTEM_ENGINE_MAP: Record<ResolvedSystemKey, SystemName | null> = {
-  vedic_astrology: "astrology",
-  western_astrology: null,
-  chinese_astrology: "chinese",
-  astrology_general: "astrology",
-  numerology: "numerology",
-  human_design: "humanDesign",
-  kabbalah: "kabbalah",
-  rune: "rune",
-};
-
 const SYSTEM_REQUIREMENTS: Partial<Record<SystemName, Array<keyof Divin8KnownProfileMemory>>> = {
   astrology: ["birthDate", "birthLocation", "birthTime"],
-  numerology: ["birthDate", "birthLocation", "fullName"],
+  numerology: ["birthDate", "fullName"],
   chinese: ["birthDate"],
   humanDesign: ["birthDate", "birthLocation", "birthTime"],
   kabbalah: ["birthDate", "fullName"],
@@ -778,6 +780,7 @@ export async function extractDivin8Observations(message: string): Promise<Divin8
   return {
     rawText: message,
     detectedSystems: buildDetectedSystems(message),
+    requestedSystems: uniqueList(analysis.systems_requested),
     extractedEntities: {
       fullName: normalizedBirth.fullName,
       birthDate: normalizedBirth.birthDate,
@@ -912,25 +915,6 @@ export function mergeConversationMemory(memory: Divin8ConversationMemory, extrac
   return next;
 }
 
-function collectMissingFieldsForSystems(systemsToRun: SystemName[], memory: Divin8ConversationMemory): string[] {
-  const missing: string[] = [];
-  for (const system of systemsToRun) {
-    if (system === "astrology") {
-      missing.push(...getMissingMinimumAstroKeys(memory).map(humanizeMinimumKey));
-      continue;
-    }
-    for (const field of SYSTEM_REQUIREMENTS[system] ?? []) {
-      const current = memory.knownProfile[field];
-      if (!current.value) {
-        missing.push(formatMissingField(field));
-      } else if (field === "fullName" && !hasFullBirthName(current)) {
-        missing.push(formatMissingField(field));
-      }
-    }
-  }
-  return uniqueList(missing);
-}
-
 function formatMissingField(field: keyof Divin8KnownProfileMemory) {
   switch (field) {
     case "fullName":
@@ -976,65 +960,122 @@ function choosePrimarySystem(detectedSystems: Divin8DetectedSystem[], extracted:
   return { systems: [first], ambiguous: false };
 }
 
+function collectMissingFieldsForPlans(
+  plans: Divin8SystemExecutionPlan[],
+  memory: Divin8ConversationMemory,
+) {
+  const missing: string[] = [];
+
+  for (const plan of plans) {
+    if (!isDeterministicSystem(plan.system) || !plan.blueprintSystem) {
+      continue;
+    }
+    const requirements = SYSTEM_REQUIREMENTS[plan.blueprintSystem] ?? [];
+    for (const field of requirements) {
+      const current = memory.knownProfile[field];
+      if (!current.value?.trim()) {
+        missing.push(formatMissingField(field));
+      } else if (field === "fullName" && !hasFullBirthName(current)) {
+        missing.push(formatMissingField(field));
+      }
+    }
+  }
+
+  return uniqueList(missing);
+}
+
+function resolveExecutionMode(input: {
+  profileCount: number;
+  requestedSystems: string[];
+  timeline?: Divin8TimelineRequest;
+}) {
+  if (input.timeline) {
+    return "timeline" as const;
+  }
+  if (input.profileCount >= 2 && input.requestedSystems.length > 1) {
+    return "compatibility_multi" as const;
+  }
+  if (input.profileCount >= 2) {
+    return "compatibility" as const;
+  }
+  if (input.requestedSystems.length > 1) {
+    return "multi_system" as const;
+  }
+  return "standard" as const;
+}
+
 export function decideNextAction(params: {
   memory: Divin8ConversationMemory;
   detectedSystems: Divin8DetectedSystem[];
   extracted: Divin8ExtractionResult;
   hasImage: boolean;
+  explicitSystems?: string[];
+  profileCount?: number;
 }): Divin8RoutingPlan {
   const routingNotes: string[] = [];
-  const selected = choosePrimarySystem(params.detectedSystems, params.extracted);
+  const hasExplicitSystemRequest = (params.explicitSystems?.length ?? 0) > 0 || params.extracted.requestedSystems.length > 0;
+  const selected = hasExplicitSystemRequest
+    ? { systems: params.detectedSystems, ambiguous: false }
+    : choosePrimarySystem(params.detectedSystems, params.extracted);
 
-  if (selected.ambiguous) {
+  if (selected.ambiguous && !hasExplicitSystemRequest) {
     routingNotes.push("Multiple systems were detected with similar confidence. Ask the user which system they want first.");
     return {
       needsEngine: false,
       missingFields: [],
       systemsToRun: [],
+      requestedSystems: [],
+      interpretiveSystems: [],
       responseMode: "chat",
       conversationState: "collecting_input",
+      mode: resolveExecutionMode({ profileCount: params.profileCount ?? 0, requestedSystems: [] }),
       clarificationPrompt: buildClarificationPrompt([], routingNotes),
       routingNotes,
     };
   }
 
-  const resolvedKeys = uniqueList(selected.systems.map((system) => system.key)) as ResolvedSystemKey[];
-  if (params.hasImage && resolvedKeys.length === 0) {
+  const requestedPlans = buildSystemExecutionPlan({
+    explicitSystems: params.explicitSystems,
+    analysisSystems: params.extracted.requestedSystems,
+    detectedSystemKeys: uniqueList(selected.systems.map((system) => system.key)) as ResolvedSystemKey[],
+  });
+
+  if (params.hasImage && requestedPlans.length === 0) {
     routingNotes.push("Use symbolic physiognomy interpretation for the uploaded image.");
   }
 
-  const unsupported = resolvedKeys.filter((key) => SYSTEM_ENGINE_MAP[key] === null);
-  if (unsupported.length > 0) {
-    routingNotes.push("The requested system is not supported by the current engine contract.");
+  const deterministicPlans = requestedPlans.filter((plan) => isDeterministicSystem(plan.system));
+  const interpretiveSystems = listInterpretiveSystems(requestedPlans);
+  let systemsToRun = uniqueList(
+    deterministicPlans
+      .map((plan) => plan.blueprintSystem)
+      .filter((value): value is SystemName => Boolean(value)),
+  ) as SystemName[];
+  let requestedSystems = uniqueList(requestedPlans.map((plan) => plan.system));
+
+  if (params.hasImage && !interpretiveSystems.includes("physiognomy")) {
+    requestedSystems = [...requestedSystems, "physiognomy"];
+  }
+
+  if (requestedSystems.includes("western")) {
+    routingNotes.push(
+      "Western requests currently use the same Swiss calculation backbone as Vedic, with interpretation adapted for the western framing rather than a separate tropical engine.",
+    );
+  }
+
+  if (requestedSystems.length === 0) {
     return {
       needsEngine: false,
       missingFields: [],
       systemsToRun: [],
-      responseMode: "chat",
-      conversationState: "collecting_input",
-      clarificationPrompt: buildClarificationPrompt([], [
-        "Western astrology is not currently calculable in the engine. Ask whether they want a Vedic/sidereal reading instead or a conversational explanation without calculation.",
-      ]),
-      routingNotes,
-      unsupportedReason: unsupported.join(", "),
-    };
-  }
-
-  let systemsToRun = resolvedKeys
-    .map((key) => SYSTEM_ENGINE_MAP[key])
-    .filter((value): value is SystemName => Boolean(value));
-
-  if (params.hasImage && !systemsToRun.includes("physiognomy")) {
-    systemsToRun = [...systemsToRun, "physiognomy"];
-  }
-
-  if (systemsToRun.length === 0) {
-    return {
-      needsEngine: false,
-      missingFields: [],
-      systemsToRun: [],
+      requestedSystems: [],
+      interpretiveSystems: params.hasImage ? ["physiognomy"] : [],
       responseMode: "chat",
       conversationState: "conversational",
+      mode: resolveExecutionMode({
+        profileCount: params.profileCount ?? 0,
+        requestedSystems: params.hasImage ? ["physiognomy"] : [],
+      }),
       routingNotes,
     };
   }
@@ -1045,26 +1086,36 @@ export function decideNextAction(params: {
     );
   }
 
-  const missingFields = collectMissingFieldsForSystems(systemsToRun, params.memory);
+  const missingFields = collectMissingFieldsForPlans(deterministicPlans, params.memory);
+  const mode = resolveExecutionMode({
+    profileCount: params.profileCount ?? 0,
+    requestedSystems,
+  });
 
   if (missingFields.length > 0) {
     return {
       needsEngine: false,
       missingFields,
       systemsToRun,
+      requestedSystems,
+      interpretiveSystems,
       responseMode: "chat",
       conversationState: "collecting_input",
+      mode,
       clarificationPrompt: buildClarificationPrompt(missingFields, routingNotes),
       routingNotes,
     };
   }
 
   return {
-    needsEngine: true,
+    needsEngine: systemsToRun.length > 0,
     missingFields: [],
     systemsToRun,
-    responseMode: "engine",
-    conversationState: "ready_for_engine",
+    requestedSystems,
+    interpretiveSystems,
+    responseMode: systemsToRun.length > 0 ? "engine" : "chat",
+    conversationState: systemsToRun.length > 0 ? "ready_for_engine" : "conversational",
+    mode,
     routingNotes,
     downgradedToGeneral: params.extracted.intentHints.wantsForecast && systemsToRun.includes("astrology"),
   };
@@ -1172,6 +1223,9 @@ export function buildStructuredPayload(params: {
   webContext: Divin8WebContext | null;
   timelineHighlights: string[];
   responseMode: "chat" | "engine";
+  requestedSystems: string[];
+  interpretiveSystems: string[];
+  mode: Divin8RoutingPlan["mode"];
   execDecision: Divin8Decision;
   readingState: ReadingState;
   telemetry: Divin8TurnTelemetry;
@@ -1190,6 +1244,7 @@ export function buildStructuredPayload(params: {
       themes: params.extracted.extractedEntities.themes,
       timeWindow: params.extracted.extractedEntities.timeWindow,
       comparisonRequested: params.extracted.intentHints.wantsComparison,
+      requestedSystems: params.requestedSystems,
       detectedSystems: params.extracted.detectedSystems.map((system) => system.key),
     },
     knownProfile: serializeKnownProfile(params.memory),
@@ -1204,6 +1259,8 @@ export function buildStructuredPayload(params: {
         }
       : null,
     timelineHighlights: params.timelineHighlights,
+    interpretiveSystems: params.interpretiveSystems,
+    mode: params.mode,
     responseMode: params.responseMode,
     responseLanguage: params.memory.responseLanguage,
     divin8Decision: {
@@ -1223,6 +1280,134 @@ export function buildStructuredPayload(params: {
       source: params.timeContext.source,
     },
   }, null, 2);
+}
+
+interface SafeSystemExecutionResult {
+  system: Divin8DeterministicSystem;
+  status: "success" | "degraded";
+  interpretation: NormalizedEngineInterpretationContext | null;
+  degradedReason?: string;
+}
+
+function aggregateInterpretationContexts(
+  contexts: NormalizedEngineInterpretationContext[],
+  requestedSystems: string[],
+): NormalizedEngineInterpretationContext | null {
+  if (contexts.length === 0) {
+    return null;
+  }
+  if (contexts.length === 1) {
+    return {
+      ...contexts[0],
+      requestedSystems,
+    };
+  }
+
+  return {
+    requestIntent: contexts[0].requestIntent,
+    requestedSystems,
+    focusAreas: uniqueList(contexts.flatMap((context) => context.focusAreas)),
+    comparisonRequested: contexts.some((context) => context.comparisonRequested),
+    timingPeriod: contexts.find((context) => context.timingPeriod)?.timingPeriod ?? null,
+    systemsUsed: uniqueList(contexts.flatMap((context) => context.systemsUsed)),
+    summary: contexts
+      .map((context) => context.summary)
+      .filter((value): value is string => Boolean(value))
+      .join(" "),
+    keyInsights: uniqueList(contexts.flatMap((context) => context.keyInsights)).slice(0, 8),
+    highlights: Object.fromEntries(
+      contexts.map((context, index) => [context.systemsUsed[0] ?? `system_${index + 1}`, context.highlights]),
+    ),
+    limitations: uniqueList(contexts.flatMap((context) => context.limitations)),
+  };
+}
+
+async function safeExecuteSystem(params: {
+  app: FastifyInstance;
+  threadId: string;
+  userId: string;
+  message: string;
+  system: Divin8DeterministicSystem;
+  profile: ResolvedDivin8Profile;
+  requestIntent: string;
+  focusAreas: string[];
+  comparisonRequested: boolean;
+  timingPeriod: string | null;
+}) {
+  try {
+    const result = await runCoreSystem({
+      threadId: params.threadId,
+      userId: params.userId,
+      message: params.message,
+      system: params.system,
+      profile: {
+        fullName: params.profile.fullName,
+        birthDate: params.profile.birthDate,
+        birthTime: params.profile.birthTime,
+        birthLocation: params.profile.birthPlace,
+        timezone: params.profile.timezone,
+      },
+      route: routeDivin8Request({
+        message: params.message,
+        detectedSystems: [],
+        requestedSystems: params.system === "western" ? ["astrology"] : [params.system === "vedic" ? "astrology" : params.system],
+      }),
+      requestIntent: params.requestIntent,
+      focusAreas: params.focusAreas,
+      comparisonRequested: params.comparisonRequested,
+      timingPeriod: params.timingPeriod,
+      resolvedBirthContext: {
+        coordinates: {
+          latitude: params.profile.lat,
+          longitude: params.profile.lng,
+          formattedAddress: params.profile.birthPlace,
+        },
+        timezone: params.profile.timezone,
+        utcOffsetMinutes: getUtcOffsetMinutesForTimezone(
+          params.profile.timezone,
+          params.profile.birthDate,
+          params.profile.birthTime,
+        ),
+      },
+    });
+
+    if (result.status === "success") {
+      return {
+        system: params.system,
+        status: "success",
+        interpretation: getInterpretationContext(result),
+      } satisfies SafeSystemExecutionResult;
+    }
+
+    params.app.log.error({
+      msg: "SYSTEM_FAILURE",
+      threadId: params.threadId,
+      userId: params.userId,
+      system: params.system,
+      errorCode: result.errorCode,
+      error: result.error,
+    });
+    return {
+      system: params.system,
+      status: "degraded",
+      interpretation: null,
+      degradedReason: result.userMessage,
+    } satisfies SafeSystemExecutionResult;
+  } catch (error) {
+    params.app.log.error({
+      msg: "SYSTEM_FAILURE",
+      threadId: params.threadId,
+      userId: params.userId,
+      system: params.system,
+      error,
+    });
+    return {
+      system: params.system,
+      status: "degraded",
+      interpretation: null,
+      degradedReason: error instanceof Error ? error.message : String(error),
+    } satisfies SafeSystemExecutionResult;
+  }
 }
 
 function buildInstructionFromDecision(
@@ -1255,6 +1440,9 @@ function buildInstructionFromDecision(
       "Use the structured engine summary as authoritative for calculation-backed signals.",
       profileReadings.length > 1 ? "If multiple profile readings are provided, compare them directly and keep the distinction between each person clear." : "",
       webContext ? "Use any provided web context only as supporting factual input or background; never let it override calculation-backed signals." : "",
+      routingPlan.interpretiveSystems.length > 0
+        ? `Integrate these interpretive systems contextually, without randomness or fragmentation: ${routingPlan.interpretiveSystems.join(", ")}.`
+        : "",
       "Keep the visible answer concise and practical.",
       "Return one short primary section now with a brief takeaway and at most 3 action-oriented bullets.",
       "Invite which area to deepen next unless the user already chose a focus.",
@@ -1267,6 +1455,9 @@ function buildInstructionFromDecision(
   const parts = [
     "Respond conversationally and directly.",
     webContext ? "If web context is provided, synthesize it naturally and do not list raw links." : "",
+    routingPlan.interpretiveSystems.length > 0
+      ? `Treat these requested systems as symbolic interpretive lanes and synthesize them into one reading: ${routingPlan.interpretiveSystems.join(", ")}.`
+      : "",
     "Keep the answer concise and useful.",
     "When giving a reading, use clear section headings and advance one short section at a time unless the user requests a specific area.",
   ];
@@ -1325,6 +1516,9 @@ async function requestStructuredAssistantReply(params: {
     webContext: params.webContext,
     timelineHighlights: params.timelineHighlights,
     responseMode: params.responseMode,
+    requestedSystems: params.routingPlan.requestedSystems,
+    interpretiveSystems: params.routingPlan.interpretiveSystems,
+    mode: params.routingPlan.mode,
     execDecision: params.execDecision,
     readingState: params.readingState,
     telemetry: params.telemetry,
@@ -1480,8 +1674,11 @@ async function processStructuredTimelineMode(params: {
     needsEngine: true,
     missingFields: [],
     systemsToRun: ["astrology"],
+    requestedSystems: [params.timeline.system],
+    interpretiveSystems: [],
     responseMode: "engine",
     conversationState: "interpreting",
+    mode: "timeline",
     routingNotes: [],
   };
   const reading = await buildTimelineReading({
@@ -1557,6 +1754,8 @@ async function processStructuredTimelineMode(params: {
     route_confidence: 1,
     route_strict: true,
     system_decision: `${reading.systemLabel} timeline analysis`,
+    mode: "timeline" as const,
+    systems_degraded: [] as string[],
     time_context: serializeTimeContext(params.timeContext),
     stages: {
       input_received: true,
@@ -1583,7 +1782,7 @@ async function processStructuredTimelineMode(params: {
     chat: {
       message: reading.rendered,
       engine_used: true,
-      systems_used: ["astrology"],
+      systems_used: [params.timeline.system],
       meta: chatMeta,
     },
     storedState: buildStoredDivin8State(
@@ -1598,62 +1797,76 @@ async function processStructuredTimelineMode(params: {
       conversationSummary: params.memory.conversationSummary ?? reading.summary,
       profileTags: params.resolvedProfileContext.tags,
       timeline: params.timeline,
-      systemsUsed: ["astrology"],
+      systemsUsed: [params.timeline.system],
       engineUsed: true,
     }),
   };
 }
 
 export async function processDivin8Message(params: ProcessDivin8MessageParams): Promise<ProcessDivin8MessageResult> {
-  const memory = hydrateConversationMemory(params.storedState);
-  const extracted = await extractDivin8Observations(params.message);
-  const storedMemory = mergeConversationMemory(memory, extracted, params.language);
-  const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
-    params.app.db,
-    params.userId,
-    params.message,
-    params.profileTags,
-  );
-  const timeContext = resolveTurnTimeContext({
-    memory: storedMemory,
-    extracted,
-    resolvedProfiles: resolvedProfileContext.profiles,
-  });
-  const relevantMemory = await retrieveRelevantMemories(params.app.db, {
-    userId: params.userId,
-    message: params.message,
-    excludeConversationId: params.threadId,
-    limit: 5,
-  });
-  if (params.timeline) {
-    return processStructuredTimelineMode({
-      app: params.app,
-      threadId: params.threadId,
+  try {
+    const memory = hydrateConversationMemory(params.storedState);
+    const extracted = await extractDivin8Observations(params.message);
+    const storedMemory = mergeConversationMemory(memory, extracted, params.language);
+    const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
+      params.app.db,
+      params.userId,
+      params.message,
+      params.profileTags,
+    );
+    const timeContext = resolveTurnTimeContext({
+      memory: storedMemory,
+      extracted,
+      resolvedProfiles: resolvedProfileContext.profiles,
+    });
+    const relevantMemory = await retrieveRelevantMemories(params.app.db, {
       userId: params.userId,
       message: params.message,
-      imageRef: params.imageRef,
-      extracted,
-      memory: storedMemory,
-      timeline: params.timeline,
-      timeContext,
-      resolvedProfileContext,
+      excludeConversationId: params.threadId,
+      limit: 5,
     });
-  }
-  if (!process.env.OPENAI_API_KEY) {
-    throw divin8UnavailableError();
-  }
+    if (params.timeline) {
+      return processStructuredTimelineMode({
+        app: params.app,
+        threadId: params.threadId,
+        userId: params.userId,
+        message: params.message,
+        imageRef: params.imageRef,
+        extracted,
+        memory: storedMemory,
+        timeline: params.timeline,
+        timeContext,
+        resolvedProfileContext,
+      });
+    }
+    if (!process.env.OPENAI_API_KEY) {
+      throw divin8UnavailableError();
+    }
 
-  const promptConfig = await getActiveDivin8Prompt();
-  const promptProfiles = resolvedProfileContext.profiles.map(buildPromptProfile);
-  let calculationMemory = resolvedProfileContext.profiles[0]
-    ? applyResolvedProfileToMemory(storedMemory, resolvedProfileContext.profiles[0])
-    : storedMemory;
-  let routingPlan = decideNextAction({
-    memory: calculationMemory,
-    detectedSystems: extracted.detectedSystems,
-    extracted,
-    hasImage: Boolean(params.imageRef),
-  });
+    const promptConfig = await getActiveDivin8Prompt();
+    const promptProfiles = resolvedProfileContext.profiles.map(buildPromptProfile);
+    let calculationMemory = resolvedProfileContext.profiles[0]
+      ? applyResolvedProfileToMemory(storedMemory, resolvedProfileContext.profiles[0])
+      : storedMemory;
+    let routingPlan = decideNextAction({
+      memory: calculationMemory,
+      detectedSystems: extracted.detectedSystems,
+      extracted,
+      hasImage: Boolean(params.imageRef),
+      explicitSystems: params.systems,
+      profileCount: resolvedProfileContext.profiles.length,
+    });
+    params.app.log.info({
+      msg: "DIVIN8_REQUEST",
+      threadId: params.threadId,
+      userId: params.userId,
+      requestedSystems: routingPlan.requestedSystems,
+      interpretiveSystems: routingPlan.interpretiveSystems,
+      deterministicSystems: routingPlan.systemsToRun,
+      mode: routingPlan.mode,
+      profileCount: resolvedProfileContext.profiles.length,
+      timeline: false,
+    });
   let routeDecision = routeDivin8Request({
     message: params.message,
     detectedSystems: extracted.detectedSystems,
@@ -1705,6 +1918,8 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
             detectedSystems: extracted.detectedSystems,
             extracted,
             hasImage: Boolean(params.imageRef),
+            explicitSystems: params.systems,
+            profileCount: resolvedProfileContext.profiles.length,
           });
           routeDecision = routeDivin8Request({
             message: params.message,
@@ -1736,12 +1951,15 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     calculationMemory.knownProfile = exec.memoryWithAssumptions.knownProfile;
   }
 
-  const shouldRunAstrologyEngine =
+  const requestedPlans = buildSystemExecutionPlan({
+    explicitSystems: routingPlan.requestedSystems,
+  });
+  const deterministicSystems = listDeterministicSystems(requestedPlans);
+  const shouldRunDeterministicEngine =
     routingPlan.needsEngine
-    && routingPlan.systemsToRun.includes("astrology")
     && routeDecision.type === "ASTROLOGY"
     && routeDecision.requiresEngine
-    && execDecision.toolType === "astrology"
+    && (execDecision.toolType === "astrology" || execDecision.toolType === "system")
     && !execDecision.toolBlockedReason
     && (execDecision.action === "proceed"
       || (execDecision.action === "proceed_with_confirmation" && Boolean(exec.orchestration.loopGuardTriggered)));
@@ -1750,7 +1968,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   const timelineHighlights = selectTimelineHighlights({
     events: timelineEvents,
     knownProfileFacts: buildKnownProfileFacts(storedMemory),
-    systems: routingPlan.systemsToRun,
+    systems: routingPlan.requestedSystems,
     themes: extracted.extractedEntities.themes,
     timeWindow: extracted.extractedEntities.timeWindow,
     limit: 6,
@@ -1788,7 +2006,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
         : `User request: ${params.message}`,
       220,
     ),
-    systemsUsed: [],
+    systemsUsed: routingPlan.requestedSystems,
     tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
     type: "input",
   });
@@ -1798,68 +2016,78 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   let pipelineStatus: Divin8ChatResponse["meta"]["pipeline_status"] = "ok";
   let engineRun: "SKIPPED" | "SUCCESS" | "FAIL" = "SKIPPED";
   let directResponseMessage: string | null = null;
+  let systemsDegraded: string[] = [];
 
-  if (shouldRunAstrologyEngine) {
+  if (shouldRunDeterministicEngine) {
     if (resolvedProfileContext.profiles.length === 0) {
       pipelineStatus = "engine_not_called";
       engineRun = "SKIPPED";
       directResponseMessage =
-        "Astrology calculations in Divin8 chat now require a saved profile. Add a profile in the sidebar and tag it in your message, for example @JohnSmith, and I’ll run the Swiss Ephemeris reading from that record.";
+        "Calculation-backed Divin8 readings now require a saved profile. Add a profile in the sidebar and tag it in your message, for example @JohnSmith, and I’ll run the requested systems from that record.";
     } else {
       calculationMemory.conversationState = "engine_running";
-      audit.engine_payload = resolvedProfileContext.tags;
+      audit.engine_payload = {
+        profiles: resolvedProfileContext.tags,
+        systems: routingPlan.requestedSystems,
+      };
 
       for (const profile of resolvedProfileContext.profiles) {
-        const profileMemory = applyResolvedProfileToMemory(storedMemory, profile);
-        const coreResult = await runCoreSystem({
-          threadId: params.threadId,
-          userId: params.userId,
-          message: params.message,
-          profile: {
-            fullName: profileMemory.knownProfile.fullName.value,
-            birthDate: profileMemory.knownProfile.birthDate.value,
-            birthTime: profileMemory.knownProfile.birthTime.value,
-            birthLocation: profileMemory.knownProfile.birthLocation.value,
-            timezone: profileMemory.knownProfile.timezone.value,
-          },
-          route: routeDecision,
-          requestIntent: extracted.intentHints.summary,
-          focusAreas: extracted.extractedEntities.themes.length > 0 ? extracted.extractedEntities.themes : ["general"],
-          comparisonRequested: extracted.intentHints.wantsComparison,
-          timingPeriod: extracted.extractedEntities.timeWindow,
-          resolvedBirthContext: profileMemory.resolvedBirthContext,
-        });
+        const perProfileContexts: NormalizedEngineInterpretationContext[] = [];
 
-        audit.engine_called = true;
-        telemetry.usedSwissEph = coreResult.engineRun === "SUCCESS" || telemetry.usedSwissEph;
-        engineRun = coreResult.engineRun;
-
-        if (coreResult.status === "success" && coreResult.data.type === "ASTROLOGY") {
-          const nextSummary = getInterpretationContext(coreResult);
-          if (!nextSummary) {
-            pipelineStatus = "engine_failed";
-            engineRun = "FAIL";
-            directResponseMessage = "The astrology calculation completed, but the interpretation payload was incomplete. Please try again.";
-            break;
-          }
-          if (!engineSummary) {
-            engineSummary = nextSummary;
-          }
-          profileReadings.push({
-            tag: profile.tag,
-            profile: buildPromptProfile(profile),
-            engineSummary: nextSummary,
+        for (const system of deterministicSystems) {
+          const systemResult = await safeExecuteSystem({
+            app: params.app,
+            threadId: params.threadId,
+            userId: params.userId,
+            message: params.message,
+            system,
+            profile,
+            requestIntent: extracted.intentHints.summary,
+            focusAreas: extracted.extractedEntities.themes.length > 0 ? extracted.extractedEntities.themes : ["general"],
+            comparisonRequested: extracted.intentHints.wantsComparison,
+            timingPeriod: extracted.extractedEntities.timeWindow,
           });
-          audit.engine_success = true;
-          audit.engine_result_present = true;
-          audit.engine_result_summary_present = true;
-        } else if (coreResult.status === "error") {
-          pipelineStatus = coreResult.errorCode === "LOCATION_RESOLUTION_FAILED" ? "engine_not_called" : "engine_failed";
-          engineRun = coreResult.errorCode === "LOCATION_RESOLUTION_FAILED" ? "SKIPPED" : "FAIL";
-          directResponseMessage = coreResult.userMessage;
-          routingPlan.routingNotes.push(coreResult.error);
-          break;
+
+          audit.engine_called = true;
+          if (system === "vedic" || system === "western") {
+            telemetry.usedSwissEph = systemResult.status === "success" || telemetry.usedSwissEph;
+          }
+
+          if (systemResult.status === "success" && systemResult.interpretation) {
+            perProfileContexts.push(systemResult.interpretation);
+            continue;
+          }
+
+          systemsDegraded = uniqueList([...systemsDegraded, system]);
         }
+
+        const nextSummary = aggregateInterpretationContexts(perProfileContexts, routingPlan.requestedSystems);
+        if (!nextSummary) {
+          continue;
+        }
+
+        engineRun = "SUCCESS";
+        if (!engineSummary) {
+          engineSummary = nextSummary;
+        }
+        profileReadings.push({
+          tag: profile.tag,
+          profile: buildPromptProfile(profile),
+          engineSummary: nextSummary,
+        });
+        audit.engine_success = true;
+        audit.engine_result_present = true;
+        audit.engine_result_summary_present = true;
+      }
+
+      if (systemsDegraded.length > 0) {
+        routingPlan.interpretiveSystems = uniqueList([
+          ...routingPlan.interpretiveSystems,
+          ...systemsDegraded,
+        ]);
+        routingPlan.routingNotes.push(
+          `These systems degraded gracefully and should be synthesized conversationally instead of treated as hard failures: ${systemsDegraded.join(", ")}.`,
+        );
       }
 
       if (profileReadings.length > 0 && !directResponseMessage) {
@@ -1869,16 +2097,20 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
           summary: clipSentence(
             profileReadings.length === 1
               ? `${profileReadings[0].tag}: ${profileReadings[0].engineSummary.summary}`
-              : `Astrology calculations completed for ${profileReadings.map((reading) => reading.tag).join(", ")}.`,
+              : `Deterministic system calculations completed for ${profileReadings.map((reading) => reading.tag).join(", ")}.`,
             220,
           ),
-          systemsUsed: routingPlan.systemsToRun,
+          systemsUsed: routingPlan.requestedSystems,
           tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
           type: "engine",
         });
+      } else if (systemsDegraded.length > 0) {
+        pipelineStatus = "engine_failed";
+        engineRun = "FAIL";
+        directResponseMessage = "I hit a calculation issue in part of the requested system mix, so I’m staying grounded and synthesizing the stable signal instead of forcing a broken engine response.";
       }
     }
-  } else if (routeDecision.requiresEngine && routingPlan.systemsToRun.includes("astrology")) {
+  } else if (routeDecision.requiresEngine && deterministicSystems.length > 0) {
     pipelineStatus = "engine_not_called";
   } else {
     pipelineStatus = "ok";
@@ -1938,7 +2170,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     responseText: userVisibleMessage,
     memory: storedMemory,
   });
-  storedMemory.extractedFacts.lastResolvedSystems = routingPlan.systemsToRun;
+  storedMemory.extractedFacts.lastResolvedSystems = routingPlan.requestedSystems;
   storedMemory.conversationState = routingPlan.responseMode === "engine" && engineSummary
     ? "interpreting"
     : routingPlan.conversationState;
@@ -1947,7 +2179,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     threadId: params.threadId,
     userId: params.userId,
     summary: clipSentence(userVisibleMessage, 220),
-    systemsUsed: routingPlan.systemsToRun,
+    systemsUsed: routingPlan.requestedSystems,
     tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
     type: "insight",
   });
@@ -1975,6 +2207,8 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     route_strict: routeDecision.strict,
     system_decision: formatSystemDecisionLabel(routeDecision),
     time_context: serializeTimeContext(timeContext),
+    mode: routingPlan.mode,
+    systems_degraded: systemsDegraded,
     stages: pipelineStages,
     divin8: {
       action: execDecision.action,
@@ -1994,7 +2228,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     chat: {
       message: userVisibleMessage,
       engine_used: Boolean(engineSummary),
-      systems_used: routingPlan.systemsToRun,
+      systems_used: routingPlan.requestedSystems,
       meta: chatMeta,
       ...(params.debugAudit ? { audit } : {}),
     },
@@ -2010,8 +2244,52 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       conversationSummary: storedMemory.conversationSummary,
       profileTags: resolvedProfileContext.tags,
       timeline: params.timeline,
-      systemsUsed: routingPlan.systemsToRun,
+      systemsUsed: routingPlan.requestedSystems,
       engineUsed: Boolean(engineSummary),
     }),
   };
+  } catch (error) {
+    params.app.log.error({
+      msg: "DIVIN8_PIPELINE_FAILURE",
+      threadId: params.threadId,
+      userId: params.userId,
+      systems: params.systems ?? [],
+      error,
+    });
+
+    const safeMessage =
+      "I hit a system issue while integrating that request, so I’m holding the line rather than forcing a broken answer. Rephrase the system mix or try one thread first, and I’ll continue cleanly from there.";
+
+    return {
+      chat: {
+        message: safeMessage,
+        engine_used: false,
+        systems_used: params.systems ?? [],
+        meta: {
+          gpt_live: false,
+          engine_triggered: false,
+          engine_called: false,
+          engine_success: false,
+          pipeline_status: "gpt_failed",
+          route_type: "GENERAL",
+          route_confidence: 0,
+          route_strict: false,
+          system_decision: "System: fallback / Engine: safe recovery",
+          stages: {
+            input_received: true,
+            routed: "GENERAL",
+            engine_required: false,
+            engine_run: "SKIPPED",
+            response_sent: true,
+          },
+        },
+      },
+      storedState: buildStoredDivin8State(
+        hydrateConversationMemory(params.storedState),
+        params.imageRef ?? params.storedState?.imageRef,
+      ),
+      timeline: [],
+      memoryCandidates: [],
+    };
+  }
 }

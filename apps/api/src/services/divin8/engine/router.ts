@@ -4,6 +4,7 @@ import type { Divin8RouteDecision } from "./types.js";
 
 const ASTROLOGY_KEYS = new Set(["vedic_astrology", "astrology_general", "western_astrology"]);
 const ASTROLOGY_SYSTEMS = new Set<SystemName>(["astrology"]);
+const DETERMINISTIC_SYSTEMS = new Set<SystemName>(["astrology", "numerology", "chinese"]);
 
 function normalizeConfidence(value: number) {
   return Math.max(0, Math.min(1, value));
@@ -15,16 +16,28 @@ export function routeDivin8Request(input: {
   requestedSystems: SystemName[];
 }): Divin8RouteDecision {
   const requestedAstrology = input.requestedSystems.some((system) => ASTROLOGY_SYSTEMS.has(system));
+  const requestedDeterministic = input.requestedSystems.some((system) => DETERMINISTIC_SYSTEMS.has(system));
   const astrologySignals = input.detectedSystems.filter((system) => ASTROLOGY_KEYS.has(system.key));
   const highestSignal = astrologySignals[0]?.score ?? 0;
   const messageAstroHint = /\b(astrology|birth chart|chart|vedic|sidereal|jyotish|natal)\b/i.test(input.message);
 
-  if (requestedAstrology || astrologySignals.length > 0 || messageAstroHint) {
-    const confidence = requestedAstrology
+  if (requestedDeterministic || requestedAstrology || astrologySignals.length > 0 || messageAstroHint) {
+    const confidence = requestedDeterministic || requestedAstrology
       ? 0.98
       : astrologySignals.length > 0
         ? normalizeConfidence(0.55 + highestSignal / 25)
         : 0.62;
+
+    const engineLabel = input.requestedSystems.length > 1
+      ? "Multi-engine deterministic"
+      : requestedAstrology
+        ? "Swiss Ephemeris"
+        : "Deterministic engine";
+    const systemLabel = input.requestedSystems.length > 1
+      ? "Multi-system"
+      : requestedAstrology
+        ? "Astrology"
+        : "Deterministic";
 
     return {
       type: "ASTROLOGY",
@@ -33,8 +46,8 @@ export function routeDivin8Request(input: {
       confidence,
       requestedSystems: input.requestedSystems,
       matchedSignals: astrologySignals.flatMap((system) => system.matchedKeywords),
-      systemLabel: "Astrology",
-      engineLabel: "Swiss Ephemeris",
+      systemLabel,
+      engineLabel,
     };
   }
 

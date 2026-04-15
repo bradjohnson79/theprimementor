@@ -1,5 +1,5 @@
 import type { EngineInterpretationRequestContext, NormalizedEngineInterpretationContext } from "../normalizeEngineResultForInterpretation.js";
-import type { ParsedAstrologyChart, Divin8CoreSystemResult, Divin8EngineRunStatus, Divin8RouteDecision } from "./types.js";
+import type { Divin8CoreSystemResult, Divin8EngineRunStatus, Divin8RouteDecision, ParsedAstrologyChart } from "./types.js";
 
 function uniqueList(values: string[]) {
   return [...new Set(values.filter(Boolean))];
@@ -68,7 +68,7 @@ export function formatSystemDecisionLabel(route: Divin8RouteDecision) {
 }
 
 export function getInterpretationContext(result: Divin8CoreSystemResult): NormalizedEngineInterpretationContext | null {
-  if (result.status === "success" && result.data.type === "ASTROLOGY") {
+  if (result.status === "success" && result.data.type === "ENGINE") {
     return result.data.interpretation;
   }
   return null;

@@ -9,6 +9,7 @@ import {
   type LanguageCode,
   type Divin8TimelineRequest,
 } from "@wisdom/utils";
+import { normalizeDivin8System } from "./systemRouting.js";
 
 export type Divin8ChatTier = "seeker" | "initiate";
 
@@ -16,6 +17,7 @@ export interface Divin8ChatRequest {
   message: string;
   image_ref?: string;
   profile_tags?: string[];
+  systems?: string[];
   timeline?: Divin8TimelineRequest;
   tier: Divin8ChatTier;
   language?: LanguageCode;
@@ -26,6 +28,7 @@ export interface Divin8MemberMessageRequest {
   message: string;
   image_ref?: string;
   profile_tags?: string[];
+  systems?: string[];
   timeline?: Divin8TimelineRequest;
   language?: LanguageCode;
   debugAudit?: boolean;
@@ -75,6 +78,8 @@ export interface Divin8ChatResponse {
     route_confidence: number;
     route_strict: boolean;
     system_decision: string;
+    mode?: "timeline" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
+    systems_degraded?: string[];
     time_context?: {
       current_date: string;
       current_time: string;
@@ -141,6 +146,20 @@ function validateTimelineInput(message: string, rawTimeline: unknown) {
   return timeline;
 }
 
+function normalizeSystemsInput(rawSystems: unknown) {
+  const values = typeof rawSystems === "string"
+    ? [rawSystems]
+    : Array.isArray(rawSystems)
+      ? rawSystems
+      : [];
+
+  return [...new Set(
+    values
+      .map((value) => normalizeDivin8System(value))
+      .filter((value): value is Exclude<ReturnType<typeof normalizeDivin8System>, null> => Boolean(value)),
+  )];
+}
+
 export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   if (!body || typeof body !== "object") {
     throw new Error("Request body is required.");
@@ -153,6 +172,7 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
+  const systems = normalizeSystemsInput(input.systems);
   const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
@@ -182,6 +202,7 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
     tier,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
     profile_tags: profileTags,
+    systems,
     timeline,
     language,
     debugAudit,
@@ -199,6 +220,7 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
+  const systems = normalizeSystemsInput(input.systems);
   const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
@@ -220,6 +242,7 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
     message,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
     profile_tags: profileTags,
+    systems,
     timeline,
     language,
     debugAudit,

@@ -1,6 +1,7 @@
 import type { LocationCoordinates, SystemName } from "../../blueprint/types.js";
 import type { VedicAstrologyResult } from "../../blueprint/vedicAstrologyService.js";
 import type { NormalizedEngineInterpretationContext } from "../normalizeEngineResultForInterpretation.js";
+import type { Divin8DeterministicSystem } from "../systemRouting.js";
 
 export type Divin8RouteType = "ASTROLOGY" | "GENERAL";
 export type Divin8EngineRunStatus = "SKIPPED" | "SUCCESS" | "FAIL";
@@ -12,8 +13,8 @@ export interface Divin8RouteDecision {
   confidence: number;
   requestedSystems: SystemName[];
   matchedSignals: string[];
-  systemLabel: "Astrology" | "General";
-  engineLabel: "Swiss Ephemeris" | "GPT";
+  systemLabel: string;
+  engineLabel: string;
 }
 
 export interface Divin8CoreSystemProfile {
@@ -28,19 +29,6 @@ export interface Divin8ResolvedBirthContext {
   coordinates: LocationCoordinates;
   timezone: string | null;
   utcOffsetMinutes: number;
-}
-
-export interface Divin8CoreSystemInput {
-  threadId: string;
-  userId: string;
-  message: string;
-  profile: Divin8CoreSystemProfile;
-  route: Divin8RouteDecision;
-  requestIntent: string;
-  focusAreas: string[];
-  comparisonRequested: boolean;
-  timingPeriod: string | null;
-  resolvedBirthContext?: Divin8ResolvedBirthContext | null;
 }
 
 export interface ParsedAstrologyChart {
@@ -60,17 +48,30 @@ export interface ParsedAstrologyChart {
   };
 }
 
+export interface Divin8CoreSystemInput {
+  threadId: string;
+  userId: string;
+  message: string;
+  system: Divin8DeterministicSystem;
+  profile: Divin8CoreSystemProfile;
+  route: Divin8RouteDecision;
+  requestIntent: string;
+  focusAreas: string[];
+  comparisonRequested: boolean;
+  timingPeriod: string | null;
+  resolvedBirthContext?: Divin8ResolvedBirthContext | null;
+}
+
 export type Divin8CoreSystemSuccess =
   | {
       status: "success";
       route: Divin8RouteDecision;
       engineRun: "SUCCESS";
       data: {
-        type: "ASTROLOGY";
-        astrology: VedicAstrologyResult;
-        parsed: ParsedAstrologyChart;
+        type: "ENGINE";
+        system: Divin8DeterministicSystem;
         interpretation: NormalizedEngineInterpretationContext;
-        resolvedBirthContext: Divin8ResolvedBirthContext;
+        resolvedBirthContext: Divin8ResolvedBirthContext | null;
       };
     }
   | {
@@ -91,6 +92,7 @@ export interface Divin8CoreSystemFailure {
     | "MISSING_BIRTH_DATA"
     | "INVALID_BIRTH_DATA"
     | "LOCATION_RESOLUTION_FAILED"
+    | "UNSUPPORTED_SYSTEM"
     | "STRICT_ENGINE_FAILED";
   error: string;
   userMessage: string;

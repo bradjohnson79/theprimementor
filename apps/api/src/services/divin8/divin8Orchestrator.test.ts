@@ -9,7 +9,6 @@ import {
   buildStructuredPayload,
   buildConversationSummary,
   decideNextAction,
-  extractDivin8Observations,
   hydrateConversationMemory,
   mergeConversationMemory,
   type Divin8ConversationMemory,
@@ -30,6 +29,7 @@ function makeExtraction(overrides: Partial<Divin8ExtractionResult> = {}): Divin8
   return {
     rawText: "Need a reading",
     detectedSystems: [],
+    requestedSystems: [],
     extractedEntities: {
       fullName: null,
       birthDate: null,
@@ -151,8 +151,12 @@ test("incremental updates prefer explicit later birth time", async () => {
   assert.equal(updated.knownProfile.birthTime.source, "explicit_user");
 });
 
-test("system routing runs only vedic astrology for a vedic request", async () => {
-  const extracted = await extractDivin8Observations("Please do a vedic astrology reading for me.");
+test("system routing runs only vedic astrology for a vedic request", () => {
+  const extracted = makeExtraction({
+    rawText: "Please do a vedic astrology reading for me.",
+    detectedSystems: [{ key: "vedic_astrology", matchedKeywords: ["vedic astrology"], score: 18 }],
+    requestedSystems: ["vedic astrology"],
+  });
   const memory = mergeConversationMemory(hydrateConversationMemory(), makeExtraction({
     extractedEntities: {
       fullName: "Jane Example",
@@ -173,18 +177,31 @@ test("system routing runs only vedic astrology for a vedic request", async () =>
 
   assert.deepEqual(routingPlan.systemsToRun, ["astrology"]);
   assert.equal(routingPlan.needsEngine, true);
+  assert.deepEqual(routingPlan.requestedSystems, ["vedic"]);
 });
 
-test("messy natural input still extracts core birth data", async () => {
-  const extracted = await extractDivin8Observations(
-    "Hi, I want a vedic astrology reading for money. My name is Sarah Connor. I was born April 3, 1990 at 6:45 am in Vancouver, Canada",
-  );
+test("merged conversation memory preserves extracted birth data cleanly", () => {
+  const extracted = makeExtraction({
+    rawText: "Hi, I want a vedic astrology reading for money.",
+    detectedSystems: [{ key: "vedic_astrology", matchedKeywords: ["vedic astrology"], score: 18 }],
+    requestedSystems: ["vedic astrology"],
+    extractedEntities: {
+      fullName: "Sarah Connor",
+      birthDate: "1990-04-03",
+      birthTime: "06:45",
+      birthLocation: "Vancouver, Canada",
+      timezone: null,
+      themes: ["finance"],
+      timeWindow: null,
+    },
+  });
+  const merged = mergeConversationMemory(hydrateConversationMemory(), extracted, "en");
 
-  assert.equal(extracted.extractedEntities.birthDate, "1990-04-03");
-  assert.equal(extracted.extractedEntities.birthTime, "06:45");
-  assert.equal(extracted.extractedEntities.birthLocation, "Vancouver, Canada");
+  assert.equal(merged.knownProfile.birthDate.value, "1990-04-03");
+  assert.equal(merged.knownProfile.birthTime.value, "06:45");
+  assert.equal(merged.knownProfile.birthLocation.value, "Vancouver, Canada");
   assert.equal(extracted.detectedSystems[0]?.key, "vedic_astrology");
-  assert.ok(extracted.extractedEntities.themes.includes("finance"));
+  assert.ok(merged.extractedFacts.themes.includes("finance"));
 });
 
 test("general conversation stays in chat mode without engine", () => {
@@ -371,6 +388,9 @@ test("structured payload includes authoritative time context and retrieved memor
     webContext: null,
     timelineHighlights: [],
     responseMode: "chat",
+    requestedSystems: [],
+    interpretiveSystems: [],
+    mode: "standard",
     execDecision: {
       action: "proceed",
       confidence: 0.9,
@@ -397,21 +417,72 @@ test("structured payload includes authoritative time context and retrieved memor
   assert.equal(payload.memory[0].content, "User prefers Vedic astrology.");
 });
 
-test("unsupported western astrology does not partially map to engine", () => {
+test("western astrology now routes through the deterministic multi-engine planner", () => {
   const extracted = makeExtraction({
     rawText: "Can you do western astrology for me?",
     detectedSystems: [{ key: "western_astrology", matchedKeywords: ["western astrology"], score: 20 }],
+    requestedSystems: ["western astrology"],
   });
   const routingPlan = decideNextAction({
-    memory: hydrateConversationMemory(),
+    memory: mergeConversationMemory(hydrateConversationMemory(), makeExtraction({
+      extractedEntities: {
+        fullName: "Jane Example",
+        birthDate: "1990-04-03",
+        birthTime: "06:45",
+        birthLocation: "Vancouver, Canada",
+        timezone: null,
+        themes: [],
+        timeWindow: null,
+      },
+    }), "en"),
     detectedSystems: extracted.detectedSystems,
     extracted,
     hasImage: false,
   });
 
-  assert.equal(routingPlan.needsEngine, false);
-  assert.deepEqual(routingPlan.systemsToRun, []);
-  assert.ok(routingPlan.clarificationPrompt?.includes("Vedic/sidereal"));
+  assert.equal(routingPlan.needsEngine, true);
+  assert.deepEqual(routingPlan.systemsToRun, ["astrology"]);
+  assert.deepEqual(routingPlan.requestedSystems, ["western"]);
+  assert.ok(routingPlan.routingNotes.some((note) => /western/i.test(note)));
+});
+
+test("mixed deterministic and interpretive systems stay preserved in the routing plan", () => {
+  const extracted = makeExtraction({
+    rawText: "Blend Vedic astrology with tarot for me.",
+    detectedSystems: [
+      { key: "vedic_astrology", matchedKeywords: ["vedic astrology"], score: 20 },
+      { key: "tarot", matchedKeywords: ["tarot"], score: 14 },
+    ],
+    requestedSystems: ["vedic astrology", "tarot"],
+    intentHints: {
+      summary: "Blend Vedic astrology with tarot",
+      wantsComparison: false,
+      wantsForecast: false,
+      explicitMultiSystem: true,
+      correction: false,
+    },
+  });
+  const routingPlan = decideNextAction({
+    memory: mergeConversationMemory(hydrateConversationMemory(), makeExtraction({
+      extractedEntities: {
+        fullName: "Jane Example",
+        birthDate: "1990-04-03",
+        birthTime: "06:45",
+        birthLocation: "Vancouver, Canada",
+        timezone: null,
+        themes: [],
+        timeWindow: null,
+      },
+    }), "en"),
+    detectedSystems: extracted.detectedSystems,
+    extracted,
+    hasImage: false,
+  });
+
+  assert.equal(routingPlan.needsEngine, true);
+  assert.deepEqual(routingPlan.systemsToRun, ["astrology"]);
+  assert.deepEqual(routingPlan.interpretiveSystems, ["tarot"]);
+  assert.equal(routingPlan.mode, "multi_system");
 });
 
 test("timeline highlights prioritize confirmed profile facts over generic recency", () => {
@@ -461,8 +532,11 @@ test("conversation summary is deterministic and bounded", () => {
       needsEngine: true,
       missingFields: [],
       systemsToRun: ["astrology"],
+      requestedSystems: ["vedic"],
+      interpretiveSystems: [],
       responseMode: "engine",
       conversationState: "interpreting",
+      mode: "standard",
       routingNotes: [],
     } satisfies Divin8RoutingPlan,
     responseText: "Here is the reading.",

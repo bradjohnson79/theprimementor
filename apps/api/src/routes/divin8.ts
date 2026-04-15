@@ -273,6 +273,7 @@ export async function divin8Routes(app: FastifyInstance) {
           message: payload.message,
           image_ref: payload.image_ref,
           profile_tags: payload.profile_tags,
+          systems: payload.systems,
           timeline: payload.timeline,
           language: payload.language,
           debugAudit: payload.debugAudit,

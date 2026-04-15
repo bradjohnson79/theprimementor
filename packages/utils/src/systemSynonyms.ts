@@ -27,6 +27,16 @@ export const SYSTEM_SYNONYMS = {
     "life path",
     "number reading",
   ],
+  tarot: [
+    "tarot",
+    "tarot reading",
+    "tarot spread",
+  ],
+  iching: [
+    "i ching",
+    "iching",
+    "hexagram",
+  ],
   human_design: [
     "human design",
     "projector",

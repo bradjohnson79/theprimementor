@@ -1025,6 +1025,7 @@ export async function addMessageToConversation(
       language: request.language,
       imageRef: request.image_ref,
       profileTags: request.profile_tags,
+      systems: request.systems,
       timeline: request.timeline,
       history: [
         ...history,

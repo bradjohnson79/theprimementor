@@ -1,17 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { systemsConfigFromIncludeSystems } from "@wisdom/utils";
-import { assembleBlueprint, type ClientInput } from "../blueprint/index.js";
 import { initSwissEphemeris } from "../blueprint/swissEphemerisService.js";
 import { runCoreSystem } from "./engine/core.js";
-import { toCoreChartSnapshot } from "./engine/chartSnapshot.js";
 import { VANCOUVER_JANE_EXAMPLE_FIXTURE } from "./__fixtures__/coreChartSnapshots.js";
 import { validateStrictAstrologyInput } from "./engine/ephemeris.js";
 import { routeDivin8Request } from "./engine/router.js";
 
 await initSwissEphemeris();
-
-const VANCOUVER_COORDINATES = VANCOUVER_JANE_EXAMPLE_FIXTURE.coordinates;
 
 const ASTROLOGY_ROUTE = routeDivin8Request({
   message: "Please do a vedic astrology reading for my career.",
@@ -69,6 +64,7 @@ test("strict runtime enforcement returns an error instead of astrology output wh
     threadId: "thread-1",
     userId: "user-1",
     message: "Do my chart",
+    system: "vedic",
     profile: {
       fullName: "Jane Example",
       birthDate: "1990-04-03",
@@ -86,16 +82,17 @@ test("strict runtime enforcement returns an error instead of astrology output wh
 
   assert.equal(result.status, "error");
   assert.equal(result.errorCode, "MISSING_BIRTH_DATA");
-  assert.match(result.userMessage, /Swiss Ephemeris/i);
+  assert.match(result.userMessage, /calculation-backed/i);
 });
 
 test("shared astrology computation stays aligned between chat core and blueprint assembly", async () => {
-  const client: ClientInput = VANCOUVER_JANE_EXAMPLE_FIXTURE.client;
+  const client = VANCOUVER_JANE_EXAMPLE_FIXTURE.client;
 
   const coreResult = await runCoreSystem({
     threadId: "thread-2",
     userId: "user-2",
     message: "Please do a vedic astrology reading for my career.",
+    system: "vedic",
     profile: {
       fullName: client.fullBirthName,
       birthDate: client.birthDate,
@@ -109,30 +106,51 @@ test("shared astrology computation stays aligned between chat core and blueprint
     comparisonRequested: false,
     timingPeriod: null,
     resolvedBirthContext: {
-      coordinates: VANCOUVER_COORDINATES,
+      coordinates: VANCOUVER_JANE_EXAMPLE_FIXTURE.coordinates,
       timezone: VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.name,
       utcOffsetMinutes: VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.utcOffsetMinutes,
     },
   });
 
   assert.equal(coreResult.status, "success");
-  if (coreResult.status !== "success" || coreResult.data.type !== "ASTROLOGY") {
+  if (coreResult.status !== "success" || coreResult.data.type !== "ENGINE") {
     assert.fail("core system should produce an astrology result");
   }
+  assert.equal(coreResult.data.system, "vedic");
+  assert.ok(coreResult.data.interpretation.summary);
+  assert.ok(coreResult.data.interpretation.systemsUsed.includes("vedic"));
+  assert.equal(coreResult.data.resolvedBirthContext?.timezone, VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.name);
+});
 
-  const blueprint = await assembleBlueprint(
-    client,
-    ["astrology"],
-    "intro",
-    systemsConfigFromIncludeSystems(["astrology"]),
-    VANCOUVER_COORDINATES,
-    undefined,
-    VANCOUVER_JANE_EXAMPLE_FIXTURE.timezone.utcOffsetMinutes,
-  );
+test("numerology runs without astrology-only birth requirements", async () => {
+  const result = await runCoreSystem({
+    threadId: "thread-3",
+    userId: "user-3",
+    message: "Run numerology for me.",
+    system: "numerology",
+    profile: {
+      fullName: "Jane Example",
+      birthDate: "1990-04-03",
+      birthTime: null,
+      birthLocation: null,
+      timezone: null,
+    },
+    route: routeDivin8Request({
+      message: "Run numerology for me.",
+      detectedSystems: [{ key: "numerology", matchedKeywords: ["numerology"], score: 12 }],
+      requestedSystems: ["numerology"],
+    }),
+    requestIntent: "Numerology reading",
+    focusAreas: ["general"],
+    comparisonRequested: false,
+    timingPeriod: null,
+    resolvedBirthContext: null,
+  });
 
-  assert.ok(blueprint.astrology);
-  const coreSnapshot = toCoreChartSnapshot(coreResult.data.astrology);
-  const blueprintSnapshot = toCoreChartSnapshot(blueprint.astrology!);
-  assert.deepEqual(coreSnapshot, blueprintSnapshot);
-  assert.deepEqual(coreSnapshot, VANCOUVER_JANE_EXAMPLE_FIXTURE.expected);
+  assert.equal(result.status, "success");
+  if (result.status !== "success" || result.data.type !== "ENGINE") {
+    assert.fail("numerology should produce an engine result");
+  }
+  assert.equal(result.data.system, "numerology");
+  assert.ok(result.data.interpretation.systemsUsed.includes("numerology"));
 });

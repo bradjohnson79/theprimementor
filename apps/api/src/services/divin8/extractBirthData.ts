@@ -31,7 +31,7 @@ const openai = new OpenAI({
 });
 
 const ENGINE_KEYWORDS =
-  /\b(astrology|vedic|birth chart|chart|numerology|life path|blueprint|nakshatra|planet|planetary|human design|kabbalah|rune|chinese astrology)\b/i;
+  /\b(astrology|vedic|birth chart|chart|numerology|life path|blueprint|nakshatra|planet|planetary|human design|kabbalah|rune|runes|tarot|i ching|iching|chinese astrology)\b/i;
 const FINANCE_KEYWORDS = /\b(finance|financial|money|wealth|income|abundance|career|business|work)\b/i;
 const RELATIONSHIP_KEYWORDS = /\b(relationship|relationships|love|partner|marriage|family)\b/i;
 const PURPOSE_KEYWORDS = /\b(purpose|calling|path|mission|meaning)\b/i;
@@ -170,7 +170,7 @@ export async function extractDivin8RequestAnalysis(message: string): Promise<Div
             "Also determine:",
             "- intent: what the user wants (e.g. 'vedic chart financial reading', 'general guidance', 'birth chart analysis')",
             "- needs_engine: true if any astrological, numerological, or system-based calculation is needed",
-            "- systems_requested: array of systems like astrology, numerology, humanDesign, chinese, kabbalah, rune, physiognomy, blueprint",
+            "- systems_requested: array of systems like astrology, numerology, humanDesign, chinese, kabbalah, rune, tarot, iching, physiognomy, blueprint",
             "- focus_areas: array like finance, career, relationships, purpose, health, spiritual, creativity, timing, general",
             "- comparison_requested: boolean if comparing systems or time periods",
             "- timing_period: specific time window mentioned (e.g. 'April 2026', 'next month')",

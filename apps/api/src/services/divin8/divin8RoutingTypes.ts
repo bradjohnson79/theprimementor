@@ -7,6 +7,13 @@ export type Divin8ConversationState =
   | "interpreting"
   | "conversational";
 
+export type Divin8ExecutionMode =
+  | "timeline"
+  | "compatibility_multi"
+  | "compatibility"
+  | "multi_system"
+  | "standard";
+
 /**
  * Deterministic routing plan from keyword/system detection (safety layer).
  * GPT-first orchestration maps this into `Divin8Decision` for execution.
@@ -15,8 +22,11 @@ export interface Divin8RoutingPlan {
   needsEngine: boolean;
   missingFields: string[];
   systemsToRun: SystemName[];
+  requestedSystems: string[];
+  interpretiveSystems: string[];
   responseMode: "chat" | "engine";
   conversationState: Divin8ConversationState;
+  mode: Divin8ExecutionMode;
   clarificationPrompt?: string;
   routingNotes: string[];
   unsupportedReason?: string;
