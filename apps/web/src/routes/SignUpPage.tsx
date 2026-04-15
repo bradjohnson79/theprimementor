@@ -1,9 +1,13 @@
 import { SignUp } from "@clerk/react";
-import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
 
 export default function SignUpPage() {
-  const [searchParams] = useSearchParams();
-  const redirectUrl = searchParams.get("redirect_url")?.trim() || undefined;
+  // Capture redirect URL exactly once on mount so Clerk's internal
+  // step-navigation (e.g. /sign-up → /sign-up/verify-email-address)
+  // never changes this prop and never re-triggers verification.
+  const [redirectUrl] = useState(
+    () => new URLSearchParams(window.location.search).get("redirect_url")?.trim() || undefined,
+  );
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
