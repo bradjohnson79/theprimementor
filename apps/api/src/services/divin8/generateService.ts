@@ -129,7 +129,10 @@ export async function resolveBlueprintClient(
 ): Promise<BlueprintClientRecord | null> {
   const clientId = request.clientId.trim();
   const email = request.email?.trim().toLowerCase() || undefined;
-  let client = await deps.findByClientId(clientId);
+  let client: BlueprintClientRecord | null = null;
+  if (clientId) {
+    client = await deps.findByClientId(clientId);
+  }
   if (!client && email) {
     client = await deps.findByEmail(email);
   }
