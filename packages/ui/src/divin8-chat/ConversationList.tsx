@@ -89,7 +89,7 @@ export default function ConversationList({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         <div>
           <div className={classNames("px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/35")}>
             Conversations

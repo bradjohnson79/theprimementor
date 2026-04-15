@@ -161,7 +161,7 @@ export default function MemberLayout() {
             </div>
           </div>
         </header>
-        <main className="flex min-h-[100dvh] w-full min-w-0 flex-1 flex-col">
+        <main className="flex min-h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
           <Outlet />
         </main>
       </div>
