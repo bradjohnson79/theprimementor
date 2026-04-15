@@ -9,6 +9,7 @@ export type Divin8ConversationState =
 
 export type Divin8ExecutionMode =
   | "timeline"
+  | "timeline_multi_compatibility"
   | "compatibility_multi"
   | "compatibility"
   | "multi_system"

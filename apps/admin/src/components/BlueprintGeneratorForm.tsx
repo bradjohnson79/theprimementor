@@ -6,7 +6,15 @@ import ImageUpload from "./ImageUpload";
 
 interface Client {
   id: string;
+  clientId: string | null;
   full_birth_name: string;
+  email: string;
+  label: string;
+  value: string;
+}
+
+interface SelectedBlueprintClient {
+  clientId: string;
   email: string;
 }
 
@@ -14,7 +22,7 @@ interface BlueprintGeneratorFormProps {
   clients: Client[];
   tierDefinition?: ReportTierDefinition;
   onGenerate: (
-    clientId: string,
+    client: SelectedBlueprintClient,
     systems: string[],
     timezone: string,
     timezoneSource: "user" | "suggested" | "fallback",
@@ -41,7 +49,7 @@ export default function BlueprintGeneratorForm({
   onGenerate,
   isGenerating,
 }: BlueprintGeneratorFormProps) {
-  const [selectedClient, setSelectedClient] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedTimezone, setSelectedTimezone] = useState("");
   const [timezoneSource, setTimezoneSource] = useState<"user" | "suggested" | "fallback">("user");
   const [imageAssetId, setImageAssetId] = useState<string | null>(null);
@@ -50,6 +58,10 @@ export default function BlueprintGeneratorForm({
   );
   const isLocked = Boolean(tierDefinition);
   const requiresTimezone = useMemo(() => selectedSystems.includes("astrology"), [selectedSystems]);
+  const clientOptions = useMemo(
+    () => clients.filter((client) => Boolean(client.clientId?.trim() && client.value.trim())),
+    [clients],
+  );
 
   function toggleSystem(id: string) {
     if (isLocked) return;
@@ -58,7 +70,11 @@ export default function BlueprintGeneratorForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedClient) return;
+    const selectedClient = clientOptions.find((client) => client.value === selectedClientId);
+    if (!selectedClient?.clientId) {
+      alert("Client ID is required for blueprint generation");
+      return;
+    }
     if (requiresTimezone && !selectedTimezone) {
       alert("Select a timezone before generating this blueprint.");
       return;
@@ -67,7 +83,13 @@ export default function BlueprintGeneratorForm({
       alert("Physiognomy requires an image upload. Please upload and wait for it to finish.");
       return;
     }
-    onGenerate(selectedClient, selectedSystems, selectedTimezone, timezoneSource, imageAssetId);
+    onGenerate(
+      { clientId: selectedClient.clientId, email: selectedClient.email },
+      selectedSystems,
+      selectedTimezone,
+      timezoneSource,
+      imageAssetId,
+    );
   }
 
   return (
@@ -101,14 +123,14 @@ export default function BlueprintGeneratorForm({
         <div>
           <label className="mb-1.5 block text-xs text-white/40">Client</label>
           <select
-            value={selectedClient}
-            onChange={(e) => setSelectedClient(e.target.value)}
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
             className="w-full rounded-lg border border-glass-border bg-glass px-3 py-2 text-sm text-white/90 outline-none focus:border-accent-cyan/50"
           >
-            <option value="">Select a client...</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.full_birth_name} ({c.email})
+            <option value="">{clientOptions.length > 0 ? "Select a client..." : "No client records available"}</option>
+            {clientOptions.map((client) => (
+              <option key={client.clientId} value={client.value}>
+                {client.label}
               </option>
             ))}
           </select>
@@ -172,7 +194,7 @@ export default function BlueprintGeneratorForm({
 
         <button
           type="submit"
-          disabled={!selectedClient || (requiresTimezone && !selectedTimezone) || isGenerating}
+          disabled={!selectedClientId || (requiresTimezone && !selectedTimezone) || isGenerating}
           className="w-full rounded-lg bg-accent-cyan/20 px-4 py-2.5 text-sm font-medium text-accent-cyan transition-colors hover:bg-accent-cyan/30 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isGenerating ? "Generating..." : "Generate Blueprint"}

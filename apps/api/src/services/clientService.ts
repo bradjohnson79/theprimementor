@@ -25,6 +25,7 @@ export interface AdminClientOrderSummary {
 
 export interface AdminClientSummary {
   id: string;
+  clientId: string | null;
   email: string;
   name: string | null;
   createdAt: string;
@@ -199,10 +200,12 @@ export function buildAdminClientsResult(input: AdminClientsBuildInput): AdminCli
   const filteredClients = input.userRows
     .map<AdminClientSummary>((userRow) => {
       const orders = input.ordersByUser.get(userRow.id) ?? [];
+      const latestClient = latestClientByUser.get(userRow.id);
       return {
         id: userRow.id,
+        clientId: latestClient?.id ?? null,
         email: userRow.email,
-        name: resolveClientName(latestClientByUser.get(userRow.id), orders),
+        name: resolveClientName(latestClient, orders),
         createdAt: userRow.createdAt.toISOString(),
         totalOrders: orders.length,
         totalSpent: orders.reduce((sum, order) => sum + (countsTowardSpend(order.status) ? order.amount : 0), 0),

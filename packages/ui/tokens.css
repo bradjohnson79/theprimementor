@@ -11,3 +11,31 @@
   --color-glass-border: rgba(255, 255, 255, 0.1);
   --color-glass-border-hover: rgba(255, 255, 255, 0.2);
 }
+
+:root {
+  --z-base: 1;
+  --z-chat: 10;
+  --z-dropdown: 50;
+  --z-overlay: 100;
+  --z-modal: 1000;
+  --z-toast: 1100;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.ui-modal-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: var(--z-modal);
+  background: rgba(2, 6, 23, 0.66);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}

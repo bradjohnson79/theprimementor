@@ -144,6 +144,7 @@ test("buildAdminClientsResult aggregates canonical orders by user", () => {
   assert.equal(result.meta.totalUsers, 3);
   assert.equal(result.meta.totalActiveClients, 2);
   const alpha = result.clients.find((client) => client.email === "alpha@example.com");
+  assert.equal(alpha?.clientId, "client-1b");
   assert.equal(alpha?.name, "Alpha Prime");
   assert.equal(alpha?.totalOrders, 2);
   assert.equal(alpha?.totalSpent, 120);

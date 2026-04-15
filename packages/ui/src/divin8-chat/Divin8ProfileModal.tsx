@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Divin8ProfileCreateRequest } from "@wisdom/utils";
 import TimezoneSelect from "../timezone/TimezoneSelect";
+import Divin8ModalPortal from "./Divin8ModalPortal";
 import type { Divin8ChatApiAdapter } from "./useDivin8Chat";
 import { classNames, darkChatStyles } from "./utils";
 
@@ -237,10 +238,13 @@ export default function Divin8ProfileModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[200] isolate flex items-center justify-center bg-slate-950/60 p-6">
+    <Divin8ModalPortal open={open} onClose={onClose} closeOnBackdropClick>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="divin8-profile-modal-title"
         className={classNames(
-          "relative z-[201] w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl",
+          "w-full max-w-2xl rounded-[28px] border p-6 shadow-[0_30px_100px_rgba(8,15,30,0.42),0_0_36px_rgba(6,182,212,0.14)]",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={!isLightTheme ? darkChatStyles.panelElevated : undefined}
@@ -250,7 +254,7 @@ export default function Divin8ProfileModal({
             <p className={classNames("text-xs uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/45")}>
               Divin8 Profiles
             </p>
-            <h3 className="mt-1 text-xl font-semibold">Add Profile</h3>
+            <h3 id="divin8-profile-modal-title" className="mt-1 text-xl font-semibold">Add Profile</h3>
             <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
               Save a complete birth profile, then tag it in chat for Swiss Ephemeris readings.
             </p>
@@ -449,6 +453,6 @@ export default function Divin8ProfileModal({
           </div>
         </form>
       </div>
-    </div>
+    </Divin8ModalPortal>
   );
 }

@@ -9,8 +9,16 @@ import Card from "./Card";
 
 interface Client {
   id: string;
+  clientId: string | null;
   full_birth_name: string;
   email: string;
+  label: string;
+  value: string;
+}
+
+interface BlueprintRequest {
+  clientId: string;
+  email?: string;
 }
 
 export interface InterpretSuccessPayload {
@@ -61,7 +69,7 @@ export default function GenerationTab({ clients, onInterpretationSuccess }: Gene
       : null;
 
   async function handleGenerate(
-    clientId: string,
+    client: BlueprintRequest,
     systems: string[],
     timezone: string,
     timezoneSource: "user" | "suggested" | "fallback",
@@ -73,11 +81,15 @@ export default function GenerationTab({ clients, onInterpretationSuccess }: Gene
     setReportId(null);
 
     try {
+      if (!client.clientId) {
+        throw new Error("Client ID is required for blueprint generation");
+      }
       const token = await getToken();
       const body: Record<string, unknown> = {
         mode: "client",
         tier: DEFAULT_INTERPRETATION_TIER,
-        clientId,
+        clientId: client.clientId,
+        email: client.email,
         includeSystems: systems,
         timezone,
         timezoneSource,

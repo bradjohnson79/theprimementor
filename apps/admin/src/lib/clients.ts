@@ -12,6 +12,7 @@ export interface AdminClientOrderSummary {
 
 export interface AdminClientSummary {
   id: string;
+  clientId: string | null;
   email: string;
   name: string | null;
   createdAt: string;
@@ -40,14 +41,22 @@ export interface AdminClientsResponse {
 
 export interface ClientOption {
   id: string;
+  clientId: string | null;
   full_birth_name: string;
   email: string;
+  label: string;
+  value: string;
 }
 
-export function toClientOption(client: Pick<AdminClientSummary, "id" | "email" | "name">): ClientOption {
+export function toClientOption(client: Pick<AdminClientSummary, "id" | "clientId" | "email" | "name">): ClientOption {
+  const fullBirthName = client.name?.trim() || client.email;
+  const authoritativeClientId = client.clientId?.trim() || "";
   return {
-    id: client.id,
-    full_birth_name: client.name?.trim() || client.email,
+    id: authoritativeClientId || client.id,
+    clientId: authoritativeClientId || null,
+    full_birth_name: fullBirthName,
     email: client.email,
+    label: `${fullBirthName} (${client.email})`,
+    value: authoritativeClientId,
   };
 }

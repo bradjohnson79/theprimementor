@@ -4,6 +4,7 @@ import ChatComposer from "./ChatComposer";
 import ChatWindow from "./ChatWindow";
 import ConversationList from "./ConversationList";
 import Divin8ChatShell from "./Divin8ChatShell";
+import Divin8ModalPortal from "./Divin8ModalPortal";
 import Divin8ProfileModal from "./Divin8ProfileModal";
 import Divin8TimelineModal from "./Divin8TimelineModal";
 import type { Divin8Capabilities } from "./capabilities";
@@ -140,23 +141,27 @@ export default function Divin8ChatPage({
       {chat.archiveNotice ? (
         <div
           className={classNames(
-            "fixed bottom-6 right-6 z-40 rounded-xl border px-4 py-2.5 text-sm shadow-lg",
+            "fixed bottom-6 right-6 rounded-xl border px-4 py-2.5 text-sm shadow-lg",
             isLightTheme ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-500/30 bg-slate-950 text-amber-100",
           )}
+          style={{ zIndex: "var(--z-toast)" }}
         >
           {chat.archiveNotice}
         </div>
       ) : null}
 
       {chat.archiveTarget ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-6">
+        <Divin8ModalPortal open>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="divin8-delete-conversation-title"
             className={classNames(
-              "w-full max-w-sm rounded-2xl border p-5 shadow-2xl",
+              "w-full max-w-sm rounded-2xl border p-5 shadow-[0_24px_80px_rgba(8,15,30,0.4)]",
               isLightTheme ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-slate-950 text-white",
             )}
           >
-            <h3 className="text-base font-semibold">Delete conversation?</h3>
+            <h3 id="divin8-delete-conversation-title" className="text-base font-semibold">Delete conversation?</h3>
             <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-600" : "text-white/65")}>
               This permanently deletes the conversation and its stored recall.
             </p>
@@ -186,7 +191,7 @@ export default function Divin8ChatPage({
               </button>
             </div>
           </div>
-        </div>
+        </Divin8ModalPortal>
       ) : null}
 
       <Divin8ProfileModal

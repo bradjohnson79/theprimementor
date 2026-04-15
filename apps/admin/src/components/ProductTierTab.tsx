@@ -12,8 +12,16 @@ import type { InterpretSuccessPayload } from "./GenerationTab";
 
 interface Client {
   id: string;
+  clientId: string | null;
   full_birth_name: string;
   email: string;
+  label: string;
+  value: string;
+}
+
+interface BlueprintRequest {
+  clientId: string;
+  email?: string;
 }
 
 interface GuestData {
@@ -60,7 +68,7 @@ export default function ProductTierTab({
       : null;
 
   async function handleGenerate(
-    clientId: string,
+    client: BlueprintRequest,
     _systems: string[],
     timezone: string,
     timezoneSource: "user" | "suggested" | "fallback",
@@ -70,13 +78,17 @@ export default function ProductTierTab({
     setBlueprintData(null);
     setReportId(null);
     try {
+      if (!client.clientId) {
+        throw new Error("Client ID is required for blueprint generation");
+      }
       const token = await getToken();
       const result = await api.post(
         "/blueprints/generate",
         {
           mode: "client",
           tier: tierDefinition.id,
-          clientId,
+          clientId: client.clientId,
+          email: client.email,
           timezone,
           timezoneSource,
         },

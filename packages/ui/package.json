@@ -25,10 +25,12 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.23",
+    "@types/react-dom": "^19.2.3",
     "@wisdom/utils": "workspace:*",
     "dompurify": "^3.3.3",
     "framer-motion": "^12.38.0",
-    "react": "^19.2.4"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@types/react": "^19.2.14"

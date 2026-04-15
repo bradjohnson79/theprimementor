@@ -78,7 +78,7 @@ export interface Divin8ChatResponse {
     route_confidence: number;
     route_strict: boolean;
     system_decision: string;
-    mode?: "timeline" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
+    mode?: "timeline" | "timeline_multi_compatibility" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
     systems_degraded?: string[];
     time_context?: {
       current_date: string;

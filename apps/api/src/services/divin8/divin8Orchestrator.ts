@@ -78,6 +78,7 @@ import {
   isDeterministicSystem,
   listDeterministicSystems,
   listInterpretiveSystems,
+  normalizeDetectedSystemKey,
   type Divin8DeterministicSystem,
   type Divin8NormalizedSystem,
   type Divin8SystemExecutionPlan,
@@ -205,7 +206,7 @@ export interface StoredPipelineMeta {
   route_confidence: number;
   route_strict: boolean;
   system_decision: string;
-  mode?: "timeline" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
+  mode?: "timeline" | "timeline_multi_compatibility" | "compatibility_multi" | "compatibility" | "multi_system" | "standard";
   systems_degraded?: string[];
   time_context?: {
     current_date: string;
@@ -989,6 +990,9 @@ function resolveExecutionMode(input: {
   requestedSystems: string[];
   timeline?: Divin8TimelineRequest;
 }) {
+  if (input.timeline && input.profileCount >= 2 && input.requestedSystems.length > 1) {
+    return "timeline_multi_compatibility" as const;
+  }
   if (input.timeline) {
     return "timeline" as const;
   }
@@ -1019,17 +1023,17 @@ export function decideNextAction(params: {
     : choosePrimarySystem(params.detectedSystems, params.extracted);
 
   if (selected.ambiguous && !hasExplicitSystemRequest) {
-    routingNotes.push("Multiple systems were detected with similar confidence. Ask the user which system they want first.");
+    const adaptiveSystems = uniqueList(selected.systems.map((system) => normalizeDetectedSystemKey(system.key)));
+    routingNotes.push("Multiple systems were detected with similar confidence. Adapt the response gracefully instead of stopping for rephrasing.");
     return {
       needsEngine: false,
       missingFields: [],
       systemsToRun: [],
-      requestedSystems: [],
+      requestedSystems: adaptiveSystems,
       interpretiveSystems: [],
       responseMode: "chat",
-      conversationState: "collecting_input",
-      mode: resolveExecutionMode({ profileCount: params.profileCount ?? 0, requestedSystems: [] }),
-      clarificationPrompt: buildClarificationPrompt([], routingNotes),
+      conversationState: "conversational",
+      mode: resolveExecutionMode({ profileCount: params.profileCount ?? 0, requestedSystems: adaptiveSystems }),
       routingNotes,
     };
   }
@@ -1664,26 +1668,57 @@ async function processStructuredTimelineMode(params: {
   userId: string;
   message: string;
   imageRef?: string;
+  systems?: string[];
   extracted: Divin8ExtractionResult;
   memory: Divin8ConversationMemory;
   timeline: Divin8TimelineRequest;
   timeContext: Divin8CurrentTimeContext;
   resolvedProfileContext: Awaited<ReturnType<typeof resolveDivin8ProfilesForMessage>>;
 }) {
+  const requestedPlans = buildSystemExecutionPlan({
+    explicitSystems: params.systems,
+    analysisSystems: params.extracted.requestedSystems,
+  });
+  const requestedSystems: Divin8NormalizedSystem[] = requestedPlans.length > 0
+    ? uniqueList(requestedPlans.map((plan) => plan.system)) as Divin8NormalizedSystem[]
+    : [params.timeline.system];
+  const interpretiveSystems = requestedPlans.length > 0
+    ? listInterpretiveSystems(requestedPlans)
+    : [];
+  const systemsToRun = requestedPlans.length > 0
+    ? uniqueList(
+        requestedPlans
+          .map((plan) => plan.blueprintSystem)
+          .filter((value): value is SystemName => Boolean(value)),
+      ) as SystemName[]
+    : ["astrology"] as SystemName[];
+  const mode = resolveExecutionMode({
+    profileCount: params.resolvedProfileContext.profiles.length,
+    requestedSystems,
+    timeline: params.timeline,
+  });
   const routingPlan: Divin8RoutingPlan = {
     needsEngine: true,
     missingFields: [],
-    systemsToRun: ["astrology"],
-    requestedSystems: [params.timeline.system],
-    interpretiveSystems: [],
+    systemsToRun,
+    requestedSystems,
+    interpretiveSystems,
     responseMode: "engine",
     conversationState: "interpreting",
-    mode: "timeline",
+    mode,
     routingNotes: [],
   };
+  params.app.log.info({
+    msg: "DIVIN8_EXECUTION_DEBUG",
+    mode,
+    systems: requestedSystems,
+    profiles: params.resolvedProfileContext.profiles.length,
+    timeline: params.timeline,
+  });
   const reading = await buildTimelineReading({
     timeline: params.timeline,
     profiles: params.resolvedProfileContext.profiles,
+    systems: requestedSystems,
   });
 
   await appendTimelineEvent(params.app.db, {
@@ -1695,7 +1730,7 @@ async function processStructuredTimelineMode(params: {
         : `User request: ${params.message} [timeline: ${params.timeline.tag}]`,
       220,
     ),
-    systemsUsed: ["astrology"],
+    systemsUsed: reading.systemsUsed,
     tags: buildTimelineTags({
       extracted: params.extracted,
       routingPlan,
@@ -1709,7 +1744,7 @@ async function processStructuredTimelineMode(params: {
     threadId: params.threadId,
     userId: params.userId,
     summary: clipSentence(reading.summary, 220),
-    systemsUsed: ["astrology"],
+    systemsUsed: reading.systemsUsed,
     tags: buildTimelineTags({
       extracted: params.extracted,
       routingPlan,
@@ -1719,7 +1754,7 @@ async function processStructuredTimelineMode(params: {
     type: "engine",
   });
 
-  params.memory.extractedFacts.lastResolvedSystems = ["astrology"];
+  params.memory.extractedFacts.lastResolvedSystems = reading.systemsUsed;
   params.memory.extractedFacts.timeWindow = params.timeline.tag;
   params.memory.conversationState = "interpreting";
   params.memory.conversationSummary = buildConversationSummary({
@@ -1734,7 +1769,7 @@ async function processStructuredTimelineMode(params: {
     threadId: params.threadId,
     userId: params.userId,
     summary: clipSentence(reading.summary, 220),
-    systemsUsed: ["astrology"],
+    systemsUsed: reading.systemsUsed,
     tags: buildTimelineTags({
       extracted: params.extracted,
       routingPlan,
@@ -1754,8 +1789,8 @@ async function processStructuredTimelineMode(params: {
     route_confidence: 1,
     route_strict: true,
     system_decision: `${reading.systemLabel} timeline analysis`,
-    mode: "timeline" as const,
-    systems_degraded: [] as string[],
+    mode,
+    systems_degraded: reading.systemsDegraded,
     time_context: serializeTimeContext(params.timeContext),
     stages: {
       input_received: true,
@@ -1771,7 +1806,7 @@ async function processStructuredTimelineMode(params: {
       tool_blocked_reason: null,
     },
     telemetry: {
-      used_swiss_eph: true,
+      used_swiss_eph: reading.systemsUsed.includes("vedic") || reading.systemsUsed.includes("western"),
       used_web_search: false,
       search_input_used: false,
       query_type: "astrology" as const,
@@ -1782,7 +1817,7 @@ async function processStructuredTimelineMode(params: {
     chat: {
       message: reading.rendered,
       engine_used: true,
-      systems_used: [params.timeline.system],
+      systems_used: reading.systemsUsed,
       meta: chatMeta,
     },
     storedState: buildStoredDivin8State(
@@ -1797,7 +1832,7 @@ async function processStructuredTimelineMode(params: {
       conversationSummary: params.memory.conversationSummary ?? reading.summary,
       profileTags: params.resolvedProfileContext.tags,
       timeline: params.timeline,
-      systemsUsed: [params.timeline.system],
+      systemsUsed: reading.systemsUsed,
       engineUsed: true,
     }),
   };
@@ -1832,6 +1867,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
         userId: params.userId,
         message: params.message,
         imageRef: params.imageRef,
+        systems: params.systems,
         extracted,
         memory: storedMemory,
         timeline: params.timeline,

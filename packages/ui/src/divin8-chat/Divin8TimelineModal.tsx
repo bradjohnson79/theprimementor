@@ -6,6 +6,7 @@ import {
   type Divin8TimelineRequest,
   type Divin8TimelineSystem,
 } from "@wisdom/utils";
+import Divin8ModalPortal from "./Divin8ModalPortal";
 import { classNames, darkChatStyles } from "./utils";
 
 interface Divin8TimelineModalProps {
@@ -122,10 +123,13 @@ export default function Divin8TimelineModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] isolate flex items-center justify-center bg-slate-950/60 p-6">
+    <Divin8ModalPortal open={open} onClose={onClose} closeOnBackdropClick>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="divin8-timeline-modal-title"
         className={classNames(
-          "relative z-[201] w-full max-w-xl rounded-[28px] border p-6 shadow-2xl transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
+          "w-full max-w-xl rounded-[28px] border p-6 shadow-[0_28px_90px_rgba(8,15,30,0.42),0_0_40px_rgba(99,102,241,0.18)] transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={{
@@ -138,7 +142,7 @@ export default function Divin8TimelineModal({
             <p className={classNames("text-xs uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/45")}>
               Timeline Reading
             </p>
-            <h3 className="mt-1 text-xl font-semibold">Generate Timeline</h3>
+            <h3 id="divin8-timeline-modal-title" className="mt-1 text-xl font-semibold">Generate Timeline</h3>
             <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
               Choose one astrology system and a same-month range up to 31 days. Divin8 will add a single timeline tag to the chat.
             </p>
@@ -295,6 +299,6 @@ export default function Divin8TimelineModal({
           </div>
         </div>
       </div>
-    </div>
+    </Divin8ModalPortal>
   );
 }

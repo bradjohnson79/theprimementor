@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
-import { clients, reports } from "@wisdom/db";
+import { desc, eq } from "drizzle-orm";
+import { clients, reports, users } from "@wisdom/db";
 import {
   getReportTierDefinition,
   systemsConfigFromIncludeSystems,
@@ -34,12 +34,33 @@ export interface GenerateBlueprintParams {
   mode: "client" | "guest";
   tier?: ReportTierId;
   clientId?: string;
+  email?: string;
   guest?: GuestInput;
   coordinates?: LocationCoordinates;
   includeSystems?: BlueprintSystemName[];
   timezone?: string;
   timezoneSource?: "user" | "suggested" | "fallback";
   imageAssetId?: string;
+}
+
+export interface BlueprintRequest {
+  clientId: string;
+  email?: string;
+}
+
+interface BlueprintClientRecord {
+  id: string;
+  user_id: string;
+  email: string;
+  full_birth_name: string;
+  birth_date: string | null;
+  birth_time: string | null;
+  birth_location: string | null;
+}
+
+interface BlueprintClientResolverDeps {
+  findByClientId: (clientId: string) => Promise<BlueprintClientRecord | null>;
+  findByEmail: (email: string) => Promise<BlueprintClientRecord | null>;
 }
 
 function clarityGlyphCountForTier(tier: string | null | undefined): number {
@@ -63,6 +84,100 @@ function assertNoUndefinedDeep(value: unknown, path = "payload"): void {
   }
 }
 
+function extractBirthPlaceLabel(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const candidateKeys = ["formattedAddress", "address", "name", "label", "description"];
+  for (const key of candidateKeys) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+export function normalizeBlueprintBirthPlace(birthPlace: string | null): string | null {
+  if (typeof birthPlace !== "string" || !birthPlace.trim()) {
+    return null;
+  }
+  const trimmed = birthPlace.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return trimmed;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (typeof parsed === "string" && parsed.trim()) {
+      return parsed.trim();
+    }
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        const label = extractBirthPlaceLabel(item);
+        if (label) return label;
+      }
+      return trimmed;
+    }
+    return extractBirthPlaceLabel(parsed) ?? trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+export async function resolveBlueprintClient(
+  request: BlueprintRequest,
+  deps: BlueprintClientResolverDeps,
+): Promise<BlueprintClientRecord | null> {
+  const clientId = request.clientId.trim();
+  const email = request.email?.trim().toLowerCase() || undefined;
+  let client = await deps.findByClientId(clientId);
+  if (!client && email) {
+    client = await deps.findByEmail(email);
+  }
+  console.log("BLUEPRINT_CLIENT_DEBUG", {
+    receivedClientId: clientId,
+    email: email ?? null,
+    resolvedClient: client?.id ?? null,
+  });
+  return client;
+}
+
+async function findBlueprintClientById(app: FastifyInstance, clientId: string): Promise<BlueprintClientRecord | null> {
+  const [client] = await app.db
+    .select({
+      id: clients.id,
+      user_id: clients.user_id,
+      email: users.email,
+      full_birth_name: clients.full_birth_name,
+      birth_date: clients.birth_date,
+      birth_time: clients.birth_time,
+      birth_location: clients.birth_location,
+    })
+    .from(clients)
+    .innerJoin(users, eq(clients.user_id, users.id))
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  return client ?? null;
+}
+
+async function findBlueprintClientByEmail(app: FastifyInstance, email: string): Promise<BlueprintClientRecord | null> {
+  const [client] = await app.db
+    .select({
+      id: clients.id,
+      user_id: clients.user_id,
+      email: users.email,
+      full_birth_name: clients.full_birth_name,
+      birth_date: clients.birth_date,
+      birth_time: clients.birth_time,
+      birth_location: clients.birth_location,
+    })
+    .from(clients)
+    .innerJoin(users, eq(clients.user_id, users.id))
+    .where(eq(users.email, email))
+    .orderBy(desc(clients.created_at))
+    .limit(1);
+  return client ?? null;
+}
+
 export async function generateBlueprintFromRequest(
   app: FastifyInstance,
   body: unknown,
@@ -78,6 +193,7 @@ export async function generateBlueprintFromRequest(
     mode: validation.mode!,
     tier: validation.tier,
     clientId: validation.clientId,
+    email: validation.email,
     guest: validation.guest,
     coordinates: validation.coordinates,
     includeSystems: validation.includeSystems as BlueprintSystemName[] | undefined,
@@ -103,21 +219,22 @@ export async function generateBlueprint(
   let dbUserId: string | null = null;
 
   if (params.mode === "client") {
-    const [client] = await app.db
-      .select({
-        id: clients.id,
-        user_id: clients.user_id,
-        full_birth_name: clients.full_birth_name,
-        birth_date: clients.birth_date,
-        birth_time: clients.birth_time,
-        birth_location: clients.birth_location,
-      })
-      .from(clients)
-      .where(eq(clients.id, params.clientId!))
-      .limit(1);
+    if (!params.clientId?.trim()) {
+      const error = new Error("Client ID is required for blueprint generation");
+      (error as Error & { statusCode?: number }).statusCode = 400;
+      throw error;
+    }
+
+    const client = await resolveBlueprintClient(
+      { clientId: params.clientId, email: params.email },
+      {
+        findByClientId: (clientId) => findBlueprintClientById(app, clientId),
+        findByEmail: (email) => findBlueprintClientByEmail(app, email),
+      },
+    );
 
     if (!client) {
-      const error = new Error("Client not found");
+      const error = new Error("Client not found. Please reselect the client.");
       (error as Error & { statusCode?: number }).statusCode = 404;
       throw error;
     }
@@ -133,7 +250,7 @@ export async function generateBlueprint(
       fullBirthName: client.full_birth_name,
       birthDate: client.birth_date,
       birthTime: normalizeBirthTimeToStorage(client.birth_time),
-      birthLocation: client.birth_location,
+      birthLocation: normalizeBlueprintBirthPlace(client.birth_location),
     };
     dbClientId = client.id;
     dbUserId = client.user_id;
