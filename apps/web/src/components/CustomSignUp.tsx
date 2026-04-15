@@ -9,6 +9,23 @@ interface CustomSignUpProps {
 
 const RESEND_COOLDOWN_MS = 60_000;
 
+const CLERK_ERROR_MAP: Record<string, string> = {
+  form_code_incorrect: "That code is incorrect. Please check the latest email and try again.",
+  verification_expired: "This code has expired. Please request a new one.",
+  form_identifier_exists: "An account with this email already exists. Please sign in instead.",
+  form_password_pwned: "This password has appeared in a data breach. Please choose a different one.",
+  form_password_length_too_short: "Password is too short. Please use at least 8 characters.",
+};
+
+function mapClerkError(err: unknown): string {
+  const clerkError = err as { errors?: { code?: string; message?: string; longMessage?: string }[] };
+  const first = clerkError.errors?.[0];
+  if (first?.code && CLERK_ERROR_MAP[first.code]) {
+    return CLERK_ERROR_MAP[first.code];
+  }
+  return first?.longMessage || first?.message || "Something went wrong. Please try again.";
+}
+
 export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: CustomSignUpProps) {
   const { isLoaded, signUp, setActive } = useSignUp();
   const navigate = useNavigate();
@@ -19,6 +36,7 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [resendNotice, setResendNotice] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
@@ -58,37 +76,32 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
 
     setError("");
     setIsSubmitting(true);
-    console.log("SIGNUP_FLOW: handleSubmit start");
+    console.log("CLERK_FLOW", { step: "signup_started", email });
 
     try {
-      console.log("SIGNUP_FLOW: signUp.create called");
       await signUp!.create({
         emailAddress: email,
         password,
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
       });
+      console.log("CLERK_FLOW", { step: "signup_created" });
 
       if (verificationStartedRef.current) {
-        console.log("SIGNUP_FLOW: verification already started — skipping duplicate");
+        console.log("CLERK_FLOW", { step: "verification_skipped_duplicate" });
         setPendingVerification(true);
         return;
       }
 
       verificationStartedRef.current = true;
-      console.log("SIGNUP_FLOW: prepareEmailAddressVerification called (single)");
       await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
+      console.log("CLERK_FLOW", { step: "verification_sent" });
 
       startResendCooldown();
       setPendingVerification(true);
-      console.log("SIGNUP_FLOW: transitioned to verify step");
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message?: string; longMessage?: string }[] };
-      const message = clerkError.errors?.[0]?.longMessage
-        || clerkError.errors?.[0]?.message
-        || "Sign up failed. Please try again.";
-      setError(message);
-      console.error("SIGNUP_FLOW: error", message);
+      setError(mapClerkError(err));
+      console.error("CLERK_FLOW", { step: "signup_error", error: mapClerkError(err) });
     } finally {
       setIsSubmitting(false);
     }
@@ -99,26 +112,23 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     if (isVerifying) return;
 
     setError("");
+    setResendNotice("");
     setIsVerifying(true);
-    console.log("SIGNUP_FLOW: attemptEmailAddressVerification called");
+    console.log("CLERK_FLOW", { step: "verification_attempt" });
 
     try {
       const result = await signUp!.attemptEmailAddressVerification({ code });
 
       if (result.status === "complete") {
-        console.log("SIGNUP_FLOW: verification complete — activating session");
+        console.log("CLERK_FLOW", { step: "verification_complete" });
         await setActive!({ session: result.createdSessionId });
         navigate(redirectUrl || "/dashboard", { replace: true });
       } else {
         setError("Verification incomplete. Please try again.");
-        console.log("SIGNUP_FLOW: unexpected status", result.status);
+        console.log("CLERK_FLOW", { step: "verification_incomplete", status: result.status });
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message?: string; longMessage?: string }[] };
-      const message = clerkError.errors?.[0]?.longMessage
-        || clerkError.errors?.[0]?.message
-        || "Verification failed. Check your code and try again.";
-      setError(message);
+      setError(mapClerkError(err));
     } finally {
       setIsVerifying(false);
     }
@@ -128,20 +138,18 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
     if (isResending || resendCooldown > 0) return;
 
     setError("");
+    setResendNotice("");
     setIsResending(true);
-    console.log("SIGNUP_FLOW: manual resend requested");
+    console.log("CLERK_FLOW", { step: "resend_requested" });
 
     try {
       await signUp!.prepareEmailAddressVerification({ strategy: "email_code" });
       startResendCooldown();
-      console.log("SIGNUP_FLOW: resend complete");
+      setCode("");
+      setResendNotice("A new code has been sent. Please check your latest email.");
+      console.log("CLERK_FLOW", { step: "resend_complete" });
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message?: string; longMessage?: string }[] };
-      setError(
-        clerkError.errors?.[0]?.longMessage
-        || clerkError.errors?.[0]?.message
-        || "Failed to resend code.",
-      );
+      setError(mapClerkError(err));
     } finally {
       setIsResending(false);
     }
@@ -167,6 +175,12 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
           </div>
         )}
 
+        {resendNotice && (
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-300">
+            {resendNotice}
+          </div>
+        )}
+
         <form onSubmit={handleVerify} className="space-y-4">
           <div>
             <label className={labelClass}>Verification Code</label>
@@ -180,6 +194,9 @@ export default function CustomSignUp({ redirectUrl, signInUrl = "/sign-in" }: Cu
               className={inputClass}
               autoFocus
             />
+            <p className="mt-1.5 text-xs text-white/35">
+              Enter the most recent code sent to your email. Previous codes will not work.
+            </p>
           </div>
 
           <button
