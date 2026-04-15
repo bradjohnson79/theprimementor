@@ -88,6 +88,51 @@ export function renderKeyValueTable(items: Array<{ label: string; value: string 
   `;
 }
 
+type AvailabilityTable = Partial<Record<"monday" | "tuesday" | "wednesday" | "thursday", string[]>>;
+
+function formatAvailabilityDay(day: string) {
+  return day.charAt(0).toUpperCase() + day.slice(1);
+}
+
+function formatAvailabilityTime(slot: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(slot.trim());
+  if (!match) {
+    return slot;
+  }
+
+  const hour24 = Number(match[1]);
+  const minute = match[2];
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return minute === "00" ? `${hour12}${suffix.toLowerCase()}` : `${hour12}:${minute}${suffix.toLowerCase()}`;
+}
+
+export function renderAvailabilityTable(availability: AvailabilityTable | null | undefined) {
+  const rows = Object.entries(availability ?? {})
+    .filter((entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].length > 0)
+    .map(([day, slots]) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:13px;font-weight:600;vertical-align:top;width:38%;">
+          ${escapeHtml(formatAvailabilityDay(day))}
+        </td>
+        <td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-size:14px;vertical-align:top;">
+          ${escapeHtml(slots.map((slot) => formatAvailabilityTime(slot)).join(", "))}
+        </td>
+      </tr>
+    `)
+    .join("");
+
+  if (!rows) {
+    return renderParagraph("No availability was submitted with this booking.");
+  }
+
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;">
+      ${rows}
+    </table>
+  `;
+}
+
 export function renderInfoCard(title: string, body: string) {
   return `
     <div style="margin:0 0 20px;padding:20px;border:1px solid #dbe4ee;border-radius:18px;background:#f8fbff;">

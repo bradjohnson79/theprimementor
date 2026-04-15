@@ -43,6 +43,12 @@ export interface Divin8MessageMetaResponse {
     confidence: number;
     intent_signal: "inquiry" | "confirmation" | "neutral";
   };
+  telemetry?: {
+    used_swiss_eph: boolean;
+    used_web_search: boolean;
+    search_input_used: boolean;
+    query_type: "astrology" | "factual" | "hybrid";
+  };
 }
 
 export interface Divin8ConversationMessageResponse {
@@ -75,6 +81,7 @@ export interface Divin8ChatPayloadResponse {
       response_sent: boolean;
     };
     divin8?: Divin8MessageMetaResponse["divin8"];
+    telemetry?: Divin8MessageMetaResponse["telemetry"];
     tier?: "seeker" | "initiate";
     usage?: {
       used: number;
@@ -105,6 +112,7 @@ export interface Divin8ConversationDetailResponse {
       response_sent: boolean;
     };
     divin8?: Divin8MessageMetaResponse["divin8"];
+    telemetry?: Divin8MessageMetaResponse["telemetry"];
   } | null;
 }
 

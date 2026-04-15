@@ -1,4 +1,6 @@
-import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject, type UIEvent } from "react";
+import { extractDivin8ProfileTags } from "@wisdom/utils";
+import type { Divin8Profile } from "./types";
 import { classNames, darkChatStyles } from "./utils";
 
 type SpeechRecognitionStatus = "idle" | "listening" | "error" | "disabled";
@@ -7,6 +9,7 @@ interface ChatComposerProps {
   inputText: string;
   onInputChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  profiles: Divin8Profile[];
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onRemoveImage: () => void;
   imageName: string | null;
@@ -29,6 +32,7 @@ export default function ChatComposer({
   inputText,
   onInputChange,
   onSubmit,
+  profiles,
   onImageChange,
   onRemoveImage,
   imageName,
@@ -47,6 +51,8 @@ export default function ChatComposer({
   placeholder = "Share what you want guidance on...",
 }: ChatComposerProps) {
   const localInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
 
   function setRefs(element: HTMLTextAreaElement | null) {
     localInputRef.current = element;
@@ -73,7 +79,90 @@ export default function ChatComposer({
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [inputText]);
 
+  const activeTagMatch = useMemo(() => {
+    const textarea = localInputRef.current;
+    const selectionStart = textarea?.selectionStart ?? inputText.length;
+    const beforeCursor = inputText.slice(0, selectionStart);
+    const match = beforeCursor.match(/(^|\s)(@[A-Za-z0-9]*)$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      query: match[2],
+      start: selectionStart - match[2].length,
+      end: selectionStart,
+    };
+  }, [inputText]);
+
+  const profileSuggestions = useMemo(() => {
+    if (!activeTagMatch || !activeTagMatch.query.startsWith("@")) {
+      return [];
+    }
+    const normalized = activeTagMatch.query.slice(1).toLowerCase();
+    const matches = profiles.filter((profile) => (
+      !normalized
+      || profile.tag.slice(1).toLowerCase().startsWith(normalized)
+      || profile.fullName.toLowerCase().includes(normalized)
+    ));
+    return matches.slice(0, 6);
+  }, [activeTagMatch, profiles]);
+
+  useEffect(() => {
+    setActiveSuggestionIndex(0);
+  }, [activeTagMatch?.query]);
+
+  function applyProfileSuggestion(tag: string) {
+    const textarea = localInputRef.current;
+    if (!textarea || !activeTagMatch) {
+      return;
+    }
+    const tokenEnd = (() => {
+      let index = activeTagMatch.end;
+      while (index < inputText.length && /[A-Za-z0-9]/.test(inputText[index] ?? "")) {
+        index += 1;
+      }
+      return index;
+    })();
+    const suffix = inputText.slice(tokenEnd).startsWith(" ") ? "" : " ";
+    const nextValue = `${inputText.slice(0, activeTagMatch.start)}${tag}${suffix}${inputText.slice(tokenEnd)}`;
+    const nextCaret = activeTagMatch.start + tag.length + suffix.length;
+    onInputChange(nextValue);
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCaret, nextCaret);
+    });
+  }
+
+  function handleTextareaScroll(event: UIEvent<HTMLTextAreaElement>) {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = event.currentTarget.scrollTop;
+    }
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (profileSuggestions.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActiveSuggestionIndex((current) => (current + 1) % profileSuggestions.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveSuggestionIndex((current) => (current - 1 + profileSuggestions.length) % profileSuggestions.length);
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        applyProfileSuggestion(profileSuggestions[activeSuggestionIndex]?.tag ?? profileSuggestions[0]!.tag);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setActiveSuggestionIndex(0);
+        return;
+      }
+    }
+
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
@@ -85,6 +174,8 @@ export default function ChatComposer({
   }
 
   const canSend = !disabled && (inputText.trim().length > 0 || !!imagePreviewUrl);
+  const highlightedSegments = inputText.split(/(\B@[A-Za-z0-9]+\b)/g);
+  const detectedTags = extractDivin8ProfileTags(inputText);
 
   return (
     <form onSubmit={onSubmit} className="space-y-2" aria-label="Divin8 chat composer">
@@ -117,22 +208,84 @@ export default function ChatComposer({
       ) : null}
 
       <div
-        className={classNames("rounded-2xl border", isLightTheme ? "border-slate-200 bg-white" : "")}
+        className={classNames("relative rounded-2xl border", isLightTheme ? "border-slate-200 bg-white" : "")}
         style={!isLightTheme ? darkChatStyles.panelElevated : undefined}
       >
+        {inputText ? (
+          <div
+            ref={highlightRef}
+            aria-hidden="true"
+            className={classNames(
+              "pointer-events-none absolute inset-x-0 top-0 max-h-[10.5rem] overflow-hidden whitespace-pre-wrap break-words px-3 pt-2.5 pb-0 text-sm leading-6",
+              isLightTheme ? "text-slate-400" : "text-white/35",
+            )}
+          >
+            {highlightedSegments.map((segment, index) => segment.match(/\B@[A-Za-z0-9]+\b/)
+              ? (
+                <span
+                  key={`${segment}-${index}`}
+                  className={classNames(
+                    "rounded-md px-0.5 font-medium",
+                    isLightTheme ? "bg-cyan-100 text-cyan-700" : "bg-cyan-500/15 text-cyan-200",
+                  )}
+                >
+                  {segment}
+                </span>
+              )
+              : <span key={`${segment}-${index}`}>{segment}</span>)}
+          </div>
+        ) : null}
         <textarea
           ref={setRefs}
           value={inputText}
           disabled={disabled}
           onChange={(event) => onInputChange(event.target.value)}
           onKeyDown={handleKeyDown}
+          onScroll={handleTextareaScroll}
           placeholder={placeholder}
           aria-label={placeholder}
           className={classNames(
-            "max-h-[10.5rem] min-h-[2.5rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-0 text-sm leading-6 outline-none",
-            isLightTheme ? "text-slate-900 placeholder:text-slate-400" : "text-white placeholder:text-white/35",
+            "relative z-[1] max-h-[10.5rem] min-h-[2.5rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-0 text-sm leading-6 outline-none caret-accent-cyan",
+            inputText
+              ? "text-transparent"
+              : isLightTheme
+                ? "text-slate-900 placeholder:text-slate-400"
+                : "text-white placeholder:text-white/35",
           )}
         />
+
+        {profileSuggestions.length > 0 ? (
+          <div
+            className={classNames(
+              "mx-2 mb-1 rounded-2xl border p-1",
+              isLightTheme ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950/95",
+            )}
+          >
+            {profileSuggestions.map((profile, index) => (
+              <button
+                key={profile.id}
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applyProfileSuggestion(profile.tag);
+                }}
+                className={classNames(
+                  "block w-full rounded-xl px-3 py-2 text-left transition-colors",
+                  index === activeSuggestionIndex
+                    ? isLightTheme
+                      ? "bg-slate-100"
+                      : "bg-white/10"
+                    : "",
+                )}
+              >
+                <div className="text-sm font-medium text-accent-cyan">{profile.tag}</div>
+                <div className={classNames("text-xs", isLightTheme ? "text-slate-500" : "text-white/50")}>
+                  {profile.fullName}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-1 px-2 pb-2 pt-1">
           <label
@@ -244,6 +397,12 @@ export default function ChatComposer({
           </button>
         </div>
       </div>
+
+      {detectedTags.length > 0 ? (
+        <div className={classNames("px-1 text-[11px]", isLightTheme ? "text-slate-500" : "text-white/50")}>
+          Tagged profiles: {detectedTags.join(", ")}
+        </div>
+      ) : null}
 
       {blockMessage ? (
         <div className={classNames("rounded-lg px-3 py-2 text-xs", isLightTheme ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-amber-500/30 bg-amber-500/10 text-amber-100")}>

@@ -5,6 +5,7 @@ export interface Divin8RetryPayload {
   imageRef: string | null;
   imageName: string | null;
   imagePreviewUrl: string | null;
+  profileTags: string[];
   tier: Divin8ChatTier;
   language: string;
   requestId: string;
@@ -33,6 +34,12 @@ export interface Divin8ChatMeta {
     confidence: number;
     intentSignal: "inquiry" | "confirmation" | "neutral";
   };
+  telemetry?: {
+    usedSwissEph: boolean;
+    usedWebSearch: boolean;
+    searchInputUsed: boolean;
+    queryType: "astrology" | "factual" | "hybrid";
+  };
 }
 
 export interface Divin8ChatMessage {
@@ -57,6 +64,19 @@ export interface Divin8ConversationThread {
   messageCount: number;
   createdAt: string;
   updatedAt: string | null;
+}
+
+export interface Divin8Profile {
+  id: string;
+  fullName: string;
+  tag: string;
+  birthDate: string;
+  birthTime: string;
+  birthPlace: string;
+  lat: number;
+  lng: number;
+  timezone: string;
+  createdAt: string;
 }
 
 export interface Divin8TimelineEvent {

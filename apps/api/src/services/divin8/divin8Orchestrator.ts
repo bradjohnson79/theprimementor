@@ -12,13 +12,17 @@ import {
 } from "@wisdom/utils";
 import type { SystemName } from "../blueprint/types.js";
 import { getActiveDivin8Prompt } from "./promptStore.js";
+import {
+  resolveDivin8ProfilesForMessage,
+  type ResolvedDivin8Profile,
+} from "./profilesService.js";
 import { type NormalizedEngineInterpretationContext } from "./normalizeEngineResultForInterpretation.js";
 import {
   DIVIN8_CHAT_MODEL,
   DIVIN8_CHAT_REASONING_EFFORT,
   divin8UnavailableError,
 } from "./brainPolicy.js";
-import { extractDivin8RequestAnalysis } from "./extractBirthData.js";
+import { extractBirthData, extractDivin8RequestAnalysis, type ExtractedBirthData } from "./extractBirthData.js";
 import { normalizeBirthData } from "./normalizeBirthData.js";
 import {
   appendTimelineEvent,
@@ -43,14 +47,17 @@ import { routeDivin8Request } from "./engine/router.js";
 import type { Divin8ResolvedBirthContext } from "./engine/types.js";
 import {
   buildDivin8Decision,
+  buildSearchExecutionPlan,
   defaultOrchestrationState,
   getMissingMinimumAstroKeys,
   humanizeMinimumKey,
   type Divin8Decision,
+  type Divin8QueryType,
   type ReadingState,
   type StoredOrchestrationState,
 } from "./divin8OrchestrationDecision.js";
 import type { Divin8ConversationState, Divin8RoutingPlan } from "./divin8RoutingTypes.js";
+import { searchWeb, type SearchWebResult } from "./searchWebService.js";
 
 export type { Divin8ConversationState, Divin8RoutingPlan } from "./divin8RoutingTypes.js";
 export type { Divin8Decision, ReadingState, StoredOrchestrationState } from "./divin8OrchestrationDecision.js";
@@ -187,6 +194,12 @@ export interface StoredPipelineMeta {
     intent_signal: "inquiry" | "confirmation" | "neutral";
     tool_blocked_reason: "low_confidence" | "not_required" | "missing_minimum_data" | null;
   };
+  telemetry?: {
+    used_swiss_eph: boolean;
+    used_web_search: boolean;
+    search_input_used: boolean;
+    query_type: Divin8QueryType;
+  };
 }
 
 export interface StoredDivin8SessionState {
@@ -256,6 +269,36 @@ interface AssistantCompletion {
   verificationTag: string | null;
 }
 
+interface Divin8WebContext {
+  query: string;
+  purpose: "factual_context" | "missing_birth_inputs" | "not_required";
+  results: SearchWebResult[];
+}
+
+interface Divin8TurnTelemetry {
+  usedSwissEph: boolean;
+  usedWebSearch: boolean;
+  searchInputUsed: boolean;
+  queryType: Divin8QueryType;
+}
+
+interface Divin8PromptProfile {
+  tag: string;
+  name: string;
+  birthDate: string;
+  birthTime: string;
+  location: string;
+  lat: number;
+  lng: number;
+  timezone: string;
+}
+
+interface Divin8ProfileReading {
+  tag: string;
+  profile: Divin8PromptProfile;
+  engineSummary: NormalizedEngineInterpretationContext;
+}
+
 export interface ProcessDivin8MessageParams {
   app: FastifyInstance;
   message: string;
@@ -264,6 +307,7 @@ export interface ProcessDivin8MessageParams {
   tier: Divin8ChatRequest["tier"];
   language?: LanguageCode;
   imageRef?: string;
+  profileTags?: string[];
   history: SessionHistoryItem[];
   storedState?: StoredDivin8SessionState | null;
   debugAudit?: boolean;
@@ -342,6 +386,131 @@ function buildField<T>(
     confidence: clampConfidence(confidence),
     accuracy,
   };
+}
+
+function compactWhitespace(value: string, limit = 220) {
+  return value.replace(/\s+/g, " ").trim().slice(0, limit);
+}
+
+function buildWebSearchSummary(results: SearchWebResult[]) {
+  return results
+    .map((result, index) =>
+      `${index + 1}. ${result.title} (${result.source}, confidence ${Math.round(result.confidence * 100)}%): ${compactWhitespace(result.snippet, 240)}`,
+    )
+    .join("\n");
+}
+
+function mergeWebSearchBirthData(
+  memory: Divin8ConversationMemory,
+  birthData: ExtractedBirthData,
+): { memory: Divin8ConversationMemory; appliedFields: string[] } {
+  const next = structuredClone(memory) as Divin8ConversationMemory;
+  const normalized = normalizeBirthData({
+    fullName: birthData.name,
+    birthDate: birthData.birthDate,
+    birthTime: birthData.birthTime,
+    birthLocation: birthData.location,
+    timezone: birthData.timezone,
+  });
+  const appliedFields: string[] = [];
+
+  const apply = (
+    key: keyof Divin8KnownProfileMemory,
+    value: string | null,
+    confidence: number,
+  ) => {
+    if (!value) {
+      return;
+    }
+
+    const current = next.knownProfile[key];
+    if (current.value?.trim()) {
+      return;
+    }
+
+    next.knownProfile[key] = buildField(
+      value,
+      "inferred",
+      Math.min(0.84, Math.max(0.45, confidence * 0.9 || 0.55)),
+      "estimated",
+    );
+    next.knownProfile[key].updatedAt = new Date().toISOString();
+    appliedFields.push(key);
+  };
+
+  apply("fullName", normalized.fullName, birthData.name_confidence);
+  apply("birthDate", normalized.birthDate, birthData.birthDate_confidence);
+  apply("birthTime", normalized.birthTime, birthData.birthTime_confidence);
+  apply("birthLocation", normalized.birthLocation, birthData.location_confidence);
+  apply("timezone", normalized.timezone, birthData.timezone_confidence);
+
+  if (appliedFields.some((field) => field === "birthDate" || field === "birthTime" || field === "birthLocation" || field === "timezone")) {
+    next.resolvedBirthContext = null;
+  }
+
+  return { memory: next, appliedFields };
+}
+
+function getUtcOffsetMinutesForTimezone(timeZone: string, birthDate: string, birthTime: string) {
+  try {
+    const probe = new Date(`${birthDate}T${birthTime}:00Z`);
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      timeZoneName: "shortOffset",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    const offsetText = formatter.formatToParts(probe).find((part) => part.type === "timeZoneName")?.value ?? "";
+    const match = offsetText.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/i);
+    if (!match) {
+      return 0;
+    }
+    const sign = match[1] === "-" ? -1 : 1;
+    const hours = Number(match[2]);
+    const minutes = Number(match[3] ?? "0");
+    return sign * ((hours * 60) + minutes);
+  } catch {
+    return 0;
+  }
+}
+
+function buildPromptProfile(profile: ResolvedDivin8Profile): Divin8PromptProfile {
+  return {
+    tag: profile.tag,
+    name: profile.fullName,
+    birthDate: profile.birthDate,
+    birthTime: profile.birthTime,
+    location: profile.birthPlace,
+    lat: profile.lat,
+    lng: profile.lng,
+    timezone: profile.timezone,
+  };
+}
+
+function applyResolvedProfileToMemory(
+  memory: Divin8ConversationMemory,
+  profile: ResolvedDivin8Profile,
+) {
+  const next = structuredClone(memory) as Divin8ConversationMemory;
+  next.knownProfile.fullName = buildField(profile.fullName, "stored_memory", 1, "exact");
+  next.knownProfile.birthDate = buildField(profile.birthDate, "stored_memory", 1, "exact");
+  next.knownProfile.birthTime = buildField(profile.birthTime, "stored_memory", 1, "exact");
+  next.knownProfile.birthLocation = buildField(profile.birthPlace, "stored_memory", 1, "exact");
+  next.knownProfile.timezone = buildField(profile.timezone, "stored_memory", 1, "exact");
+  next.resolvedBirthContext = {
+    coordinates: {
+      latitude: profile.lat,
+      longitude: profile.lng,
+      formattedAddress: profile.birthPlace,
+    },
+    timezone: profile.timezone,
+    utcOffsetMinutes: getUtcOffsetMinutesForTimezone(profile.timezone, profile.birthDate, profile.birthTime),
+  };
+  return next;
 }
 
 export function hydrateConversationMemory(storedState?: StoredDivin8SessionState | null): Divin8ConversationMemory {
@@ -897,10 +1066,14 @@ function buildStructuredPayload(params: {
   memory: Divin8ConversationMemory;
   extracted: Divin8ExtractionResult;
   engineSummary: NormalizedEngineInterpretationContext | null;
+  profiles: Divin8PromptProfile[];
+  profileReadings: Divin8ProfileReading[];
+  webContext: Divin8WebContext | null;
   timelineHighlights: string[];
   responseMode: "chat" | "engine";
   execDecision: Divin8Decision;
   readingState: ReadingState;
+  telemetry: Divin8TurnTelemetry;
 }) {
   return JSON.stringify({
     userMessage: params.message,
@@ -913,7 +1086,16 @@ function buildStructuredPayload(params: {
       detectedSystems: params.extracted.detectedSystems.map((system) => system.key),
     },
     knownProfile: serializeKnownProfile(params.memory),
+    profiles: params.profiles,
+    profileReadings: params.profileReadings,
     engineSummary: params.engineSummary,
+    webContext: params.webContext
+      ? {
+          query: params.webContext.query,
+          purpose: params.webContext.purpose,
+          summary: buildWebSearchSummary(params.webContext.results),
+        }
+      : null,
     timelineHighlights: params.timelineHighlights,
     responseMode: params.responseMode,
     responseLanguage: params.memory.responseLanguage,
@@ -923,6 +1105,12 @@ function buildStructuredPayload(params: {
       assumptions: params.execDecision.assumptions ?? null,
     },
     readingState: params.readingState,
+    telemetry: {
+      usedSwissEph: params.telemetry.usedSwissEph,
+      usedWebSearch: params.telemetry.usedWebSearch,
+      searchInputUsed: params.telemetry.searchInputUsed,
+      queryType: params.telemetry.queryType,
+    },
   }, null, 2);
 }
 
@@ -930,6 +1118,8 @@ function buildInstructionFromDecision(
   execDecision: Divin8Decision,
   routingPlan: Divin8RoutingPlan,
   engineSummary: NormalizedEngineInterpretationContext | null,
+  webContext: Divin8WebContext | null,
+  profileReadings: Divin8ProfileReading[],
 ): string {
   if (execDecision.action === "inquiry_required" && execDecision.inquiry) {
     return [
@@ -952,6 +1142,8 @@ function buildInstructionFromDecision(
   if (engineSummary) {
     const parts = [
       "Use the structured engine summary as authoritative for calculation-backed signals.",
+      profileReadings.length > 1 ? "If multiple profile readings are provided, compare them directly and keep the distinction between each person clear." : "",
+      webContext ? "Use any provided web context only as supporting factual input or background; never let it override calculation-backed signals." : "",
       "Keep the visible answer concise and practical.",
       "Return one short primary section now with a brief takeaway and at most 3 action-oriented bullets.",
       "Invite which area to deepen next unless the user already chose a focus.",
@@ -963,6 +1155,7 @@ function buildInstructionFromDecision(
   }
   const parts = [
     "Respond conversationally and directly.",
+    webContext ? "If web context is provided, synthesize it naturally and do not list raw links." : "",
     "Keep the answer concise and useful.",
     "When giving a reading, use clear section headings and advance one short section at a time unless the user requests a specific area.",
   ];
@@ -981,14 +1174,24 @@ async function requestStructuredAssistantReply(params: {
   tier: Divin8ChatRequest["tier"];
   imageDataUrl?: string | null;
   engineSummary: NormalizedEngineInterpretationContext | null;
+  profiles: Divin8PromptProfile[];
+  profileReadings: Divin8ProfileReading[];
+  webContext: Divin8WebContext | null;
   timelineHighlights: string[];
   responseMode: "chat" | "engine";
   execDecision: Divin8Decision;
   readingState: ReadingState;
   routingPlan: Divin8RoutingPlan;
+  telemetry: Divin8TurnTelemetry;
 }) : Promise<AssistantCompletion> {
   const verificationTag = `[DIVIN8_GPT_LIVE_${new Date().toISOString()}]`;
-  const instruction = buildInstructionFromDecision(params.execDecision, params.routingPlan, params.engineSummary);
+  const instruction = buildInstructionFromDecision(
+    params.execDecision,
+    params.routingPlan,
+    params.engineSummary,
+    params.webContext,
+    params.profileReadings,
+  );
   const systemMessages = [
     "Conversation orchestration: always answer the user's actual request clearly, directly, and conversationally.",
     "Never return an empty response. If uncertain, say what you can do next in one visible answer.",
@@ -1002,10 +1205,14 @@ async function requestStructuredAssistantReply(params: {
     memory: params.memory,
     extracted: params.extracted,
     engineSummary: params.engineSummary,
+    profiles: params.profiles,
+    profileReadings: params.profileReadings,
+    webContext: params.webContext,
     timelineHighlights: params.timelineHighlights,
     responseMode: params.responseMode,
     execDecision: params.execDecision,
     readingState: params.readingState,
+    telemetry: params.telemetry,
   });
   const userContent = params.imageDataUrl
     ? [
@@ -1113,11 +1320,13 @@ export function buildConversationSummary(params: {
 function buildTimelineTags(params: {
   extracted: Divin8ExtractionResult;
   routingPlan: Divin8RoutingPlan;
+  profileTags?: string[];
 }) {
   return uniqueList([
     ...params.extracted.extractedEntities.themes,
     ...(params.extracted.extractedEntities.timeWindow ? [params.extracted.extractedEntities.timeWindow] : []),
     ...params.routingPlan.systemsToRun,
+    ...(params.profileTags ?? []),
   ]);
 }
 
@@ -1129,30 +1338,103 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   const promptConfig = await getActiveDivin8Prompt();
   const memory = hydrateConversationMemory(params.storedState);
   const extracted = await extractDivin8Observations(params.message);
-  const mergedMemory = mergeConversationMemory(memory, extracted, params.language);
-  const routingPlan = decideNextAction({
-    memory: mergedMemory,
+  const storedMemory = mergeConversationMemory(memory, extracted, params.language);
+  const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
+    params.app.db,
+    params.userId,
+    params.message,
+    params.profileTags,
+  );
+  const promptProfiles = resolvedProfileContext.profiles.map(buildPromptProfile);
+  let calculationMemory = resolvedProfileContext.profiles[0]
+    ? applyResolvedProfileToMemory(storedMemory, resolvedProfileContext.profiles[0])
+    : storedMemory;
+  let routingPlan = decideNextAction({
+    memory: calculationMemory,
     detectedSystems: extracted.detectedSystems,
     extracted,
     hasImage: Boolean(params.imageRef),
   });
-  const routeDecision = routeDivin8Request({
+  let routeDecision = routeDivin8Request({
     message: params.message,
     detectedSystems: extracted.detectedSystems,
     requestedSystems: routingPlan.systemsToRun,
   });
+  const rawSearchPlan = buildSearchExecutionPlan({
+    message: params.message,
+    routingPlan,
+    route: routeDecision,
+    memory: calculationMemory,
+    extracted,
+  });
+  const isAstrologyTurn = routeDecision.type === "ASTROLOGY" || routingPlan.systemsToRun.includes("astrology");
+  const initialSearchPlan = isAstrologyTurn
+    ? {
+        ...rawSearchPlan,
+        shouldSearch: false,
+        query: null,
+        purpose: "not_required" as const,
+      }
+    : rawSearchPlan;
+  let webContext: Divin8WebContext | null = null;
+  let usedWebSearch = false;
+  let searchInputUsed = false;
+
+  if (initialSearchPlan.shouldSearch && initialSearchPlan.query) {
+    const searchResponse = await searchWeb(initialSearchPlan.query, {
+      warn: (payload, message) => logger.warn(message, payload),
+      info: (payload, message) => logger.info(message, payload),
+    });
+    usedWebSearch = searchResponse.attempts > 0;
+
+    if (searchResponse.results.length > 0) {
+      webContext = {
+        query: searchResponse.query,
+        purpose: initialSearchPlan.purpose,
+        results: searchResponse.results,
+      };
+      searchInputUsed = true;
+
+      if (initialSearchPlan.purpose === "missing_birth_inputs") {
+        const inferredBirthData = await extractBirthData(buildWebSearchSummary(searchResponse.results));
+        const mergedFromSearch = mergeWebSearchBirthData(calculationMemory, inferredBirthData);
+
+        if (mergedFromSearch.appliedFields.length > 0) {
+          calculationMemory = mergedFromSearch.memory;
+          routingPlan = decideNextAction({
+            memory: calculationMemory,
+            detectedSystems: extracted.detectedSystems,
+            extracted,
+            hasImage: Boolean(params.imageRef),
+          });
+          routeDecision = routeDivin8Request({
+            message: params.message,
+            detectedSystems: extracted.detectedSystems,
+            requestedSystems: routingPlan.systemsToRun,
+          });
+        }
+      }
+    }
+  }
+
+  const telemetry: Divin8TurnTelemetry = {
+    usedSwissEph: false,
+    usedWebSearch,
+    searchInputUsed,
+    queryType: initialSearchPlan.queryType,
+  };
   const orchestrationIn = params.storedState?.orchestration ?? defaultOrchestrationState();
   const exec = buildDivin8Decision({
     threadId: params.threadId,
     routingPlan,
     route: routeDecision,
-    memory: mergedMemory,
+    memory: calculationMemory,
     extracted,
     orchestration: orchestrationIn,
   });
   const execDecision = exec.decision;
   if (exec.memoryWithAssumptions) {
-    mergedMemory.knownProfile = exec.memoryWithAssumptions.knownProfile;
+    calculationMemory.knownProfile = exec.memoryWithAssumptions.knownProfile;
   }
 
   const shouldRunAstrologyEngine =
@@ -1168,7 +1450,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   const timelineEvents = await listTimelineEvents(params.app.db, params.threadId, params.userId, 12);
   const timelineHighlights = selectTimelineHighlights({
     events: timelineEvents,
-    knownProfileFacts: buildKnownProfileFacts(mergedMemory),
+    knownProfileFacts: buildKnownProfileFacts(storedMemory),
     systems: routingPlan.systemsToRun,
     themes: extracted.extractedEntities.themes,
     timeWindow: extracted.extractedEntities.timeWindow,
@@ -1193,72 +1475,109 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     gpt_called: true,
     gpt_response_present: false,
     response_mode: routingPlan.needsEngine ? "engine+gpt" : "gpt_only",
+    used_web_search: usedWebSearch,
+    search_input_used: searchInputUsed,
+    query_type: telemetry.queryType,
   };
 
   await appendTimelineEvent(params.app.db, {
     threadId: params.threadId,
     userId: params.userId,
-    summary: clipSentence(`User request: ${params.message}`, 200),
+    summary: clipSentence(
+      resolvedProfileContext.tags.length > 0
+        ? `User request: ${params.message} [profiles: ${resolvedProfileContext.tags.join(", ")}]`
+        : `User request: ${params.message}`,
+      220,
+    ),
     systemsUsed: [],
-    tags: buildTimelineTags({ extracted, routingPlan }),
+    tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
     type: "input",
   });
 
   let engineSummary: NormalizedEngineInterpretationContext | null = null;
+  let profileReadings: Divin8ProfileReading[] = [];
   let pipelineStatus: Divin8ChatResponse["meta"]["pipeline_status"] = "ok";
   let engineRun: "SKIPPED" | "SUCCESS" | "FAIL" = "SKIPPED";
   let directResponseMessage: string | null = null;
 
   if (shouldRunAstrologyEngine) {
-    mergedMemory.conversationState = "engine_running";
-    const coreResult = await runCoreSystem({
-      threadId: params.threadId,
-      userId: params.userId,
-      message: params.message,
-      profile: {
-        fullName: mergedMemory.knownProfile.fullName.value,
-        birthDate: mergedMemory.knownProfile.birthDate.value,
-        birthTime: mergedMemory.knownProfile.birthTime.value,
-        birthLocation: mergedMemory.knownProfile.birthLocation.value,
-        timezone: mergedMemory.knownProfile.timezone.value,
-      },
-      route: routeDecision,
-      requestIntent: extracted.intentHints.summary,
-      focusAreas: extracted.extractedEntities.themes.length > 0 ? extracted.extractedEntities.themes : ["general"],
-      comparisonRequested: extracted.intentHints.wantsComparison,
-      timingPeriod: extracted.extractedEntities.timeWindow,
-      resolvedBirthContext: mergedMemory.resolvedBirthContext,
-    });
+    if (resolvedProfileContext.profiles.length === 0) {
+      pipelineStatus = "engine_not_called";
+      engineRun = "SKIPPED";
+      directResponseMessage =
+        "Astrology calculations in Divin8 chat now require a saved profile. Add a profile in the sidebar and tag it in your message, for example @JohnSmith, and I’ll run the Swiss Ephemeris reading from that record.";
+    } else {
+      calculationMemory.conversationState = "engine_running";
+      audit.engine_payload = resolvedProfileContext.tags;
 
-    audit.engine_called = true;
-    audit.engine_success = coreResult.status === "success" && coreResult.engineRun === "SUCCESS";
-    engineRun = coreResult.engineRun;
+      for (const profile of resolvedProfileContext.profiles) {
+        const profileMemory = applyResolvedProfileToMemory(storedMemory, profile);
+        const coreResult = await runCoreSystem({
+          threadId: params.threadId,
+          userId: params.userId,
+          message: params.message,
+          profile: {
+            fullName: profileMemory.knownProfile.fullName.value,
+            birthDate: profileMemory.knownProfile.birthDate.value,
+            birthTime: profileMemory.knownProfile.birthTime.value,
+            birthLocation: profileMemory.knownProfile.birthLocation.value,
+            timezone: profileMemory.knownProfile.timezone.value,
+          },
+          route: routeDecision,
+          requestIntent: extracted.intentHints.summary,
+          focusAreas: extracted.extractedEntities.themes.length > 0 ? extracted.extractedEntities.themes : ["general"],
+          comparisonRequested: extracted.intentHints.wantsComparison,
+          timingPeriod: extracted.extractedEntities.timeWindow,
+          resolvedBirthContext: profileMemory.resolvedBirthContext,
+        });
 
-    if (coreResult.status === "success" && coreResult.data.type === "ASTROLOGY") {
-      mergedMemory.resolvedBirthContext = coreResult.data.resolvedBirthContext;
-      engineSummary = getInterpretationContext(coreResult);
-      audit.engine_result_present = true;
-      audit.engine_result_summary_present = Boolean(engineSummary?.summary);
-      await appendTimelineEvent(params.app.db, {
-        threadId: params.threadId,
-        userId: params.userId,
-        summary: clipSentence(engineSummary?.summary ?? "Astrology calculation completed.", 200),
-        systemsUsed: routingPlan.systemsToRun,
-        tags: buildTimelineTags({ extracted, routingPlan }),
-        type: "engine",
-      });
-    } else if (coreResult.status === "error") {
-      if (coreResult.errorCode === "LOCATION_RESOLUTION_FAILED") {
-        // Treat location miss as an inquiry turn instead of a hard engine failure.
-        pipelineStatus = "engine_not_called";
-        engineRun = "SKIPPED";
-        audit.response_mode = "clarification";
-        directResponseMessage =
-          "I’m very close to running this. I couldn’t lock in that location with enough certainty yet, so share a slightly clearer birthplace format and I’ll continue right away. Example: \"Port Alberni, British Columbia, Canada\".";
-      } else {
-        throw divin8UnavailableError();
+        audit.engine_called = true;
+        telemetry.usedSwissEph = coreResult.engineRun === "SUCCESS" || telemetry.usedSwissEph;
+        engineRun = coreResult.engineRun;
+
+        if (coreResult.status === "success" && coreResult.data.type === "ASTROLOGY") {
+          const nextSummary = getInterpretationContext(coreResult);
+          if (!nextSummary) {
+            pipelineStatus = "engine_failed";
+            engineRun = "FAIL";
+            directResponseMessage = "The astrology calculation completed, but the interpretation payload was incomplete. Please try again.";
+            break;
+          }
+          if (!engineSummary) {
+            engineSummary = nextSummary;
+          }
+          profileReadings.push({
+            tag: profile.tag,
+            profile: buildPromptProfile(profile),
+            engineSummary: nextSummary,
+          });
+          audit.engine_success = true;
+          audit.engine_result_present = true;
+          audit.engine_result_summary_present = true;
+        } else if (coreResult.status === "error") {
+          pipelineStatus = coreResult.errorCode === "LOCATION_RESOLUTION_FAILED" ? "engine_not_called" : "engine_failed";
+          engineRun = coreResult.errorCode === "LOCATION_RESOLUTION_FAILED" ? "SKIPPED" : "FAIL";
+          directResponseMessage = coreResult.userMessage;
+          routingPlan.routingNotes.push(coreResult.error);
+          break;
+        }
       }
-      routingPlan.routingNotes.push(coreResult.error);
+
+      if (profileReadings.length > 0 && !directResponseMessage) {
+        await appendTimelineEvent(params.app.db, {
+          threadId: params.threadId,
+          userId: params.userId,
+          summary: clipSentence(
+            profileReadings.length === 1
+              ? `${profileReadings[0].tag}: ${profileReadings[0].engineSummary.summary}`
+              : `Astrology calculations completed for ${profileReadings.map((reading) => reading.tag).join(", ")}.`,
+            220,
+          ),
+          systemsUsed: routingPlan.systemsToRun,
+          tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
+          type: "engine",
+        });
+      }
     }
   } else if (routeDecision.requiresEngine && routingPlan.systemsToRun.includes("astrology")) {
     pipelineStatus = "engine_not_called";
@@ -1266,7 +1585,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     pipelineStatus = "ok";
   }
 
-  mergedMemory.conversationState =
+  storedMemory.conversationState =
     routingPlan.responseMode === "engine" && engineSummary
       ? "interpreting"
       : routingPlan.conversationState;
@@ -1275,19 +1594,23 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   const visibleMessageBase = directResponseMessage
     ? { message: directResponseMessage, gptLive: false, gptFailed: false, verificationTag: null as string | null }
     : await requestStructuredAssistantReply({
-        prompt: promptConfig.prompt,
+        prompt: promptConfig.resolvedPrompt,
         history: params.history,
         message: params.message,
-        memory: mergedMemory,
+        memory: storedMemory,
         extracted,
         tier: params.tier,
         imageDataUrl: imageContext?.dataUrl ?? null,
         engineSummary,
+        profiles: promptProfiles,
+        profileReadings,
+        webContext,
         timelineHighlights,
         responseMode: engineSummary ? "engine" : "chat",
         execDecision,
         readingState,
         routingPlan,
+        telemetry,
       });
 
   const completion = visibleMessageBase;
@@ -1296,7 +1619,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   audit.gpt_response_present = Boolean(userVisibleMessage);
   audit.response_mode =
     directResponseMessage
-      ? "engine_failed"
+      ? (audit.engine_called ? "engine_failed" : "clarification")
       : execDecision.action === "inquiry_required"
       ? "clarification"
       : engineSummary
@@ -1307,15 +1630,15 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     pipelineStatus = "gpt_failed";
   }
 
-  mergedMemory.conversationSummary = buildConversationSummary({
-    previousSummary: mergedMemory.conversationSummary,
+  storedMemory.conversationSummary = buildConversationSummary({
+    previousSummary: storedMemory.conversationSummary,
     extracted,
     routingPlan,
     responseText: userVisibleMessage,
-    memory: mergedMemory,
+    memory: storedMemory,
   });
-  mergedMemory.extractedFacts.lastResolvedSystems = routingPlan.systemsToRun;
-  mergedMemory.conversationState = routingPlan.responseMode === "engine" && engineSummary
+  storedMemory.extractedFacts.lastResolvedSystems = routingPlan.systemsToRun;
+  storedMemory.conversationState = routingPlan.responseMode === "engine" && engineSummary
     ? "interpreting"
     : routingPlan.conversationState;
 
@@ -1324,7 +1647,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     userId: params.userId,
     summary: clipSentence(userVisibleMessage, 220),
     systemsUsed: routingPlan.systemsToRun,
-    tags: buildTimelineTags({ extracted, routingPlan }),
+    tags: buildTimelineTags({ extracted, routingPlan, profileTags: resolvedProfileContext.tags }),
     type: "insight",
   });
 
@@ -1357,6 +1680,12 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       intent_signal: intentSignal,
       tool_blocked_reason: execDecision.toolBlockedReason ?? null,
     },
+    telemetry: {
+      used_swiss_eph: telemetry.usedSwissEph,
+      used_web_search: telemetry.usedWebSearch,
+      search_input_used: telemetry.searchInputUsed,
+      query_type: telemetry.queryType,
+    },
   };
 
   return {
@@ -1368,7 +1697,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       ...(params.debugAudit ? { audit } : {}),
     },
     storedState: buildStoredDivin8State(
-      mergedMemory,
+      storedMemory,
       params.imageRef ?? params.storedState?.imageRef,
       chatMeta as StoredPipelineMeta,
       exec.orchestration,

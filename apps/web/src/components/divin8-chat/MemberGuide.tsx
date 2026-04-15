@@ -21,6 +21,10 @@ const GUIDE_CARDS = [
     title: "Synthesis Mode",
     body: "Ask explicitly for synthesis when you want Divin8 to compare systems or weave multiple signals into one integrated reading.",
   },
+  {
+    title: "Web-Enhanced Context",
+    body: "Divin8 can pull in compact factual context for public figures, dates, and timelines, but chart placements still come only from Swiss Ephemeris-backed calculation.",
+  },
 ];
 
 interface MemberGuideProps {

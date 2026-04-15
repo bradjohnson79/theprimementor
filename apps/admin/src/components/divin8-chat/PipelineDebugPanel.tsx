@@ -105,6 +105,34 @@ export default function PipelineDebugPanel({
           );
         })}
       </div>
+
+      {meta?.telemetry ? (
+        <div className={classNames(
+          "space-y-1.5 border-t pt-3 text-sm",
+          isLightTheme ? "border-slate-200" : "border-white/10",
+        )}>
+          {([
+            ["Query Type", meta.telemetry.queryType],
+            ["Swiss Ephemeris", meta.telemetry.usedSwissEph],
+            ["Web Search", meta.telemetry.usedWebSearch],
+            ["Search Input Used", meta.telemetry.searchInputUsed],
+          ] as [string, StageValue][]).map(([label, value]) => {
+            const display = stageLabel(value, "—", isRunning);
+            const toneValue: StageValue = display === "RUNNING" ? "RUNNING" : value;
+            return (
+              <div key={label} className="flex items-center justify-between gap-3">
+                <span className={isLightTheme ? "text-slate-600" : "text-white/65"}>{label}</span>
+                <span className={classNames(
+                  "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  stagePillTone(toneValue, isLightTheme),
+                )}>
+                  {display}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

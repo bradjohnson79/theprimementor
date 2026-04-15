@@ -1,11 +1,17 @@
 import type { FastifyInstance } from "fastify";
-import { DIVIN8_LIMITS, normalizeLanguage, type LanguageCode } from "@wisdom/utils";
+import {
+  DIVIN8_LIMITS,
+  MAX_DIVIN8_PROFILES_PER_MESSAGE,
+  normalizeLanguage,
+  type LanguageCode,
+} from "@wisdom/utils";
 
 export type Divin8ChatTier = "seeker" | "initiate";
 
 export interface Divin8ChatRequest {
   message: string;
   image_ref?: string;
+  profile_tags?: string[];
   tier: Divin8ChatTier;
   language?: LanguageCode;
   debugAudit?: boolean;
@@ -14,6 +20,7 @@ export interface Divin8ChatRequest {
 export interface Divin8MemberMessageRequest {
   message: string;
   image_ref?: string;
+  profile_tags?: string[];
   language?: LanguageCode;
   debugAudit?: boolean;
   request_id?: string;
@@ -36,6 +43,9 @@ export interface Divin8ChatAudit {
   engine_result_summary_present: boolean;
   gpt_called: boolean;
   gpt_response_present: boolean;
+  used_web_search?: boolean;
+  search_input_used?: boolean;
+  query_type?: "astrology" | "factual" | "hybrid";
   response_mode:
     | "gpt_only"
     | "clarification"
@@ -72,6 +82,12 @@ export interface Divin8ChatResponse {
       intent_signal: "inquiry" | "confirmation" | "neutral";
       tool_blocked_reason: "low_confidence" | "not_required" | "missing_minimum_data" | null;
     };
+    telemetry?: {
+      used_swiss_eph: boolean;
+      used_web_search: boolean;
+      search_input_used: boolean;
+      query_type: "astrology" | "factual" | "hybrid";
+    };
     tier?: Divin8ChatTier;
     usage?: {
       used: number;
@@ -102,6 +118,9 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   const message = typeof input.message === "string" ? input.message.trim() : "";
   const tier = input.tier;
   const imageRef = input.image_ref;
+  const profileTags = Array.isArray(input.profile_tags)
+    ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
+    : [];
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
 
@@ -117,10 +136,15 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
     throw new Error("image_ref must be a string when provided.");
   }
 
+  if (profileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {
+    throw new Error(`A maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles may be sent per reading.`);
+  }
+
   return {
     message,
     tier,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
+    profile_tags: profileTags,
     language,
     debugAudit,
   };
@@ -134,6 +158,9 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
   const input = body as Record<string, unknown>;
   const message = typeof input.message === "string" ? input.message.trim() : "";
   const imageRef = input.image_ref;
+  const profileTags = Array.isArray(input.profile_tags)
+    ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
+    : [];
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
   const requestId = typeof input.request_id === "string" ? input.request_id.trim() : "";
@@ -146,9 +173,14 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
     throw new Error("image_ref must be a string when provided.");
   }
 
+  if (profileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {
+    throw new Error(`A maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles may be sent per reading.`);
+  }
+
   return {
     message,
     image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
+    profile_tags: profileTags,
     language,
     debugAudit,
     request_id: requestId || undefined,

@@ -1,0 +1,402 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import type { Divin8ProfileCreateRequest } from "@wisdom/utils";
+import TimezoneSelect from "../timezone/TimezoneSelect";
+import type { Divin8ChatApiAdapter } from "./useDivin8Chat";
+import { classNames, darkChatStyles } from "./utils";
+
+interface PlaceSuggestion {
+  placeId: string;
+  label: string;
+  primaryText: string;
+  secondaryText: string | null;
+}
+
+interface PlaceDetailsResponse {
+  data?: {
+    formattedAddress?: string;
+    latitude?: number;
+    longitude?: number;
+    timezone?: string | null;
+  };
+}
+
+interface PlacesAutocompleteResponse {
+  data?: PlaceSuggestion[];
+}
+
+interface Divin8ProfileModalProps {
+  open: boolean;
+  isLightTheme: boolean;
+  api: Divin8ChatApiAdapter;
+  onClose: () => void;
+  onSave: (input: Divin8ProfileCreateRequest) => Promise<void>;
+  isSaving: boolean;
+  errorMessage: string | null;
+}
+
+interface FormState {
+  fullName: string;
+  birthDate: string;
+  birthTime: string;
+  birthPlace: string;
+  lat: number | null;
+  lng: number | null;
+  timezone: string;
+}
+
+const INITIAL_FORM: FormState = {
+  fullName: "",
+  birthDate: "",
+  birthTime: "",
+  birthPlace: "",
+  lat: null,
+  lng: null,
+  timezone: "",
+};
+
+const TIME_OPTIONS = Array.from({ length: 24 * 60 }, (_, minuteOfDay) => {
+  const hour24 = Math.floor(minuteOfDay / 60);
+  const minute = minuteOfDay % 60;
+  const value = `${hour24.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+  const hour12 = hour24 % 12 || 12;
+  const meridiem = hour24 >= 12 ? "PM" : "AM";
+  return {
+    value,
+    label: `${hour12.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")} ${meridiem}`,
+  };
+});
+
+function FieldLabel({ children, isLightTheme }: { children: string; isLightTheme: boolean }) {
+  return (
+    <span
+      className={classNames(
+        "mb-1 block text-xs font-semibold uppercase tracking-[0.14em]",
+        isLightTheme ? "text-slate-500" : "text-white/55",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export default function Divin8ProfileModal({
+  open,
+  isLightTheme,
+  api,
+  onClose,
+  onSave,
+  isSaving,
+  errorMessage,
+}: Divin8ProfileModalProps) {
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [isResolvingPlace, setIsResolvingPlace] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setForm(INITIAL_FORM);
+      setSuggestions([]);
+      setPlaceError(null);
+      setValidationError(null);
+      return;
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const query = form.birthPlace.trim();
+    if (query.length < 2 || (form.lat !== null && form.lng !== null)) {
+      setSuggestions([]);
+      setIsSearchingPlaces(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        setIsSearchingPlaces(true);
+        try {
+          const response = (await api.get(`/places/autocomplete?input=${encodeURIComponent(query)}`, null)) as PlacesAutocompleteResponse;
+          if (!cancelled) {
+            setSuggestions(response.data ?? []);
+            setPlaceError(null);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setSuggestions([]);
+            setPlaceError(error instanceof Error ? error.message : "Google Places suggestions are unavailable right now.");
+          }
+        } finally {
+          if (!cancelled) {
+            setIsSearchingPlaces(false);
+          }
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [api, form.birthPlace, form.lat, form.lng, open]);
+
+  const canSubmit = useMemo(() => Boolean(
+    form.fullName.trim()
+    && form.birthDate
+    && form.birthTime
+    && form.birthPlace.trim()
+    && form.lat !== null
+    && form.lng !== null
+    && form.timezone
+  ), [form]);
+
+  async function handleSelectSuggestion(suggestion: PlaceSuggestion) {
+    setIsResolvingPlace(true);
+    try {
+      const response = (await api.get(`/places/${encodeURIComponent(suggestion.placeId)}`, null)) as PlaceDetailsResponse;
+      const details = response.data;
+      if (
+        !details
+        || typeof details.latitude !== "number"
+        || typeof details.longitude !== "number"
+        || !details.formattedAddress?.trim()
+      ) {
+        throw new Error("Please select a valid birthplace from the dropdown.");
+      }
+
+      setForm((current) => ({
+        ...current,
+        birthPlace: details.formattedAddress!.trim(),
+        lat: details.latitude!,
+        lng: details.longitude!,
+        timezone: details.timezone?.trim() || current.timezone,
+      }));
+      setSuggestions([]);
+      setPlaceError(null);
+    } catch (error) {
+      setPlaceError(error instanceof Error ? error.message : "Please select a valid birthplace from the dropdown.");
+    } finally {
+      setIsResolvingPlace(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit || form.lat === null || form.lng === null) {
+      setValidationError("All profile fields are required, including a valid birthplace selection.");
+      return;
+    }
+
+    setValidationError(null);
+    try {
+      await onSave({
+        fullName: form.fullName.trim(),
+        birthDate: form.birthDate,
+        birthTime: form.birthTime,
+        birthPlace: form.birthPlace.trim(),
+        lat: form.lat,
+        lng: form.lng,
+        timezone: form.timezone,
+      });
+    } catch {
+      // Hook state already captures and displays the save error.
+    }
+  }
+
+  if (!open) {
+    return null;
+  }
+
+  const fieldClassName = classNames(
+    "w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors",
+    isLightTheme
+      ? "border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-accent-cyan"
+      : "border-white/10 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-accent-cyan",
+  );
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-6">
+      <div
+        className={classNames(
+          "w-full max-w-2xl rounded-[28px] border p-6 shadow-2xl",
+          isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
+        )}
+        style={!isLightTheme ? darkChatStyles.panelElevated : undefined}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className={classNames("text-xs uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/45")}>
+              Divin8 Profiles
+            </p>
+            <h3 className="mt-1 text-xl font-semibold">Add Profile</h3>
+            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
+              Save a complete birth profile, then tag it in chat for Swiss Ephemeris readings.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className={classNames(
+              "rounded-lg px-2 py-1 text-sm transition-colors",
+              isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-white/55 hover:bg-white/10 hover:text-white",
+            )}
+          >
+            Close
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <FieldLabel isLightTheme={isLightTheme}>Full Name</FieldLabel>
+              <input
+                type="text"
+                value={form.fullName}
+                onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
+                className={fieldClassName}
+                placeholder="John Smith"
+                required
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel isLightTheme={isLightTheme}>Birthdate</FieldLabel>
+              <input
+                type="date"
+                value={form.birthDate}
+                onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+                className={fieldClassName}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <FieldLabel isLightTheme={isLightTheme}>Birth Time</FieldLabel>
+              <select
+                value={form.birthTime}
+                onChange={(event) => setForm((current) => ({ ...current, birthTime: event.target.value }))}
+                className={fieldClassName}
+                required
+              >
+                <option value="">Select a birth time</option>
+                {TIME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <FieldLabel isLightTheme={isLightTheme}>Timezone</FieldLabel>
+              <TimezoneSelect
+                value={form.timezone}
+                onChange={(timezone) => setForm((current) => ({ ...current, timezone }))}
+                className={fieldClassName}
+                required
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <FieldLabel isLightTheme={isLightTheme}>Birth Place</FieldLabel>
+            <div className="relative">
+              <input
+                type="text"
+                value={form.birthPlace}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    birthPlace: value,
+                    lat: null,
+                    lng: null,
+                    timezone: current.timezone,
+                  }));
+                }}
+                className={fieldClassName}
+                placeholder="Start typing a city, region, or country"
+                required
+              />
+              {suggestions.length > 0 ? (
+                <div
+                  className={classNames(
+                    "absolute left-0 right-0 top-[calc(100%+8px)] z-20 rounded-2xl border p-2 shadow-2xl",
+                    isLightTheme ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950",
+                  )}
+                >
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.placeId}
+                      type="button"
+                      onClick={() => void handleSelectSuggestion(suggestion)}
+                      className={classNames(
+                        "block w-full rounded-xl px-3 py-2 text-left transition-colors",
+                        isLightTheme ? "hover:bg-slate-100" : "hover:bg-white/10",
+                      )}
+                    >
+                      <div className="text-sm font-medium">{suggestion.primaryText}</div>
+                      {suggestion.secondaryText ? (
+                        <div className={classNames("text-xs", isLightTheme ? "text-slate-500" : "text-white/50")}>
+                          {suggestion.secondaryText}
+                        </div>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {(placeError || isSearchingPlaces || isResolvingPlace) ? (
+              <p className={classNames("mt-2 text-xs", placeError ? "text-rose-400" : isLightTheme ? "text-slate-500" : "text-white/55")}>
+                {placeError || (isResolvingPlace ? "Resolving birthplace..." : "Searching places...")}
+              </p>
+            ) : null}
+          </label>
+
+          {(validationError || errorMessage) ? (
+            <div className={classNames(
+              "rounded-xl border px-3 py-2 text-sm",
+              isLightTheme ? "border-rose-200 bg-rose-50 text-rose-700" : "border-rose-500/30 bg-rose-500/10 text-rose-100",
+            )}>
+              {validationError || errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className={classNames(
+                "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
+                isLightTheme ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-white/10 text-white hover:bg-white/15",
+              )}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!canSubmit || isSaving}
+              className={classNames(
+                "rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
+                !canSubmit || isSaving
+                  ? "cursor-not-allowed bg-slate-400/30 text-white/50"
+                  : "bg-accent-cyan text-slate-950 hover:brightness-110",
+              )}
+            >
+              {isSaving ? "Saving..." : "Save Profile"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

@@ -139,6 +139,7 @@ interface StoredConversationMessageMeta {
   route_type?: unknown;
   stages?: unknown;
   divin8?: unknown;
+  telemetry?: unknown;
 }
 
 function createHttpError(statusCode: number, message: string, code?: string) {
@@ -1032,6 +1033,7 @@ export async function addMessageToConversation(
       tier: effectiveTier,
       language: request.language,
       imageRef: request.image_ref,
+      profileTags: request.profile_tags,
       history: [
         ...history,
         { role: "user" as const, content: request.message },
@@ -1054,6 +1056,7 @@ export async function addMessageToConversation(
       route_type: response.meta.route_type,
       stages: response.meta.stages,
       divin8: response.meta.divin8,
+      telemetry: response.meta.telemetry,
     };
 
     const nextSummary = buildDeterministicConversationSummary(orchestration.storedState, visibleAssistantMessage || request.message);

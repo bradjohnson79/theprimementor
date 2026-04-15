@@ -10,6 +10,7 @@ export type NotificationEvent =
   | "admin.test";
 
 export type NotificationRecipientType = "user" | "admin";
+export type NotificationAvailability = Partial<Record<"monday" | "tuesday" | "wednesday" | "thursday", string[]>>;
 
 export interface NotificationEventDescriptor {
   event: NotificationEvent;
@@ -41,7 +42,9 @@ export interface NotificationPayloadMap {
     bookingId: string;
     bookingType: string;
     fullName?: string | null;
+    email?: string | null;
     timezone: string;
+    availability?: NotificationAvailability | null;
     eventId?: string | null;
     eventTitle?: string | null;
   };
@@ -52,6 +55,8 @@ export interface NotificationPayloadMap {
     startTimeUtc: string;
     endTimeUtc: string;
     timezone: string;
+    fullName?: string | null;
+    email?: string | null;
     eventId?: string | null;
     eventTitle?: string | null;
     joinUrl?: string | null;
@@ -63,6 +68,8 @@ export interface NotificationPayloadMap {
     reportId: string;
     title: string;
     reportTier?: string | null;
+    fullName?: string | null;
+    email?: string | null;
   };
   "admin.payment.received": {
     entityId: string;
@@ -78,6 +85,7 @@ export interface NotificationPayloadMap {
     bookingType: string;
     userEmail?: string | null;
     fullName?: string | null;
+    availability?: NotificationAvailability | null;
     eventId?: string | null;
     eventTitle?: string | null;
     startTimeUtc?: string | null;

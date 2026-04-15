@@ -28,6 +28,10 @@ export default function Divin8Guide({ isLightTheme }: Divin8GuideProps) {
       title: t("divin8.guide.synthesis.title"),
       body: t("divin8.guide.synthesis.body"),
     },
+    {
+      title: t("divin8.guide.web.title"),
+      body: t("divin8.guide.web.body"),
+    },
   ];
 
   return (

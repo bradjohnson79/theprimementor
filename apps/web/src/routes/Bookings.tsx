@@ -592,8 +592,8 @@ export default function Bookings() {
               </p>
             ) : (
               <p className="mt-2 text-sm text-white/60">
-                Regeneration sessions do not require availability windows. Complete the intake below and we’ll handle
-                the offline scheduling flow from there.
+                Mentoring Circle registrations do not require availability windows. Complete the intake below and your
+                webinar access details will follow the standard confirmation flow.
               </p>
             )}
           </div>

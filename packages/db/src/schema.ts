@@ -4,6 +4,7 @@ import {
   uuid,
   text,
   timestamp,
+  date,
   integer,
   doublePrecision,
   boolean,
@@ -230,6 +231,26 @@ export const clients = pgTable("clients", {
   challenges: text("challenges"),
   ...timestamps,
 });
+
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  full_name: text("full_name").notNull(),
+  tag: text("tag").notNull(),
+  birth_date: date("birth_date").notNull(),
+  birth_time: text("birth_time").notNull(),
+  birth_place: text("birth_place").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  timezone: text("timezone").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userTagUnique: uniqueIndex("profiles_user_tag_uidx").on(table.user_id, table.tag),
+  userIdx: index("profiles_user_idx").on(table.user_id),
+  tagIdx: index("profiles_tag_idx").on(table.tag),
+}));
 
 export const bookingTypes = pgTable("booking_types", {
   id: text("id").primaryKey(),

@@ -993,6 +993,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     timezone: summary.timezone,
     fullName: summary.fullName,
     email: summary.email ?? summary.userEmail ?? null,
+    availability: parseStoredAvailability(summary.availability),
   }).catch((error) => {
     logger.error("booking_created_notification_failed", {
       bookingId: summary.id,
@@ -1007,6 +1008,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     timezone: summary.timezone,
     fullName: summary.fullName,
     email: summary.email ?? summary.userEmail ?? null,
+    availability: parseStoredAvailability(summary.availability),
   }).catch(() => {
     logger.error("admin_booking_notification_failed", {
       bookingId: summary.id,

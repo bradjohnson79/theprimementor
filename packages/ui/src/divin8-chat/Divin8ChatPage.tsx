@@ -4,6 +4,7 @@ import ChatComposer from "./ChatComposer";
 import ChatWindow from "./ChatWindow";
 import ConversationList from "./ConversationList";
 import Divin8ChatShell from "./Divin8ChatShell";
+import Divin8ProfileModal from "./Divin8ProfileModal";
 import type { Divin8Capabilities } from "./capabilities";
 import { classNames } from "./utils";
 import { useDivin8Chat, type UseDivin8ChatConfig, type UseDivin8ChatReturn } from "./useDivin8Chat";
@@ -71,8 +72,16 @@ export default function Divin8ChatPage({
             isCreating={chat.isCreatingThread}
             searchQuery={chat.searchQuery}
             isSearching={chat.isSearching}
+            profiles={chat.profiles}
+            isLoadingProfiles={chat.isLoadingProfiles}
+            deletingProfileId={chat.deletingProfileId}
             onSearchQueryChange={chat.setSearchQuery}
             onCreate={chat.handleCreateConversation}
+            onAddProfile={chat.handleOpenProfileModal}
+            onInsertProfileTag={chat.insertProfileTag}
+            onDeleteProfile={(profileId) => {
+              void chat.handleDeleteProfile(profileId).catch(() => {});
+            }}
             onSelect={chat.handleSelectConversation}
             onArchiveRequest={chat.setArchiveTarget}
           />
@@ -100,19 +109,20 @@ export default function Divin8ChatPage({
                 inputText={chat.inputText}
                 onInputChange={chat.setInputText}
                 onSubmit={chat.handleSubmit}
+                profiles={chat.profiles}
                 onImageChange={imageUpload ? (e) => imageUpload.onImageChange(e, chat) : () => {}}
                 onRemoveImage={chat.clearImageSelection}
                 imageName={chat.imageName}
                 imagePreviewUrl={chat.imagePreviewUrl}
                 imageError={chat.imageError || speech?.error || null}
-                disabled={chat.isGenerating || !!chat.blockMessage || chat.isLoadingThread || chat.isBootstrapping}
+                disabled={chat.isGenerating || !!chat.blockMessage || !!chat.profileLimitMessage || chat.isLoadingThread || chat.isBootstrapping}
                 isSpeechSupported={speech?.isSupported ?? false}
                 speechStatus={speech?.status ?? "disabled"}
                 speechButtonTitle={speech?.buttonTitle ?? "Speech unavailable"}
                 onToggleSpeech={speech?.toggle ?? (() => {})}
                 isUploadingImage={chat.isUploadingImage}
                 isLightTheme={isLightTheme}
-                blockMessage={chat.blockMessage}
+                blockMessage={chat.blockMessage ?? chat.profileLimitMessage}
                 submitError={chat.sendError}
                 inputRef={chat.composerInputRef}
               />
@@ -172,6 +182,16 @@ export default function Divin8ChatPage({
           </div>
         </div>
       ) : null}
+
+      <Divin8ProfileModal
+        open={chat.isProfileModalOpen}
+        isLightTheme={isLightTheme}
+        api={config.api}
+        onClose={chat.handleCloseProfileModal}
+        onSave={chat.handleCreateProfile}
+        isSaving={chat.isSavingProfile}
+        errorMessage={chat.profileError}
+      />
 
       {toolModals?.(chat, mergedCapabilities)}
     </motion.div>

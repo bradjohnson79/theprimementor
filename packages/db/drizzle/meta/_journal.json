@@ -218,6 +218,27 @@
       "when": 1776132000000,
       "tag": "20260414_seo_recommendations",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1775097600000,
+      "tag": "20260402_conversation_messages_meta",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1776218400000,
+      "tag": "20260415_divin8_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776042000000,
+      "tag": "20260412_currency_defaults_cad",
+      "breakpoints": true
     }
   ]
 }

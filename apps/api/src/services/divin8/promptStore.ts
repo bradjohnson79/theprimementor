@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_DIVIN8_SYSTEM_PROMPT } from "./divin8SystemPrompt.js";
+import { buildResolvedDivin8SystemPrompt, DEFAULT_DIVIN8_STYLE_PROMPT } from "./divin8SystemPrompt.js";
 
 interface PromptOverrideFile {
   prompt: string;
@@ -36,9 +36,11 @@ async function readPromptOverride(): Promise<PromptOverrideFile | null> {
 
 export async function getActiveDivin8Prompt() {
   const override = await readPromptOverride();
+  const editablePrompt = override?.prompt || DEFAULT_DIVIN8_STYLE_PROMPT;
   return {
-    prompt: override?.prompt || DEFAULT_DIVIN8_SYSTEM_PROMPT,
-    defaultPrompt: DEFAULT_DIVIN8_SYSTEM_PROMPT,
+    prompt: editablePrompt,
+    resolvedPrompt: buildResolvedDivin8SystemPrompt(editablePrompt),
+    defaultPrompt: DEFAULT_DIVIN8_STYLE_PROMPT,
     hasOverride: Boolean(override?.prompt),
     updatedAt: override?.updatedAt ?? null,
   };

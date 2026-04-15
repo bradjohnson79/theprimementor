@@ -9,6 +9,11 @@ import { resolveMemberAccess } from "../services/divin8/memberAccessService.js";
 import { generateBlueprintFromRequest } from "../services/divin8/generateService.js";
 import { validateDivin8ChatRequest, validateDivin8MemberMessageRequest } from "../services/divin8/chatService.js";
 import {
+  createDivin8Profile,
+  deleteDivin8Profile,
+  listDivin8Profiles,
+} from "../services/divin8/profilesService.js";
+import {
   clearDivin8PromptOverride,
   getActiveDivin8Prompt,
   saveDivin8PromptOverride,
@@ -108,6 +113,27 @@ export async function divin8Routes(app: FastifyInstance) {
     return ok(await generateBlueprintFromRequest(app, request.body));
   });
 
+  app.get("/divin8/profiles", { preHandler: requireAuth }, async (request) => {
+    const user = requireAdmin(request);
+    return ok(await listDivin8Profiles(app.db, user.id));
+  });
+
+  app.post("/divin8/profiles", { preHandler: requireAuth }, async (request) => {
+    const user = requireAdmin(request);
+    if (!request.body || typeof request.body !== "object") {
+      const error = new Error("Profile body is required.");
+      (error as Error & { statusCode?: number }).statusCode = 400;
+      throw error;
+    }
+
+    return ok(await createDivin8Profile(app.db, user.id, request.body as never));
+  });
+
+  app.delete<{ Params: { id: string } }>("/divin8/profiles/:id", { preHandler: requireAuth }, async (request) => {
+    const user = requireAdmin(request);
+    return ok(await deleteDivin8Profile(app.db, user.id, request.params.id));
+  });
+
   app.post("/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
     return ok(await createConversationThread(app.db));
@@ -189,6 +215,27 @@ export async function divin8Routes(app: FastifyInstance) {
     return ok(await createConversationThread(app.db, request.dbUser!.id));
   });
 
+  app.get("/member/divin8/profiles", { preHandler: requireAuth }, async (request) => {
+    await ensureMemberDivin8Access(app, request.dbUser!.id);
+    return ok(await listDivin8Profiles(app.db, request.dbUser!.id));
+  });
+
+  app.post("/member/divin8/profiles", { preHandler: requireAuth }, async (request) => {
+    await ensureMemberDivin8Access(app, request.dbUser!.id);
+    if (!request.body || typeof request.body !== "object") {
+      const error = new Error("Profile body is required.");
+      (error as Error & { statusCode?: number }).statusCode = 400;
+      throw error;
+    }
+
+    return ok(await createDivin8Profile(app.db, request.dbUser!.id, request.body as never));
+  });
+
+  app.delete<{ Params: { id: string } }>("/member/divin8/profiles/:id", { preHandler: requireAuth }, async (request) => {
+    await ensureMemberDivin8Access(app, request.dbUser!.id);
+    return ok(await deleteDivin8Profile(app.db, request.dbUser!.id, request.params.id));
+  });
+
   app.get("/member/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
     return ok(await listConversationThreads(app.db, request.dbUser!.id, request.dbUser!.role));
@@ -221,6 +268,7 @@ export async function divin8Routes(app: FastifyInstance) {
         {
           message: payload.message,
           image_ref: payload.image_ref,
+          profile_tags: payload.profile_tags,
           language: payload.language,
           debugAudit: payload.debugAudit,
           // Server resolves final tier from entitlement snapshot.

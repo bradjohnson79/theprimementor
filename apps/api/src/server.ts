@@ -47,6 +47,14 @@ const PHYSIOGNOMY_UPLOAD_MAX_AGE_MS =
   Number(process.env.PHYSIOGNOMY_UPLOAD_MAX_AGE_MS) || 48 * 60 * 60 * 1000;
 const PHYSIOGNOMY_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
+  users: [
+    "id",
+    "clerk_id",
+    "email",
+    "role",
+    "created_at",
+    "updated_at",
+  ],
   booking_types: [
     "id",
     "name",
@@ -200,10 +208,17 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "payment_reference",
     "stripe_payment_intent_id",
     "stripe_subscription_id",
+    "refunded_at",
+    "refund_reason",
+    "refund_note",
     "failure_code",
     "failure_message",
     "failure_message_normalized",
+    "recording_link",
+    "recording_added_at",
     "metadata",
+    "archived",
+    "archived_at",
     "created_at",
     "updated_at",
   ],
@@ -312,6 +327,20 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "thread_id",
     "role",
     "content",
+    "meta",
+    "created_at",
+  ],
+  profiles: [
+    "id",
+    "user_id",
+    "full_name",
+    "tag",
+    "birth_date",
+    "birth_time",
+    "birth_place",
+    "lat",
+    "lng",
+    "timezone",
     "created_at",
   ],
   insights: [
@@ -383,6 +412,7 @@ async function verifySchema(db: Database) {
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name IN (
+        'users',
         'booking_types',
         'bookings',
         'payments',
@@ -402,6 +432,7 @@ async function verifySchema(db: Database) {
         'mentoring_circle_registrations',
         'conversation_threads',
         'conversation_messages',
+        'profiles',
         'insights',
         'conversation_timeline_events',
         'seo_settings',

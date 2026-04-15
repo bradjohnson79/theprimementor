@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type UIEvent } from "react";
 import type {
+  Divin8ProfileCreateRequest,
+  Divin8ProfileResponse,
+  Divin8ProfilesResponse,
   Divin8ConversationDetailResponse,
   Divin8ConversationMessageResponse,
   Divin8ConversationPostResponse,
@@ -8,10 +11,11 @@ import type {
   Divin8MessageMetaResponse,
   Divin8TimelineEventResponse,
 } from "@wisdom/utils";
-import { DIVIN8_LIMITS } from "@wisdom/utils";
+import { DIVIN8_LIMITS, MAX_DIVIN8_PROFILES_PER_MESSAGE, extractDivin8ProfileTags } from "@wisdom/utils";
 import type {
   Divin8ChatMessage,
   Divin8ChatMeta,
+  Divin8Profile,
   Divin8ChatTier,
   Divin8ConversationThread,
   Divin8RetryPayload,
@@ -65,6 +69,13 @@ export interface UseDivin8ChatReturn {
 
   debugMeta: Divin8ChatMeta | null;
   timelineEvents: Divin8TimelineEvent[];
+  profiles: Divin8Profile[];
+  isLoadingProfiles: boolean;
+  isSavingProfile: boolean;
+  deletingProfileId: string | null;
+  isProfileModalOpen: boolean;
+  profileError: string | null;
+  profileLimitMessage: string | null;
   usageCount: number;
   threadError: string | null;
   sendError: string | null;
@@ -74,6 +85,11 @@ export interface UseDivin8ChatReturn {
   handleArchiveConversation: () => void;
   handleRetryMessage: (messageId: string) => void;
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  handleOpenProfileModal: () => void;
+  handleCloseProfileModal: () => void;
+  handleCreateProfile: (input: Divin8ProfileCreateRequest) => Promise<void>;
+  handleDeleteProfile: (profileId: string) => Promise<void>;
+  insertProfileTag: (tag: string) => void;
   handleViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
   scrollToBottom: (behavior: ScrollBehavior) => void;
   setSearchQuery: (query: string) => void;
@@ -135,6 +151,21 @@ function mapThread(
   };
 }
 
+function mapProfile(profile: Divin8ProfileResponse): Divin8Profile {
+  return {
+    id: profile.id,
+    fullName: profile.fullName,
+    tag: profile.tag,
+    birthDate: profile.birthDate,
+    birthTime: profile.birthTime,
+    birthPlace: profile.birthPlace,
+    lat: profile.lat,
+    lng: profile.lng,
+    timezone: profile.timezone,
+    createdAt: profile.createdAt,
+  };
+}
+
 function mapStoredMessage(message: Divin8ConversationMessageResponse): Divin8ChatMessage {
   const extra: Partial<Divin8ChatMessage> = {
     id: message.id,
@@ -166,6 +197,16 @@ function mapStoredMessage(message: Divin8ConversationMessageResponse): Divin8Cha
               action: meta.divin8.action,
               confidence: meta.divin8.confidence,
               intentSignal: meta.divin8.intent_signal,
+            },
+          }
+        : {}),
+      ...(meta.telemetry
+        ? {
+            telemetry: {
+              usedSwissEph: meta.telemetry.used_swiss_eph,
+              usedWebSearch: meta.telemetry.used_web_search,
+              searchInputUsed: meta.telemetry.search_input_used,
+              queryType: meta.telemetry.query_type,
             },
           }
         : {}),
@@ -216,6 +257,16 @@ function rehydratePipelineMeta(stored: StoredPipelineMeta): Divin8ChatMeta {
             action: stored.divin8.action,
             confidence: stored.divin8.confidence,
             intentSignal: stored.divin8.intent_signal,
+          },
+        }
+      : {}),
+    ...(stored.telemetry
+      ? {
+          telemetry: {
+            usedSwissEph: stored.telemetry.used_swiss_eph,
+            usedWebSearch: stored.telemetry.used_web_search,
+            searchInputUsed: stored.telemetry.search_input_used,
+            queryType: stored.telemetry.query_type,
           },
         }
       : {}),
@@ -335,6 +386,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [archiveNotice, setArchiveNotice] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
   const [exportingThreadId, setExportingThreadId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Divin8Profile[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const [imageRef, setImageRef] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
@@ -364,6 +421,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const maxUsage = tier === "seeker" ? DIVIN8_LIMITS.seeker : Number.POSITIVE_INFINITY;
   const isBlocked = tier === "seeker" && usageCount >= maxUsage;
   const blockMessage = isBlocked ? `You've reached your monthly limit of ${DIVIN8_LIMITS.seeker} prompts.` : null;
+  const activeProfileTags = extractDivin8ProfileTags(inputText);
+  const profileLimitMessage = activeProfileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE
+    ? `Maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles allowed per reading.`
+    : null;
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
   const chatTitle = activeThread?.title && activeThread.title !== "New Conversation"
     ? activeThread.title
@@ -512,6 +573,21 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   }, [api, basePath, getToken, hideSummaryInPreviews, searchQuery]);
 
   // -- Thread CRUD --
+  const refreshProfiles = useCallback(async () => {
+    setIsLoadingProfiles(true);
+    try {
+      const token = await getToken();
+      const res = (await api.get(`${basePath}/profiles`, token)) as Divin8ProfilesResponse;
+      setProfiles((res.profiles ?? []).map(mapProfile));
+      setProfileError(null);
+    } catch (error) {
+      setProfiles([]);
+      setProfileError(error instanceof Error ? error.message : "Unable to load profiles.");
+    } finally {
+      setIsLoadingProfiles(false);
+    }
+  }, [api, basePath, getToken]);
+
   const refreshThreads = useCallback(async (preferredThreadId?: string) => {
     const token = await getToken();
     const res = (await api.get(`${basePath}/conversations`, token)) as Divin8ConversationsResponse;
@@ -601,13 +677,53 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
   }, [api, basePath, clearImageSelection, getToken, hideSummaryInPreviews]);
 
+  const insertProfileTag = useCallback((tag: string) => {
+    const current = inputText.trim();
+    setInputText(current ? `${current} ${tag}` : tag);
+    window.requestAnimationFrame(() => composerInputRef.current?.focus());
+  }, [inputText, setInputText]);
+
+  const handleCreateProfile = useCallback(async (input: Divin8ProfileCreateRequest) => {
+    setIsSavingProfile(true);
+    try {
+      const token = await getToken();
+      const created = (await api.post(`${basePath}/profiles`, input, token)) as Divin8ProfileResponse;
+      setProfiles((cur) => [...cur, mapProfile(created)]);
+      setProfileError(null);
+      setIsProfileModalOpen(false);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Unable to save profile.");
+      throw error;
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }, [api, basePath, getToken]);
+
+  const handleDeleteProfile = useCallback(async (profileId: string) => {
+    setDeletingProfileId(profileId);
+    try {
+      const token = await getToken();
+      await api.del(`${basePath}/profiles/${profileId}`, token);
+      setProfiles((cur) => cur.filter((profile) => profile.id !== profileId));
+      setProfileError(null);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Unable to delete profile.");
+      throw error;
+    } finally {
+      setDeletingProfileId(null);
+    }
+  }, [api, basePath, getToken]);
+
   // -- Bootstrap --
   useEffect(() => {
     let cancelled = false;
     async function boot() {
       setIsBootstrapping(true);
       try {
-        const preferred = await refreshThreads();
+        const [preferred] = await Promise.all([
+          refreshThreads(),
+          refreshProfiles(),
+        ]);
         if (cancelled) return;
         if (preferred) {
           await loadConversation(preferred);
@@ -620,7 +736,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
     void boot();
     return () => { cancelled = true; };
-  }, [handleCreateConversation, loadConversation, refreshThreads]);
+  }, [handleCreateConversation, loadConversation, refreshProfiles, refreshThreads]);
 
   // -- Send message --
   const sendMessageInternal = useCallback(
@@ -649,6 +765,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           {
             message: payload.text,
             image_ref: payload.imageRef,
+            profile_tags: payload.profileTags,
             tier: payload.tier,
             language: payload.language,
             request_id: payload.requestId,
@@ -686,6 +803,16 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
                 },
               }
             : {}),
+        ...(res.chat.meta.telemetry
+          ? {
+              telemetry: {
+                usedSwissEph: res.chat.meta.telemetry.used_swiss_eph,
+                usedWebSearch: res.chat.meta.telemetry.used_web_search,
+                searchInputUsed: res.chat.meta.telemetry.search_input_used,
+                queryType: res.chat.meta.telemetry.query_type,
+              },
+            }
+          : {}),
         };
 
         const updatedThread = mapThread(res.thread, hideSummaryInPreviews);
@@ -747,7 +874,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isGenerating || isBlocked || !activeThreadId || (!inputText.trim() && !imageRef)) return;
+    if (isGenerating || isBlocked || profileLimitMessage || !activeThreadId || (!inputText.trim() && !imageRef)) return;
 
     const nextText = inputText.trim() || "Please interpret the uploaded image symbolically.";
     const messageId = createMessage("user", nextText).id;
@@ -756,6 +883,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       imageRef,
       imageName,
       imagePreviewUrl,
+      profileTags: extractDivin8ProfileTags(nextText),
       tier,
       language,
       requestId: messageId,
@@ -848,6 +976,13 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     archiveNotice,
     debugMeta,
     timelineEvents,
+    profiles,
+    isLoadingProfiles,
+    isSavingProfile,
+    deletingProfileId,
+    isProfileModalOpen,
+    profileError,
+    profileLimitMessage,
     usageCount,
     threadError,
     sendError,
@@ -856,6 +991,19 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     handleArchiveConversation,
     handleRetryMessage,
     handleSubmit,
+    handleOpenProfileModal: () => {
+      setProfileError(null);
+      setIsProfileModalOpen(true);
+    },
+    handleCloseProfileModal: () => {
+      if (!isSavingProfile) {
+        setProfileError(null);
+        setIsProfileModalOpen(false);
+      }
+    },
+    handleCreateProfile,
+    handleDeleteProfile,
+    insertProfileTag,
     handleViewportScroll,
     scrollToBottom,
     setSearchQuery,

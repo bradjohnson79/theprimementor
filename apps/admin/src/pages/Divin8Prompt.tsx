@@ -163,6 +163,16 @@ export default function Divin8Prompt() {
               </span>
             </div>
 
+            <div
+              className={classNames(
+                "rounded-2xl border px-4 py-3 text-sm leading-6",
+                isLightTheme ? "border-sky-200 bg-sky-50 text-slate-700" : "border-sky-500/30 bg-sky-500/10 text-sky-100",
+              )}
+            >
+              <p className="font-semibold">{t("prompt.guardrailTitle")}</p>
+              <p className="mt-1">{t("prompt.guardrailBody")}</p>
+            </div>
+
             <textarea
               rows={24}
               value={promptValue}

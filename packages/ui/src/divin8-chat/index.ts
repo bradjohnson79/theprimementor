@@ -2,6 +2,7 @@ export { default as ChatComposer } from "./ChatComposer";
 export { default as ChatWindow } from "./ChatWindow";
 export { default as ConversationList } from "./ConversationList";
 export { default as Divin8ChatPage } from "./Divin8ChatPage";
+export { default as Divin8ProfileModal } from "./Divin8ProfileModal";
 export { default as Divin8ChatShell } from "./Divin8ChatShell";
 export { default as MessageThread } from "./MessageThread";
 export * from "./capabilities";

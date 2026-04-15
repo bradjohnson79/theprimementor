@@ -71,5 +71,5 @@ export function createEmptyBookingAvailability(): BookingAvailability {
 }
 
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
-  return sessionType !== "regeneration" && sessionType !== "mentoring_circle";
+  return sessionType !== "mentoring_circle";
 }

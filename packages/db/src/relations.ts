@@ -5,6 +5,7 @@ import {
   memberUsage,
   memberUsageEvents,
   clients,
+  profiles,
   bookingTypes,
   bookings,
   payments,
@@ -24,6 +25,7 @@ import {
 
 export const usersRelations = relations(users, ({ many }) => ({
   clients: many(clients),
+  profiles: many(profiles),
   bookings: many(bookings),
   payments: many(payments),
   stripeCustomers: many(stripeCustomers),
@@ -67,6 +69,13 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   invoices: many(invoices),
   orders: many(orders),
   reports: many(reports),
+}));
+
+export const profilesRelations = relations(profiles, ({ one }) => ({
+  user: one(users, {
+    fields: [profiles.user_id],
+    references: [users.id],
+  }),
 }));
 
 export const bookingTypesRelations = relations(bookingTypes, ({ many }) => ({

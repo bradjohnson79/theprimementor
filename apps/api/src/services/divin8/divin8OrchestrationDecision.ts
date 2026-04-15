@@ -13,8 +13,13 @@ export const CONFIDENCE_THRESHOLDS = {
 
 /** Minimum viable data for astrology engine execution (do not wait for perfection). */
 export const MINIMUM_ASTRO_DATA = ["birthDate", "birthTime", "locationOrTimezone"] as const;
+const FACTUAL_SEARCH_REGEX =
+  /\b(who is|who was|when did|when was|where is|where was|timeline|history|latest|current|date of|birth date|birthplace|born|public figure)\b/i;
+const PUBLIC_FIGURE_NAME_REGEX = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/;
 
 export type ReadingSection = "overview" | "career" | "love" | "spiritual";
+export type Divin8QueryType = "astrology" | "factual" | "hybrid";
+export type Divin8SearchPurpose = "factual_context" | "missing_birth_inputs" | "not_required";
 
 export type ReadingState = {
   currentSection: ReadingSection;
@@ -30,9 +35,17 @@ export type Divin8Decision = {
   inquiry?: { question: string; field: string };
   confirmation?: { message: string; field: string };
   toolRequired: boolean;
-  toolType?: "astrology" | "none";
+  toolType?: "astrology" | "search" | "hybrid" | "none";
   toolBlockedReason?: "low_confidence" | "not_required" | "missing_minimum_data";
 };
+
+export interface Divin8SearchExecutionPlan {
+  queryType: Divin8QueryType;
+  shouldSearch: boolean;
+  query: string | null;
+  purpose: Divin8SearchPurpose;
+  missingMinimumAstroKeys: MinimumAstroKey[];
+}
 
 export type StoredOrchestrationState = {
   inquiryCountByField: Record<string, number>;
@@ -81,6 +94,82 @@ export function humanizeMinimumKey(key: MinimumAstroKey): string {
     default:
       return key;
   }
+}
+
+function hasLikelyPublicFigureName(value: string) {
+  return PUBLIC_FIGURE_NAME_REGEX.test(value);
+}
+
+function buildHybridSearchQuery(
+  memory: Divin8ConversationMemory,
+  extracted: Divin8ExtractionResult,
+  missingKeys: MinimumAstroKey[],
+) {
+  const name = extracted.extractedEntities.fullName?.trim() || memory.knownProfile.fullName.value?.trim();
+  if (!name || !hasLikelyPublicFigureName(name)) {
+    return null;
+  }
+
+  const terms = new Set<string>();
+  if (missingKeys.includes("birthDate")) terms.add("birth date");
+  if (missingKeys.includes("birthTime")) terms.add("birth time");
+  if (missingKeys.includes("locationOrTimezone")) {
+    terms.add("birth place");
+    terms.add("timezone");
+  }
+
+  return `${name} ${[...terms].join(" ")}`.trim();
+}
+
+export function buildSearchExecutionPlan(params: {
+  message: string;
+  routingPlan: Divin8RoutingPlan;
+  route: Divin8RouteDecision;
+  memory: Divin8ConversationMemory;
+  extracted: Divin8ExtractionResult;
+}): Divin8SearchExecutionPlan {
+  const message = params.message.trim();
+  const missingMinimumAstroKeys = getMissingMinimumAstroKeys(params.memory);
+  const hasAstrology = params.routingPlan.systemsToRun.includes("astrology" as SystemName) || params.route.type === "ASTROLOGY";
+
+  if (hasAstrology) {
+    const hybridQuery = buildHybridSearchQuery(params.memory, params.extracted, missingMinimumAstroKeys);
+    if (hybridQuery && missingMinimumAstroKeys.length > 0) {
+      return {
+        queryType: "hybrid",
+        shouldSearch: true,
+        query: hybridQuery,
+        purpose: "missing_birth_inputs",
+        missingMinimumAstroKeys,
+      };
+    }
+
+    return {
+      queryType: "astrology",
+      shouldSearch: false,
+      query: null,
+      purpose: "not_required",
+      missingMinimumAstroKeys,
+    };
+  }
+
+  if (FACTUAL_SEARCH_REGEX.test(message)) {
+    return {
+      queryType: "factual",
+      shouldSearch: true,
+      query: message,
+      purpose: "factual_context",
+      missingMinimumAstroKeys: [],
+    };
+  }
+
+  return {
+    queryType: "factual",
+    shouldSearch: false,
+    query: null,
+    purpose: "not_required",
+    missingMinimumAstroKeys: [],
+  };
 }
 
 function computeProfileConfidenceForTools(memory: Divin8ConversationMemory, astroKeys: MinimumAstroKey[]): number {

@@ -1,5 +1,6 @@
 import type { NotificationPayloadMap } from "../events.js";
 import {
+  renderAvailabilityTable,
   buildAdminUrl,
   money,
   renderInfoCard,
@@ -54,6 +55,9 @@ export function renderAdminNewBookingTemplate(
   payload: NotificationPayloadMap["admin.new.booking"],
 ): RenderedTemplate {
   const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "booking");
+  const hasSubmittedAvailability = Object.values(payload.availability ?? {}).some(
+    (slots) => Array.isArray(slots) && slots.length > 0,
+  );
   return {
     subject: `Order Received: ${bookingLabel}`,
     templateVersion: "admin-new-booking-v3",
@@ -67,11 +71,20 @@ export function renderAdminNewBookingTemplate(
           renderKeyValueTable([
             { label: "Booking type", value: bookingLabel },
             { label: "Customer", value: text(payload.fullName ?? payload.userEmail, "Unavailable") },
+            { label: "Customer email", value: text(payload.userEmail, "Unavailable") },
             { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
-            { label: "Start", value: text(payload.startTimeUtc, "TBD") },
+            { label: "Start", value: payload.startTimeUtc ? payload.startTimeUtc : undefined },
             { label: "Timezone", value: text(payload.timezone, "TBD") },
           ]),
         ),
+        ...(hasSubmittedAvailability
+          ? [
+              renderInfoCard(
+                "Submitted availability",
+                renderAvailabilityTable(payload.availability),
+              ),
+            ]
+          : []),
       ],
       callToAction: {
         label: "Open Bookings",

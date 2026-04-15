@@ -1,6 +1,6 @@
 import { formatPacificMonthDay } from "@wisdom/utils";
 import { useState } from "react";
-import type { Divin8ConversationThread } from "./types";
+import type { Divin8ConversationThread, Divin8Profile } from "./types";
 import { classNames, darkChatStyles, visuallyHiddenStyle } from "./utils";
 
 interface ConversationListProps {
@@ -10,8 +10,14 @@ interface ConversationListProps {
   isCreating: boolean;
   searchQuery: string;
   isSearching: boolean;
+  profiles: Divin8Profile[];
+  isLoadingProfiles: boolean;
+  deletingProfileId: string | null;
   onSearchQueryChange: (value: string) => void;
   onCreate: () => void;
+  onAddProfile: () => void;
+  onInsertProfileTag: (tag: string) => void;
+  onDeleteProfile: (profileId: string) => void;
   onSelect: (threadId: string) => void;
   onArchiveRequest: (thread: Divin8ConversationThread) => void;
 }
@@ -30,8 +36,14 @@ export default function ConversationList({
   isCreating,
   searchQuery,
   isSearching,
+  profiles,
+  isLoadingProfiles,
+  deletingProfileId,
   onSearchQueryChange,
   onCreate,
+  onAddProfile,
+  onInsertProfileTag,
+  onDeleteProfile,
   onSelect,
   onArchiveRequest,
 }: ConversationListProps) {
@@ -78,7 +90,11 @@ export default function ConversationList({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="space-y-1">
+        <div>
+          <div className={classNames("px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/35")}>
+            Conversations
+          </div>
+          <div className="space-y-1">
           {threads.map((thread) => {
             const isActive = thread.id === activeThreadId;
             return (
@@ -185,6 +201,79 @@ export default function ConversationList({
                 : "No conversations yet."}
             </div>
           ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between px-2">
+            <div className={classNames("text-[11px] font-semibold uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/35")}>
+              Profiles
+            </div>
+            <button
+              type="button"
+              onClick={onAddProfile}
+              className={classNames(
+                "rounded-lg px-2 py-1 text-xs font-semibold transition-colors",
+                isLightTheme ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-white/10 text-white/80 hover:bg-white/15",
+              )}
+            >
+              + Add Profile
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            {profiles.map((profile) => (
+              <div
+                key={profile.id}
+                className={classNames(
+                  "flex items-center justify-between rounded-xl border px-3 py-2",
+                  isLightTheme ? "border-slate-200 bg-white hover:bg-slate-50" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => onInsertProfileTag(profile.tag)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="truncate text-sm font-medium text-accent-cyan">{profile.tag}</p>
+                  <p className={classNames("truncate text-[11px]", isLightTheme ? "text-slate-500" : "text-white/45")}>
+                    {profile.fullName}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingProfileId === profile.id}
+                  onClick={() => {
+                    if (window.confirm(`Delete ${profile.tag}?`)) {
+                      onDeleteProfile(profile.id);
+                    }
+                  }}
+                  className={classNames(
+                    "ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                    deletingProfileId === profile.id
+                      ? "cursor-not-allowed opacity-40"
+                      : isLightTheme
+                        ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                        : "text-rose-300 hover:bg-rose-500/10 hover:text-rose-200",
+                  )}
+                  aria-label={`Delete ${profile.tag}`}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                    <path d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14M10 11v5M14 11v5" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {profiles.length === 0 ? (
+              <div
+                className={classNames("rounded-xl border px-3 py-4 text-sm", isLightTheme ? "border-slate-200 text-slate-500" : "text-white/55")}
+                style={!isLightTheme ? darkChatStyles.panelAlt : undefined}
+              >
+                {isLoadingProfiles ? "Loading profiles..." : "No saved profiles yet."}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </aside>

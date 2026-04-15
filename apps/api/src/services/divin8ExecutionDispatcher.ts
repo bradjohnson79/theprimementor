@@ -209,6 +209,8 @@ export async function dispatchOrderExecution(
           reportId: refreshedOrder.execution.report_id,
           title: refreshedOrder.metadata.invoice_label ?? refreshedOrder.metadata.report_type ?? "Divin8 Report",
           reportTier: typeof order.metadata.report_type_id === "string" ? order.metadata.report_type_id : null,
+          fullName: refreshedOrder.client_name,
+          email: refreshedOrder.email,
         },
       }).catch((error) => {
         logger?.error(

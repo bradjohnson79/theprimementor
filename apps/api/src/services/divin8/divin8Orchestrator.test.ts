@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildResolvedDivin8SystemPrompt, DIVIN8_NON_NEGOTIABLE_SAFETY_LAYER } from "./divin8SystemPrompt.js";
 import {
   buildConversationSummary,
   decideNextAction,
@@ -9,6 +10,10 @@ import {
   type Divin8ConversationMemory,
   type Divin8ExtractionResult,
 } from "./divin8Orchestrator.js";
+import { buildSearchExecutionPlan } from "./divin8OrchestrationDecision.js";
+import { routeDivin8Request } from "./engine/router.js";
+import { clearDivin8PromptOverride, getActiveDivin8Prompt, saveDivin8PromptOverride } from "./promptStore.js";
+import { searchWeb } from "./searchWebService.js";
 import type { Divin8RoutingPlan } from "./divin8RoutingTypes.js";
 import { selectTimelineHighlights, type Divin8TimelineEvent } from "./insightService.js";
 import { createDeprecatedDivin8ChatError, runDivin8Chat } from "./chatService.js";
@@ -197,6 +202,124 @@ test("general conversation stays in chat mode without engine", () => {
   assert.equal(routingPlan.needsEngine, false);
   assert.equal(routingPlan.responseMode, "chat");
   assert.deepEqual(routingPlan.systemsToRun, []);
+});
+
+test("hybrid search plan activates for named astrology request with missing birth inputs", () => {
+  const extracted = makeExtraction({
+    rawText: "Analyze Elon Musk's chart for me.",
+    detectedSystems: [{ key: "vedic_astrology", matchedKeywords: ["chart"], score: 18 }],
+    extractedEntities: {
+      fullName: "Elon Musk",
+      birthDate: null,
+      birthTime: null,
+      birthLocation: null,
+      timezone: null,
+      themes: [],
+      timeWindow: null,
+    },
+  });
+  const memory = hydrateConversationMemory();
+  const routingPlan = decideNextAction({
+    memory,
+    detectedSystems: extracted.detectedSystems,
+    extracted,
+    hasImage: false,
+  });
+  const route = routeDivin8Request({
+    message: extracted.rawText,
+    detectedSystems: extracted.detectedSystems,
+    requestedSystems: routingPlan.systemsToRun,
+  });
+  const plan = buildSearchExecutionPlan({
+    message: extracted.rawText,
+    routingPlan,
+    route,
+    memory,
+    extracted,
+  });
+
+  assert.equal(plan.queryType, "hybrid");
+  assert.equal(plan.shouldSearch, true);
+  assert.match(plan.query ?? "", /Elon Musk/);
+});
+
+test("interpretive guidance does not trigger web search", () => {
+  const extracted = makeExtraction({
+    rawText: "What spiritual lesson should I focus on this week?",
+    intentHints: {
+      summary: "Spiritual guidance",
+      wantsComparison: false,
+      wantsForecast: false,
+      explicitMultiSystem: false,
+      correction: false,
+    },
+  });
+  const memory = hydrateConversationMemory();
+  const routingPlan = decideNextAction({
+    memory,
+    detectedSystems: extracted.detectedSystems,
+    extracted,
+    hasImage: false,
+  });
+  const route = routeDivin8Request({
+    message: extracted.rawText,
+    detectedSystems: extracted.detectedSystems,
+    requestedSystems: routingPlan.systemsToRun,
+  });
+  const plan = buildSearchExecutionPlan({
+    message: extracted.rawText,
+    routingPlan,
+    route,
+    memory,
+    extracted,
+  });
+
+  assert.equal(plan.shouldSearch, false);
+});
+
+test("searchWeb degrades gracefully when provider key is missing", async () => {
+  const previousDivin8Key = process.env.DIVIN8_SEARCH_API_KEY;
+  const previousTavilyKey = process.env.TAVILY_API_KEY;
+  delete process.env.DIVIN8_SEARCH_API_KEY;
+  delete process.env.TAVILY_API_KEY;
+
+  try {
+    const response = await searchWeb("Elon Musk birth date");
+    assert.equal(response.degraded, true);
+    assert.equal(response.errorCode, "missing_api_key");
+    assert.deepEqual(response.results, []);
+  } finally {
+    if (previousDivin8Key === undefined) {
+      delete process.env.DIVIN8_SEARCH_API_KEY;
+    } else {
+      process.env.DIVIN8_SEARCH_API_KEY = previousDivin8Key;
+    }
+    if (previousTavilyKey === undefined) {
+      delete process.env.TAVILY_API_KEY;
+    } else {
+      process.env.TAVILY_API_KEY = previousTavilyKey;
+    }
+  }
+});
+
+test("prompt overrides preserve the non-negotiable safety layer", async () => {
+  const original = await getActiveDivin8Prompt();
+
+  try {
+    const saved = await saveDivin8PromptOverride("You are Divin8 with a sharper tone.");
+    assert.equal(saved.prompt, "You are Divin8 with a sharper tone.");
+    assert.ok(saved.resolvedPrompt.includes("sharper tone"));
+    assert.ok(saved.resolvedPrompt.includes(DIVIN8_NON_NEGOTIABLE_SAFETY_LAYER));
+
+    const rebuilt = buildResolvedDivin8SystemPrompt(saved.prompt);
+    assert.equal(rebuilt, saved.resolvedPrompt);
+  } finally {
+    if (original.hasOverride) {
+      await saveDivin8PromptOverride(original.prompt);
+    } else {
+      await clearDivin8PromptOverride();
+    }
+  }
 });
 
 test("unsupported western astrology does not partially map to engine", () => {

@@ -9,7 +9,11 @@ import {
 import { previewNotification } from "./notificationPreview.js";
 import { getNotificationDeliveryPolicy } from "./deliveryPolicy.js";
 import { getSamplePayload } from "./samplePayloads.js";
-import { renderBookingConfirmedTemplate } from "./templates/userTemplates.js";
+import {
+  renderBookingConfirmedTemplate,
+  renderBookingCreatedTemplate,
+  renderReportGeneratedTemplate,
+} from "./templates/userTemplates.js";
 import { renderAdminNewBookingTemplate } from "./templates/adminTemplates.js";
 
 test("notification events map to the correct recipient types", () => {
@@ -135,4 +139,55 @@ test("admin booking template falls back safely when optional fields are missing"
   assert.match(rendered.html, /Booking reference[\s\S]*Unavailable/i);
   assert.match(rendered.html, /Timezone[\s\S]*TBD/i);
   assert.match(rendered.html, /Open Bookings/i);
+});
+
+test("admin booking template renders submitted availability and customer email", () => {
+  const rendered = renderAdminNewBookingTemplate({
+    entityId: "admin_booking_availability",
+    bookingId: "booking_availability",
+    bookingType: "Focus Session",
+    fullName: "Craig Stickler",
+    userEmail: "craig@example.com",
+    timezone: "America/Vancouver",
+    availability: {
+      monday: ["10:00", "11:00"],
+      wednesday: ["15:00"],
+    },
+  });
+
+  assert.match(rendered.html, /Customer email[\s\S]*craig@example.com/i);
+  assert.match(rendered.html, /Submitted availability/i);
+  assert.match(rendered.html, /Monday[\s\S]*10am, 11am/i);
+  assert.match(rendered.html, /Wednesday[\s\S]*3pm/i);
+  assert.doesNotMatch(rendered.html, /Start[\s\S]*TBD/i);
+});
+
+test("customer booking template includes customer details", () => {
+  const rendered = renderBookingCreatedTemplate({
+    entityId: "booking_customer_details",
+    bookingId: "booking_customer_details",
+    bookingType: "Mentoring Circle",
+    fullName: "Craig Stickler",
+    email: "craig@example.com",
+    timezone: "America/Vancouver",
+    eventTitle: "Mentoring Circle Webinar",
+  });
+
+  assert.match(rendered.html, /Name[\s\S]*Craig Stickler/i);
+  assert.match(rendered.html, /Email[\s\S]*craig@example.com/i);
+});
+
+test("report generated template includes customer name and email", () => {
+  const rendered = renderReportGeneratedTemplate({
+    entityId: "report_customer_details",
+    orderId: "order_customer_details",
+    reportId: "report_customer_details",
+    title: "Blueprint Report",
+    reportTier: "intro",
+    fullName: "Craig Stickler",
+    email: "craig@example.com",
+  });
+
+  assert.match(rendered.html, /Name[\s\S]*Craig Stickler/i);
+  assert.match(rendered.html, /Email[\s\S]*craig@example.com/i);
 });

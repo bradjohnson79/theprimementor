@@ -2,6 +2,7 @@ import { bookings, clients, users, type Database } from "@wisdom/db";
 import { desc, eq } from "drizzle-orm";
 import { logger } from "@wisdom/utils";
 import { sendNotification } from "../notifications/notificationService.js";
+import type { BookingAvailability } from "./bookingConstants.js";
 
 export interface BookingNotificationPayload {
   bookingId: string;
@@ -10,6 +11,7 @@ export interface BookingNotificationPayload {
   timezone: string;
   fullName?: string | null;
   email?: string | null;
+  availability?: BookingAvailability | null;
   startTimeUtc?: string;
   endTimeUtc?: string;
   eventId?: string | null;
@@ -78,6 +80,7 @@ export async function sendBookingCreatedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  const contact = await getBookingNotificationContact(db, payload);
   await sendNotification(db, {
     event: "booking.created",
     userId: payload.userId,
@@ -85,8 +88,10 @@ export async function sendBookingCreatedNotification(
       entityId: payload.bookingId,
       bookingId: payload.bookingId,
       bookingType: payload.bookingType,
-      fullName: payload.fullName ?? null,
+      fullName: contact.fullName,
+      email: contact.email,
       timezone: payload.timezone,
+      availability: payload.availability ?? null,
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
     },
@@ -107,6 +112,7 @@ export async function sendAdminNewBookingNotification(
       bookingType: payload.bookingType,
       userEmail: contact.email,
       fullName: contact.fullName,
+      availability: payload.availability ?? null,
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
       startTimeUtc: payload.startTimeUtc ?? null,
@@ -126,6 +132,7 @@ export async function sendBookingConfirmedNotification(
     return;
   }
 
+  const contact = await getBookingNotificationContact(db, payload);
   await sendNotification(db, {
     event: "booking.confirmed",
     userId: payload.userId,
@@ -136,6 +143,8 @@ export async function sendBookingConfirmedNotification(
       startTimeUtc: payload.startTimeUtc,
       endTimeUtc: payload.endTimeUtc,
       timezone: payload.timezone,
+      fullName: contact.fullName,
+      email: contact.email,
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
       joinUrl: payload.joinUrl ?? null,

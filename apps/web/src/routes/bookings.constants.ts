@@ -37,7 +37,7 @@ export const SESSION_TYPE_OPTIONS: Array<{
   {
     type: "regeneration",
     label: "Regeneration Session",
-    description: "An offline regeneration request with no live date or time selection required up front.",
+    description: "An offline regeneration request that still begins with your submitted availability windows.",
   },
   {
     type: "focus",
@@ -81,6 +81,6 @@ export function createEmptyAvailabilitySelection(): AvailabilitySelection {
   };
 }
 
-export function sessionTypeRequiresSchedule(sessionType: SessionType) {
-  return sessionType !== "regeneration";
+export function sessionTypeRequiresSchedule(_sessionType: SessionType) {
+  return true;
 }
