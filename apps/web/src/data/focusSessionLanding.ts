@@ -94,10 +94,6 @@ export const focusSessionLandingContent: SessionLandingContent = {
         "A recorded video session available for download and review",
         "Immediate clarity, direction, and grounded confidence moving forward",
       ],
-      cta: {
-        label: "Book Your Focus Session",
-        href: FOCUS_BOOKING_PATH,
-      },
     },
     {
       id: "the-experience",

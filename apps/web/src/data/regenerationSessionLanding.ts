@@ -107,10 +107,6 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
         "Following your session, you receive 7 days of priority email support.",
         "This gives you space to ask questions, receive guidance, and stay aligned as your system stabilizes into this new state. You are not left to figure it out alone. You are supported as the shift integrates.",
       ],
-      cta: {
-        label: "Book Your Regeneration Session",
-        href: REGENERATION_BOOKING_PATH,
-      },
       density: "spacious",
     },
   ],
