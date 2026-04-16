@@ -6,6 +6,11 @@ import PublicEnergyBackground from "../components/background/PublicEnergyBackgro
 import pmLogo from "../assets/prime-mentor-logo.webp";
 import { getUmamiScriptUrl, getUmamiWebsiteId } from "../lib/analytics";
 import { useUserSync } from "../hooks/useUserSync";
+import {
+  FOCUS_LANDING_PATH,
+  MENTORING_LANDING_PATH,
+  REGENERATION_LANDING_PATH,
+} from "../lib/sessionLandingPaths";
 
 interface NavItem {
   label: string;
@@ -24,9 +29,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Sessions",
     href: "/#sessions",
     items: [
-      { label: "Regeneration Session", href: "/sessions/regeneration" },
-      { label: "Focus Session", href: "/sessions/focus" },
-      { label: "Mentoring Session", href: "/sessions/mentoring" },
+      { label: "Regeneration Session", href: REGENERATION_LANDING_PATH },
+      { label: "Focus Session", href: FOCUS_LANDING_PATH },
+      { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
     ],
   },
   {
@@ -91,7 +96,10 @@ export default function RootLayout() {
   const isMarketingSurface =
     location.pathname === "/"
     || location.pathname === "/membership-signup"
-    || location.pathname.startsWith("/subscriptions/");
+    || location.pathname.startsWith("/subscriptions/")
+    || location.pathname === REGENERATION_LANDING_PATH
+    || location.pathname === FOCUS_LANDING_PATH
+    || location.pathname === MENTORING_LANDING_PATH;
 
   useUserSync();
 

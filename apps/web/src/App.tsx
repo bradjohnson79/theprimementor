@@ -20,6 +20,17 @@ import Contact from "./routes/Contact";
 import Reports from "./routes/Reports";
 import MembershipSignup from "./routes/MembershipSignup";
 import SupportWidget from "./components/support/SupportWidget";
+import RegenerationSessionPage from "./routes/RegenerationSessionPage";
+import FocusSessionPage from "./routes/FocusSessionPage";
+import MentoringSessionPage from "./routes/MentoringSessionPage";
+import {
+  FOCUS_BOOKING_PATH,
+  FOCUS_LANDING_PATH,
+  MENTORING_BOOKING_PATH,
+  MENTORING_LANDING_PATH,
+  REGENERATION_BOOKING_PATH,
+  REGENERATION_LANDING_PATH,
+} from "./lib/sessionLandingPaths";
 
 const Courses = lazy(() => import("./routes/Courses"));
 const CourseTTT = lazy(() => import("./routes/CourseTTT"));
@@ -48,6 +59,9 @@ export default function App() {
           <Route path="/membership-signup" element={<MembershipSignup />} />
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
+          <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
+          <Route path={FOCUS_LANDING_PATH} element={<FocusSessionPage />} />
+          <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
         </Route>
         <Route element={<ProtectedLayout />}>
           <Route element={<MemberLayout />}>
@@ -55,9 +69,9 @@ export default function App() {
             <Route path="/dashboard/divin8" element={<MemberDivin8Chat />} />
             <Route path="/dashboard/recordings" element={<Recordings />} />
             <Route path="/sessions" element={<Bookings />} />
-            <Route path="/sessions/focus" element={<Bookings />} />
-            <Route path="/sessions/regeneration" element={<Bookings />} />
-            <Route path="/sessions/mentoring" element={<Bookings />} />
+            <Route path={FOCUS_BOOKING_PATH} element={<Bookings />} />
+            <Route path={REGENERATION_BOOKING_PATH} element={<Bookings />} />
+            <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/intro" element={<Reports />} />

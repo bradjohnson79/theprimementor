@@ -28,6 +28,11 @@ import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
 import aetherxImage from "../assets/aetherx-3x3.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
 import { trackCtaClick } from "../lib/analytics";
+import {
+  FOCUS_LANDING_PATH,
+  MENTORING_LANDING_PATH,
+  REGENERATION_LANDING_PATH,
+} from "../lib/sessionLandingPaths";
 import { ContactPublicContent } from "./ContactPublic";
 
 interface SessionCardData {
@@ -43,8 +48,8 @@ const SESSION_CARDS: SessionCardData[] = [
     title: "Regeneration Session",
     priceLabel: "$99.00 CAD",
     description:
-      "A restorative offline session focused on recalibrating your system through guided energy work and instructional shifting of your mental state. Brad works with the ailments that you report and through a short examination of your natal charts and metaphysical system review, he discovers the ideal process aiding you in reaching a regenerative state through simple practices and guidance through a recorded MP3 summary. No personal interaction is necessary as you will receive an instruction-built package delivered to your email on how to reach alignment through your preferred state of being.",
-    href: "/sessions/regeneration",
+      "This is an offline session that aligns you into a state of wellness where you feel the effects of previous ailments become released. The Regeneration Session offers a 7 day span of priority email support that helps you to maintain an aligned 'prime' state of being. Custom-made exercises are created based on natal charts through our Divin8 engine designed to help you hold a particular feeling in alignment. Through this feeling and familiarity of it, you remain in a wellness state while shifting yourself into a Delta Brainwave phase. The Regeneration Session transcends healing and moves you into alignment removing old habits and behavioral patterns from your system as you enter a prime state of wellness.",
+    href: REGENERATION_LANDING_PATH,
     imageSrc: regenerationSessionImage,
   },
   {
@@ -52,7 +57,7 @@ const SESSION_CARDS: SessionCardData[] = [
     priceLabel: "$199.00 CAD",
     description:
       "A 45 minute interaction where Brad will prepare you for your intended state through a Divin8 Synthesis report. Brad will share insights on your current alignment in life, and how to align your mind's state of being. Whether you're navigating a decision, facing a challenge, or seeking direction, this session isolates the core pattern and brings it into sharp focus. You'll leave with clear, actionable insight and a grounded understanding of your next steps—cutting through confusion and helping you move forward with confidence and intention. The session works to clear stagnation, restore balance, and reconnect you to your natural state of flow—leaving you feeling lighter, clearer, and more internally supported.",
-    href: "/sessions/focus",
+    href: FOCUS_LANDING_PATH,
     imageSrc: focusSessionImage,
   },
   {
@@ -60,7 +65,7 @@ const SESSION_CARDS: SessionCardData[] = [
     priceLabel: "$299.00 CAD",
     description:
       "A comprehensive session that works across multiple layers of your blueprint to support deeper transformation and long-term growth. This is the most complete session of the 3 as Brad works with you 1 to 1 exploring your natal charts and metaphysical information overview through the Divin8 system. This is where patterns are not just identified—but understood, integrated, and evolved. This session focuses on setting a goal, neutralizing all setbacks towards that goal, and teaching you how to enter Prime Mind: Harmony with your preferred state of being. The Mentoring session is an interaction designed for those ready to go further; this session provides structured guidance, expanded awareness, and aligned direction—supporting real, sustained movement forward on your path.",
-    href: "/sessions/mentoring",
+    href: MENTORING_LANDING_PATH,
     imageSrc: mentoringSessionImage,
   },
 ];
@@ -215,6 +220,8 @@ function LandingSection({ id, children }: LandingSectionProps) {
 }
 
 function SessionCard({ title, priceLabel, description, href, imageSrc }: SessionCardData) {
+  const bookingHref = `${href}/book`;
+
   return (
     <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
       <div className="aspect-[4/3] w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5">
@@ -237,13 +244,28 @@ function SessionCard({ title, priceLabel, description, href, imageSrc }: Session
 
         <p className="flex-1 text-sm leading-relaxed text-white/60">{description}</p>
 
-        <Link
-          to={href}
-          onClick={() => trackCtaClick("book_now", "home_sessions", { href, title })}
-          className="mt-auto shrink-0 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
-        >
-          Book Now
-        </Link>
+        <div className="mt-auto flex flex-col gap-2 sm:flex-row">
+          <Link
+            to={bookingHref}
+            onClick={() => trackCtaClick("book_session", "home_sessions", {
+              session: title,
+              href: bookingHref,
+            })}
+            className="flex-1 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
+          >
+            Book Session
+          </Link>
+          <Link
+            to={href}
+            onClick={() => trackCtaClick("learn_more", "home_sessions", {
+              session: title,
+              href,
+            })}
+            className="flex-1 rounded-md border border-white/10 bg-transparent py-2.5 text-center text-sm font-medium text-white/80 transition hover:bg-white/8 hover:text-white"
+          >
+            Learn More
+          </Link>
+        </div>
         <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
       </div>
     </div>

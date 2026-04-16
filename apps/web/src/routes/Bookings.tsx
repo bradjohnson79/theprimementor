@@ -9,6 +9,11 @@ import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
 import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
+import {
+  FOCUS_LANDING_PATH,
+  MENTORING_LANDING_PATH,
+  REGENERATION_LANDING_PATH,
+} from "../lib/sessionLandingPaths";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
   AVAILABILITY_DAYS,
@@ -95,9 +100,9 @@ function resolveBirthTimeInput(value: string) {
 }
 
 function resolveSessionTypeFromPath(pathname: string): SessionType | null {
-  if (pathname.endsWith("/focus")) return "focus";
-  if (pathname.endsWith("/regeneration")) return "regeneration";
-  if (pathname.endsWith("/mentoring")) return "mentoring";
+  if (pathname.includes(FOCUS_LANDING_PATH)) return "focus";
+  if (pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
+  if (pathname.includes(MENTORING_LANDING_PATH)) return "mentoring";
   return null;
 }
 
