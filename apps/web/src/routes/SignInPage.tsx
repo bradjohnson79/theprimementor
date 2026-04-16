@@ -1,31 +1,17 @@
 import { SignIn } from "@clerk/react";
-import { useState } from "react";
 import { clerkAuthAppearance } from "../lib/authFormStyles";
-
-const REDIRECT_STORAGE_KEY = "clerk_signin_redirect";
+import { useFrozenClerkRedirect } from "../lib/clerkRedirect";
 
 export default function SignInPage() {
-  const [redirectUrl] = useState(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("redirect_url")?.trim();
-    if (fromUrl) {
-      sessionStorage.setItem(REDIRECT_STORAGE_KEY, fromUrl);
-      return fromUrl;
-    }
-    return sessionStorage.getItem(REDIRECT_STORAGE_KEY) || undefined;
-  });
-  const [signUpUrl] = useState(
-    () => redirectUrl
-      ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`
-      : "/sign-up",
-  );
+  const redirectUrl = useFrozenClerkRedirect();
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0f1f] px-4 py-10">
       <SignIn
         routing="path"
         path="/sign-in"
-        signUpUrl={signUpUrl}
-        fallbackRedirectUrl={redirectUrl || "/dashboard"}
+        signUpUrl="/sign-up"
+        fallbackRedirectUrl={redirectUrl}
         appearance={clerkAuthAppearance}
       />
     </div>
