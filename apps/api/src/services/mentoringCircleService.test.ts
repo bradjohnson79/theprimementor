@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildMentoringCircleEventState,
   getActiveMentoringCirclePurchaseEvent,
+  getDueMentoringCircleReminderTargets,
   getMentoringCircleEventOrThrow,
   type MentoringCircleBookingAccessRow,
 } from "./mentoringCircleService.js";
@@ -13,6 +14,8 @@ test("mentoring circle resolves the default event definition", () => {
   assert.equal(event.eventId, "2026-04-26");
   assert.equal(event.priceCents, 2500);
   assert.equal(event.currency, "CAD");
+  assert.equal(event.timezone, "America/Vancouver");
+  assert.equal(event.zoomLink, "https://us02web.zoom.us/meeting/register/4mdPcnhtRTmneCxhp51-Fg");
 });
 
 test("mentoring circle sales switch to may after april sales window opens", () => {
@@ -64,4 +67,30 @@ test("confirmed access exposes the Zoom link", () => {
   assert.equal(state.accessStatus, "confirmed");
   assert.equal(state.joinEligible, true);
   assert.equal(state.joinUrl, event.zoomLink);
+});
+
+test("mentoring circle detects the 24 hour reminder window", () => {
+  const reminders = getDueMentoringCircleReminderTargets(new Date("2026-04-25T16:05:00.000Z"));
+
+  assert.deepEqual(reminders, [
+    {
+      eventId: "2026-04-26",
+      eventKey: "2026-04-26",
+      reminderWindow: "24h",
+      reminderAt: "2026-04-25T16:00:00.000Z",
+    },
+  ]);
+});
+
+test("mentoring circle detects the 1 hour reminder window", () => {
+  const reminders = getDueMentoringCircleReminderTargets(new Date("2026-04-26T15:10:00.000Z"));
+
+  assert.deepEqual(reminders, [
+    {
+      eventId: "2026-04-26",
+      eventKey: "2026-04-26",
+      reminderWindow: "1h",
+      reminderAt: "2026-04-26T15:00:00.000Z",
+    },
+  ]);
 });

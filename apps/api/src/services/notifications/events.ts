@@ -3,6 +3,9 @@ export type NotificationEvent =
   | "payment.failed"
   | "booking.created"
   | "booking.confirmed"
+  | "mentoring_circle.confirmed"
+  | "mentoring_circle.reminder_24h"
+  | "mentoring_circle.reminder_1h"
   | "report.generated"
   | "admin.payment.received"
   | "admin.new.booking"
@@ -60,6 +63,43 @@ export interface NotificationPayloadMap {
     eventId?: string | null;
     eventTitle?: string | null;
     joinUrl?: string | null;
+    accessPagePath?: string | null;
+  };
+  "mentoring_circle.confirmed": {
+    entityId: string;
+    bookingId: string;
+    eventId: string;
+    eventTitle: string;
+    startTimeUtc: string;
+    endTimeUtc: string;
+    timezone: string;
+    fullName?: string | null;
+    email?: string | null;
+    joinUrl: string;
+    accessPagePath?: string | null;
+  };
+  "mentoring_circle.reminder_24h": {
+    entityId: string;
+    bookingId: string;
+    eventId: string;
+    eventTitle: string;
+    startTimeUtc: string;
+    timezone: string;
+    fullName?: string | null;
+    email?: string | null;
+    joinUrl: string;
+    accessPagePath?: string | null;
+  };
+  "mentoring_circle.reminder_1h": {
+    entityId: string;
+    bookingId: string;
+    eventId: string;
+    eventTitle: string;
+    startTimeUtc: string;
+    timezone: string;
+    fullName?: string | null;
+    email?: string | null;
+    joinUrl: string;
     accessPagePath?: string | null;
   };
   "report.generated": {
@@ -122,6 +162,9 @@ export const USER_NOTIFICATION_EVENTS = [
   "payment.failed",
   "booking.created",
   "booking.confirmed",
+  "mentoring_circle.confirmed",
+  "mentoring_circle.reminder_24h",
+  "mentoring_circle.reminder_1h",
   "report.generated",
 ] as const satisfies readonly NotificationEvent[];
 
@@ -137,6 +180,9 @@ export const CONFIGURABLE_NOTIFICATION_EVENTS = [
   "payment.failed",
   "booking.created",
   "booking.confirmed",
+  "mentoring_circle.confirmed",
+  "mentoring_circle.reminder_24h",
+  "mentoring_circle.reminder_1h",
   "report.generated",
   "admin.payment.received",
   "admin.new.booking",
@@ -151,7 +197,7 @@ export const ALL_NOTIFICATION_EVENTS = [
 ] as const satisfies readonly NotificationEvent[];
 
 export function getNotificationEventLabel(event: NotificationEvent) {
-  return event.replace(/\./g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+  return event.replace(/[._]/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 export function getNotificationRecipientType(event: NotificationEvent): NotificationRecipientType {

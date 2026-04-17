@@ -50,6 +50,47 @@ const SAMPLE_PAYLOAD_FACTORIES: SamplePayloadFactoryMap = {
       accessPagePath: "/mentoring-circle",
     };
   },
+  "mentoring_circle.confirmed": () => {
+    const start = new Date("2026-04-26T16:00:00.000Z");
+    const end = new Date(start.getTime() + 90 * 60 * 1000);
+    return {
+      entityId: "mentoring_circle_confirmed_sample",
+      bookingId: "booking_mentoring_circle_confirmed",
+      eventId: "2026-04-26",
+      eventTitle: "Mentoring Circle: The Prime Law",
+      startTimeUtc: start.toISOString(),
+      endTimeUtc: end.toISOString(),
+      timezone: "America/Vancouver",
+      fullName: "Brad",
+      email: "brad@example.com",
+      joinUrl: "https://us02web.zoom.us/meeting/register/example",
+      accessPagePath: "/mentoring-circle",
+    };
+  },
+  "mentoring_circle.reminder_24h": () => ({
+    entityId: "mentoring_circle_reminder_24h_sample",
+    bookingId: "booking_mentoring_circle_reminder_24h",
+    eventId: "2026-04-26",
+    eventTitle: "Mentoring Circle: The Prime Law",
+    startTimeUtc: new Date("2026-04-26T16:00:00.000Z").toISOString(),
+    timezone: "America/Vancouver",
+    fullName: "Brad",
+    email: "brad@example.com",
+    joinUrl: "https://us02web.zoom.us/meeting/register/example",
+    accessPagePath: "/mentoring-circle",
+  }),
+  "mentoring_circle.reminder_1h": () => ({
+    entityId: "mentoring_circle_reminder_1h_sample",
+    bookingId: "booking_mentoring_circle_reminder_1h",
+    eventId: "2026-04-26",
+    eventTitle: "Mentoring Circle: The Prime Law",
+    startTimeUtc: new Date("2026-04-26T16:00:00.000Z").toISOString(),
+    timezone: "America/Vancouver",
+    fullName: "Brad",
+    email: "brad@example.com",
+    joinUrl: "https://us02web.zoom.us/meeting/register/example",
+    accessPagePath: "/mentoring-circle",
+  }),
   "report.generated": () => ({
     entityId: "report_sample_generated",
     orderId: "order_sample_report",

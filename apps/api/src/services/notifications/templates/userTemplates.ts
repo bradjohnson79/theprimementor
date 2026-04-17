@@ -16,6 +16,33 @@ interface RenderedTemplate {
   templateVersion: string;
 }
 
+function formatMentoringCircleDateTime(value: string, timezone: string) {
+  if (!value) {
+    return "TBD";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone || "America/Vancouver",
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(new Date(value));
+  } catch {
+    return text(value, "TBD");
+  }
+}
+
+function formatMentoringCircleTimezone(timezone: string) {
+  if (timezone === "America/Vancouver") {
+    return "America/Vancouver (Pacific Time)";
+  }
+  return text(timezone, "America/Vancouver");
+}
+
 export function renderPaymentSucceededTemplate(
   payload: NotificationPayloadMap["payment.succeeded"],
 ): RenderedTemplate {
@@ -168,6 +195,124 @@ export function renderBookingConfirmedTemplate(
       footerNote: "Please arrive a few minutes early so you can settle in before the session begins.",
     }),
   };
+}
+
+export function renderMentoringCircleConfirmedTemplate(
+  payload: NotificationPayloadMap["mentoring_circle.confirmed"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Mentoring Circle");
+  const eventTime = formatMentoringCircleDateTime(payload.startTimeUtc, payload.timezone);
+  return {
+    subject: `${eventTitle} access confirmed`,
+    templateVersion: "mentoring-circle-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Mentoring Circle Confirmed",
+      title: "Your Mentoring Circle access is ready",
+      intro: `Your seat for ${eventTitle} is confirmed. Keep this email nearby so you have the webinar details and Zoom link ready for the session.`,
+      sections: [
+        renderInfoCard(
+          "Event details",
+          renderKeyValueTable([
+            { label: "Event", value: eventTitle },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Starts", value: eventTime },
+            { label: "Ends", value: formatMentoringCircleDateTime(payload.endTimeUtc, payload.timezone) },
+            { label: "Timezone", value: formatMentoringCircleTimezone(payload.timezone) },
+            { label: "Name", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+            { label: "Zoom link", value: payload.joinUrl },
+          ]),
+        ),
+        renderParagraph("This is the event email for your Mentoring Circle purchase. The Zoom registration link above is the link to use for this session."),
+        renderParagraph("You will also receive reminder emails 24 hours before the event and again 1 hour before it begins."),
+      ],
+      callToAction: {
+        label: "Open Zoom Link",
+        url: payload.joinUrl,
+        note: "Open this link to complete Zoom registration and join the event flow for this month.",
+      },
+      secondaryCallToAction: {
+        label: "Open Mentoring Circle Page",
+        url: buildFrontendUrl(payload.accessPagePath || "/mentoring-circle"),
+      },
+      footerNote: "Please arrive a few minutes early so you can settle in before the Mentoring Circle begins.",
+    }),
+  };
+}
+
+function renderMentoringCircleReminderTemplate(
+  payload: NotificationPayloadMap["mentoring_circle.reminder_24h"] | NotificationPayloadMap["mentoring_circle.reminder_1h"],
+  input: {
+    subjectPrefix: string;
+    eyebrow: string;
+    title: string;
+    intro: string;
+    templateVersion: string;
+    footerNote: string;
+  },
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Mentoring Circle");
+  return {
+    subject: `${input.subjectPrefix}: ${eventTitle}`,
+    templateVersion: input.templateVersion,
+    html: renderPrimeMentorEmail({
+      eyebrow: input.eyebrow,
+      title: input.title,
+      intro: input.intro,
+      sections: [
+        renderInfoCard(
+          "Reminder details",
+          renderKeyValueTable([
+            { label: "Event", value: eventTitle },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Starts", value: formatMentoringCircleDateTime(payload.startTimeUtc, payload.timezone) },
+            { label: "Timezone", value: formatMentoringCircleTimezone(payload.timezone) },
+            { label: "Name", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+            { label: "Zoom link", value: payload.joinUrl },
+          ]),
+        ),
+        renderParagraph("If you need to re-open your event details later, you can also access them from your Mentoring Circle page."),
+      ],
+      callToAction: {
+        label: "Open Zoom Link",
+        url: payload.joinUrl,
+      },
+      secondaryCallToAction: {
+        label: "Open Mentoring Circle Page",
+        url: buildFrontendUrl(payload.accessPagePath || "/mentoring-circle"),
+      },
+      footerNote: input.footerNote,
+    }),
+  };
+}
+
+export function renderMentoringCircleReminder24hTemplate(
+  payload: NotificationPayloadMap["mentoring_circle.reminder_24h"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Mentoring Circle");
+  return renderMentoringCircleReminderTemplate(payload, {
+    subjectPrefix: "Mentoring Circle tomorrow",
+    eyebrow: "24 Hour Reminder",
+    title: "Your Mentoring Circle begins tomorrow",
+    intro: `${eventTitle} begins in approximately 24 hours. This is your reminder to keep your Zoom link ready and set aside space for the session.`,
+    templateVersion: "mentoring-circle-reminder-24h-v1",
+    footerNote: "A final reminder will be sent about 1 hour before the event begins.",
+  });
+}
+
+export function renderMentoringCircleReminder1hTemplate(
+  payload: NotificationPayloadMap["mentoring_circle.reminder_1h"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Mentoring Circle");
+  return renderMentoringCircleReminderTemplate(payload, {
+    subjectPrefix: "Mentoring Circle starts in 1 hour",
+    eyebrow: "1 Hour Reminder",
+    title: "Your Mentoring Circle starts soon",
+    intro: `${eventTitle} begins in about 1 hour. Use the Zoom link below when you are ready to enter the webinar.`,
+    templateVersion: "mentoring-circle-reminder-1h-v1",
+    footerNote: "If you have trouble opening the Zoom link, reply to this email before the event begins and we will help.",
+  });
 }
 
 export function renderReportGeneratedTemplate(

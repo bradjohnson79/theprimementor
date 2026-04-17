@@ -5,6 +5,7 @@ import { sendNotification } from "../notifications/notificationService.js";
 import type { BookingAvailability } from "./bookingConstants.js";
 
 export interface BookingNotificationPayload {
+  entityId?: string;
   bookingId: string;
   userId: string;
   bookingType: string;
@@ -85,7 +86,7 @@ export async function sendBookingCreatedNotification(
     event: "booking.created",
     userId: payload.userId,
     payload: {
-      entityId: payload.bookingId,
+      entityId: payload.entityId ?? payload.bookingId,
       bookingId: payload.bookingId,
       bookingType: payload.bookingType,
       fullName: contact.fullName,
@@ -107,7 +108,7 @@ export async function sendAdminNewBookingNotification(
   await sendNotification(db, {
     event: "admin.new.booking",
     payload: {
-      entityId: payload.bookingId,
+      entityId: payload.entityId ?? payload.bookingId,
       bookingId: payload.bookingId,
       bookingType: payload.bookingType,
       userEmail: contact.email,
@@ -137,7 +138,7 @@ export async function sendBookingConfirmedNotification(
     event: "booking.confirmed",
     userId: payload.userId,
     payload: {
-      entityId: payload.bookingId,
+      entityId: payload.entityId ?? payload.bookingId,
       bookingId: payload.bookingId,
       bookingType: payload.bookingType,
       startTimeUtc: payload.startTimeUtc,
@@ -148,6 +149,74 @@ export async function sendBookingConfirmedNotification(
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
       joinUrl: payload.joinUrl ?? null,
+      accessPagePath: payload.accessPagePath ?? null,
+    },
+  });
+}
+
+export async function sendMentoringCircleConfirmedNotification(
+  db: Database,
+  payload: BookingNotificationPayload,
+): Promise<void> {
+  if (!payload.startTimeUtc || !payload.endTimeUtc || !payload.eventId || !payload.eventTitle || !payload.joinUrl) {
+    logger.warn("mentoring_circle_notification_missing_schedule", {
+      bookingId: payload.bookingId,
+      eventId: payload.eventId ?? null,
+    });
+    return;
+  }
+
+  const contact = await getBookingNotificationContact(db, payload);
+  await sendNotification(db, {
+    event: "mentoring_circle.confirmed",
+    userId: payload.userId,
+    payload: {
+      entityId: payload.entityId ?? payload.bookingId,
+      bookingId: payload.bookingId,
+      eventId: payload.eventId,
+      eventTitle: payload.eventTitle,
+      startTimeUtc: payload.startTimeUtc,
+      endTimeUtc: payload.endTimeUtc,
+      timezone: payload.timezone,
+      fullName: contact.fullName,
+      email: contact.email,
+      joinUrl: payload.joinUrl,
+      accessPagePath: payload.accessPagePath ?? null,
+    },
+  });
+}
+
+export async function sendMentoringCircleReminderNotification(
+  db: Database,
+  payload: BookingNotificationPayload & {
+    reminderWindow: "24h" | "1h";
+  },
+): Promise<void> {
+  if (!payload.startTimeUtc || !payload.eventId || !payload.eventTitle || !payload.joinUrl) {
+    logger.warn("mentoring_circle_reminder_missing_schedule", {
+      bookingId: payload.bookingId,
+      eventId: payload.eventId ?? null,
+      reminderWindow: payload.reminderWindow,
+    });
+    return;
+  }
+
+  const contact = await getBookingNotificationContact(db, payload);
+  await sendNotification(db, {
+    event: payload.reminderWindow === "24h"
+      ? "mentoring_circle.reminder_24h"
+      : "mentoring_circle.reminder_1h",
+    userId: payload.userId,
+    payload: {
+      entityId: payload.entityId ?? `${payload.bookingId}:${payload.reminderWindow}`,
+      bookingId: payload.bookingId,
+      eventId: payload.eventId,
+      eventTitle: payload.eventTitle,
+      startTimeUtc: payload.startTimeUtc,
+      timezone: payload.timezone,
+      fullName: contact.fullName,
+      email: contact.email,
+      joinUrl: payload.joinUrl,
       accessPagePath: payload.accessPagePath ?? null,
     },
   });

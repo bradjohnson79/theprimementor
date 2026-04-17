@@ -12,6 +12,7 @@ import { getSamplePayload } from "./samplePayloads.js";
 import {
   renderBookingConfirmedTemplate,
   renderBookingCreatedTemplate,
+  renderMentoringCircleConfirmedTemplate,
   renderReportGeneratedTemplate,
 } from "./templates/userTemplates.js";
 import { renderAdminNewBookingTemplate } from "./templates/adminTemplates.js";
@@ -19,6 +20,7 @@ import { renderAdminNewBookingTemplate } from "./templates/adminTemplates.js";
 test("notification events map to the correct recipient types", () => {
   assert.equal(getNotificationRecipientType("payment.succeeded"), "user");
   assert.equal(getNotificationRecipientType("booking.confirmed"), "user");
+  assert.equal(getNotificationRecipientType("mentoring_circle.confirmed"), "user");
   assert.equal(getNotificationRecipientType("admin.payment.received"), "admin");
   assert.equal(getNotificationRecipientType("admin.test"), "admin");
   assert.equal(ALL_NOTIFICATION_EVENTS.includes("admin.test"), true);
@@ -55,6 +57,14 @@ test("sample payloads are generated from the typed notification event map", () =
   assert.equal(payload.bookingType, "Mentoring Circle");
   assert.equal(typeof payload.startTimeUtc, "string");
   assert.equal(payload.joinUrl, "https://zoom.us/test");
+});
+
+test("mentoring circle sample payloads are generated from the typed notification event map", () => {
+  const payload = getSamplePayload("mentoring_circle.confirmed");
+
+  assert.equal(payload.eventId, "2026-04-26");
+  assert.equal(payload.timezone, "America/Vancouver");
+  assert.match(payload.joinUrl, /zoom\.us\/meeting\/register/i);
 });
 
 test("entity ids are derived from typed payloads", () => {
@@ -124,6 +134,26 @@ test("booking confirmed template falls back to TBD for missing schedule fields",
   assert.match(rendered.html, /End[\s\S]*TBD/i);
   assert.match(rendered.html, /Timezone[\s\S]*TBD/i);
   assert.match(rendered.html, /Open Mentoring Circle Page/i);
+});
+
+test("mentoring circle confirmed template renders webinar-specific copy", () => {
+  const rendered = renderMentoringCircleConfirmedTemplate({
+    entityId: "mentoring_circle_confirmed_sparse",
+    bookingId: "booking_123",
+    eventId: "2026-04-26",
+    eventTitle: "Mentoring Circle: The Prime Law",
+    startTimeUtc: "2026-04-26T16:00:00.000Z",
+    endTimeUtc: "2026-04-26T17:30:00.000Z",
+    timezone: "America/Vancouver",
+    joinUrl: "https://us02web.zoom.us/meeting/register/4mdPcnhtRTmneCxhp51-Fg",
+    accessPagePath: "/mentoring-circle",
+  });
+
+  assert.match(rendered.subject, /access confirmed/i);
+  assert.match(rendered.html, /24 hours before the event/i);
+  assert.match(rendered.html, /1 hour before/i);
+  assert.match(rendered.html, /America\/Vancouver/i);
+  assert.match(rendered.html, /Zoom registration link/i);
 });
 
 test("admin booking template falls back safely when optional fields are missing", () => {

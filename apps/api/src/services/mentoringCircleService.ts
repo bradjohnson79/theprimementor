@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { bookings, mentoringCircleRegistrations, payments, type Database } from "@wisdom/db";
-import { PLATFORM_TIMEZONE, toUtcIsoString } from "@wisdom/utils";
+import { logger, toUtcIsoString } from "@wisdom/utils";
+import { sendMentoringCircleReminderNotification } from "./booking/notificationService.js";
 import { createHttpError } from "./booking/errors.js";
 
 export const MENTORING_CIRCLE_BOOKING_TYPE_ID = "mentoring-circle-prime-law";
@@ -59,6 +60,25 @@ export interface MentoringCircleBookingAccessRow {
   paymentStatus: string | null;
 }
 
+export type MentoringCircleReminderWindow = "24h" | "1h";
+
+export interface MentoringCircleReminderTarget {
+  eventId: string;
+  eventKey: string;
+  reminderWindow: MentoringCircleReminderWindow;
+  reminderAt: string;
+}
+
+export interface MentoringCircleReminderJobResult {
+  processedEvents: MentoringCircleReminderTarget[];
+  recipientsTargeted: number;
+  notificationsAttempted: number;
+  notificationsFailed: number;
+}
+
+const MENTORING_CIRCLE_TIMEZONE = "America/Vancouver";
+const MENTORING_CIRCLE_REMINDER_GRACE_MS = 15 * 60_000;
+
 const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
   {
     eventId: "2026-04-26",
@@ -66,14 +86,12 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     eventTitle: "Mentoring Circle: The Prime Law",
     eventStartAt: "2026-04-26T09:00:00-07:00",
     salesOpenAt: "2026-04-01T00:00:00-07:00",
-    timezone: PLATFORM_TIMEZONE,
+    timezone: MENTORING_CIRCLE_TIMEZONE,
     durationMinutes: 90,
     priceCents: 2500,
     currency: "CAD",
     posterPath: "/images/mentoring-circle-april-26.png",
-    zoomLink: process.env.MENTORING_CIRCLE_ZOOM_LINK_APRIL?.trim()
-      || process.env.MENTORING_CIRCLE_ZOOM_LINK?.trim()
-      || "https://zoom.us/j/mentoring-circle-prime-law",
+    zoomLink: "https://us02web.zoom.us/meeting/register/4mdPcnhtRTmneCxhp51-Fg",
     legacyEventKeys: ["mentoring-circle-april-26-2026"],
   },
   {
@@ -82,7 +100,7 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     eventTitle: "Mentoring Circle: The Prime Law",
     eventStartAt: "2026-05-31T09:00:00-07:00",
     salesOpenAt: "2026-04-26T12:00:00-07:00",
-    timezone: PLATFORM_TIMEZONE,
+    timezone: MENTORING_CIRCLE_TIMEZONE,
     durationMinutes: 90,
     priceCents: 2500,
     currency: "CAD",
@@ -131,6 +149,36 @@ export function getActiveMentoringCirclePurchaseEvent(now = new Date()) {
     return nextEvent;
   }
   return currentEvent;
+}
+
+function getMentoringCircleReminderOffsetMs(window: MentoringCircleReminderWindow) {
+  return window === "24h" ? 24 * 60 * 60_000 : 60 * 60_000;
+}
+
+export function getDueMentoringCircleReminderTargets(now = new Date()): MentoringCircleReminderTarget[] {
+  return MENTORING_CIRCLE_EVENTS.flatMap((event) => {
+    return (["24h", "1h"] as const)
+      .map((reminderWindow) => {
+        const reminderAtDate = new Date(new Date(event.eventStartAt).getTime() - getMentoringCircleReminderOffsetMs(reminderWindow));
+        return {
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          reminderWindow,
+          reminderAtDate,
+        };
+      })
+      .filter(({ reminderAtDate }) => {
+        const reminderAtMs = reminderAtDate.getTime();
+        const nowMs = now.getTime();
+        return nowMs >= reminderAtMs && nowMs < reminderAtMs + MENTORING_CIRCLE_REMINDER_GRACE_MS;
+      })
+      .map(({ reminderWindow, reminderAtDate }) => ({
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+        reminderWindow,
+        reminderAt: reminderAtDate.toISOString(),
+      }));
+  });
 }
 
 export function buildMentoringCircleEventState(
@@ -322,6 +370,77 @@ export async function getMentoringCircleStateForUser(
     nextEvent: nextEventState,
     activeEventForPurchase: activeEventState,
     requestedEvent: requestedEventState,
+  };
+}
+
+export async function runMentoringCircleReminderJob(
+  db: Database,
+  now = new Date(),
+): Promise<MentoringCircleReminderJobResult> {
+  const dueTargets = getDueMentoringCircleReminderTargets(now);
+  if (dueTargets.length === 0) {
+    return {
+      processedEvents: [],
+      recipientsTargeted: 0,
+      notificationsAttempted: 0,
+      notificationsFailed: 0,
+    };
+  }
+
+  let recipientsTargeted = 0;
+  let notificationsAttempted = 0;
+  let notificationsFailed = 0;
+
+  for (const target of dueTargets) {
+    const event = getMentoringCircleEventOrThrow(target.eventId);
+    const confirmedBookings = await db
+      .select({
+        bookingId: bookings.id,
+        userId: bookings.user_id,
+        joinUrl: bookings.join_url,
+      })
+      .from(bookings)
+      .where(and(
+        eq(bookings.event_key, event.eventKey),
+        inArray(bookings.status, ["paid", "scheduled", "completed"]),
+      ));
+
+    recipientsTargeted += confirmedBookings.length;
+
+    for (const booking of confirmedBookings) {
+      notificationsAttempted += 1;
+      try {
+        await sendMentoringCircleReminderNotification(db, {
+          entityId: `${booking.bookingId}:${target.reminderWindow}:${event.eventKey}`,
+          bookingId: booking.bookingId,
+          userId: booking.userId,
+          bookingType: event.eventTitle,
+          timezone: event.timezone,
+          startTimeUtc: toUtcIsoString(new Date(event.eventStartAt)),
+          eventId: event.eventId,
+          eventTitle: event.eventTitle,
+          joinUrl: booking.joinUrl ?? event.zoomLink,
+          accessPagePath: "/mentoring-circle",
+          reminderWindow: target.reminderWindow,
+        });
+      } catch (error) {
+        notificationsFailed += 1;
+        logger.error("mentoring_circle_reminder_notification_failed", {
+          bookingId: booking.bookingId,
+          userId: booking.userId,
+          eventId: event.eventId,
+          reminderWindow: target.reminderWindow,
+          error: error instanceof Error ? error.message : error,
+        });
+      }
+    }
+  }
+
+  return {
+    processedEvents: dueTargets,
+    recipientsTargeted,
+    notificationsAttempted,
+    notificationsFailed,
   };
 }
 

@@ -20,7 +20,7 @@ import { dispatchOrderExecution } from "../divin8ExecutionDispatcher.js";
 import { sendNotification } from "../notifications/notificationService.js";
 import {
   sendAdminNewBookingNotification,
-  sendBookingConfirmedNotification,
+  sendMentoringCircleConfirmedNotification,
 } from "../booking/notificationService.js";
 import { confirmMentoringCircleBooking } from "../booking/bookingService.js";
 import {
@@ -1226,7 +1226,7 @@ async function finalizeMentoringCircleAccess(
   });
   await upsertMentoringCircleRegistrationProjection(db as Database, { bookingId: booking.id });
 
-  void sendBookingConfirmedNotification(db as Database, {
+  void sendMentoringCircleConfirmedNotification(db as Database, {
     bookingId: booking.id,
     userId: input.userId,
     bookingType: event.eventTitle,
