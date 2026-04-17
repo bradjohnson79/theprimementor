@@ -64,7 +64,7 @@ interface IntakeFormState {
   additionalNotes: string;
   focusTopics: string[];
   healthFocusAreas: Array<{ name: string; severity: string }>;
-  mentoringGoal: string;
+  mentoringTopics: string[];
   otherDetail: string;
   consentGiven: boolean;
 }
@@ -84,7 +84,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     additionalNotes: "",
     focusTopics: [],
     healthFocusAreas: createEmptyHealthFocusAreas(),
-    mentoringGoal: "",
+    mentoringTopics: [],
     otherDetail: "",
     consentGiven: false,
   };
@@ -339,7 +339,7 @@ export default function Bookings() {
       delete next.availability;
       delete next.focusTopics;
       delete next.healthFocusAreas;
-      delete next.mentoringGoal;
+      delete next.mentoringTopics;
       delete next.otherDetail;
       return next;
     });
@@ -347,7 +347,7 @@ export default function Bookings() {
       ...current,
       focusTopics: [],
       healthFocusAreas: createEmptyHealthFocusAreas(),
-      mentoringGoal: "",
+      mentoringTopics: [],
       otherDetail: "",
     }));
     setBirthplace(null);
@@ -367,9 +367,7 @@ export default function Bookings() {
   function toggleFocusTopic(topic: string) {
     setForm((current) => {
       const hasTopic = current.focusTopics.includes(topic);
-      const focusTopics = hasTopic
-        ? current.focusTopics.filter((item) => item !== topic)
-        : [...current.focusTopics, topic];
+      const focusTopics = hasTopic ? [] : [topic];
       return {
         ...current,
         focusTopics,
@@ -379,6 +377,29 @@ export default function Bookings() {
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.focusTopics;
+      delete next.otherDetail;
+      return next;
+    });
+  }
+
+  function toggleMentoringTopic(topic: string) {
+    setForm((current) => {
+      const hasTopic = current.mentoringTopics.includes(topic);
+      const mentoringTopics = hasTopic
+        ? current.mentoringTopics.filter((item) => item !== topic)
+        : current.mentoringTopics.length >= 3
+          ? current.mentoringTopics
+          : [...current.mentoringTopics, topic];
+
+      return {
+        ...current,
+        mentoringTopics,
+        otherDetail: topic === "Other" && hasTopic ? "" : current.otherDetail,
+      };
+    });
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.mentoringTopics;
       delete next.otherDetail;
       return next;
     });
@@ -444,8 +465,8 @@ export default function Bookings() {
       nextErrors.focusTopics = "Select at least one topic.";
     }
 
-    if (selectedSessionType === "mentoring" && !normalizeText(form.mentoringGoal)) {
-      nextErrors.mentoringGoal = "Choose a goal.";
+    if (selectedSessionType === "mentoring" && form.mentoringTopics.length === 0) {
+      nextErrors.mentoringTopics = "Select at least one topic.";
     }
 
     if (selectedSessionType === "regeneration") {
@@ -461,7 +482,7 @@ export default function Bookings() {
     }
 
     const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-      || (selectedSessionType === "mentoring" && form.mentoringGoal === "Other");
+      || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"));
     if (needsOtherDetail && !normalizeText(form.otherDetail)) {
       nextErrors.otherDetail = "Tell us what “Other” means for you.";
     }
@@ -480,7 +501,7 @@ export default function Bookings() {
     }
 
     if (selectedSessionType === "mentoring") {
-      intake.goals = form.mentoringGoal ? [form.mentoringGoal] : undefined;
+      intake.goals = form.mentoringTopics;
     }
 
     if (selectedSessionType === "regeneration") {
@@ -879,7 +900,10 @@ export default function Bookings() {
 
             {selectedSessionType === "focus" ? (
               <div>
-                <p className="text-sm text-white/70">Topics</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-white/70">Topics</p>
+                  <span className="text-xs text-white/45">Select 1 topic maximum.</span>
+                </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {FOCUS_TOPICS.map((topic) => {
                     const active = form.focusTopics.includes(topic);
@@ -908,22 +932,40 @@ export default function Bookings() {
             ) : null}
 
             {selectedSessionType === "mentoring" ? (
-              <label className={labelClassName}>
-                Goal
-                <select
-                  className={`${fieldClassName} cursor-pointer`}
-                  value={form.mentoringGoal}
-                  onChange={(event) => setFormField("mentoringGoal", event.target.value)}
-                >
-                  <option value="" className="bg-slate-950">Select a goal</option>
-                  {MENTORING_GOALS.map((goal) => (
-                    <option key={goal} value={goal} className="bg-slate-950">
-                      {goal}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.mentoringGoal ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.mentoringGoal}</span> : null}
-              </label>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-white/70">Topics</p>
+                  <span className="text-xs text-white/45">Select up to 3 topics maximum.</span>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {MENTORING_GOALS.map((topic) => {
+                    const active = form.mentoringTopics.includes(topic);
+                    const disableNewSelection = !active && form.mentoringTopics.length >= 3;
+                    return (
+                      <label
+                        key={topic}
+                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                          active
+                            ? "cursor-pointer border-accent-cyan/60 bg-accent-cyan/10 text-white"
+                            : disableNewSelection
+                              ? "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/35"
+                              : "cursor-pointer border-white/10 bg-white/5 text-white/75 hover:border-white/20"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={active}
+                          disabled={disableNewSelection}
+                          onChange={() => toggleMentoringTopic(topic)}
+                          className="h-4 w-4 rounded border-white/20 bg-transparent"
+                        />
+                        <span>{topic}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {fieldErrors.mentoringTopics ? <p className="mt-2 text-sm text-red-300">{fieldErrors.mentoringTopics}</p> : null}
+              </div>
             ) : null}
 
             {isRegeneration ? (
@@ -964,7 +1006,7 @@ export default function Bookings() {
             ) : null}
 
             {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-              || (selectedSessionType === "mentoring" && form.mentoringGoal === "Other")) ? (
+              || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"))) ? (
                 <label className={labelClassName}>
                   Other
                   <input

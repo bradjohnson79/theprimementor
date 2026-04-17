@@ -599,7 +599,10 @@ function buildNormalizedIntake(
     if (!allowAdminFallbacks && topics.length === 0) {
       throw createHttpError(400, "At least one focus topic is required");
     }
-    if (topics.length > 0) normalized.topics = topics;
+    if (topics.length > 1) {
+      throw createHttpError(400, "Only one focus topic may be selected");
+    }
+    if (topics.length > 0) normalized.topics = topics.slice(0, 1);
     if (topics.includes("Other")) {
       if (!other) {
         throw createHttpError(400, "other is required when focus topics include Other");
@@ -612,12 +615,15 @@ function buildNormalizedIntake(
     const allowed = new Set<string>(MENTORING_GOALS);
     const goals = (intake.goals ?? []).filter((goal) => allowed.has(goal));
     if (!allowAdminFallbacks && goals.length === 0) {
-      throw createHttpError(400, "A mentoring goal is required");
+      throw createHttpError(400, "At least one mentoring topic is required");
     }
-    if (goals.length > 0) normalized.goals = goals.slice(0, 1);
+    if (goals.length > 3) {
+      throw createHttpError(400, "A maximum of three mentoring topics may be selected");
+    }
+    if (goals.length > 0) normalized.goals = goals.slice(0, 3);
     if (goals.includes("Other")) {
       if (!other) {
-        throw createHttpError(400, "other is required when mentoring goal is Other");
+        throw createHttpError(400, "other is required when mentoring topics include Other");
       }
       normalized.other = other;
     }
