@@ -35,6 +35,12 @@ export type AdminOrderStatus =
   | "refunded"
   | "failed";
 export type OrderExecutionState = "idle" | "generating" | "awaiting_input" | "completed" | "failed";
+type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+type AdminOrderAvailability = Record<AdminOrderAvailabilityDay, string[]>;
+type AdminOrderHealthFocusArea = {
+  name: string;
+  severity: number;
+};
 
 export interface AdminOrderOutput {
   summary: string;
@@ -96,9 +102,17 @@ export interface AdminOrder {
       birth_date: string | null;
       birth_time: string | null;
       location: string | null;
+      phone: string | null;
+      timezone: string | null;
+      consent_given: boolean | null;
       submitted_questions: string[];
+      topics: string[];
+      goals: string[];
+      health_focus_areas: AdminOrderHealthFocusArea[];
+      other: string | null;
       notes: string | null;
     };
+    availability: AdminOrderAvailability | null;
     report_type: string | null;
     report_type_id: string | null;
     training_package: string | null;
@@ -178,13 +192,18 @@ interface BookingSourceRow {
   eventKey: string | null;
   startTimeUtc: Date | null;
   status: string;
+  timezone: string;
+  availability: unknown;
   fullName: string | null;
   email: string | null;
+  phone: string | null;
   birthDate: string | null;
   birthTime: string | null;
   birthPlace: string | null;
   birthPlaceName: string | null;
+  consentGiven: boolean;
   intake: unknown;
+  intakeSnapshot: unknown;
   joinUrl: string | null;
   startUrl: string | null;
   notes: string | null;
@@ -384,8 +403,52 @@ function getStringArray(value: unknown): string[] {
   return value.map((item) => getString(item)).filter((item): item is string => Boolean(item));
 }
 
+function getBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
 function getNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
+  return {
+    birth_date: null,
+    birth_time: null,
+    location: null,
+    phone: null,
+    timezone: null,
+    consent_given: null,
+    submitted_questions: [],
+    topics: [],
+    goals: [],
+    health_focus_areas: [],
+    other: null,
+    notes: null,
+  };
+}
+
+function parseBookingAvailability(value: unknown): AdminOrderAvailability | null {
+  if (!isRecord(value)) return null;
+  return {
+    monday: getStringArray(value.monday),
+    tuesday: getStringArray(value.tuesday),
+    wednesday: getStringArray(value.wednesday),
+    thursday: getStringArray(value.thursday),
+  };
+}
+
+function parseBookingHealthFocusAreas(value: unknown): AdminOrderHealthFocusArea[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const name = getString(entry.name);
+      const severity = getNumber(entry.severity);
+      if (!name || severity === null) return null;
+      return { name, severity };
+    })
+    .filter((entry): entry is AdminOrderHealthFocusArea => Boolean(entry));
 }
 
 function isExecutionState(value: unknown): value is OrderExecutionState {
@@ -963,9 +1026,27 @@ function parseReportPurchaseIntake(value: unknown) {
 function parseBookingIntake(value: unknown) {
   if (!isRecord(value)) return null;
   return {
+    type: getString(value.type),
     topics: getStringArray(value.topics),
     goals: getStringArray(value.goals),
+    healthFocusAreas: parseBookingHealthFocusAreas(value.healthFocusAreas),
     other: getString(value.other),
+    notes: getString(value.notes),
+  };
+}
+
+function parseBookingIntakeSnapshot(value: unknown) {
+  if (!isRecord(value)) return null;
+  const intake = parseBookingIntake(value.intake);
+  return {
+    birthDate: getString(value.birthDate),
+    birthTime: getString(value.birthTime),
+    location: getString(value.birthPlaceName) ?? getString(value.birthPlace),
+    phone: getString(value.phone),
+    timezone: getString(value.timezone),
+    consentGiven: getBoolean(value.consentGiven),
+    availability: parseBookingAvailability(value.availability),
+    intake,
     notes: getString(value.notes),
   };
 }
@@ -1111,13 +1192,18 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         eventKey: bookings.event_key,
         startTimeUtc: bookings.start_time_utc,
         status: bookings.status,
+        timezone: bookings.timezone,
+        availability: bookings.availability,
         fullName: bookings.full_name,
         email: bookings.email,
+        phone: bookings.phone,
         birthDate: bookings.birth_date,
         birthTime: bookings.birth_time,
         birthPlace: bookings.birth_place,
         birthPlaceName: bookings.birth_place_name,
+        consentGiven: bookings.consent_given,
         intake: bookings.intake,
+        intakeSnapshot: bookings.intake_snapshot,
         joinUrl: bookings.join_url,
         startUrl: bookings.start_url,
         notes: bookings.notes,
@@ -1258,10 +1344,19 @@ function createSessionCandidate(
 
   const client = clientsByUserId.get(row.userId);
   const intake = parseBookingIntake(row.intake);
-  const birthLocation = resolveLocation(row.birthPlaceName, row.birthPlace);
+  const intakeSnapshot = parseBookingIntakeSnapshot(row.intakeSnapshot);
+  const topics = intakeSnapshot?.intake?.topics ?? intake?.topics ?? [];
+  const goals = intakeSnapshot?.intake?.goals ?? intake?.goals ?? [];
+  const healthFocusAreas = intakeSnapshot?.intake?.healthFocusAreas ?? intake?.healthFocusAreas ?? [];
+  const other = intakeSnapshot?.intake?.other ?? intake?.other ?? null;
+  const availability = intakeSnapshot?.availability ?? parseBookingAvailability(row.availability);
+  const birthLocation = resolveLocation(
+    intakeSnapshot?.location ?? row.birthPlaceName,
+    row.birthPlace,
+  );
   const submittedQuestions = buildQuestions(
-    [intake?.other ?? null],
-    [intake?.topics ?? [], intake?.goals ?? []],
+    [other],
+    [topics, goals, healthFocusAreas.map((area) => `${area.name} (severity ${area.severity}/10)`)],
   );
   const orderId = getOrderId("session", row.id);
   const executionReport = executionReportsByOrderId.get(orderId) ?? null;
@@ -1296,12 +1391,20 @@ function createSessionCandidate(
       birth_time: row.birthTime,
       birth_location: birthLocation,
       intake: {
-        birth_date: row.birthDate,
-        birth_time: row.birthTime,
+        birth_date: row.birthDate ?? intakeSnapshot?.birthDate ?? null,
+        birth_time: row.birthTime ?? intakeSnapshot?.birthTime ?? null,
         location: birthLocation,
+        phone: intakeSnapshot?.phone ?? row.phone ?? null,
+        timezone: intakeSnapshot?.timezone ?? row.timezone ?? null,
+        consent_given: intakeSnapshot?.consentGiven ?? row.consentGiven ?? null,
         submitted_questions: submittedQuestions,
-        notes: intake?.notes ?? row.notes,
+        topics,
+        goals,
+        health_focus_areas: healthFocusAreas,
+        other,
+        notes: intakeSnapshot?.notes ?? intake?.notes ?? row.notes,
       },
+      availability,
       report_type: null,
       report_type_id: null,
       training_package: null,
@@ -1399,12 +1502,14 @@ function createReportCandidate(
       birth_time: intake?.birthTime ?? null,
       birth_location: birthLocation,
       intake: {
+        ...createEmptyIntakeMetadata(),
         birth_date: intake?.birthDate ?? null,
         birth_time: intake?.birthTime ?? null,
         location: birthLocation,
         submitted_questions: buildQuestions([intake?.primaryFocus ?? null]),
         notes: intake?.notes ?? null,
       },
+      availability: null,
       report_type: reportTypeLabel,
       report_type_id: row.interpretationTier,
       training_package: null,
@@ -1475,13 +1580,8 @@ function createSubscriptionCandidate(
       birth_date: null,
       birth_time: null,
       birth_location: null,
-      intake: {
-        birth_date: null,
-        birth_time: null,
-        location: null,
-        submitted_questions: [],
-        notes: null,
-      },
+      intake: createEmptyIntakeMetadata(),
+      availability: null,
       report_type: null,
       report_type_id: null,
       training_package: null,
@@ -1553,12 +1653,10 @@ function createMentorTrainingCandidate(
       birth_time: null,
       birth_location: row.locationInput,
       intake: {
-        birth_date: null,
-        birth_time: null,
+        ...createEmptyIntakeMetadata(),
         location: row.locationInput,
-        submitted_questions: [],
-        notes: null,
       },
+      availability: null,
       report_type: null,
       report_type_id: null,
       training_package: serviceLabel,
@@ -1626,13 +1724,8 @@ function createWebinarCandidate(
       birth_date: null,
       birth_time: null,
       birth_location: null,
-      intake: {
-        birth_date: null,
-        birth_time: null,
-        location: null,
-        submitted_questions: [],
-        notes: null,
-      },
+      intake: createEmptyIntakeMetadata(),
+      availability: null,
       report_type: null,
       report_type_id: null,
       training_package: null,
@@ -1748,13 +1841,8 @@ function createPersistedAdminOrder(
       birth_date: null,
       birth_time: null,
       birth_location: null,
-      intake: {
-        birth_date: null,
-        birth_time: null,
-        location: null,
-        submitted_questions: [],
-        notes: null,
-      },
+      intake: createEmptyIntakeMetadata(),
+      availability: null,
       report_type: null,
       report_type_id: null,
       training_package: null,

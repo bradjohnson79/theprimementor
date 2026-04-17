@@ -7,7 +7,13 @@ import Loading from "../components/Loading";
 import OrderStatusBadge from "../components/OrderStatusBadge";
 import { api } from "../lib/api";
 import type { AdminInvoiceResponse } from "../lib/orders";
-import type { AdminOrder, AdminOrderDetailResponse, AdminOrderGenerateResponse } from "../lib/orders";
+import type {
+  AdminOrder,
+  AdminOrderAvailability,
+  AdminOrderAvailabilityDay,
+  AdminOrderDetailResponse,
+  AdminOrderGenerateResponse,
+} from "../lib/orders";
 import { formatOrderDate, formatOrderMoney, getOrderExecutionLabel, getOrderTypeLabel, getPaymentMatchLabel } from "../lib/orders";
 
 function renderValue(value: string | null | undefined) {
@@ -16,6 +22,38 @@ function renderValue(value: string | null | undefined) {
 
 function renderList(values: string[]) {
   return values.length > 0 ? values.join(", ") : "—";
+}
+
+function renderBoolean(value: boolean | null | undefined) {
+  return typeof value === "boolean" ? (value ? "Yes" : "No") : "—";
+}
+
+const AVAILABILITY_DAY_LABELS: Record<AdminOrderAvailabilityDay, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+};
+
+const AVAILABILITY_DAYS: AdminOrderAvailabilityDay[] = ["monday", "tuesday", "wednesday", "thursday"];
+
+function formatAvailabilityTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date(Date.UTC(2000, 0, 1, hours, minutes));
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function hasAvailability(availability: AdminOrderAvailability | null) {
+  return Boolean(availability && AVAILABILITY_DAYS.some((day) => (availability[day] ?? []).length > 0));
+}
+
+function renderHealthFocusAreas(values: AdminOrder["metadata"]["intake"]["health_focus_areas"]) {
+  if (values.length === 0) return "—";
+  return values.map((entry) => `${entry.name} (${entry.severity}/10)`).join(", ");
 }
 
 function formatDuration(durationMs: number | null) {
@@ -442,6 +480,30 @@ export default function OrderDetail() {
                   <dt className="text-xs text-white/40">Meeting Link</dt>
                   <dd className="break-all text-white/85">{renderValue(order.metadata.meeting_link)}</dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-white/40">Submitted Timezone</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.intake.timezone)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Client Availability</dt>
+                  <dd className="text-white/85">
+                    {hasAvailability(order.metadata.availability) ? (
+                      <div className="space-y-1.5">
+                        {AVAILABILITY_DAYS.map((day) => {
+                          const times = order.metadata.availability?.[day] ?? [];
+                          if (times.length === 0) return null;
+
+                          return (
+                            <p key={day}>
+                              {AVAILABILITY_DAY_LABELS[day]}:{" "}
+                              <span className="text-white/70">{times.map(formatAvailabilityTime).join(", ")}</span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    ) : "—"}
+                  </dd>
+                </div>
               </>
             ) : null}
 
@@ -551,6 +613,10 @@ export default function OrderDetail() {
           <h3 className="text-lg font-semibold text-white">Intake Form Data</h3>
           <dl className="mt-4 space-y-3">
             <div>
+              <dt className="text-xs text-white/40">Phone</dt>
+              <dd className="text-white/85">{renderValue(order.metadata.intake.phone)}</dd>
+            </div>
+            <div>
               <dt className="text-xs text-white/40">Birth Date</dt>
               <dd className="text-white/85">{renderValue(order.metadata.intake.birth_date)}</dd>
             </div>
@@ -561,6 +627,26 @@ export default function OrderDetail() {
             <div>
               <dt className="text-xs text-white/40">Location</dt>
               <dd className="text-white/85">{renderValue(order.metadata.intake.location)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Consent Given</dt>
+              <dd className="text-white/85">{renderBoolean(order.metadata.intake.consent_given)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Focus Topics</dt>
+              <dd className="text-white/85">{renderList(order.metadata.intake.topics)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Mentoring Goals</dt>
+              <dd className="text-white/85">{renderList(order.metadata.intake.goals)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Health Focus Areas</dt>
+              <dd className="text-white/85">{renderHealthFocusAreas(order.metadata.intake.health_focus_areas)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Other Detail</dt>
+              <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.other)}</dd>
             </div>
             <div>
               <dt className="text-xs text-white/40">Submitted Questions</dt>

@@ -12,6 +12,12 @@ export type OrderStatus =
   | "refunded"
   | "failed";
 export type OrderExecutionState = "idle" | "generating" | "awaiting_input" | "completed" | "failed";
+export type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+export type AdminOrderAvailability = Record<AdminOrderAvailabilityDay, string[]>;
+export type AdminOrderHealthFocusArea = {
+  name: string;
+  severity: number;
+};
 
 export interface AdminOrderOutput {
   summary: string;
@@ -73,9 +79,17 @@ export interface AdminOrder {
       birth_date: string | null;
       birth_time: string | null;
       location: string | null;
+      phone: string | null;
+      timezone: string | null;
+      consent_given: boolean | null;
       submitted_questions: string[];
+      topics: string[];
+      goals: string[];
+      health_focus_areas: AdminOrderHealthFocusArea[];
+      other: string | null;
       notes: string | null;
     };
+    availability: AdminOrderAvailability | null;
     report_type: string | null;
     report_type_id: string | null;
     training_package: string | null;
