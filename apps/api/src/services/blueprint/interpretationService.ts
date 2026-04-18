@@ -393,7 +393,6 @@ async function generateNarrativeSection(
           },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.65,
         max_completion_tokens: def.maxTokens,
       });
       const raw = response.choices[0]?.message?.content?.trim();
@@ -470,7 +469,6 @@ async function generateForecastSection(
             ].join("\n\n"),
           },
         ],
-        temperature: 0.55,
         max_completion_tokens: 900,
       });
       const raw = response.choices[0]?.message?.content?.trim();

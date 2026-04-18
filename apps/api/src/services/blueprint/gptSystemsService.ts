@@ -50,7 +50,6 @@ Respond in JSON format:
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.8,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -120,7 +119,6 @@ Respond in JSON format:
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.7,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -209,7 +207,6 @@ Frame everything as symbolic and energetic. Use "may", "carries", "suggests" —
     ],
     response_format: { type: "json_object" },
     max_completion_tokens: 1200,
-    temperature: 0.65,
   });
 
   const content = response.choices[0]?.message?.content;

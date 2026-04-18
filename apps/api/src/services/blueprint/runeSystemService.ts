@@ -117,7 +117,6 @@ Return ONLY plain prose — no markdown, no lists, no headers.`;
       },
       { role: "user", content: prompt },
     ],
-    temperature: 0.8,
     max_completion_tokens: 600,
   });
 

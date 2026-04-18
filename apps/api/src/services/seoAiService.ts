@@ -409,7 +409,6 @@ function createPromptEnvelope(systemPrompt: string, userPrompt: string) {
       },
     ],
     response_format: { type: "json_object" as const },
-    temperature: 0.3,
   };
 }
 
