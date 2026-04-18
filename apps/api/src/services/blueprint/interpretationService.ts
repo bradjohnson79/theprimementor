@@ -9,6 +9,7 @@ import type { BlueprintData, InterpretationReport } from "./types.js";
 import { buildForecastContext } from "./reportForecastService.js";
 import {
   DIVIN8_REPORT_MODEL,
+  type Divin8ReasoningConfig,
   DIVIN8_REPORT_REASONING_CONFIG_BY_TIER,
   buildDeepThinkingInstruction,
   divin8UnavailableError,
@@ -16,6 +17,26 @@ import {
 
 const MAX_RETRIES = 2;
 const REPORT_TIMEZONE = "America/Vancouver";
+const MIN_SECTION_COMPLETION_TOKENS_BY_TIER: Record<TierName, number> = {
+  intro: 900,
+  deep_dive: 1600,
+  initiate: 1900,
+};
+const MAX_SECTION_COMPLETION_TOKENS_BY_TIER: Record<TierName, number> = {
+  intro: 1800,
+  deep_dive: 3200,
+  initiate: 3800,
+};
+const MIN_FORECAST_COMPLETION_TOKENS_BY_TIER: Record<TierName, number> = {
+  intro: 900,
+  deep_dive: 1400,
+  initiate: 1700,
+};
+const MAX_FORECAST_COMPLETION_TOKENS_BY_TIER: Record<TierName, number> = {
+  intro: 1800,
+  deep_dive: 2800,
+  initiate: 3200,
+};
 
 type TierName = ReportTierId;
 type NarrativeSectionKey = Exclude<keyof InterpretationReport, "forecast">;
@@ -295,6 +316,42 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function extractAssistantContent(content: unknown) {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+  return "";
+}
+
+function budgetForAttempt(
+  baseTokens: number,
+  minimumTokens: number,
+  maximumTokens: number,
+  attempt: number,
+) {
+  return Math.min(Math.max(baseTokens, minimumTokens) * (attempt === 1 ? 1 : 2), maximumTokens);
+}
+
+function buildCompletionDiagnostics(response: any) {
+  return {
+    finishReason: response?.choices?.[0]?.finish_reason ?? null,
+    completionTokens: response?.usage?.completion_tokens ?? null,
+    reasoningTokens: response?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+    totalTokens: response?.usage?.total_tokens ?? null,
+  };
+}
+
+function fallbackReasoningConfig(tier: TierName): Divin8ReasoningConfig {
+  switch (tier) {
+    case "deep_dive":
+      return { effort: "medium", deepThinking: false };
+    case "initiate":
+      return { effort: "high", deepThinking: false };
+    default:
+      return DIVIN8_REPORT_REASONING_CONFIG_BY_TIER[tier];
+  }
+}
+
 function buildPreviousSectionsDigest(
   sections: Array<{ key: NarrativeSectionKey; title: string; content: string }>,
 ) {
@@ -376,27 +433,47 @@ async function generateNarrativeSection(
 
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    const activeReasoningConfig = attempt === 1 ? reasoningConfig : fallbackReasoningConfig(tier);
+    const completionBudget = budgetForAttempt(
+      def.maxTokens,
+      MIN_SECTION_COMPLETION_TOKENS_BY_TIER[tier],
+      MAX_SECTION_COMPLETION_TOKENS_BY_TIER[tier],
+      attempt,
+    );
     try {
       const response = await openai.chat.completions.create({
         model: DIVIN8_REPORT_MODEL,
-        reasoning_effort: reasoningConfig.effort,
+        reasoning_effort: activeReasoningConfig.effort,
         response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content: [
               def.systemPrompt,
-              `Reasoning effort: ${reasoningConfig.effort}.`,
-              buildDeepThinkingInstruction(reasoningConfig.deepThinking),
+              `Reasoning effort: ${activeReasoningConfig.effort}.`,
+              buildDeepThinkingInstruction(activeReasoningConfig.deepThinking),
               "Write with precision, progression, and on-brand warmth.",
             ].join(" "),
           },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: def.maxTokens,
+        max_completion_tokens: completionBudget,
       });
-      const raw = response.choices[0]?.message?.content?.trim();
-      if (!raw) throw new Error("Empty response from model");
+      const raw = extractAssistantContent(response.choices[0]?.message?.content);
+      if (!raw) {
+        const diagnostics = buildCompletionDiagnostics(response);
+        logger.warn("interpretation_section_empty_response", {
+          section: def.key,
+          attempt,
+          completionBudget,
+          reasoningEffort: activeReasoningConfig.effort,
+          deepThinking: activeReasoningConfig.deepThinking,
+          ...diagnostics,
+        });
+        throw new Error(
+          `Empty response from model (finish_reason=${diagnostics.finishReason ?? "unknown"}, reasoning_tokens=${diagnostics.reasoningTokens ?? "unknown"})`,
+        );
+      }
       return validateSectionEnvelope(safeJsonParse<SectionEnvelope>(raw), title);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -438,18 +515,25 @@ async function generateForecastSection(
 
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    const activeReasoningConfig = attempt === 1 ? reasoningConfig : fallbackReasoningConfig(tier);
+    const completionBudget = budgetForAttempt(
+      900,
+      MIN_FORECAST_COMPLETION_TOKENS_BY_TIER[tier],
+      MAX_FORECAST_COMPLETION_TOKENS_BY_TIER[tier],
+      attempt,
+    );
     try {
       const response = await openai.chat.completions.create({
         model: DIVIN8_REPORT_MODEL,
-        reasoning_effort: reasoningConfig.effort,
+        reasoning_effort: activeReasoningConfig.effort,
         response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content: [
               "You are a metaphysical counselor writing a monthly forecast grounded in deterministic Swiss Ephemeris sidereal transit data.",
-              `Reasoning effort: ${reasoningConfig.effort}.`,
-              buildDeepThinkingInstruction(reasoningConfig.deepThinking),
+              `Reasoning effort: ${activeReasoningConfig.effort}.`,
+              buildDeepThinkingInstruction(activeReasoningConfig.deepThinking),
               "Forecast must be specific, time-bound, and directional.",
               "Do not use vague phrases such as 'you may feel' or 'this could be a time'.",
               "For each month, state what is activating, what area it affects, and what action aligns with it.",
@@ -469,10 +553,22 @@ async function generateForecastSection(
             ].join("\n\n"),
           },
         ],
-        max_completion_tokens: 900,
+        max_completion_tokens: completionBudget,
       });
-      const raw = response.choices[0]?.message?.content?.trim();
-      if (!raw) throw new Error("Empty forecast response from model");
+      const raw = extractAssistantContent(response.choices[0]?.message?.content);
+      if (!raw) {
+        const diagnostics = buildCompletionDiagnostics(response);
+        logger.warn("interpretation_forecast_empty_response", {
+          attempt,
+          completionBudget,
+          reasoningEffort: activeReasoningConfig.effort,
+          deepThinking: activeReasoningConfig.deepThinking,
+          ...diagnostics,
+        });
+        throw new Error(
+          `Empty forecast response from model (finish_reason=${diagnostics.finishReason ?? "unknown"}, reasoning_tokens=${diagnostics.reasoningTokens ?? "unknown"})`,
+        );
+      }
       return validateForecastEnvelope(safeJsonParse<ForecastEnvelope>(raw), expectedMonths);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -532,7 +628,17 @@ export async function interpretBlueprint(
     });
   }
 
-  const forecast = await generateForecastSection(openai, blueprint, name, tier, reportDate);
+  let forecast: string;
+  try {
+    forecast = await generateForecastSection(openai, blueprint, name, tier, reportDate);
+  } catch (error) {
+    logger.error("interpretation_forecast_fallback_used", {
+      tier,
+      person: name,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    forecast = "Forecast temporarily unavailable. Re-run generation to restore the time-based outlook.";
+  }
   if (generatedSections.length + 1 !== 9) {
     throw new Error("Interpretation section count validation failed");
   }
