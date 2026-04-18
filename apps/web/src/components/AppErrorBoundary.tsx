@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import WebsiteStatusPage from "./public/WebsiteStatusPage";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -18,31 +19,23 @@ export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, A
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    void error;
-    void errorInfo;
-    /* Swallow here so the boundary can render a stable fallback. */
+    console.error("app_error_boundary_caught", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050816] px-6 text-white">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_40%),radial-gradient(circle_at_bottom,rgba(168,85,247,0.12),transparent_45%)]" />
-          <div className="dashboard-panel relative z-10 w-full max-w-lg text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200/60">App Recovery</p>
-            <h1 className="mt-3 text-2xl font-semibold text-white">Something went wrong.</h1>
-            <p className="mt-3 text-sm leading-relaxed text-white/68">
-              The page hit an unexpected error. Refresh to try again and continue where you left off.
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="dashboard-action-primary mt-6"
-            >
-              Reload App
-            </button>
-          </div>
-        </div>
+        <WebsiteStatusPage
+          eyebrow="App Recovery"
+          code="Error"
+          title="Something went wrong."
+          description="The page hit an unexpected error. Refresh to try again, or return to the homepage and continue from a fresh page load."
+          actions={[
+            { label: "Try Again", onClick: () => window.location.reload() },
+            { label: "Return Home", href: "/", variant: "secondary", preserveQuery: true },
+            { label: "Contact Support", href: "/contact", variant: "secondary", preserveQuery: true },
+          ]}
+        />
       );
     }
 

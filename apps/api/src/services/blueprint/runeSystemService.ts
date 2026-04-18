@@ -6,9 +6,13 @@
  */
 
 import OpenAI from "openai";
+import {
+  DIVIN8_GENERATION_MODEL,
+  DIVIN8_GENERATION_REASONING_CONFIG,
+  buildDeepThinkingInstruction,
+} from "../divin8/brainPolicy.js";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = process.env.OPENAI_MODEL || "gpt-4.1";
 
 // Elder Futhark runes with core meanings
 const RUNES = [
@@ -104,8 +108,15 @@ Tone: mystical, direct, personal. No generic statements.
 Return ONLY plain prose — no markdown, no lists, no headers.`;
 
   const completion = await client.chat.completions.create({
-    model: MODEL,
-    messages: [{ role: "user", content: prompt }],
+    model: DIVIN8_GENERATION_MODEL,
+    reasoning_effort: DIVIN8_GENERATION_REASONING_CONFIG.effort,
+    messages: [
+      {
+        role: "system",
+        content: buildDeepThinkingInstruction(DIVIN8_GENERATION_REASONING_CONFIG.deepThinking),
+      },
+      { role: "user", content: prompt },
+    ],
     temperature: 0.8,
     max_completion_tokens: 600,
   });

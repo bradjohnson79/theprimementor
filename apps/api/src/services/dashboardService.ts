@@ -52,6 +52,9 @@ export interface AdminDashboardData {
   system_status: DashboardStatusItem[];
 }
 
+const CLIENT_ORDER_STATUSES = new Set(["completed", "refunded"]);
+const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
 function startOfDay(date: Date) {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -96,6 +99,39 @@ function getSubscriptionState(metadata: unknown) {
   return typeof value === "string" ? value : null;
 }
 
+function buildClientFirstSeenByUser(input: {
+  clientRows: Array<{ userId: string; createdAt: Date }>;
+  orderRows: Array<{ userId: string; status: string; createdAt: Date }>;
+}) {
+  const firstSeenByUser = new Map<string, Date>();
+
+  for (const row of input.clientRows) {
+    const current = firstSeenByUser.get(row.userId);
+    if (!current || row.createdAt < current) {
+      firstSeenByUser.set(row.userId, row.createdAt);
+    }
+  }
+
+  for (const row of input.orderRows) {
+    if (!CLIENT_ORDER_STATUSES.has(row.status)) {
+      continue;
+    }
+    const current = firstSeenByUser.get(row.userId);
+    if (!current || row.createdAt < current) {
+      firstSeenByUser.set(row.userId, row.createdAt);
+    }
+  }
+
+  return firstSeenByUser;
+}
+
+function isPaidActiveSubscription(row: {
+  status: string;
+  stripeSubscriptionId: string | null;
+}) {
+  return PAID_SUBSCRIPTION_STATUSES.has(row.status) && Boolean(row.stripeSubscriptionId?.trim());
+}
+
 export async function getAdminDashboardData(db: Database): Promise<AdminDashboardData> {
   const now = new Date();
   const today = startOfDay(now);
@@ -107,9 +143,10 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
   const yesterday = addDays(today, -1);
 
   const [clientRows, orderRows, invoiceRows, webhookRows, reportRows, stripeCustomerRows, subscriptionRows] = await Promise.all([
-    db.select({ id: clients.id, createdAt: clients.created_at }).from(clients),
+    db.select({ id: clients.id, userId: clients.user_id, createdAt: clients.created_at }).from(clients),
     db.select({
       id: orders.id,
+      userId: orders.user_id,
       type: orders.type,
       label: orders.label,
       amount: orders.amount,
@@ -161,6 +198,7 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
 
   console.log("DASHBOARD_METRICS", {
     clients: clientRows.length,
+    uniqueClients: buildClientFirstSeenByUser({ clientRows, orderRows }).size,
     orders: orderRows.length,
     orderStatuses: orderStatusBreakdown,
     completedOrders: completedOrders.length,
@@ -177,8 +215,10 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
     thirtyDaysAgo: thirtyDaysAgo.toISOString(),
   });
 
-  const clientsThisWeek = clientRows.filter((row) => row.createdAt >= sevenDaysAgo).length;
-  const clientsPrevWeek = clientRows.filter((row) => row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo).length;
+  const clientFirstSeenByUser = buildClientFirstSeenByUser({ clientRows, orderRows });
+  const clientFirstSeenDates = Array.from(clientFirstSeenByUser.values());
+  const clientsThisWeek = clientFirstSeenDates.filter((createdAt) => createdAt >= sevenDaysAgo).length;
+  const clientsPrevWeek = clientFirstSeenDates.filter((createdAt) => createdAt >= fourteenDaysAgo && createdAt < sevenDaysAgo).length;
   const clientDelta = clientsThisWeek - clientsPrevWeek;
 
   const ordersThisWeek = orderRows.filter((row) => row.createdAt >= sevenDaysAgo).length;
@@ -193,12 +233,11 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
     .reduce((sum, row) => sum + row.amount, 0);
   const revenueDelta = formatPercentDelta(revenueThisMonthCents, revenueLastMonthCents);
 
-  const activeSubscriptions = subscriptionRows.filter(
-    (row) => row.status === "active" || row.status === "trialing",
-  ).length;
-  const newSubscriptionsThisWeek = subscriptionRows.filter((row) => row.createdAt >= sevenDaysAgo).length;
+  const activePaidSubscriptions = subscriptionRows.filter(isPaidActiveSubscription);
+  const activeSubscriptions = activePaidSubscriptions.length;
+  const newSubscriptionsThisWeek = activePaidSubscriptions.filter((row) => row.createdAt >= sevenDaysAgo).length;
   const newSubscriptionsPrevWeek = subscriptionRows.filter(
-    (row) => row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo,
+    (row) => isPaidActiveSubscription(row) && row.createdAt >= fourteenDaysAgo && row.createdAt < sevenDaysAgo,
   ).length;
   const subscriptionDelta = newSubscriptionsThisWeek - newSubscriptionsPrevWeek;
 
@@ -268,7 +307,7 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
   const pendingSubscriptionInvoices = invoiceRows.filter((row) =>
     row.billingMode === "subscription" && row.status === "pending",
   ).length;
-  const activeSubscriptionRows = subscriptionRows.filter((row) => row.status === "active" || row.status === "trialing").length;
+  const activeSubscriptionRows = activePaidSubscriptions.length;
   const pastDueSubscriptionRows = subscriptionRows.filter((row) => row.status === "past_due" || row.status === "unpaid").length;
   const incompleteSubscriptionRows = subscriptionRows.filter((row) => row.status === "incomplete" || row.status === "incomplete_expired").length;
   const subscriptionRenewalsLast30d = orderRows.filter((row) =>
@@ -446,7 +485,7 @@ export async function getAdminDashboardData(db: Database): Promise<AdminDashboar
   return {
     kpis: {
       total_clients: {
-        value: clientRows.length,
+        value: clientFirstSeenByUser.size,
         delta: clientDelta,
         delta_label: formatDelta(clientDelta, "this week"),
         trend: clientDelta > 0 ? "up" : clientDelta < 0 ? "down" : "neutral",

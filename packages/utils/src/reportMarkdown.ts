@@ -10,8 +10,9 @@ export const INTERPRETATION_SECTION_KEYS = [
   "challenges",
   "lifeDirection",
   "relationships",
-  "practices",
   "closingGuidance",
+  "practices",
+  "forecast",
 ] as const;
 
 export type InterpretationSectionKey = (typeof INTERPRETATION_SECTION_KEYS)[number];
@@ -23,8 +24,9 @@ export const SECTION_MARKDOWN_LABELS: Record<InterpretationSectionKey, string> =
   challenges: "Challenges",
   lifeDirection: "Life Direction",
   relationships: "Relationships",
-  practices: "Practices",
   closingGuidance: "Closing Guidance",
+  practices: "Alignment Practices",
+  forecast: "Forecast",
 };
 
 export type InterpretationTier = "intro" | "deep_dive" | "initiate";

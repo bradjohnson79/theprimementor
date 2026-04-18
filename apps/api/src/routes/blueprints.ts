@@ -20,10 +20,12 @@ import {
 import {
   parseInterpretTier,
   persistableInterpretationPayload,
+  getStructuredDataFromStoredReport,
   resolveFullMarkdown,
 } from "../services/reportFormat.js";
 import { exportDocxFromMarkdown, exportPdfFromMarkdown } from "../services/reportExport.js";
 import { generateBlueprintFromRequest } from "../services/divin8/generateService.js";
+import { buildReportStructuredData } from "../services/reportStructuredData.js";
 
 interface TierOutputSummary {
   id: string;
@@ -54,6 +56,12 @@ function reportSystemsUsedValue(report: typeof reports.$inferSelect): string[] {
   }
   const bp = report.blueprint_data as BlueprintData | null;
   return Array.isArray(bp?.meta?.systemsIncluded) ? bp.meta.systemsIncluded : [];
+}
+
+function isoDateString(value: string | Date | null | undefined): string {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date().toISOString();
 }
 
 function clarityGlyphCountForTier(tier: string | null | undefined): number {
@@ -188,7 +196,15 @@ async function finalizeInterpretation(
 
   // 1) Await full interpretation (all GPT calls) before any cleanup.
   const interpretation = await interpretBlueprint(bp, tier);
-  const payload = persistableInterpretationPayload(interpretation, tier, fullName);
+  const reportDate = new Date().toISOString();
+  const structuredData = buildReportStructuredData({
+    blueprint: bp,
+    reportDate,
+    purchaseIntake: report.purchase_intake,
+    birthPlaceName: report.birth_place_name,
+    birthTimezone: report.birth_timezone,
+  });
+  const payload = persistableInterpretationPayload(interpretation, tier, fullName, structuredData);
   assertNoUndefinedDeep(payload, "interpretationPayload");
 
   const physiognomyAssetId = bp.meta?.physiognomyImageAssetId;
@@ -639,6 +655,20 @@ export async function blueprintRoutes(app: FastifyInstance) {
         birth_timezone: report.birth_timezone,
         blueprint_data: report.blueprint_data,
         generated_report: activeTierOutput?.generated_report ?? report.generated_report,
+        structured_data:
+          getStructuredDataFromStoredReport(activeTierOutput?.generated_report ?? report.generated_report)
+          ?? (report.blueprint_data
+            ? buildReportStructuredData({
+                blueprint: report.blueprint_data as BlueprintData,
+                reportDate:
+                  typeof reportMetaValue(report).generated_at === "string"
+                    ? String(reportMetaValue(report).generated_at)
+                    : isoDateString(activeTierOutput?.updated_at ?? report.updated_at ?? report.created_at),
+                purchaseIntake: report.purchase_intake,
+                birthPlaceName: report.birth_place_name,
+                birthTimezone: report.birth_timezone,
+              })
+            : null),
         full_markdown: fullMarkdown,
         interpretation_tier: activeTierOutput?.tier ?? report.interpretation_tier,
         display_title: activeTierOutput?.display_title ?? report.display_title,
@@ -692,6 +722,20 @@ export async function blueprintRoutes(app: FastifyInstance) {
         birthTimezone: report.birth_timezone,
         blueprintData: report.blueprint_data,
         generatedReport: activeTierOutput?.generated_report ?? report.generated_report,
+        structuredData:
+          getStructuredDataFromStoredReport(activeTierOutput?.generated_report ?? report.generated_report)
+          ?? (report.blueprint_data
+            ? buildReportStructuredData({
+                blueprint: report.blueprint_data as BlueprintData,
+                reportDate:
+                  typeof reportMetaValue(report).generated_at === "string"
+                    ? String(reportMetaValue(report).generated_at)
+                    : isoDateString(activeTierOutput?.updated_at ?? report.updated_at ?? report.created_at),
+                purchaseIntake: report.purchase_intake,
+                birthPlaceName: report.birth_place_name,
+                birthTimezone: report.birth_timezone,
+              })
+            : null),
         fullMarkdown: resolveFullMarkdown(
           activeTierOutput?.full_markdown ?? report.full_markdown,
           activeTierOutput?.generated_report ?? report.generated_report,
@@ -821,6 +865,20 @@ export async function blueprintRoutes(app: FastifyInstance) {
         birth_timezone: updated.birth_timezone,
         blueprint_data: updated.blueprint_data,
         generated_report: updatedActiveTierOutput?.generated_report ?? updated.generated_report,
+        structured_data:
+          getStructuredDataFromStoredReport(updatedActiveTierOutput?.generated_report ?? updated.generated_report)
+          ?? (updated.blueprint_data
+            ? buildReportStructuredData({
+                blueprint: updated.blueprint_data as BlueprintData,
+                reportDate:
+                  typeof reportMetaValue(updated).generated_at === "string"
+                    ? String(reportMetaValue(updated).generated_at)
+                    : isoDateString(updatedActiveTierOutput?.updated_at ?? updated.updated_at ?? updated.created_at),
+                purchaseIntake: updated.purchase_intake,
+                birthPlaceName: updated.birth_place_name,
+                birthTimezone: updated.birth_timezone,
+              })
+            : null),
         full_markdown: resolvedMarkdown,
         interpretation_tier: updatedActiveTierOutput?.tier ?? updated.interpretation_tier,
         display_title: updatedActiveTierOutput?.display_title ?? updated.display_title,

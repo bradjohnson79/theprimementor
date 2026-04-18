@@ -229,8 +229,60 @@ export interface InterpretationReport {
   challenges: string;
   lifeDirection: string;
   relationships: string;
-  practices: string;
   closingGuidance: string;
+  practices: string;
+  forecast: string;
+}
+
+export interface InterpretationSectionChunk {
+  key: keyof InterpretationReport;
+  title: string;
+  content: string;
+}
+
+export interface ReportClientInfoBlock {
+  clientName: string;
+  birthDate: string;
+  birthDateLabel: string;
+  birthTime: string | null;
+  birthTimeLabel: string;
+  birthLocation: string | null;
+  birthLocationLabel: string;
+  birthTimezone: string | null;
+}
+
+export interface SwissEphemerisPlanetRow {
+  body: string;
+  longitude: number;
+  position: string;
+  sign: string;
+  house: string;
+  notes: string;
+}
+
+export interface SwissEphemerisAspectRow {
+  aspect: string;
+  planets: string;
+  orb: string;
+  orbDegrees: number;
+}
+
+export interface ReportStructuredData {
+  reportDateIso: string;
+  reportDateLabel: string;
+  clientInfo: ReportClientInfoBlock;
+  astronomicalCalculations: {
+    title: string;
+    subtitle: string;
+    planets: SwissEphemerisPlanetRow[];
+    aspects: SwissEphemerisAspectRow[];
+  };
+}
+
+export interface StoredGeneratedReport {
+  sections: InterpretationReport;
+  ordered_sections?: InterpretationSectionChunk[];
+  structured_data?: ReportStructuredData | null;
 }
 
 export type ReportStatus = "draft" | "interpreting" | "interpreted" | "failed" | "reviewed" | "finalized" | "final";

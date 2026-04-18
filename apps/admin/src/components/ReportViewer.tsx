@@ -11,8 +11,9 @@ interface InterpretationReport {
   challenges: string;
   lifeDirection: string;
   relationships: string;
-  practices: string;
   closingGuidance: string;
+  practices: string;
+  forecast: string;
 }
 
 interface ReportViewerProps {
@@ -33,8 +34,9 @@ const SECTION_LABELS: { key: keyof InterpretationReport; label: string }[] = [
   { key: "challenges", label: "Challenges" },
   { key: "lifeDirection", label: "Life Direction" },
   { key: "relationships", label: "Relationships" },
-  { key: "practices", label: "Practices" },
   { key: "closingGuidance", label: "Closing Guidance" },
+  { key: "practices", label: "Alignment Practices" },
+  { key: "forecast", label: "Forecast" },
 ];
 
 const STATUS_OPTIONS = ["draft", "interpreted", "reviewed", "final", "finalized"];

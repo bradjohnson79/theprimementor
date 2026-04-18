@@ -11,7 +11,12 @@ import {
   REPORT_ALLOWED_HTML_ATTR,
   REPORT_ALLOWED_HTML_TAGS,
 } from "@wisdom/utils";
-import type { InterpretationReport } from "./blueprint/types.js";
+import type {
+  InterpretationReport,
+  InterpretationSectionChunk,
+  ReportStructuredData,
+  StoredGeneratedReport,
+} from "./blueprint/types.js";
 
 const window = new JSDOM("").window;
 const DOMPurify = createDOMPurify(window as unknown as typeof window);
@@ -53,20 +58,53 @@ export function persistableInterpretationPayload(
   report: InterpretationReport,
   tier: InterpretationTier,
   fullName: string,
+  structuredData?: ReportStructuredData | null,
 ): {
-  generated_report: { sections: InterpretationReport };
+  generated_report: StoredGeneratedReport;
   full_markdown: string;
   display_title: string;
   interpretation_tier: InterpretationTier;
 } {
   const sections = interpretationToSections(report);
   const full_markdown = compileFullMarkdownFromSections(sections);
+  const ordered_sections = Object.entries(sections).map(([key, content]) => ({
+    key: key as keyof InterpretationReport,
+    title: buildDisplayTitleForSectionKey(key as InterpretationSectionKey),
+    content,
+  })) satisfies InterpretationSectionChunk[];
   return {
-    generated_report: { sections: report },
+    generated_report: {
+      sections: report,
+      ordered_sections,
+      structured_data: structuredData ?? null,
+    },
     full_markdown,
     display_title: buildDisplayTitle(tier, fullName),
     interpretation_tier: tier,
   };
+}
+
+function buildDisplayTitleForSectionKey(key: InterpretationSectionKey) {
+  return {
+    overview: "Overview",
+    coreIdentity: "Core Identity",
+    strengths: "Strengths",
+    challenges: "Challenges",
+    lifeDirection: "Life Direction",
+    relationships: "Relationships",
+    closingGuidance: "Closing Guidance",
+    practices: "Alignment Practices",
+    forecast: "Forecast",
+  }[key];
+}
+
+export function getStructuredDataFromStoredReport(generated: unknown): ReportStructuredData | null {
+  if (!generated || typeof generated !== "object") return null;
+  const g = generated as Record<string, unknown>;
+  if (!g.structured_data || typeof g.structured_data !== "object" || Array.isArray(g.structured_data)) {
+    return null;
+  }
+  return g.structured_data as ReportStructuredData;
 }
 
 export function parseInterpretTier(body: unknown): InterpretationTier {

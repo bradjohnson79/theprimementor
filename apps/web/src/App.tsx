@@ -9,6 +9,7 @@ import SignUpPage from "./routes/SignUpPage";
 import ContactPublic from "./routes/ContactPublic";
 import Privacy from "./routes/Privacy";
 import Terms from "./routes/Terms";
+import NotFoundPage from "./routes/NotFoundPage";
 import Dashboard from "./routes/Dashboard";
 import MemberDivin8Chat from "./routes/MemberDivin8Chat";
 import Bookings from "./routes/Bookings";
@@ -19,6 +20,7 @@ import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
 import Reports from "./routes/Reports";
 import MembershipSignup from "./routes/MembershipSignup";
+import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
 import RegenerationSessionPage from "./routes/RegenerationSessionPage";
 import FocusSessionPage from "./routes/FocusSessionPage";
@@ -67,12 +69,14 @@ export default function App() {
           <Route path="/contact" element={<ContactPublic />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/error" element={<WebsiteErrorPage />} />
           <Route path="/membership-signup" element={<MembershipSignup />} />
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
           <Route path={FOCUS_LANDING_PATH} element={<FocusSessionPage />} />
           <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route element={<ProtectedLayout />}>
           <Route element={<MemberLayout />}>

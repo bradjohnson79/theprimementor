@@ -4,6 +4,7 @@ import { getReportTierDefinition, type ReportTierId } from "@wisdom/utils";
 import type { AdminOrder } from "./ordersService.js";
 import type { Divin8ExecutionResult } from "./divin8EngineService.js";
 import { persistableInterpretationPayload } from "./reportFormat.js";
+import { buildReportStructuredData } from "./reportStructuredData.js";
 
 export type OrderExecutionState = "idle" | "generating" | "awaiting_input" | "completed" | "failed";
 
@@ -203,9 +204,25 @@ export async function persistOrderExecutionResult(
 ): Promise<ReportRow> {
   const report = await ensureOrderExecutionReport(db, order, execution.tier);
   const meta = reportMetaValue(report);
-  const payload = persistableInterpretationPayload(execution.interpretation, execution.tier, order.client_name || "Client");
   const version = getExecutionVersion(report, Boolean(options?.force));
   const completedAt = execution.output.generated_at;
+  const structuredData = buildReportStructuredData({
+    blueprint: execution.blueprint,
+    reportDate: completedAt,
+    purchaseIntake: report.purchase_intake ?? buildPurchaseIntake(order),
+    birthPlaceName:
+      order.metadata.birth_location
+      ?? order.metadata.intake.location
+      ?? report.birth_place_name
+      ?? execution.blueprint.core.birthData.birthLocation,
+    birthTimezone: report.birth_timezone,
+  });
+  const payload = persistableInterpretationPayload(
+    execution.interpretation,
+    execution.tier,
+    order.client_name || "Client",
+    structuredData,
+  );
   const startedAt = typeof meta.generation_started_at === "string"
     ? meta.generation_started_at
     : new Date(new Date(completedAt).getTime()).toISOString();

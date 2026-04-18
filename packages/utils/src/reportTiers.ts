@@ -21,6 +21,7 @@ export interface ReportTierDefinition {
   includeSystems: Array<"astrology" | "numerology" | "humanDesign" | "chinese" | "kabbalah" | "rune">;
   model: string;
   reasoning: TierReasoningEffort;
+  deepThinking: boolean;
   outputStyle: string;
 }
 
@@ -55,7 +56,8 @@ export const REPORT_TIER_DEFINITIONS: Record<ReportTierId, ReportTierDefinition>
     },
     includeSystems: ["astrology", "numerology", "rune"],
     model: "gpt-5.1",
-    reasoning: "low",
+    reasoning: "medium",
+    deepThinking: false,
     outputStyle: "Concise, specific, and grounded. Avoid fluff.",
   },
   deep_dive: {
@@ -75,7 +77,8 @@ export const REPORT_TIER_DEFINITIONS: Record<ReportTierId, ReportTierDefinition>
     },
     includeSystems: ["astrology", "numerology", "humanDesign", "chinese", "rune"],
     model: "gpt-5.1",
-    reasoning: "medium",
+    reasoning: "high",
+    deepThinking: false,
     outputStyle: "Structured depth with clarity. Prevent verbosity.",
   },
   initiate: {
@@ -96,6 +99,7 @@ export const REPORT_TIER_DEFINITIONS: Record<ReportTierId, ReportTierDefinition>
     includeSystems: ["astrology", "numerology", "humanDesign", "chinese", "kabbalah", "rune"],
     model: "gpt-5.1",
     reasoning: "high",
+    deepThinking: true,
     outputStyle: "Full synthesis with clarity. No rambling, vagueness, or broken structure.",
   },
 };

@@ -74,6 +74,12 @@ export default function Blueprint() {
         : activeTab === "initiate"
           ? REPORT_TIER_DEFINITIONS.initiate
           : null;
+  const reportDateLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Vancouver",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
 
   if (loadingClients) return <Loading />;
 
@@ -82,6 +88,7 @@ export default function Blueprint() {
       <div className="shrink-0 pb-4">
         <h2 className="text-2xl font-bold text-white">Divin8 Engine</h2>
         <p className="mt-1 text-white/50">Generate and interpret multi-layered metaphysical insights.</p>
+        <p className="mt-2 text-xs text-white/35">Report Date: {reportDateLabel}</p>
       </div>
 
       <div className="shrink-0 flex flex-wrap gap-6 border-b border-white/10 pb-1">

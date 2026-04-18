@@ -33,6 +33,44 @@ interface TierOutputRow {
   error_message: string | null;
 }
 
+interface ReportClientInfoBlock {
+  clientName: string;
+  birthDate: string;
+  birthDateLabel: string;
+  birthTime: string | null;
+  birthTimeLabel: string;
+  birthLocation: string | null;
+  birthLocationLabel: string;
+  birthTimezone: string | null;
+}
+
+interface SwissEphemerisPlanetRow {
+  body: string;
+  position: string;
+  sign: string;
+  house: string;
+  notes: string;
+}
+
+interface SwissEphemerisAspectRow {
+  aspect: string;
+  planets: string;
+  orb: string;
+  orbDegrees: number;
+}
+
+interface ReportStructuredData {
+  reportDateIso: string;
+  reportDateLabel: string;
+  clientInfo: ReportClientInfoBlock;
+  astronomicalCalculations: {
+    title: string;
+    subtitle: string;
+    planets: SwissEphemerisPlanetRow[];
+    aspects: SwissEphemerisAspectRow[];
+  };
+}
+
 interface ReportDetail {
   id: string;
   archived: boolean;
@@ -52,6 +90,7 @@ interface ReportDetail {
   birth_lat: number | null;
   birth_lng: number | null;
   birth_timezone: string | null;
+  structured_data: ReportStructuredData | null;
   tier_outputs: TierOutputRow[];
 }
 
@@ -127,6 +166,7 @@ export default function ReportsTab({
     birth_lat?: number | null;
     birth_lng?: number | null;
     birth_timezone?: string | null;
+    structured_data?: ReportStructuredData | null;
     tier_outputs?: TierOutputRow[];
   }): ReportDetail {
     return {
@@ -156,6 +196,7 @@ export default function ReportsTab({
       birth_lat: typeof row.birth_lat === "number" ? row.birth_lat : null,
       birth_lng: typeof row.birth_lng === "number" ? row.birth_lng : null,
       birth_timezone: row.birth_timezone ?? null,
+      structured_data: row.structured_data ?? null,
       tier_outputs: Array.isArray(row.tier_outputs) ? row.tier_outputs : [],
     };
   }
@@ -288,6 +329,7 @@ export default function ReportsTab({
       birth_lat: null,
       birth_lng: null,
       birth_timezone: null,
+      structured_data: null,
       tier_outputs: seed.interpretation_tier
         ? [
             {
@@ -583,6 +625,11 @@ export default function ReportsTab({
                   {formatPacificTime(displayDetail.created_at)}
                 </p>
               )}
+              {displayDetail?.structured_data && (
+                <p className="mt-1 text-xs text-white/35">
+                  Report Date: {displayDetail.structured_data.reportDateLabel}
+                </p>
+              )}
               {displayDetail && (
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/45">
                   <span className="rounded-full border border-white/10 px-2 py-0.5">
@@ -740,6 +787,108 @@ export default function ReportsTab({
                   ) : null}
                 </div>
               </div>
+            </div>
+          )}
+          {displayDetail?.structured_data && (
+            <div className="mb-6 space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-white">Report Header</h4>
+                    <span className="text-xs text-white/45">
+                      Report Date: {displayDetail.structured_data.reportDateLabel}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {[
+                      ["Client Name", displayDetail.structured_data.clientInfo.clientName],
+                      ["Birth Date", displayDetail.structured_data.clientInfo.birthDateLabel],
+                      ["Birth Time", displayDetail.structured_data.clientInfo.birthTimeLabel],
+                      ["Birth Location", displayDetail.structured_data.clientInfo.birthLocationLabel],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-white/40">{label}</p>
+                        <p className="mt-1 text-sm text-white/85">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <h4 className="text-sm font-semibold text-white">
+                    {displayDetail.structured_data.astronomicalCalculations.title}
+                  </h4>
+                  <p className="mt-1 text-xs text-white/45">
+                    {displayDetail.structured_data.astronomicalCalculations.subtitle}
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-white/65">
+                    Deterministic Swiss Ephemeris data is shown first so the fixed chart mechanics stay visually separate
+                    from the interpretive narrative below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-white/80">
+                    <thead className="bg-slate-950/60 text-[11px] uppercase tracking-wide text-white/45">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Element</th>
+                        <th className="px-4 py-3 font-medium">Position</th>
+                        <th className="px-4 py-3 font-medium">Sign</th>
+                        <th className="px-4 py-3 font-medium">House</th>
+                        <th className="px-4 py-3 font-medium">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayDetail.structured_data.astronomicalCalculations.planets.map((row) => (
+                        <tr key={row.body} className="border-t border-white/10">
+                          <td className="px-4 py-3 font-medium text-white">{row.body}</td>
+                          <td className="px-4 py-3">{row.position}</td>
+                          <td className="px-4 py-3">{row.sign}</td>
+                          <td className="px-4 py-3">{row.house}</td>
+                          <td className="px-4 py-3 text-white/60">{row.notes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                <div className="border-b border-white/10 px-4 py-3">
+                  <h4 className="text-sm font-semibold text-white">Aspects</h4>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-white/80">
+                    <thead className="bg-slate-950/60 text-[11px] uppercase tracking-wide text-white/45">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Aspect</th>
+                        <th className="px-4 py-3 font-medium">Planets</th>
+                        <th className="px-4 py-3 font-medium">Orb</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayDetail.structured_data.astronomicalCalculations.aspects.length > 0 ? (
+                        displayDetail.structured_data.astronomicalCalculations.aspects.map((row) => (
+                          <tr key={`${row.planets}-${row.aspect}`} className="border-t border-white/10">
+                            <td className="px-4 py-3 font-medium text-white">{row.aspect}</td>
+                            <td className="px-4 py-3">{row.planets}</td>
+                            <td className="px-4 py-3">{row.orb}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr className="border-t border-white/10">
+                          <td className="px-4 py-3 text-white/55" colSpan={3}>
+                            No major aspects were available for this report view.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </div>
           )}
           {!loadingDetail && !articleHtml && displayDetail && (

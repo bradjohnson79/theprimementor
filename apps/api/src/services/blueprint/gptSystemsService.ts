@@ -1,11 +1,14 @@
 import OpenAI from "openai";
 import type { BlueprintData } from "./types.js";
+import {
+  DIVIN8_GENERATION_MODEL,
+  DIVIN8_GENERATION_REASONING_CONFIG,
+  buildDeepThinkingInstruction,
+} from "../divin8/brainPolicy.js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-const MODEL = process.env.OPENAI_MODEL || "gpt-4";
 
 /**
  * I Ching GPT Service
@@ -36,12 +39,13 @@ Respond in JSON format:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: MODEL,
+    model: DIVIN8_GENERATION_MODEL,
+    reasoning_effort: DIVIN8_GENERATION_REASONING_CONFIG.effort,
     messages: [
       {
         role: "system",
         content:
-          "You are an expert in I Ching divination. Generate authentic hexagram readings based on birth data.",
+          `You are an expert in I Ching divination. Generate authentic hexagram readings based on birth data. ${buildDeepThinkingInstruction(DIVIN8_GENERATION_REASONING_CONFIG.deepThinking)}`,
       },
       { role: "user", content: prompt },
     ],
@@ -105,12 +109,13 @@ Respond in JSON format:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: MODEL,
+    model: DIVIN8_GENERATION_MODEL,
+    reasoning_effort: DIVIN8_GENERATION_REASONING_CONFIG.effort,
     messages: [
       {
         role: "system",
         content:
-          "You are an expert in numerology-based body mapping and energy work.",
+          `You are an expert in numerology-based body mapping and energy work. ${buildDeepThinkingInstruction(DIVIN8_GENERATION_REASONING_CONFIG.deepThinking)}`,
       },
       { role: "user", content: prompt },
     ],
@@ -187,9 +192,13 @@ Return ONLY valid JSON with keys: analysis, features (object with forehead/eyes/
 Frame everything as symbolic and energetic. Use "may", "carries", "suggests" — never absolute statements.`;
 
   const response = await openai.chat.completions.create({
-    model: MODEL,
+    model: DIVIN8_GENERATION_MODEL,
+    reasoning_effort: DIVIN8_GENERATION_REASONING_CONFIG.effort,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "system",
+        content: `${SYSTEM_PROMPT}\n${buildDeepThinkingInstruction(DIVIN8_GENERATION_REASONING_CONFIG.deepThinking)}`,
+      },
       {
         role: "user",
         content: [
