@@ -8,6 +8,8 @@ export interface MembershipBillingPlan {
   displayName: string;
   monthlyEnvKey: "STRIPE_PRICE_SEEKER_MONTHLY" | "STRIPE_PRICE_INITIATE_MONTHLY";
   annualEnvKey: "STRIPE_PRICE_SEEKER_ANNUAL" | "STRIPE_PRICE_INITIATE_ANNUAL";
+  monthlyLiveEnvKey: "STRIPE_LIVE_PRICE_SEEKER_MONTHLY" | "STRIPE_LIVE_PRICE_INITIATE_MONTHLY";
+  annualLiveEnvKey: "STRIPE_LIVE_PRICE_SEEKER_ANNUAL" | "STRIPE_LIVE_PRICE_INITIATE_ANNUAL";
 }
 
 const MEMBERSHIP_BILLING_PLANS: Record<MembershipTierKey, MembershipBillingPlan> = {
@@ -16,12 +18,30 @@ const MEMBERSHIP_BILLING_PLANS: Record<MembershipTierKey, MembershipBillingPlan>
     displayName: "Seeker Membership",
     monthlyEnvKey: "STRIPE_PRICE_SEEKER_MONTHLY",
     annualEnvKey: "STRIPE_PRICE_SEEKER_ANNUAL",
+    monthlyLiveEnvKey: "STRIPE_LIVE_PRICE_SEEKER_MONTHLY",
+    annualLiveEnvKey: "STRIPE_LIVE_PRICE_SEEKER_ANNUAL",
   },
   initiate: {
     tier: "initiate",
     displayName: "Initiate Membership",
     monthlyEnvKey: "STRIPE_PRICE_INITIATE_MONTHLY",
     annualEnvKey: "STRIPE_PRICE_INITIATE_ANNUAL",
+    monthlyLiveEnvKey: "STRIPE_LIVE_PRICE_INITIATE_MONTHLY",
+    annualLiveEnvKey: "STRIPE_LIVE_PRICE_INITIATE_ANNUAL",
+  },
+};
+
+const LIVE_MEMBERSHIP_PRICE_FALLBACKS: Record<
+  MembershipTierKey,
+  { monthly: string; annual: string }
+> = {
+  seeker: {
+    monthly: "price_1TIL1WAd5V3LaCqjim2Zs3x8",
+    annual: "price_1TILCKAd5V3LaCqj9HDFNWum",
+  },
+  initiate: {
+    monthly: "price_1TIL55Ad5V3LaCqjXkESzqeH",
+    annual: "price_1TILESAd5V3LaCqjLX4fWEd3",
   },
 };
 
@@ -41,6 +61,10 @@ function normalizeEnvironment(value: string | undefined) {
   if (normalized === "production") return "prod";
   if (normalized === "test") return "test";
   return "dev";
+}
+
+function isLiveStripeMode() {
+  return process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_live_") ?? false;
 }
 
 export function getMembershipBillingPlan(tier: string): MembershipBillingPlan {
@@ -72,12 +96,19 @@ export function resolveMembershipPriceId(
 ) {
   const plan = getMembershipBillingPlan(tier);
   const envKey = billingInterval === "annual" ? plan.annualEnvKey : plan.monthlyEnvKey;
-  const priceId = process.env[envKey]?.trim();
+  const liveEnvKey = billingInterval === "annual" ? plan.annualLiveEnvKey : plan.monthlyLiveEnvKey;
+  const standardPriceId = process.env[envKey]?.trim();
+  const livePriceId = process.env[liveEnvKey]?.trim();
+  const fallbackLivePriceId = LIVE_MEMBERSHIP_PRICE_FALLBACKS[tier][billingInterval];
+  const priceId = isLiveStripeMode()
+    ? livePriceId || fallbackLivePriceId
+    : standardPriceId;
+  const resolvedEnvKey = isLiveStripeMode() && livePriceId ? liveEnvKey : envKey;
 
   if (!priceId) {
     throw createHttpError(
       500,
-      `Stripe membership price is not configured for ${plan.displayName} (${billingInterval}). Missing ${envKey}.`,
+      `Stripe membership price is not configured for ${plan.displayName} (${billingInterval}). Missing ${isLiveStripeMode() ? `${liveEnvKey} (or live fallback)` : envKey}.`,
     );
   }
 
@@ -85,7 +116,7 @@ export function resolveMembershipPriceId(
     plan,
     billingInterval,
     priceId,
-    envKey,
+    envKey: resolvedEnvKey,
   };
 }
 

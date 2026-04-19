@@ -32,7 +32,18 @@ const PRICE_MAP_ENV: Record<string, PriceMapEntry> = {
   STRIPE_PRICE_SEEKER_ANNUAL: { tier: "seeker", billingInterval: "annual" },
   STRIPE_PRICE_INITIATE_MONTHLY: { tier: "initiate", billingInterval: "monthly" },
   STRIPE_PRICE_INITIATE_ANNUAL: { tier: "initiate", billingInterval: "annual" },
+  STRIPE_LIVE_PRICE_SEEKER_MONTHLY: { tier: "seeker", billingInterval: "monthly" },
+  STRIPE_LIVE_PRICE_SEEKER_ANNUAL: { tier: "seeker", billingInterval: "annual" },
+  STRIPE_LIVE_PRICE_INITIATE_MONTHLY: { tier: "initiate", billingInterval: "monthly" },
+  STRIPE_LIVE_PRICE_INITIATE_ANNUAL: { tier: "initiate", billingInterval: "annual" },
 };
+
+const LIVE_MEMBERSHIP_PRICE_FALLBACKS: Array<[string, PriceMapEntry]> = [
+  ["price_1TIL1WAd5V3LaCqjim2Zs3x8", { tier: "seeker", billingInterval: "monthly" }],
+  ["price_1TILCKAd5V3LaCqj9HDFNWum", { tier: "seeker", billingInterval: "annual" }],
+  ["price_1TIL55Ad5V3LaCqjXkESzqeH", { tier: "initiate", billingInterval: "monthly" }],
+  ["price_1TILESAd5V3LaCqjLX4fWEd3", { tier: "initiate", billingInterval: "annual" }],
+];
 
 function clampTier(value: unknown): Divin8Tier {
   return value === "initiate" ? "initiate" : "seeker";
@@ -47,6 +58,11 @@ function readPriceMap(): Map<string, PriceMapEntry> {
   for (const [key, value] of Object.entries(PRICE_MAP_ENV)) {
     const priceId = process.env[key]?.trim();
     if (priceId) {
+      map.set(priceId, value);
+    }
+  }
+  for (const [priceId, value] of LIVE_MEMBERSHIP_PRICE_FALLBACKS) {
+    if (!map.has(priceId)) {
       map.set(priceId, value);
     }
   }
