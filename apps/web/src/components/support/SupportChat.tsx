@@ -12,6 +12,7 @@ interface SupportChatProps {
   onSubmit: () => void;
   onQuickAction: (prompt: string) => void;
   onClose: () => void;
+  align: "left" | "right";
 }
 
 interface SupportMessageBubbleProps {
@@ -19,8 +20,8 @@ interface SupportMessageBubbleProps {
   onNavigate: () => void;
 }
 
-const panelClassName =
-  "absolute bottom-16 right-0 flex w-[min(92vw,20rem)] max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_24px_70px_rgba(15,23,42,0.65)] transition duration-200";
+const panelBaseClassName =
+  "absolute bottom-16 flex w-[min(92vw,20rem)] max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_24px_70px_rgba(15,23,42,0.65)] transition duration-200";
 const sectionBorderClassName = "border-white/10";
 const headerButtonClassName =
   "inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70";
@@ -113,6 +114,7 @@ export default function SupportChat({
   onSubmit,
   onQuickAction,
   onClose,
+  align,
 }: SupportChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -128,7 +130,7 @@ export default function SupportChat({
 
   return (
     <div
-      className={`${panelClassName} ${
+      className={`${panelBaseClassName} ${align === "left" ? "left-0" : "right-0"} ${
         isOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
       }`}
       aria-hidden={!isOpen}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import SupportButton from "./SupportButton";
 import SupportChat from "./SupportChat";
 import { getResponse } from "./supportLogic";
@@ -6,9 +7,24 @@ import type { SupportMessage } from "./supportTypes";
 
 const RESPONSE_DELAY_MS = 300;
 const INITIAL_MESSAGE = "Hi - need help navigating the site?";
-const rootClassName = "fixed bottom-6 right-6 z-[9999]";
+const rootBaseClassName = "fixed bottom-6 z-[9999]";
+
+function shouldUseLeftAnchor(pathname: string) {
+  return pathname === "/dashboard"
+    || pathname.startsWith("/dashboard/")
+    || pathname === "/sessions"
+    || pathname === "/bookings"
+    || pathname === "/reports"
+    || pathname.startsWith("/reports/")
+    || pathname === "/mentoring-circle"
+    || pathname === "/events/mentoring-circle"
+    || pathname === "/mentor-training"
+    || pathname === "/settings"
+    || pathname === "/member/contact";
+}
 
 export default function SupportWidget() {
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -18,6 +34,7 @@ export default function SupportWidget() {
   const rootRef = useRef<HTMLDivElement>(null);
   const messageIdRef = useRef(0);
   const responseTimeoutRef = useRef<number | null>(null);
+  const align = shouldUseLeftAnchor(pathname) ? "left" : "right";
 
   function getNextMessageId() {
     messageIdRef.current += 1;
@@ -136,7 +153,7 @@ export default function SupportWidget() {
   }, []);
 
   return (
-    <div ref={rootRef} className={rootClassName}>
+    <div ref={rootRef} className={`${rootBaseClassName} ${align === "left" ? "left-6" : "right-6"}`}>
       <SupportChat
         isOpen={open}
         messages={messages}
@@ -146,8 +163,9 @@ export default function SupportWidget() {
         onSubmit={() => submitPrompt(inputValue)}
         onQuickAction={submitPrompt}
         onClose={() => setOpen(false)}
+        align={align}
       />
-      <SupportButton isOpen={open} showTooltip={showTooltip && !open} onClick={handleToggle} />
+      <SupportButton isOpen={open} showTooltip={showTooltip && !open} onClick={handleToggle} align={align} />
     </div>
   );
 }
