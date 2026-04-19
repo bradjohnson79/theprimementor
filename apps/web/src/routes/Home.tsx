@@ -102,14 +102,16 @@ const MEMBERSHIP_CARDS: MembershipCardData[] = [
   {
     title: "Seeker Membership",
     meta: MEMBER_PRICING.seeker.monthly.label,
-    description: "Core access to Divin8 conversation, session booking, and introductory report generation.",
+    description:
+      "Explore our starter membership subscription as you access our Divin8 Universal Knowledge System with a 150 prompt monthly limit.",
     imageSrc: seekerMembershipImage,
     href: "/subscriptions/seeker",
   },
   {
     title: "Initiate Membership",
     meta: MEMBER_PRICING.initiate.monthly.label,
-    description: "Full access including all report tiers, priority booking, mentoring circle, and advanced features.",
+    description:
+      "Dive into our complete membership subscription as you access the Divin8 Universal Knowledge System with unlimited prompt usage, free access to our monthly Mentoring Circle, and eligibility for our Mentoring Packages after completing a single Mentoring Session.",
     imageSrc: initiateMembershipImage,
     href: "/subscriptions/initiate",
   },
