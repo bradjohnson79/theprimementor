@@ -1,6 +1,5 @@
 import { formatPacificClock } from "@wisdom/utils";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useMemo, useState } from "react";
 import { renderReportMarkdownToSafeHtml } from "./reportHtml";
 import type { Divin8ChatMessage } from "./types";
 import { classNames, darkChatStyles } from "./utils";
@@ -49,14 +48,12 @@ const MessageRow = memo(function MessageRow({
   collapsed,
   onToggleCollapse,
   onRetry,
-  onMeasure,
 }: {
   item: MessageRowItem;
   isLightTheme: boolean;
   collapsed: boolean;
   onToggleCollapse: (messageId: string) => void;
   onRetry: (messageId: string) => void;
-  onMeasure: () => void;
 }) {
   const { message, isGroupStart, isGroupEnd } = item;
   const isUser = message.role === "user";
@@ -75,11 +72,6 @@ const MessageRow = memo(function MessageRow({
     () => (!isUser ? renderReportMarkdownToSafeHtml(message.text) : null),
     [isUser, message.text],
   );
-
-  useEffect(() => {
-    const timeout = window.setTimeout(onMeasure, 80);
-    return () => window.clearTimeout(timeout);
-  }, [collapsed, message.imagePreviewUrl, onMeasure]);
 
   return (
     <div
@@ -157,7 +149,7 @@ const MessageRow = memo(function MessageRow({
                 )}
                 style={!isLightTheme ? darkChatStyles.bubbleSoft : undefined}
               >
-                <img src={message.imagePreviewUrl} alt="Chat upload preview" className="h-full w-full object-cover" onLoad={onMeasure} />
+                <img src={message.imagePreviewUrl} alt="Chat upload preview" className="h-full w-full object-cover" />
               </div>
             ) : null}
 
@@ -300,11 +292,10 @@ export default function MessageThread({
   isLightTheme,
   isGenerating,
   messages,
-  scrollContainer,
+  scrollContainer: _scrollContainer,
   bottomSpacer,
   onRetry,
 }: MessageThreadProps) {
-  const measureTimeoutRef = useRef<number | null>(null);
   const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
 
   const rows = useMemo<MessageRowItem[]>(
@@ -323,35 +314,6 @@ export default function MessageThread({
     [isGenerating, rows],
   );
 
-  const virtualizerRef = useRef<ReturnType<typeof useVirtualizer<HTMLDivElement, Element>> | null>(null);
-
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => scrollContainer,
-    estimateSize: (index) => (items[index]?.id === "__typing__" ? 72 : 120),
-    getItemKey: (index) => items[index]?.id ?? `virtual-${index}`,
-    overscan: 10,
-  });
-
-  virtualizerRef.current = virtualizer;
-
-  const scheduleMeasure = useCallback(() => {
-    if (measureTimeoutRef.current) {
-      window.clearTimeout(measureTimeoutRef.current);
-    }
-    measureTimeoutRef.current = window.setTimeout(() => {
-      virtualizerRef.current?.measure();
-    }, 60);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (measureTimeoutRef.current) {
-        window.clearTimeout(measureTimeoutRef.current);
-      }
-    };
-  }, []);
-
   function handleToggleCollapse(messageId: string) {
     const targetRow = rows.find((row) => row.id === messageId);
     if (!targetRow) {
@@ -362,35 +324,18 @@ export default function MessageThread({
       ...current,
       [messageId]: !(current[messageId] ?? shouldCollapseMessage(targetRow.message)),
     }));
-    scheduleMeasure();
   }
 
   return (
-    <div style={{ height: `${virtualizer.getTotalSize() + bottomSpacer}px`, position: "relative" }}>
-      {virtualizer.getVirtualItems().map((virtualItem) => {
-        const item = items[virtualItem.index];
+    <div style={{ paddingBottom: `${bottomSpacer}px` }}>
+      {items.map((item) => {
         if (!item) {
           return null;
         }
 
         if (isTypingRow(item)) {
           return (
-            <div
-              key={virtualItem.key}
-              data-index={virtualItem.index}
-              ref={(node) => {
-                if (node) {
-                  virtualizer.measureElement(node);
-                }
-              }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
+            <div key={item.id}>
               <TypingRow isLightTheme={isLightTheme} />
             </div>
           );
@@ -399,29 +344,13 @@ export default function MessageThread({
         const collapsed = collapsedState[item.id] ?? shouldCollapseMessage(item.message);
 
         return (
-          <div
-            key={virtualItem.key}
-            data-index={virtualItem.index}
-            ref={(node) => {
-              if (node) {
-                virtualizer.measureElement(node);
-              }
-            }}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualItem.start}px)`,
-            }}
-          >
+          <div key={item.id}>
             <MessageRow
               item={item}
               isLightTheme={isLightTheme}
               collapsed={collapsed}
               onToggleCollapse={handleToggleCollapse}
               onRetry={onRetry}
-              onMeasure={scheduleMeasure}
             />
           </div>
         );

@@ -74,6 +74,11 @@ export default function MemberDivin8Chat() {
   }
 
   const headerActions = (chat: UseDivin8ChatReturn, currentCapabilities: Divin8Capabilities) => {
+    const liveSeekerPromptsUsed = Math.min(
+      Math.max(chat.usageCount, seekerPromptsUsed),
+      seekerPromptLimit,
+    );
+
     handleTranscriptRef.current = (text: string) => {
       const current = chat.inputText;
       chat.setInputText((current ? `${current.trim()} ${text}` : text).trim());
@@ -102,7 +107,7 @@ export default function MemberDivin8Chat() {
         {/* Usage / unlimited badge */}
         {!isInitiate ? (
           <span className="flex h-7 items-center rounded-full border border-white/10 bg-white/5 px-2.5 text-[10px] font-medium text-white/65">
-            {`${seekerPromptsUsed} / ${seekerPromptLimit} used`}
+            {`${liveSeekerPromptsUsed} / ${seekerPromptLimit} used`}
           </span>
         ) : (
           <span className="flex h-7 items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 text-[10px] font-medium text-purple-300">

@@ -463,7 +463,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const scrollPositionsRef = useRef<Record<string, number>>({});
   const pendingScrollRestoreRef = useRef<{ threadId: string; mode: "restore" | "bottom" } | null>(null);
   const scrollRafRef = useRef<number | null>(null);
+  const resizeFollowRafRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
+  const shouldAutoFollowRef = useRef(true);
   const previousMessageStateRef = useRef<{ threadId: string | null; count: number; generating: boolean }>({
     threadId: null,
     count: 0,
@@ -568,6 +570,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
     const nextNearBottom = remaining <= NEAR_BOTTOM_THRESHOLD;
     isNearBottomRef.current = nextNearBottom;
+    shouldAutoFollowRef.current = nextNearBottom;
     setShowScrollToBottom(!nextNearBottom);
     if (activeThreadIdRef.current) {
       scrollPositionsRef.current[activeThreadIdRef.current] = element.scrollTop;
@@ -586,6 +589,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const viewport = messageViewportRef.current;
     if (!viewport) return;
+    shouldAutoFollowRef.current = true;
     window.requestAnimationFrame(() => {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior });
       window.requestAnimationFrame(() => updateNearBottomState(viewport));
@@ -594,6 +598,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   useEffect(() => () => {
     if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
+    if (resizeFollowRafRef.current) window.cancelAnimationFrame(resizeFollowRafRef.current);
   }, []);
 
   // -- Scroll restore after thread load --
@@ -619,10 +624,41 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const generatingStarted = isGenerating && !prev.generating;
     previousMessageStateRef.current = { threadId: activeThreadId, count: messages.length, generating: isGenerating };
     if (!viewport || !activeThreadId || isLoadingThread || threadChanged) return;
-    if ((countIncreased || generatingStarted) && isNearBottomRef.current) {
+    if ((countIncreased || generatingStarted) && (isNearBottomRef.current || shouldAutoFollowRef.current)) {
       scrollToBottom("instant");
     }
   }, [activeThreadId, isGenerating, isLoadingThread, messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    const viewport = messageViewportRef.current;
+    const content = viewport?.firstElementChild;
+    if (!viewport || !(content instanceof HTMLElement)) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (!shouldAutoFollowRef.current) {
+        return;
+      }
+      if (resizeFollowRafRef.current) {
+        window.cancelAnimationFrame(resizeFollowRafRef.current);
+      }
+      resizeFollowRafRef.current = window.requestAnimationFrame(() => {
+        resizeFollowRafRef.current = null;
+        viewport.scrollTop = viewport.scrollHeight;
+        updateNearBottomState(viewport);
+      });
+    });
+
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      if (resizeFollowRafRef.current) {
+        window.cancelAnimationFrame(resizeFollowRafRef.current);
+        resizeFollowRafRef.current = null;
+      }
+    };
+  }, [activeThreadId, isGenerating, isLoadingThread, messages.length, updateNearBottomState]);
 
   // -- Search --
   useEffect(() => {
@@ -732,6 +768,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const handleCreateConversation = useCallback(async () => {
     setIsCreatingThread(true);
     setDebugMeta(null);
+    shouldAutoFollowRef.current = true;
     clearImageSelection();
     setSearchQuery("");
     setSearchResults(null);
@@ -1014,6 +1051,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       language,
       requestId: messageId,
     };
+    shouldAutoFollowRef.current = true;
     setInputText("");
     setTimelineDraftsByThread((current) => ({ ...current, [activeThreadId]: null }));
     clearImageSelection();
@@ -1024,6 +1062,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     if (!activeThreadId || isGenerating) return;
     const failed = messages.find((m) => m.id === messageId);
     if (!failed?.retryPayload) return;
+    shouldAutoFollowRef.current = true;
     setSendError(null);
     void sendMessageInternal(activeThreadId, messageId, failed.retryPayload);
   }
