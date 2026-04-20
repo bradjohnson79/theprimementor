@@ -148,6 +148,10 @@ export interface AdminOrderRecoveryInvoiceResponse {
   resent: boolean;
 }
 
+export interface AdminOrderMarkPaidResponse {
+  order: AdminOrder;
+}
+
 export interface AdminOrderGenerateResponse {
   data: AdminOrder | null;
   output: AdminOrderOutput | null;

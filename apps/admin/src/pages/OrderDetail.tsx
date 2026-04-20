@@ -13,6 +13,7 @@ import type {
   AdminOrderAvailabilityDay,
   AdminOrderDetailResponse,
   AdminOrderGenerateResponse,
+  AdminOrderMarkPaidResponse,
   AdminOrderRecoveryInvoiceResponse,
 } from "../lib/orders";
 import { formatOrderDate, formatOrderMoney, getOrderExecutionLabel, getOrderTypeLabel, getPaymentMatchLabel } from "../lib/orders";
@@ -121,6 +122,7 @@ export default function OrderDetail() {
   const [refundCustomReason, setRefundCustomReason] = useState("");
   const [refunding, setRefunding] = useState(false);
   const [sendingRecoveryInvoice, setSendingRecoveryInvoice] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -174,6 +176,14 @@ export default function OrderDetail() {
     () => Boolean(order?.type === "report" && order.status === "pending_payment"),
     [order],
   );
+
+  const canMarkAsPaid = useMemo(() => {
+    if (!order) return false;
+    if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) return false;
+    if (order.type === "custom") return false;
+    if (order.type === "webinar" && !order.payment_id) return false;
+    return true;
+  }, [order]);
 
   async function handleGenerate(force = false) {
     if (!orderId || !canGenerate) return;
@@ -291,6 +301,29 @@ export default function OrderDetail() {
       setActionError(err instanceof Error ? err.message : "Failed to send Stripe invoice.");
     } finally {
       setSendingRecoveryInvoice(false);
+    }
+  }
+
+  async function handleMarkAsPaid() {
+    if (!orderId || !canMarkAsPaid) return;
+
+    setMarkingPaid(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.post(
+        `/admin/orders/${orderId}/mark-paid`,
+        {},
+        token,
+      )) as AdminOrderMarkPaidResponse;
+      setOrder(response.order);
+      setActionSuccess("Order marked as paid. Local records are updated; Stripe was not charged.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to mark order as paid.");
+    } finally {
+      setMarkingPaid(false);
     }
   }
 
@@ -434,6 +467,16 @@ export default function OrderDetail() {
                 className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-5 py-3 text-sm font-medium text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {sendingRecoveryInvoice ? "Sending…" : "Email Stripe invoice"}
+              </button>
+            ) : null}
+            {canMarkAsPaid ? (
+              <button
+                type="button"
+                onClick={() => void handleMarkAsPaid()}
+                disabled={markingPaid}
+                className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {markingPaid ? "Updating…" : "Mark as paid"}
               </button>
             ) : null}
             <button

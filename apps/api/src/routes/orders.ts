@@ -6,6 +6,7 @@ import { upsertOrderRecordingLink } from "../services/orderRecordingService.js";
 import { refundAdminOrder } from "../services/orderRefundService.js";
 import { dispatchOrderExecution } from "../services/divin8ExecutionDispatcher.js";
 import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } from "../services/ordersService.js";
+import { markAdminOrderManualPaid } from "../services/adminOrderPaymentService.js";
 import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
 
 interface OrdersQuery {
@@ -155,6 +156,22 @@ export async function ordersRoutes(app: FastifyInstance) {
         ...result,
         order: await getAdminOrderById(db, request.params.orderId),
       });
+    },
+  );
+
+  app.post<{ Params: { orderId: string } }>(
+    "/admin/orders/:orderId/mark-paid",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      const order = await markAdminOrderManualPaid(db, {
+        orderId: request.params.orderId,
+        actorUserId: request.dbUser!.id,
+        actorRole: request.dbUser!.role,
+      });
+      return ok({ order });
     },
   );
 }
