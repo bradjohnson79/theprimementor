@@ -144,6 +144,10 @@ export interface AdminOrder {
     failure_message_normalized: string | null;
     last_payment_attempt_at: string | null;
     payment_match_strategy: string | null;
+    /** From payment.metadata when admin sent a Stripe recovery invoice (report checkout fallback). */
+    recovery_invoice_id: string | null;
+    recovery_invoice_sent_at: string | null;
+    recovery_invoice_hosted_url: string | null;
   };
 }
 
@@ -529,6 +533,25 @@ function resolveLocation(...values: Array<string | null | undefined>) {
     if (normalized) return normalized;
   }
   return null;
+}
+
+function getEmptyRecoveryInvoiceMetadata() {
+  return {
+    recovery_invoice_id: null as string | null,
+    recovery_invoice_sent_at: null as string | null,
+    recovery_invoice_hosted_url: null as string | null,
+  };
+}
+
+function extractRecoveryInvoiceMetadata(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) {
+    return getEmptyRecoveryInvoiceMetadata();
+  }
+  return {
+    recovery_invoice_id: getString(metadata.stripeRecoveryInvoiceId) ?? null,
+    recovery_invoice_sent_at: getString(metadata.stripeRecoveryInvoiceSentAt) ?? null,
+    recovery_invoice_hosted_url: getString(metadata.stripeRecoveryInvoiceHostedUrl) ?? null,
+  };
 }
 
 function getEmptyInvoiceMetadata() {
@@ -1005,6 +1028,7 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     metadata: {
       ...candidate.metadata,
       payment_match_strategy: paymentMatchStrategy,
+      ...extractRecoveryInvoiceMetadata(payment?.metadata ?? null),
     },
   };
 }
@@ -1422,6 +1446,7 @@ function createSessionCandidate(
       access_link: row.sessionType === "mentoring_circle" ? (row.joinUrl ?? row.startUrl) : null,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: null,
     },
     directBookingId: row.id,
@@ -1527,6 +1552,7 @@ function createReportCandidate(
       access_link: null,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: null,
     },
     directBookingId: null,
@@ -1599,6 +1625,7 @@ function createSubscriptionCandidate(
       access_link: null,
       stripe_subscription_id: row.stripeSubscriptionId,
       ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: null,
     },
     directBookingId: null,
@@ -1674,6 +1701,7 @@ function createMentorTrainingCandidate(
       access_link: null,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: null,
     },
     directBookingId: null,
@@ -1743,6 +1771,7 @@ function createWebinarCandidate(
       access_link: row.joinUrl,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: null,
     },
     directBookingId: null,
@@ -1875,6 +1904,7 @@ function createPersistedAdminOrder(
       failure_message: row.failureMessage ?? invoice?.failureMessage ?? null,
       failure_message_normalized: row.failureMessageNormalized ?? invoice?.failureMessageNormalized ?? null,
       last_payment_attempt_at: toIso(invoice?.lastPaymentAttemptAt ?? null),
+      ...getEmptyRecoveryInvoiceMetadata(),
       payment_match_strategy: "persisted_order",
     },
   };

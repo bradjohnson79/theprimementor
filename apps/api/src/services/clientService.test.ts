@@ -97,6 +97,9 @@ function makeOrder(input: {
       failure_message: null,
       failure_message_normalized: null,
       last_payment_attempt_at: null,
+      recovery_invoice_id: null,
+      recovery_invoice_sent_at: null,
+      recovery_invoice_hosted_url: null,
       payment_match_strategy: null,
     },
   };

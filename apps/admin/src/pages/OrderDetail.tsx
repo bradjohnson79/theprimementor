@@ -13,6 +13,7 @@ import type {
   AdminOrderAvailabilityDay,
   AdminOrderDetailResponse,
   AdminOrderGenerateResponse,
+  AdminOrderRecoveryInvoiceResponse,
 } from "../lib/orders";
 import { formatOrderDate, formatOrderMoney, getOrderExecutionLabel, getOrderTypeLabel, getPaymentMatchLabel } from "../lib/orders";
 
@@ -119,6 +120,7 @@ export default function OrderDetail() {
   const [refundReason, setRefundReason] = useState<(typeof REFUND_REASON_OPTIONS)[number]["value"]>("requested_by_customer");
   const [refundCustomReason, setRefundCustomReason] = useState("");
   const [refunding, setRefunding] = useState(false);
+  const [sendingRecoveryInvoice, setSendingRecoveryInvoice] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -165,6 +167,11 @@ export default function OrderDetail() {
 
   const canGenerate = useMemo(
     () => Boolean(order?.available_actions.includes("generate_output")),
+    [order],
+  );
+
+  const canSendRecoveryInvoice = useMemo(
+    () => Boolean(order?.type === "report" && order.status === "pending_payment"),
     [order],
   );
 
@@ -257,6 +264,33 @@ export default function OrderDetail() {
       setActionError(err instanceof Error ? err.message : "Failed to save recording.");
     } finally {
       setSavingRecording(false);
+    }
+  }
+
+  async function handleSendRecoveryInvoice() {
+    if (!orderId || !canSendRecoveryInvoice) return;
+
+    setSendingRecoveryInvoice(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.post(
+        `/admin/orders/${orderId}/send-recovery-invoice`,
+        {},
+        token,
+      )) as AdminOrderRecoveryInvoiceResponse;
+      setOrder(response.order);
+      setActionSuccess(
+        response.resent
+          ? "Invoice email resent to the customer."
+          : "Stripe invoice created and emailed to the customer. This order will show Paid when they complete payment.",
+      );
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to send Stripe invoice.");
+    } finally {
+      setSendingRecoveryInvoice(false);
     }
   }
 
@@ -360,6 +394,27 @@ export default function OrderDetail() {
                 <p className="mt-1 text-white/85">{renderList(order.available_actions)}</p>
               </div>
             </div>
+            {order.metadata.recovery_invoice_sent_at || order.metadata.recovery_invoice_hosted_url ? (
+              <p className="text-xs text-amber-100/85">
+                Recovery invoice
+                {order.metadata.recovery_invoice_sent_at
+                  ? ` sent ${formatOrderDate(order.metadata.recovery_invoice_sent_at)}`
+                  : ""}
+                {order.metadata.recovery_invoice_hosted_url ? (
+                  <>
+                    {" · "}
+                    <a
+                      href={order.metadata.recovery_invoice_hosted_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-200 underline decoration-amber-200/40 underline-offset-2 hover:text-white"
+                    >
+                      View / pay
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -371,6 +426,16 @@ export default function OrderDetail() {
             >
               {generateButtonLabel}
             </button>
+            {canSendRecoveryInvoice ? (
+              <button
+                type="button"
+                onClick={() => void handleSendRecoveryInvoice()}
+                disabled={sendingRecoveryInvoice}
+                className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-5 py-3 text-sm font-medium text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sendingRecoveryInvoice ? "Sending…" : "Email Stripe invoice"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => canRefund && setRefundModalOpen(true)}

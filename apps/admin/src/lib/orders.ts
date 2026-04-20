@@ -121,6 +121,9 @@ export interface AdminOrder {
     failure_message_normalized: string | null;
     last_payment_attempt_at: string | null;
     payment_match_strategy: string | null;
+    recovery_invoice_id: string | null;
+    recovery_invoice_sent_at: string | null;
+    recovery_invoice_hosted_url: string | null;
   };
 }
 
@@ -136,6 +139,13 @@ export interface AdminOrdersResponse {
 
 export interface AdminOrderDetailResponse {
   data: AdminOrder;
+}
+
+export interface AdminOrderRecoveryInvoiceResponse {
+  order: AdminOrder;
+  stripeInvoiceId: string;
+  hostedInvoiceUrl: string | null;
+  resent: boolean;
 }
 
 export interface AdminOrderGenerateResponse {

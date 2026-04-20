@@ -6,6 +6,7 @@ import { upsertOrderRecordingLink } from "../services/orderRecordingService.js";
 import { refundAdminOrder } from "../services/orderRefundService.js";
 import { dispatchOrderExecution } from "../services/divin8ExecutionDispatcher.js";
 import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } from "../services/ordersService.js";
+import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
 
 interface OrdersQuery {
   limit?: string;
@@ -138,6 +139,21 @@ export async function ordersRoutes(app: FastifyInstance) {
           reason: request.body?.reason ?? "",
           customReason: request.body?.customReason,
         }),
+      });
+    },
+  );
+
+  app.post<{ Params: { orderId: string } }>(
+    "/admin/orders/:orderId/send-recovery-invoice",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      const result = await sendAdminReportRecoveryInvoice(db, request.params.orderId);
+      return ok({
+        ...result,
+        order: await getAdminOrderById(db, request.params.orderId),
       });
     },
   );

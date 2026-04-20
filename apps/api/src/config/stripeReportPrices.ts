@@ -3,47 +3,78 @@ import type { ReportTierId } from "@wisdom/utils";
 /**
  * Stripe Checkout must use Price IDs from the Dashboard — never hardcode amounts.
  * Map each configured price ID to product slug + interpretation tier for webhooks / fulfillment.
+ *
+ * With `sk_live_*`, prefers `STRIPE_LIVE_PRICE_DIVIN8_*` then built-in live fallbacks (same pattern as
+ * `stripePrices.ts` / `membershipBilling.ts`). Test keys use `STRIPE_PRICE_DIVIN8_*` only.
  */
-const STRIPE_REPORT_PRICE_ENTRIES: Array<{
-  tier: ReportTierId;
-  envKey: string;
-  product: string;
-}> = [
-  {
-    tier: "intro",
-    envKey: "STRIPE_PRICE_DIVIN8_INTRO_REPORT",
+const REPORT_TIER_STRIPE_CONFIG: Record<
+  ReportTierId,
+  { standardEnvKey: string; liveEnvKey: string; product: string }
+> = {
+  intro: {
+    standardEnvKey: "STRIPE_PRICE_DIVIN8_INTRO_REPORT",
+    liveEnvKey: "STRIPE_LIVE_PRICE_DIVIN8_INTRO_REPORT",
     product: "divin8_introductory_report",
   },
-  {
-    tier: "deep_dive",
-    envKey: "STRIPE_PRICE_DIVIN8_DEEP_DIVE_REPORT",
+  deep_dive: {
+    standardEnvKey: "STRIPE_PRICE_DIVIN8_DEEP_DIVE_REPORT",
+    liveEnvKey: "STRIPE_LIVE_PRICE_DIVIN8_DEEP_DIVE_REPORT",
     product: "divin8_deep_dive_report",
   },
-  {
-    tier: "initiate",
-    envKey: "STRIPE_PRICE_DIVIN8_INITIATE_REPORT",
+  initiate: {
+    standardEnvKey: "STRIPE_PRICE_DIVIN8_INITIATE_REPORT",
+    liveEnvKey: "STRIPE_LIVE_PRICE_DIVIN8_INITIATE_REPORT",
     product: "divin8_initiate_report",
   },
-];
+};
+
+/** Live-mode Price IDs (Products: Divin8 Introductory / Deep Dive / Initiate Report in Stripe). */
+const LIVE_DIVIN8_REPORT_PRICE_FALLBACKS: Record<ReportTierId, string> = {
+  intro: "price_1TKY26Ad5V3LaCqjgSS36qtr",
+  deep_dive: "price_1TKY3FAd5V3LaCqjhkqTPo59",
+  initiate: "price_1TKY4GAd5V3LaCqjK2TjZMyp",
+};
 
 export type StripeReportPriceMapEntry = {
   product: string;
   tier: ReportTierId;
 };
 
-const REPORT_TIER_TO_ENV_KEY: Record<ReportTierId, string> = {
-  intro: "STRIPE_PRICE_DIVIN8_INTRO_REPORT",
-  deep_dive: "STRIPE_PRICE_DIVIN8_DEEP_DIVE_REPORT",
-  initiate: "STRIPE_PRICE_DIVIN8_INITIATE_REPORT",
-};
+export const STRIPE_REPORT_PRICE_ENTRIES: Array<{
+  tier: ReportTierId;
+  envKey: string;
+  liveEnvKey: string;
+  product: string;
+}> = (Object.entries(REPORT_TIER_STRIPE_CONFIG) as Array<
+  [ReportTierId, (typeof REPORT_TIER_STRIPE_CONFIG)[ReportTierId]]
+>).map(([tier, cfg]) => ({
+  tier,
+  envKey: cfg.standardEnvKey,
+  liveEnvKey: cfg.liveEnvKey,
+  product: cfg.product,
+}));
 
-/** priceId → { product, tier } for all env-configured report prices */
+function isLiveStripeMode() {
+  return process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_live_") ?? false;
+}
+
+/** priceId → { product, tier } for test env, live env, and live fallbacks (webhook / fulfillment). */
 export function getStripeReportPriceMap(): Record<string, StripeReportPriceMapEntry> {
   const map: Record<string, StripeReportPriceMapEntry> = {};
-  for (const { tier, envKey, product } of STRIPE_REPORT_PRICE_ENTRIES) {
-    const priceId = process.env[envKey]?.trim();
-    if (priceId) {
-      map[priceId] = { product, tier };
+  for (const tier of Object.keys(REPORT_TIER_STRIPE_CONFIG) as ReportTierId[]) {
+    const cfg = REPORT_TIER_STRIPE_CONFIG[tier];
+    const entry: StripeReportPriceMapEntry = { product: cfg.product, tier };
+    const standard = process.env[cfg.standardEnvKey]?.trim();
+    const live = process.env[cfg.liveEnvKey]?.trim();
+    const fallback = LIVE_DIVIN8_REPORT_PRICE_FALLBACKS[tier];
+    if (standard) {
+      map[standard] = entry;
+    }
+    if (live) {
+      map[live] = entry;
+    }
+    if (fallback) {
+      map[fallback] = entry;
     }
   }
   return map;
@@ -60,13 +91,16 @@ export function resolveReportTierFromStripePriceId(priceId: string): StripeRepor
 }
 
 export function getReportStripePriceId(tier: ReportTierId) {
-  const envKey = REPORT_TIER_TO_ENV_KEY[tier];
-  const priceId = process.env[envKey]?.trim();
+  const cfg = REPORT_TIER_STRIPE_CONFIG[tier];
+  const livePriceId = process.env[cfg.liveEnvKey]?.trim();
+  const standardPriceId = process.env[cfg.standardEnvKey]?.trim();
+  const priceId = isLiveStripeMode()
+    ? livePriceId || LIVE_DIVIN8_REPORT_PRICE_FALLBACKS[tier]
+    : standardPriceId;
+
   if (!priceId) {
     throw new Error(`Missing Stripe price ID for report tier: ${tier}`);
   }
 
   return priceId;
 }
-
-export { STRIPE_REPORT_PRICE_ENTRIES };

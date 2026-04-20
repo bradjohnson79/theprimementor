@@ -74,6 +74,27 @@ const baseColumns: OrderColumn[] = [
         {row.status === "failed" && row.metadata.failure_message_normalized ? (
           <p className="max-w-[18rem] text-xs text-rose-200/80">{row.metadata.failure_message_normalized}</p>
         ) : null}
+        {row.metadata.recovery_invoice_sent_at || row.metadata.recovery_invoice_hosted_url ? (
+          <p className="max-w-[20rem] text-xs text-amber-100/85">
+            Recovery invoice
+            {row.metadata.recovery_invoice_sent_at
+              ? ` sent ${formatOrderDate(row.metadata.recovery_invoice_sent_at)}`
+              : ""}
+            {row.metadata.recovery_invoice_hosted_url ? (
+              <>
+                {" · "}
+                <a
+                  href={row.metadata.recovery_invoice_hosted_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-200 underline decoration-amber-200/40 underline-offset-2 hover:text-white"
+                >
+                  View / pay
+                </a>
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </div>
     ),
   },

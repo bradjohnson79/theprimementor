@@ -1676,12 +1676,151 @@ function invoicePeriodEnd(invoice: Stripe.Invoice): Date | null {
   return unixToDate(periodEnd);
 }
 
+/**
+ * One-off report invoices created via admin "Send Stripe invoice" carry `type=report` on the Invoice object.
+ * Subscription invoices use Checkout metadata on subscription_details — not this path.
+ */
+async function tryHandleReportRecoveryInvoicePaid(
+  db: DbExecutor,
+  invoice: Stripe.Invoice,
+  status: "active" | "past_due",
+  logger: WebhookLogger,
+): Promise<boolean> {
+  if (status !== "active" || invoice.status !== "paid") {
+    return false;
+  }
+
+  const invoiceMetadata = parseMetadata(invoice.metadata, logger, {
+    eventType: "invoice.paid",
+    invoiceId: invoice.id,
+  });
+  if (invoiceMetadata.type !== "report") {
+    return false;
+  }
+
+  const reportId = invoiceMetadata.reportId ?? invoiceMetadata.entityId;
+  if (!reportId) {
+    logger.warn({ invoiceId: invoice.id }, "report_recovery_invoice_missing_report_id");
+    return true;
+  }
+
+  const stripeCustomerId = stripeRef(invoice.customer);
+  const userId = await resolveUserForStripeObject(
+    db,
+    {
+      stripeCustomerId,
+      stripeSubscriptionId: null,
+      metadata: invoiceMetadata,
+    },
+    logger,
+    {
+      eventType: "invoice.paid",
+      invoiceId: invoice.id,
+    },
+  );
+
+  if (!userId) {
+    logger.warn({ invoiceId: invoice.id, reportId }, "report_recovery_invoice_missing_user");
+    return true;
+  }
+
+  if (stripeCustomerId) {
+    await upsertStripeCustomerMapping(
+      db,
+      { userId, stripeCustomerId },
+      logger,
+      { invoiceId: invoice.id, eventType: "invoice.paid" },
+    );
+  }
+
+  const paymentIntentId = stripeRef(
+    (invoice as Stripe.Invoice & { payment_intent?: unknown }).payment_intent,
+  );
+
+  const existingPayment = await findExistingPayment(db, {
+    providerPaymentIntentId: paymentIntentId,
+    entityType: "report",
+    entityId: reportId,
+    bookingId: null,
+  });
+
+  if (!existingPayment) {
+    logger.warn({ invoiceId: invoice.id, reportId }, "report_recovery_invoice_missing_local_payment");
+    return true;
+  }
+
+  if (existingPayment.status === "paid") {
+    logger.info(
+      { invoiceId: invoice.id, paymentId: existingPayment.id, reportId },
+      "report_recovery_invoice_payment_already_paid",
+    );
+    return true;
+  }
+
+  const nextMetadata = mergeMetadata(
+    parseObject(existingPayment.metadata),
+    invoiceMetadata.raw,
+    {
+      source: "stripe_webhook",
+      stripeInvoiceId: invoice.id,
+      stripeInvoicePaidAt: new Date().toISOString(),
+    },
+  );
+
+  const paidPayment = await markPaymentPaidFromWebhook(db as Database, {
+    paymentId: existingPayment.id,
+    providerPaymentIntentId: paymentIntentId,
+    providerCustomerId: stripeCustomerId,
+    metadata: nextMetadata,
+  });
+
+  await emitPaymentSucceededNotifications(db, logger, {
+    userId,
+    userEmail: invoiceMetadata.userEmail,
+    entityId: reportId,
+    paymentId: paidPayment.id,
+    amount: paidPayment.amount_cents,
+    currency: paidPayment.currency,
+    product: "report",
+    orderId: `report_${reportId}`,
+  });
+
+  queueAutoExecution(db as Database, logger, `report_${reportId}`, {
+    eventType: "invoice.paid",
+    invoiceId: invoice.id,
+    userId,
+    reportId,
+  });
+
+  logger.info(
+    {
+      eventType: "invoice.paid",
+      invoiceId: invoice.id,
+      reportId,
+      paymentId: existingPayment.id,
+    },
+    "report_recovery_invoice_paid",
+  );
+
+  return true;
+}
+
 async function handleInvoiceStatus(
   db: DbExecutor,
   invoice: Stripe.Invoice,
   status: "active" | "past_due",
   logger: WebhookLogger,
 ) {
+  const handledReport = await tryHandleReportRecoveryInvoicePaid(db, invoice, status, logger);
+  if (handledReport) {
+    return;
+  }
+
+  if (status === "past_due" && invoice.metadata?.type === "report") {
+    logger.info({ invoiceId: invoice.id }, "report_recovery_invoice_payment_failed");
+    return;
+  }
+
   const stripeSubscriptionId = stripeRef(
     (invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }).subscription ?? null,
   );
