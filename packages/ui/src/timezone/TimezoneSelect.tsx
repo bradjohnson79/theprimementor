@@ -1,4 +1,5 @@
-import { TIMEZONE_OPTIONS } from "@wisdom/utils";
+import { TIMEZONE_OPTIONS, formatTimezoneOptionLabel, getBrowserTimezoneOption } from "@wisdom/utils";
+import { useEffect, useMemo, useRef } from "react";
 
 interface TimezoneSelectProps {
   value: string;
@@ -21,6 +22,19 @@ export function TimezoneSelect({
   name,
   id,
 }: TimezoneSelectProps) {
+  const autoSelectedRef = useRef(false);
+  const detectedTimezone = useMemo(() => getBrowserTimezoneOption(), []);
+
+  useEffect(() => {
+    if (autoSelectedRef.current || value || disabled) {
+      return;
+    }
+    if (detectedTimezone?.ianaName) {
+      autoSelectedRef.current = true;
+      onChange(detectedTimezone.ianaName);
+    }
+  }, [detectedTimezone?.ianaName, disabled, onChange, value]);
+
   return (
     <select
       id={id}
@@ -29,12 +43,15 @@ export function TimezoneSelect({
       required={required}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className={className}
+      className={[
+        className,
+        value ? "border-cyan-300/30 bg-cyan-400/[0.03]" : "",
+      ].filter(Boolean).join(" ")}
     >
       <option value="">{placeholder}</option>
       {TIMEZONE_OPTIONS.map((option) => (
         <option key={option.ianaName} value={option.ianaName}>
-          {option.ianaName} - {option.label}
+          {option.ianaName === value ? "✓ " : ""}{formatTimezoneOptionLabel(option)}
         </option>
       ))}
     </select>

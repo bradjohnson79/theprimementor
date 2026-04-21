@@ -1031,7 +1031,7 @@ export default function Bookings() {
 
               <FormField
                 label="Timezone"
-                helperText="This helps us better tune into your situation and schedule with accuracy."
+                helperText="Choose your timezone (look for your UTC/GMT offset if you're unsure)."
                 errorText={fieldErrors.timezone}
                 isComplete={Boolean(timezone)}
               >

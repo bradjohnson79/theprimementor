@@ -706,7 +706,7 @@ export default function Reports() {
 
               <FormField
                 label="Timezone"
-                helperText="This helps us align the report accurately with your birth details."
+                helperText="Choose your timezone (look for your UTC/GMT offset if you're unsure)."
                 errorText={fieldErrors.timezone}
                 isComplete={Boolean(timezone)}
               >

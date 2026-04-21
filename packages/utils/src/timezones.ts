@@ -109,5 +109,51 @@ export function formatTimezoneLabel(timezone: string): string {
     return timezone;
   }
 
-  return `${option.ianaName} - ${option.label}`;
+  return formatTimezoneOptionLabel(option);
+}
+
+function normalizeOffsetLabel(value: string): string {
+  const normalized = value.replace("GMT", "UTC");
+  if (normalized === "UTC") {
+    return "UTC +00:00";
+  }
+
+  const match = normalized.match(/^UTC([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) {
+    return normalized;
+  }
+
+  const [, sign, hours, minutes = "00"] = match;
+  return `UTC ${sign}${hours.padStart(2, "0")}:${minutes}`;
+}
+
+export function getTimezoneUtcOffsetLabel(timezone: string, date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      timeZoneName: "shortOffset",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const timeZoneNamePart = formatter
+      .formatToParts(date)
+      .find((part) => part.type === "timeZoneName")?.value;
+
+    return normalizeOffsetLabel(timeZoneNamePart ?? "UTC");
+  } catch {
+    return "UTC +00:00";
+  }
+}
+
+function formatTimezoneRegionAndCity(option: TimezoneOption): string {
+  if (option.label.includes(" - ")) {
+    const [regionLabel, cityLabel] = option.label.split(" - ", 2);
+    return `${regionLabel} (${cityLabel})`;
+  }
+
+  return `${option.region} (${option.label})`;
+}
+
+export function formatTimezoneOptionLabel(option: TimezoneOption, date = new Date()): string {
+  return `${getTimezoneUtcOffsetLabel(option.ianaName, date)} — ${formatTimezoneRegionAndCity(option)}`;
 }
