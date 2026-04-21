@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
+import { motion } from "framer-motion";
 import {
   getSuggestedTimezone,
   divin8ReportTierListPrice,
@@ -9,11 +10,19 @@ import {
 } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import { useLocation, useNavigate } from "react-router-dom";
+import FormField from "../components/forms/FormField";
+import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
+import ReviewStep from "../components/forms/ReviewStep";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { api } from "../lib/api";
 import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
+import {
+  createValidationResult,
+  requiredStepMessage,
+  type ValidationErrors,
+} from "../lib/forms/validationEngine";
 import { startReportCheckout } from "../lib/reportCheckout";
 
 interface ReportFormState {
@@ -259,18 +268,6 @@ export default function Reports() {
     [birthplace?.lat, birthplace?.lng, birthplace?.timezone],
   );
 
-  const canSubmit = Boolean(
-    normalizeText(form.fullName)
-      && normalizeText(form.email)
-      && normalizeText(form.phone)
-      && normalizeText(form.birthDate)
-      && timezone
-      && form.consentGiven
-      && isPlaceSelected
-      && !resolvingPlace
-      && !placesError,
-  );
-
   function setFormField<K extends keyof ReportFormState>(field: K, value: ReportFormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => {
@@ -292,20 +289,76 @@ export default function Reports() {
     }
   }
 
+  function setSingleFieldError(field: string, message?: string) {
+    setFieldErrors((current) => {
+      const next = { ...current };
+      if (message) {
+        next[field] = message;
+      } else {
+        delete next[field];
+      }
+      return next;
+    });
+  }
+
+  function validateReportChoiceStep() {
+    return createValidationResult();
+  }
+
+  function validateBasicInfoStep() {
+    const nextErrors: ValidationErrors = {};
+    if (!normalizeText(form.fullName)) nextErrors.fullName = requiredStepMessage("Your full name");
+    if (!normalizeText(form.email)) nextErrors.email = requiredStepMessage("Your email");
+    if (!normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
+    return createValidationResult(nextErrors);
+  }
+
+  function validateBirthDetailsStep() {
+    const nextErrors: ValidationErrors = {};
+    if (!normalizeText(form.birthDate)) nextErrors.birthDate = requiredStepMessage("Your birth date");
+    if (!isPlaceSelected) nextErrors.birthPlace = "Please choose your birthplace from the list so we can prepare the report accurately.";
+    if (!timezone) nextErrors.timezone = requiredStepMessage("Your timezone");
+    return createValidationResult(nextErrors);
+  }
+
+  function validateIntentStep() {
+    return createValidationResult();
+  }
+
+  function validateOptionalStep() {
+    return createValidationResult();
+  }
+
+  function validateReviewStep() {
+    const nextErrors: ValidationErrors = {};
+    if (!form.consentGiven) {
+      nextErrors.consentGiven = "Please confirm these details so your report can move into preparation.";
+    }
+    return createValidationResult(nextErrors);
+  }
+
   function validateForm() {
-    const nextErrors: Record<string, string> = {};
-    if (!normalizeText(form.fullName)) nextErrors.fullName = "Full name is required.";
-    if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
-    if (!normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
-    if (!normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
-    if (!isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
-    if (!timezone) nextErrors.timezone = "Timezone is required.";
-    if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
+    const nextErrors: ValidationErrors = {
+      ...validateBasicInfoStep().errors,
+      ...validateBirthDetailsStep().errors,
+      ...validateReviewStep().errors,
+    };
     return nextErrors;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleFieldBlur(field: "fullName" | "email" | "phone" | "birthDate" | "birthPlace" | "timezone") {
+    const validators: Record<typeof field, () => string | undefined> = {
+      fullName: () => (normalizeText(form.fullName) ? undefined : requiredStepMessage("Your full name")),
+      email: () => (normalizeText(form.email) ? undefined : requiredStepMessage("Your email")),
+      phone: () => (normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
+      birthDate: () => (normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
+      birthPlace: () => (isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can prepare the report accurately."),
+      timezone: () => (timezone ? undefined : requiredStepMessage("Your timezone")),
+    };
+    setSingleFieldError(field, validators[field]());
+  }
+
+  async function handlePurchase() {
     setError(null);
     setSuccess(null);
     setNotice(null);
@@ -362,8 +415,430 @@ export default function Reports() {
   }
 
   const fieldClassName =
-    "mt-1 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30";
-  const labelClassName = "block text-sm text-white/70";
+    "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 pr-10 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30";
+
+  const reviewSections = useMemo(
+    () => [
+      {
+        id: "report-choice",
+        title: "Report Choice",
+        items: [
+          { label: "Tier", value: selectedTierDefinition.label },
+          { label: "Price", value: divin8ReportTierListPrice(selectedTier) },
+        ],
+      },
+      {
+        id: "basic-info",
+        title: "Basic Info",
+        items: [
+          { label: "Full Name", value: form.fullName || "Not provided yet" },
+          { label: "Email", value: form.email || "Not provided yet" },
+          { label: "Phone", value: form.phone || "Not provided yet" },
+        ],
+      },
+      {
+        id: "birth-details",
+        title: "Birth Details",
+        items: [
+          { label: "Birth Date", value: form.birthDate || "Not provided yet" },
+          { label: "Birth Time", value: form.birthTime || "12:00 AM" },
+          { label: "Birthplace", value: form.birthPlaceInput || "Not provided yet" },
+          { label: "Timezone", value: timezone || "Not selected yet" },
+        ],
+      },
+      {
+        id: "report-intent",
+        title: "Report Intent",
+        items: [
+          {
+            label: "Primary Focus",
+            value: PRIMARY_FOCUS_OPTIONS.find((option) => option.value === form.primaryFocus)?.label ?? "No specific focus",
+          },
+        ],
+      },
+      {
+        id: "optional-inputs",
+        title: "Optional Inputs",
+        items: [
+          { label: "Additional Notes", value: normalizeText(form.notes) || "None added" },
+          { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
+        ],
+      },
+    ],
+    [
+      form.birthDate,
+      form.birthPlaceInput,
+      form.birthTime,
+      form.consentGiven,
+      form.email,
+      form.fullName,
+      form.notes,
+      form.phone,
+      form.primaryFocus,
+      selectedTier,
+      selectedTierDefinition.label,
+      timezone,
+    ],
+  );
+
+  const steps = useMemo<StepConfig<ReportFormState>[]>(
+    () => [
+      {
+        id: "report-choice",
+        title: "Choose your report",
+        guidance: "Pick the report that feels right for what you want to explore. Once you choose, we'll guide the details calmly from there.",
+        validate: validateReportChoiceStep,
+        isComplete: () => true,
+        render: () => (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-300/12 text-amber-200">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M2 12h12L13 5l-3 3-2-4-2 4-3-3-1 7z" fill="currentColor" />
+                    <rect x="2" y="12" width="12" height="2" rx="0.5" fill="currentColor" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold text-white">{selectedTierDefinition.label}</h3>
+                  <p className="text-sm text-white/55">{divin8ReportTierListPrice(selectedTier)}</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-white/65">{selectedTierDefinition.description}</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {REPORT_TIER_ORDER.map((tier) => {
+                const definition = getReportTierDefinition(tier);
+                const active = selectedTier === tier;
+                return (
+                  <motion.button
+                    key={tier}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTier(tier);
+                      navigate(resolvePathFromTier(tier));
+                    }}
+                    whileTap={{ scale: 0.99 }}
+                    animate={active ? { scale: 1.03 } : { scale: 1 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className={`relative overflow-hidden rounded-2xl border px-4 py-4 text-left transition ${
+                      active
+                        ? "border-amber-300/60 bg-cyan-400/10 text-white shadow-[0_0_24px_rgba(34,211,238,0.14)]"
+                        : "border-white/10 bg-white/5 text-white hover:border-white/25"
+                    }`}
+                  >
+                    {active ? (
+                      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(250,204,21,0.12),transparent_60%)]" />
+                    ) : null}
+                    <div className="relative">
+                      <p className="text-base font-semibold">{definition.label}</p>
+                      <p className="mt-2 text-sm font-medium text-amber-200/90">{divin8ReportTierListPrice(tier)}</p>
+                      <p className="mt-3 text-sm leading-6 text-white/60">{definition.description}</p>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 px-4 py-4 text-sm text-cyan-100">
+              Great choice. Let's get this set up for you.
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "basic-info",
+        title: "Basic info",
+        guidance: "Let's start with a few simple contact details so everything stays connected to you.",
+        validate: validateBasicInfoStep,
+        isComplete: (state) => Boolean(normalizeText(state.fullName) && normalizeText(state.email) && normalizeText(state.phone)),
+        render: () => (
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              label="Full Name"
+              htmlFor="report-full-name"
+              helperText="Use the full name you'd like attached to the report."
+              errorText={fieldErrors.fullName}
+              isComplete={Boolean(normalizeText(form.fullName))}
+            >
+              <input
+                id="report-full-name"
+                className={fieldClassName}
+                value={form.fullName}
+                onChange={(event) => setFormField("fullName", event.target.value)}
+                onBlur={() => handleFieldBlur("fullName")}
+                placeholder="Your full name"
+              />
+            </FormField>
+
+            <FormField
+              label="Email"
+              htmlFor="report-email"
+              helperText="We'll use the email on your account for updates and delivery."
+              errorText={fieldErrors.email}
+              isComplete={Boolean(normalizeText(form.email))}
+            >
+              <input
+                id="report-email"
+                className={fieldClassName}
+                type="email"
+                readOnly
+                value={form.email}
+                onBlur={() => handleFieldBlur("email")}
+              />
+            </FormField>
+
+            <FormField
+              label="Phone Number"
+              htmlFor="report-phone"
+              helperText="This helps us reach you if we need to clarify anything quickly."
+              errorText={fieldErrors.phone}
+              isComplete={Boolean(normalizeText(form.phone))}
+              className="md:col-span-2"
+            >
+              <input
+                id="report-phone"
+                className={fieldClassName}
+                value={form.phone}
+                onChange={(event) => setFormField("phone", event.target.value)}
+                onBlur={() => handleFieldBlur("phone")}
+                placeholder="Your phone number"
+              />
+            </FormField>
+          </div>
+        ),
+      },
+      {
+        id: "birth-details",
+        title: "Birth details",
+        guidance: "Enter your birth details carefully. If you don't know your birth time, you can leave the default in place and continue.",
+        validate: validateBirthDetailsStep,
+        isComplete: () => Boolean(normalizeText(form.birthDate) && isPlaceSelected && timezone),
+        render: () => (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Birthdate"
+                htmlFor="report-birth-date"
+                helperText="This gives the report its foundation."
+                errorText={fieldErrors.birthDate}
+                isComplete={Boolean(normalizeText(form.birthDate))}
+              >
+                <input
+                  id="report-birth-date"
+                  className={fieldClassName}
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(event) => setFormField("birthDate", event.target.value)}
+                  onBlur={() => handleFieldBlur("birthDate")}
+                />
+              </FormField>
+
+              <FormField
+                label="Birthtime"
+                htmlFor="report-birth-time"
+                helperText="Optional - if unknown, we'll use 12:00 AM."
+                optional
+                isComplete={Boolean(normalizeText(form.birthTime))}
+              >
+                <input
+                  id="report-birth-time"
+                  className={fieldClassName}
+                  type="time"
+                  value={form.birthTime}
+                  onChange={(event) => setFormField("birthTime", event.target.value)}
+                />
+              </FormField>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Birthplace"
+                htmlFor="report-birth-place"
+                helperText="Start typing and choose the right birthplace from the list."
+                errorText={placesError || fieldErrors.birthPlace}
+                isComplete={isPlaceSelected}
+              >
+                <div>
+                  <input
+                    id="report-birth-place"
+                    className={fieldClassName}
+                    value={form.birthPlaceInput}
+                    onChange={(event) => handleBirthplaceInputChange(event.target.value)}
+                    onBlur={() => handleFieldBlur("birthPlace")}
+                    placeholder="Start typing and select your birthplace"
+                    autoComplete="off"
+                  />
+                  {placeSuggestions.length > 0 ? (
+                    <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
+                      {placeSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.placeId}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => void selectSuggestion(suggestion)}
+                          className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm text-white/75 transition last:border-b-0 hover:bg-white/5 hover:text-white"
+                        >
+                          <span className="block font-medium text-white">{suggestion.primaryText}</span>
+                          {suggestion.secondaryText ? (
+                            <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {searchingPlaces ? <span className="mt-2 block text-xs text-white/45">Searching places...</span> : null}
+                  {resolvingPlace ? <span className="mt-2 block text-xs text-white/45">Loading place details...</span> : null}
+                </div>
+              </FormField>
+
+              <FormField
+                label="Timezone"
+                helperText="This helps us align the report accurately with your birth details."
+                errorText={fieldErrors.timezone}
+                isComplete={Boolean(timezone)}
+              >
+                <div>
+                  <TimezoneSelect
+                    value={timezone}
+                    onChange={(value) => {
+                      setTimezone(value);
+                      setTimezoneSource("user");
+                      setSingleFieldError("timezone");
+                    }}
+                    required
+                    className={fieldClassName}
+                  />
+                  {suggestedTimezone ? (
+                    <span className="mt-2 block text-xs text-white/45">
+                      Suggested timezone: <span className="text-white/75">{suggestedTimezone}</span>{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTimezone(suggestedTimezone);
+                          setTimezoneSource("suggested");
+                          setSingleFieldError("timezone");
+                        }}
+                        className="text-accent-cyan transition hover:text-accent-cyan/80"
+                      >
+                        Use this
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+              </FormField>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "report-intent",
+        title: "Report intent",
+        guidance: "If you'd like, choose a primary focus so we can better tune into what matters most for you.",
+        validate: validateIntentStep,
+        isComplete: () => true,
+        render: () => (
+          <FormField
+            label="Primary Focus"
+            helperText="Optional - include if relevant. This helps us better tune into your situation."
+            optional
+            isComplete={Boolean(normalizeText(form.primaryFocus))}
+          >
+            <select
+              value={form.primaryFocus}
+              onChange={(event) => setFormField("primaryFocus", event.target.value)}
+              className={`${fieldClassName} cursor-pointer`}
+            >
+              {PRIMARY_FOCUS_OPTIONS.map((option) => (
+                <option key={option.label} value={option.value} className="bg-slate-950">
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        ),
+      },
+      {
+        id: "optional-inputs",
+        title: "Optional inputs",
+        guidance: "You're almost done. Add any notes that feel relevant, or continue if you'd rather keep it simple.",
+        validate: validateOptionalStep,
+        isComplete: () => true,
+        render: () => (
+          <FormField
+            label="Additional Notes"
+            htmlFor="report-notes"
+            helperText="Optional - include if relevant."
+            optional
+            isComplete={Boolean(normalizeText(form.notes))}
+          >
+            <textarea
+              id="report-notes"
+              className={`${fieldClassName} min-h-[132px]`}
+              value={form.notes}
+              onChange={(event) => setFormField("notes", event.target.value)}
+              placeholder="Anything helpful to know before preparing your report"
+            />
+          </FormField>
+        ),
+      },
+      {
+        id: "review",
+        title: "Review and confirm",
+        guidance: "Everything looks good. You're ready to proceed.",
+        validate: validateReviewStep,
+        isComplete: () => form.consentGiven,
+        render: ({ goToStep }) => (
+          <div className="space-y-4">
+            <ReviewStep
+              sections={reviewSections.map((section, index) => ({
+                ...section,
+                onEdit: () => goToStep(index),
+              }))}
+            />
+
+            <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+              <input
+                type="checkbox"
+                checked={form.consentGiven}
+                onChange={(event) => {
+                  setFormField("consentGiven", event.target.checked);
+                  if (event.target.checked) {
+                    setSingleFieldError("consentGiven");
+                  }
+                }}
+                className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-accent-cyan"
+              />
+              <span>
+                I confirm these details are accurate and consent to using this intake for report preparation.
+                {fieldErrors.consentGiven ? <span className="mt-1 block text-amber-200">{fieldErrors.consentGiven}</span> : null}
+              </span>
+            </label>
+          </div>
+        ),
+      },
+    ],
+    [
+      fieldErrors.birthDate,
+      fieldErrors.birthPlace,
+      fieldErrors.consentGiven,
+      fieldErrors.email,
+      fieldErrors.fullName,
+      fieldErrors.phone,
+      fieldErrors.timezone,
+      form,
+      isPlaceSelected,
+      navigate,
+      placeSuggestions,
+      resolvingPlace,
+      searchingPlaces,
+      selectedTier,
+      selectedTierDefinition,
+      suggestedTimezone,
+      timezone,
+    ],
+  );
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-10">
@@ -422,197 +897,16 @@ export default function Reports() {
             </div>
           ) : null}
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <label className={labelClassName}>
-              Report Tier
-              <select
-                value={selectedTier}
-                onChange={(event) => setSelectedTier(event.target.value as ReportTierId)}
-                className={`${fieldClassName} cursor-pointer`}
-              >
-                {REPORT_TIER_ORDER.map((tier) => (
-                  <option key={tier} value={tier} className="bg-slate-950">
-                    {getReportTierDefinition(tier).label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={labelClassName}>
-                Full Name
-                <input
-                  className={fieldClassName}
-                  value={form.fullName}
-                  onChange={(event) => setFormField("fullName", event.target.value)}
-                  placeholder="Your full name"
-                />
-                {fieldErrors.fullName ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.fullName}</span> : null}
-              </label>
-
-              <label className={labelClassName}>
-                Email
-                <input className={fieldClassName} type="email" readOnly value={form.email} />
-                {fieldErrors.email ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.email}</span> : null}
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={labelClassName}>
-                Phone Number
-                <input
-                  className={fieldClassName}
-                  value={form.phone}
-                  onChange={(event) => setFormField("phone", event.target.value)}
-                  placeholder="Your phone number"
-                />
-                {fieldErrors.phone ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.phone}</span> : null}
-              </label>
-
-              <label className={labelClassName}>
-                Birthdate
-                <input
-                  className={fieldClassName}
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(event) => setFormField("birthDate", event.target.value)}
-                />
-                {fieldErrors.birthDate ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.birthDate}</span> : null}
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={labelClassName}>
-                Birthtime (optional)
-                <input
-                  className={fieldClassName}
-                  type="time"
-                  value={form.birthTime}
-                  onChange={(event) => setFormField("birthTime", event.target.value)}
-                />
-                <span className="mt-1 block text-xs text-white/45">If unknown, it will default to 12:00 AM.</span>
-              </label>
-
-              <label className={labelClassName}>
-                Birthplace
-                <input
-                  className={fieldClassName}
-                  value={form.birthPlaceInput}
-                  onChange={(event) => handleBirthplaceInputChange(event.target.value)}
-                  placeholder="Start typing and select your birthplace"
-                  autoComplete="off"
-                />
-                {placeSuggestions.length > 0 ? (
-                  <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
-                    {placeSuggestions.map((suggestion) => (
-                      <button
-                        key={suggestion.placeId}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => void selectSuggestion(suggestion)}
-                        className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm text-white/75 transition last:border-b-0 hover:bg-white/5 hover:text-white"
-                      >
-                        <span className="block font-medium text-white">{suggestion.primaryText}</span>
-                        {suggestion.secondaryText ? (
-                          <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <span className="mt-1 block text-xs text-white/45">
-                  Start typing and select your birthplace from the list
-                </span>
-                {searchingPlaces ? <span className="mt-1 block text-xs text-white/45">Searching places...</span> : null}
-                {resolvingPlace ? <span className="mt-1 block text-xs text-white/45">Loading place details...</span> : null}
-                {placesError ? <span className="mt-1 block text-sm text-red-300">{placesError}</span> : null}
-                {fieldErrors.birthPlace ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.birthPlace}</span> : null}
-              </label>
-            </div>
-
-            <label className={labelClassName}>
-              Timezone
-              <TimezoneSelect
-                value={timezone}
-                onChange={(value) => {
-                  setTimezone(value);
-                  setTimezoneSource("user");
-                  setFieldErrors((current) => {
-                    const next = { ...current };
-                    delete next.timezone;
-                    return next;
-                  });
-                }}
-                required
-                className={fieldClassName}
-              />
-              <span className="mt-1 block text-xs text-white/45">
-                Select the exact IANA timezone for your birth details. Place lookup can suggest one, but it will never be applied automatically.
-              </span>
-              {suggestedTimezone ? (
-                <span className="mt-1 block text-xs text-white/45">
-                  Suggested timezone: <span className="text-white/75">{suggestedTimezone}</span>{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTimezone(suggestedTimezone);
-                      setTimezoneSource("suggested");
-                      setFieldErrors((current) => {
-                        const next = { ...current };
-                        delete next.timezone;
-                        return next;
-                      });
-                    }}
-                    className="text-accent-cyan transition hover:text-accent-cyan/80"
-                  >
-                    Use this
-                  </button>
-                </span>
-              ) : null}
-              {fieldErrors.timezone ? <span className="mt-1 block text-sm text-red-300">{fieldErrors.timezone}</span> : null}
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={labelClassName}>
-                Primary Focus (optional)
-                <select
-                  value={form.primaryFocus}
-                  onChange={(event) => setFormField("primaryFocus", event.target.value)}
-                  className={`${fieldClassName} cursor-pointer`}
-                >
-                  {PRIMARY_FOCUS_OPTIONS.map((option) => (
-                    <option key={option.label} value={option.value} className="bg-slate-950">
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={labelClassName}>
-                Additional Notes (optional)
-                <textarea
-                  className={`${fieldClassName} min-h-[112px]`}
-                  value={form.notes}
-                  onChange={(event) => setFormField("notes", event.target.value)}
-                  placeholder="Anything helpful to know before preparing your report"
-                />
-              </label>
-            </div>
-
-            <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
-              <input
-                type="checkbox"
-                checked={form.consentGiven}
-                onChange={(event) => setFormField("consentGiven", event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-accent-cyan"
-              />
-              <span>
-                I confirm these details are accurate and consent to using this intake for report preparation.
-                {fieldErrors.consentGiven ? <span className="mt-1 block text-red-300">{fieldErrors.consentGiven}</span> : null}
-              </span>
-            </label>
-
-            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
+          <FormStepper
+            steps={steps}
+            state={form}
+            resetKey={location.pathname}
+            onValidationErrors={setFieldErrors}
+            onComplete={handlePurchase}
+            completeLabel="Purchase Report"
+            isSubmitting={submitting}
+            submitError={error}
+            footerStart={(
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}
@@ -620,20 +914,8 @@ export default function Reports() {
               >
                 &larr; Back to Dashboard
               </button>
-
-              <button
-                type="submit"
-                disabled={!canSubmit || submitting}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(255,215,0,0.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-                  <path d="M2 12h12L13 5l-3 3-2-4-2 4-3-3-1 7z" fill="currentColor" />
-                  <rect x="2" y="12" width="12" height="2" rx="0.5" fill="currentColor" />
-                </svg>
-                {submitting ? "Processing..." : "Purchase Report"}
-              </button>
-            </div>
-          </form>
+            )}
+          />
         </div>
       </section>
     </div>
