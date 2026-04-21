@@ -7,6 +7,7 @@ import { formatPacificDateOnly } from "@wisdom/utils";
 import { api } from "../lib/api";
 import { syncOwnedCheckoutSession, type CheckoutSyncEntityType } from "../lib/checkoutSessionSync";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
+import TraumaCourseCard from "../components/dashboard/TraumaCourseCard";
 
 interface BookingSummary {
   id: string;
@@ -344,6 +345,8 @@ export default function Dashboard() {
                 <p className="mt-3 text-2xl font-semibold text-white">{statsLoading ? "..." : reportsPending}</p>
               </div>
             </section>
+
+            <TraumaCourseCard />
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {recordings.length > 0 ? (

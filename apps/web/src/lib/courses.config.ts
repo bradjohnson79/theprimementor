@@ -28,7 +28,10 @@ export interface CourseProgressState {
   lastViewedLesson: number;
 }
 
+export type CourseStatus = "not_started" | "in_progress" | "completed";
+
 export const TTT_PROGRESS_STORAGE_KEY = "wisdomtransmissions:courses:ttt-progress";
+export const TTT_COURSE_ROUTE = "/courses/trauma-transcendence";
 
 export const TTT_COURSE_SUMMARY =
   "Through this 10-day guided course, you will learn a proven technique designed to neutralize trauma and cultivate a deep sense of inner peace.";
@@ -40,8 +43,9 @@ export const COURSES: readonly CourseCardDefinition[] = [
     statusLabel: "Available Now",
     description: TTT_COURSE_SUMMARY,
     ctaLabel: "Enter Course",
-    route: "/dashboard/courses/ttt",
+    route: TTT_COURSE_ROUTE,
     available: true,
+    subtitle: "Free • 10 Days",
   },
   {
     slug: "prime-law",
@@ -144,4 +148,58 @@ export function createInitialCourseProgress(): CourseProgressState {
     completedLessons: [],
     lastViewedLesson: 1,
   };
+}
+
+export function readTTTProgressState(): CourseProgressState {
+  if (typeof window === "undefined") {
+    return createInitialCourseProgress();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TTT_PROGRESS_STORAGE_KEY);
+    if (!raw) {
+      return createInitialCourseProgress();
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CourseProgressState> | null;
+    const completedLessons = Array.isArray(parsed?.completedLessons)
+      ? [...new Set(parsed.completedLessons.filter((value): value is number => (
+        typeof value === "number" && value >= 1 && value <= TTT_TOTAL_LESSONS
+      )))]
+      : [];
+    const lastViewedLesson = typeof parsed?.lastViewedLesson === "number"
+      && parsed.lastViewedLesson >= 1
+      && parsed.lastViewedLesson <= TTT_TOTAL_LESSONS
+      ? parsed.lastViewedLesson
+      : 1;
+
+    return {
+      completedLessons: completedLessons.sort((left, right) => left - right),
+      lastViewedLesson,
+    };
+  } catch {
+    return createInitialCourseProgress();
+  }
+}
+
+export function writeTTTProgressState(progress: CourseProgressState) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(TTT_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+  } catch {
+    /* ignore write failures */
+  }
+}
+
+export function getTTTCourseStatus(progress: CourseProgressState): CourseStatus {
+  if (progress.completedLessons.length >= TTT_TOTAL_LESSONS) {
+    return "completed";
+  }
+  if (progress.completedLessons.length > 0 || progress.lastViewedLesson > 1) {
+    return "in_progress";
+  }
+  return "not_started";
 }

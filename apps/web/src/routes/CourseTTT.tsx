@@ -8,62 +8,18 @@ import {
   TTT_COURSE_SUMMARY,
   TTT_LESSONS,
   TTT_MATERIALS,
-  TTT_PROGRESS_STORAGE_KEY,
   TTT_TOTAL_LESSONS,
-  createInitialCourseProgress,
+  readTTTProgressState,
+  writeTTTProgressState,
   type CourseProgressState,
 } from "../lib/courses.config";
-
-function readProgressState(): CourseProgressState {
-  if (typeof window === "undefined") {
-    return createInitialCourseProgress();
-  }
-
-  try {
-    const raw = window.localStorage.getItem(TTT_PROGRESS_STORAGE_KEY);
-    if (!raw) {
-      return createInitialCourseProgress();
-    }
-
-    const parsed = JSON.parse(raw) as Partial<CourseProgressState> | null;
-    const completedLessons = Array.isArray(parsed?.completedLessons)
-      ? [...new Set(parsed.completedLessons.filter((value): value is number => (
-        typeof value === "number" && value >= 1 && value <= TTT_TOTAL_LESSONS
-      )))]
-      : [];
-    const lastViewedLesson = typeof parsed?.lastViewedLesson === "number"
-      && parsed.lastViewedLesson >= 1
-      && parsed.lastViewedLesson <= TTT_TOTAL_LESSONS
-      ? parsed.lastViewedLesson
-      : 1;
-
-    return {
-      completedLessons: completedLessons.sort((left, right) => left - right),
-      lastViewedLesson,
-    };
-  } catch {
-    return createInitialCourseProgress();
-  }
-}
-
-function writeProgressState(progress: CourseProgressState) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(TTT_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
-  } catch {
-    /* ignore write failures */
-  }
-}
 
 function getLessonByDay(day: number) {
   return TTT_LESSONS.find((lesson) => lesson.day === day) ?? TTT_LESSONS[0];
 }
 
 function createInitialCourseState() {
-  const progress = readProgressState();
+  const progress = readTTTProgressState();
   return {
     progress,
     selectedDay: progress.lastViewedLesson,
@@ -88,7 +44,7 @@ export default function CourseTTT() {
   const completionMomentShownRef = useRef(false);
 
   useEffect(() => {
-    writeProgressState(progress);
+    writeTTTProgressState(progress);
   }, [progress]);
 
   useEffect(() => {

@@ -1,30 +1,25 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { BookOpen } from "lucide-react";
-import { COURSES, TTT_PROGRESS_STORAGE_KEY, createInitialCourseProgress } from "../lib/courses.config";
+import {
+  COURSES,
+  getTTTCourseStatus,
+  readTTTProgressState,
+  type CourseStatus,
+} from "../lib/courses.config";
 
-function readResumeDay() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(TTT_PROGRESS_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as { lastViewedLesson?: unknown };
-    return typeof parsed.lastViewedLesson === "number" && parsed.lastViewedLesson > 0
-      ? parsed.lastViewedLesson
-      : createInitialCourseProgress().lastViewedLesson;
-  } catch {
-    return null;
-  }
+function getCourseActionLabel(status: CourseStatus) {
+  if (status === "completed") return "Completed ✓";
+  if (status === "in_progress") return "Continue Course";
+  return "Start the Course";
 }
 
 export default function Courses() {
-  const resumeDay = readResumeDay();
+  const progress = readTTTProgressState();
+  const tttStatus = getTTTCourseStatus(progress);
+  const resumeDay = tttStatus === "in_progress" ? progress.lastViewedLesson : null;
+  const featuredCourse = COURSES.find((course) => course.slug === "ttt") ?? COURSES[0];
+  const remainingCourses = COURSES.filter((course) => course.slug !== "ttt");
 
   return (
     <motion.div
@@ -50,7 +45,44 @@ export default function Courses() {
         </section>
 
         <section className="grid gap-5 lg:grid-cols-2">
-          {COURSES.map((course) => {
+          <article className="dashboard-panel cosmic-motion relative overflow-hidden border border-cyan-300/18 lg:col-span-2">
+            <motion.div
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.12),transparent_44%)]"
+              animate={{ opacity: [0.72, 1, 0.8] }}
+              transition={{ duration: 3.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            />
+            <div className="relative flex h-full flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/65">{featuredCourse.statusLabel}</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">{featuredCourse.title}</h2>
+                <p className="mt-2 text-sm font-medium text-cyan-100/80">{featuredCourse.subtitle ?? "Free • 10 Days"}</p>
+                <p className="mt-4 text-sm leading-relaxed text-white/70">{featuredCourse.description}</p>
+                {resumeDay ? (
+                  <p className="mt-4 text-xs font-medium uppercase tracking-[0.22em] text-cyan-200/65">
+                    Resume from Day {resumeDay}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col items-start gap-3 lg:items-end">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                  {featuredCourse.subtitle ?? "Free • 10 Days"}
+                </span>
+                <Link
+                  to={featuredCourse.route}
+                  className={`dashboard-action-primary ${
+                    tttStatus === "completed"
+                      ? "border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/12 hover:text-teal-100"
+                      : ""
+                  }`}
+                >
+                  {getCourseActionLabel(tttStatus)}
+                </Link>
+              </div>
+            </div>
+          </article>
+
+          {remainingCourses.map((course) => {
             const isTTT = course.slug === "ttt";
 
             if (course.available) {

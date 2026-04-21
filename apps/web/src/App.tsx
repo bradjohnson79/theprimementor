@@ -33,6 +33,7 @@ import {
   REGENERATION_BOOKING_PATH,
   REGENERATION_LANDING_PATH,
 } from "./lib/sessionLandingPaths";
+import { TTT_COURSE_ROUTE } from "./lib/courses.config";
 
 const Courses = lazy(() => import("./routes/Courses"));
 const CourseTTT = lazy(() => import("./routes/CourseTTT"));
@@ -100,6 +101,14 @@ export default function App() {
               element={(
                 <Suspense fallback={<RouteFallback />}>
                   <Courses />
+                </Suspense>
+              )}
+            />
+            <Route
+              path={TTT_COURSE_ROUTE}
+              element={(
+                <Suspense fallback={<RouteFallback />}>
+                  <CourseTTT />
                 </Suspense>
               )}
             />

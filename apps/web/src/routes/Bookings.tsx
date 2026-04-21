@@ -192,6 +192,7 @@ export default function Bookings() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [birthTimeEdited, setBirthTimeEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -359,6 +360,7 @@ export default function Bookings() {
     setBirthplace(null);
     setTimezone("");
     setTimezoneSource("user");
+    setBirthTimeEdited(false);
   }, [selectedSessionType]);
 
   function setFormField<K extends keyof IntakeFormState>(field: K, value: IntakeFormState[K]) {
@@ -953,16 +955,24 @@ export default function Bookings() {
               <FormField
                 label="Birthtime"
                 htmlFor="session-birth-time"
-                helperText="Optional - if unknown, we'll use 12:00 AM."
+                helperText="Do you know your birth time? If not, you can leave this as is and continue."
+                focusedHelperText="Adding your birth time allows for a more precise reading, but it's not required."
                 optional
-                isComplete={Boolean(normalizeText(form.birthTime))}
+                isComplete={birthTimeEdited && Boolean(normalizeText(form.birthTime))}
+                interacted={birthTimeEdited}
+                successText="Perfect, that helps refine your reading."
+                successTone="neutral"
+                showSuccessIcon={false}
               >
                 <input
                   id="session-birth-time"
                   className={fieldClassName}
                   type="time"
                   value={form.birthTime}
-                  onChange={(event) => setFormField("birthTime", event.target.value)}
+                  onChange={(event) => {
+                    setBirthTimeEdited(true);
+                    setFormField("birthTime", event.target.value);
+                  }}
                 />
               </FormField>
             </div>
