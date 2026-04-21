@@ -195,6 +195,7 @@ const ABOUT_ITEMS = [
 const PRIME_MENTOR_FACEBOOK_URL = "https://www.facebook.com/primementorfacebook";
 const PRIME_MENTOR_YOUTUBE_URL = "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA";
 const PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL = "https://www.youtube.com/embed/Gs_LDlzSwEw?rel=0&modestbranding=1";
+const TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC = "/images/Trauma-Transcendence-Technique-banner.png";
 
 interface LandingSectionProps {
   id: string;
@@ -447,6 +448,61 @@ export default function Home() {
     <div className="home-front-page relative text-white">
       <HeroSection />
       <OverviewSection />
+
+      <LandingSection id="courses">
+        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          <SectionMediaPanel
+            eyebrow="Courses"
+            title="Trauma Transcendence Technique"
+            description="A guided 10-day e-course for release, realignment, and inner transformation."
+            imageSrc={TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC}
+            imageAlt="Trauma Transcendence Technique e-course banner"
+            imageHd169Frame
+            className="min-h-[19rem]"
+          />
+
+          <SectionContentBlock
+            label="Courses"
+            title="Begin Your Transformation — Free Access"
+            description="Create your free Prime Mentor account and unlock the Trauma Transcendence Technique — a powerful 10-day e-course designed to help you release, realign, and rise into a new state of being."
+          >
+            <div className="space-y-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200/62">With your free dashboard, you can:</p>
+                <ul className="mt-4 space-y-3 text-sm leading-7 text-white/68 sm:text-base">
+                  <li><strong className="font-semibold text-white">Access the full 10-day Trauma Transcendence Technique E-Course</strong></li>
+                  <li>Book personalized mentoring and regeneration sessions</li>
+                  <li>Order advanced Divin8 reports and insights</li>
+                  <li>Register for exclusive events like the Mentoring Circle</li>
+                  <li>View and manage your session recordings anytime</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <p className="max-w-2xl text-sm leading-7 text-white/68 sm:text-base">
+                  This is your starting point. Your gateway into clarity, expansion, and true internal freedom.
+                </p>
+                <p className="max-w-2xl text-sm leading-7 text-white/68 sm:text-base">
+                  Create your free account and step into your next level.
+                </p>
+              </div>
+
+              <div className="pt-1">
+                <Link
+                  to="/sign-up"
+                  onClick={() => trackCtaClick("create_free_account", "home_courses", {
+                    href: "/sign-up",
+                    title: "Trauma Transcendence Technique",
+                  })}
+                  className="inline-flex items-center justify-center rounded-xl bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  Create Your Free Account
+                </Link>
+              </div>
+            </div>
+          </SectionContentBlock>
+        </div>
+      </LandingSection>
 
       <LandingSection id="events">
         <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
