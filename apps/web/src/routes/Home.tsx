@@ -448,6 +448,40 @@ export default function Home() {
       <HeroSection />
       <OverviewSection />
 
+      <LandingSection id="events">
+        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+          <SectionMediaPanel
+            eyebrow="Events"
+            title="Live Field"
+            description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
+            imageSrc={mentoringCircleImage}
+            imageAlt="The Mentoring Circle, last Sunday of each month — The Prime Mentor, Brad Johnson"
+            imageHd169Frame
+            className="min-h-[19rem]"
+          />
+
+          <SectionContentBlock
+            label="Events"
+            title="Monthly Webinar & Live Weekly Podcast"
+            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for our monthly Mentoring Circle held on the last Sunday of every month."
+          >
+            <CompactCardGrid
+              items={EVENT_ITEMS.map((item) => item.cta ? {
+                ...item,
+                cta: {
+                  ...item.cta,
+                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
+                    href: item.cta?.href,
+                    title: item.title,
+                  }),
+                },
+              } : item)}
+              columns={2}
+            />
+          </SectionContentBlock>
+        </div>
+      </LandingSection>
+
       <section className="w-full border-t border-white/8 px-6 py-16">
         <div className="mx-auto max-w-5xl text-center">
           <h2 className="mb-6 text-2xl font-semibold text-white md:text-3xl">Stay Informed through our Newsletter</h2>
@@ -581,40 +615,6 @@ export default function Home() {
               <MembershipCard key={membership.title} {...membership} />
             ))}
           </div>
-        </div>
-      </LandingSection>
-
-      <LandingSection id="events">
-        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-          <SectionMediaPanel
-            eyebrow="Events"
-            title="Live Field"
-            description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
-            imageSrc={mentoringCircleImage}
-            imageAlt="The Mentoring Circle, last Sunday of each month — The Prime Mentor, Brad Johnson"
-            imageHd169Frame
-            className="min-h-[19rem]"
-          />
-
-          <SectionContentBlock
-            label="Events"
-            title="Monthly Webinar & Live Weekly Podcast"
-            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for our monthly Mentoring Circle held on the last Sunday of every month."
-          >
-            <CompactCardGrid
-              items={EVENT_ITEMS.map((item) => item.cta ? {
-                ...item,
-                cta: {
-                  ...item.cta,
-                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
-                    href: item.cta?.href,
-                    title: item.title,
-                  }),
-                },
-              } : item)}
-              columns={2}
-            />
-          </SectionContentBlock>
         </div>
       </LandingSection>
 
