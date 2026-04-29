@@ -43,4 +43,11 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
     name: "Nicola Bourne",
     role: "East Sussex, UK",
   },
+  {
+    id: "7",
+    quote:
+      "The Deep dive report is certainly well titled! The Multi-layered report is the most detailed, concise reading I've ever purchased! From the overview details to understanding and integrating challenges, it will continue to be a useful reference guide as I continue my journey. Thank you so much!",
+    name: "Craig Stickler",
+    role: "Texas",
+  },
 ];
