@@ -13,6 +13,7 @@ import type {
   AdminOrderAvailabilityDay,
   AdminOrderDetailResponse,
   AdminOrderGenerateResponse,
+  AdminOrderIntakeUpdateBody,
   AdminOrderMarkPaidResponse,
   AdminOrderRecoveryInvoiceResponse,
 } from "../lib/orders";
@@ -91,6 +92,74 @@ const REFUND_REASON_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
+interface IntakeFormState {
+  phone: string;
+  birthDate: string;
+  birthTime: string;
+  location: string;
+  timezone: string;
+  consentGiven: boolean;
+  topics: string;
+  goals: string;
+  healthFocusAreas: string;
+  other: string;
+  submittedQuestions: string;
+  notes: string;
+}
+
+function listToLines(values: string[]) {
+  return values.join("\n");
+}
+
+function healthFocusAreasToLines(values: AdminOrder["metadata"]["intake"]["health_focus_areas"]) {
+  return values.map((entry) => `${entry.name} | ${entry.severity}`).join("\n");
+}
+
+function createIntakeFormState(order: AdminOrder): IntakeFormState {
+  const intake = order.metadata.intake;
+  return {
+    phone: intake.phone ?? "",
+    birthDate: intake.birth_date ?? "",
+    birthTime: intake.birth_time ?? "",
+    location: intake.location ?? "",
+    timezone: intake.timezone ?? "",
+    consentGiven: intake.consent_given === true,
+    topics: listToLines(intake.topics),
+    goals: listToLines(intake.goals),
+    healthFocusAreas: healthFocusAreasToLines(intake.health_focus_areas),
+    other: intake.other ?? "",
+    submittedQuestions: listToLines(intake.submitted_questions),
+    notes: intake.notes ?? "",
+  };
+}
+
+function splitLines(value: string) {
+  return value
+    .split(/\r?\n|,/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseHealthFocusAreas(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [namePart, severityPart] = entry.split("|").map((part) => part.trim());
+      const severity = Number(severityPart ?? "5");
+      if (!namePart || !Number.isInteger(severity) || severity < 1 || severity > 10) {
+        throw new Error("Health focus areas must be entered as \"Name | severity\", with severity from 1 to 10.");
+      }
+      return { name: namePart, severity };
+    });
+}
+
+function nullableFormValue(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function getRefundPolicyNote(order: AdminOrder) {
   if (order.type === "subscription") {
     return "Subscriptions are non-refundable, but they can be canceled before the next billing cycle.";
@@ -123,6 +192,9 @@ export default function OrderDetail() {
   const [refunding, setRefunding] = useState(false);
   const [sendingRecoveryInvoice, setSendingRecoveryInvoice] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [editingIntake, setEditingIntake] = useState(false);
+  const [intakeForm, setIntakeForm] = useState<IntakeFormState | null>(null);
+  const [savingIntake, setSavingIntake] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -324,6 +396,70 @@ export default function OrderDetail() {
       setActionError(err instanceof Error ? err.message : "Failed to mark order as paid.");
     } finally {
       setMarkingPaid(false);
+    }
+  }
+
+  function handleStartEditingIntake() {
+    if (!order) return;
+    setIntakeForm(createIntakeFormState(order));
+    setEditingIntake(true);
+    setActionError(null);
+    setActionSuccess(null);
+  }
+
+  function handleCancelEditingIntake() {
+    setEditingIntake(false);
+    setIntakeForm(null);
+  }
+
+  function updateIntakeForm(patch: Partial<IntakeFormState>) {
+    setIntakeForm((current) => current ? { ...current, ...patch } : current);
+  }
+
+  async function handleSaveIntake() {
+    if (!orderId || !intakeForm) return;
+
+    let payload: AdminOrderIntakeUpdateBody;
+    try {
+      payload = {
+        phone: nullableFormValue(intakeForm.phone),
+        birth_date: nullableFormValue(intakeForm.birthDate),
+        birth_time: nullableFormValue(intakeForm.birthTime),
+        location: nullableFormValue(intakeForm.location),
+        timezone: nullableFormValue(intakeForm.timezone),
+        consent_given: intakeForm.consentGiven,
+        topics: splitLines(intakeForm.topics),
+        goals: splitLines(intakeForm.goals),
+        health_focus_areas: parseHealthFocusAreas(intakeForm.healthFocusAreas),
+        other: nullableFormValue(intakeForm.other),
+        submitted_questions: splitLines(intakeForm.submittedQuestions),
+        notes: nullableFormValue(intakeForm.notes),
+      };
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Invalid intake form data.");
+      setActionSuccess(null);
+      return;
+    }
+
+    setSavingIntake(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.patch(
+        `/admin/orders/${orderId}/intake`,
+        payload,
+        token,
+      )) as AdminOrderDetailResponse;
+      setOrder(response.data);
+      setIntakeForm(createIntakeFormState(response.data));
+      setEditingIntake(false);
+      setActionSuccess("Intake form data updated.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update intake form data.");
+    } finally {
+      setSavingIntake(false);
     }
   }
 
@@ -718,53 +854,212 @@ export default function OrderDetail() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <h3 className="text-lg font-semibold text-white">Intake Form Data</h3>
-          <dl className="mt-4 space-y-3">
-            <div>
-              <dt className="text-xs text-white/40">Phone</dt>
-              <dd className="text-white/85">{renderValue(order.metadata.intake.phone)}</dd>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-white">Intake Form Data</h3>
+            {order.type === "session" || order.type === "report" ? (
+              <button
+                type="button"
+                onClick={editingIntake ? handleCancelEditingIntake : handleStartEditingIntake}
+                disabled={savingIntake}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {editingIntake ? "Cancel" : "Edit"}
+              </button>
+            ) : null}
+          </div>
+
+          {editingIntake && intakeForm ? (
+            <div className="mt-4 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs text-white/40">Phone</span>
+                  <input
+                    type="text"
+                    value={intakeForm.phone}
+                    onChange={(event) => updateIntakeForm({ phone: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-white/40">Birth Date</span>
+                  <input
+                    type="date"
+                    value={intakeForm.birthDate}
+                    onChange={(event) => updateIntakeForm({ birthDate: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-white/40">Birth Time</span>
+                  <input
+                    type="time"
+                    value={intakeForm.birthTime}
+                    onChange={(event) => updateIntakeForm({ birthTime: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-white/40">Timezone</span>
+                  <input
+                    type="text"
+                    value={intakeForm.timezone}
+                    onChange={(event) => updateIntakeForm({ timezone: event.target.value })}
+                    placeholder="America/Vancouver"
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-cyan-300/40"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Location</span>
+                <input
+                  type="text"
+                  value={intakeForm.location}
+                  onChange={(event) => updateIntakeForm({ location: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={intakeForm.consentGiven}
+                  onChange={(event) => updateIntakeForm({ consentGiven: event.target.checked })}
+                  className="h-4 w-4 accent-cyan-300"
+                />
+                Consent given
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs text-white/40">Focus Topics</span>
+                  <textarea
+                    value={intakeForm.topics}
+                    onChange={(event) => updateIntakeForm({ topics: event.target.value })}
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-white/40">Mentoring Goals</span>
+                  <textarea
+                    value={intakeForm.goals}
+                    onChange={(event) => updateIntakeForm({ goals: event.target.value })}
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Health Focus Areas</span>
+                <textarea
+                  value={intakeForm.healthFocusAreas}
+                  onChange={(event) => updateIntakeForm({ healthFocusAreas: event.target.value })}
+                  rows={3}
+                  placeholder="Left hand and shoulder | 7"
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-cyan-300/40"
+                />
+                <span className="mt-1 block text-xs text-white/35">One per line: name | severity 1-10</span>
+              </label>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Other Detail</span>
+                <textarea
+                  value={intakeForm.other}
+                  onChange={(event) => updateIntakeForm({ other: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Submitted Questions</span>
+                <textarea
+                  value={intakeForm.submittedQuestions}
+                  onChange={(event) => updateIntakeForm({ submittedQuestions: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Notes</span>
+                <textarea
+                  value={intakeForm.notes}
+                  onChange={(event) => updateIntakeForm({ notes: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveIntake()}
+                  disabled={savingIntake}
+                  className="rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/20 via-sky-400/20 to-violet-400/20 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingIntake ? "Saving..." : "Save Intake"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelEditingIntake}
+                  disabled={savingIntake}
+                  className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white/70 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <div>
-              <dt className="text-xs text-white/40">Birth Date</dt>
-              <dd className="text-white/85">{renderValue(order.metadata.intake.birth_date)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Birth Time</dt>
-              <dd className="text-white/85">{renderValue(order.metadata.intake.birth_time)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Location</dt>
-              <dd className="text-white/85">{renderValue(order.metadata.intake.location)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Consent Given</dt>
-              <dd className="text-white/85">{renderBoolean(order.metadata.intake.consent_given)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Focus Topics</dt>
-              <dd className="text-white/85">{renderList(order.metadata.intake.topics)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Mentoring Goals</dt>
-              <dd className="text-white/85">{renderList(order.metadata.intake.goals)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Health Focus Areas</dt>
-              <dd className="text-white/85">{renderHealthFocusAreas(order.metadata.intake.health_focus_areas)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Other Detail</dt>
-              <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.other)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Submitted Questions</dt>
-              <dd className="text-white/85">{renderList(order.metadata.intake.submitted_questions)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-white/40">Notes</dt>
-              <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.notes)}</dd>
-            </div>
-          </dl>
+          ) : (
+            <dl className="mt-4 space-y-3">
+              <div>
+                <dt className="text-xs text-white/40">Phone</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.phone)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Birth Date</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.birth_date)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Birth Time</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.birth_time)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Location</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.location)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Consent Given</dt>
+                <dd className="text-white/85">{renderBoolean(order.metadata.intake.consent_given)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Focus Topics</dt>
+                <dd className="text-white/85">{renderList(order.metadata.intake.topics)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Mentoring Goals</dt>
+                <dd className="text-white/85">{renderList(order.metadata.intake.goals)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Health Focus Areas</dt>
+                <dd className="text-white/85">{renderHealthFocusAreas(order.metadata.intake.health_focus_areas)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Other Detail</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.other)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Submitted Questions</dt>
+                <dd className="text-white/85">{renderList(order.metadata.intake.submitted_questions)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Notes</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.notes)}</dd>
+              </div>
+            </dl>
+          )}
         </Card>
 
         <Card>

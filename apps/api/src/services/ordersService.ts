@@ -1039,10 +1039,14 @@ function parseReportPurchaseIntake(value: unknown) {
   return {
     fullName: getString(value.fullName),
     email: getString(value.email),
+    phone: getString(value.phone),
     birthDate: getString(value.birthDate),
     birthTime: getString(value.birthTime),
     birthLocation: getString(birthplace?.name),
+    birthTimezone: getString(birthplace?.timezone) ?? getString(value.birthTimezone),
+    consentGiven: getBoolean(value.consentGiven),
     primaryFocus: getString(value.primaryFocus),
+    questions: getStringArray(value.questions),
     notes: getString(value.notes),
   };
 }
@@ -1069,6 +1073,9 @@ function parseBookingIntakeSnapshot(value: unknown) {
     phone: getString(value.phone),
     timezone: getString(value.timezone),
     consentGiven: getBoolean(value.consentGiven),
+    submittedQuestions: getStringArray(value.submittedQuestions).length > 0
+      ? getStringArray(value.submittedQuestions)
+      : getStringArray(value.submitted_questions),
     availability: parseBookingAvailability(value.availability),
     intake,
     notes: getString(value.notes),
@@ -1378,10 +1385,13 @@ function createSessionCandidate(
     intakeSnapshot?.location ?? row.birthPlaceName,
     row.birthPlace,
   );
-  const submittedQuestions = buildQuestions(
+  const inferredSubmittedQuestions = buildQuestions(
     [other],
     [topics, goals, healthFocusAreas.map((area) => `${area.name} (severity ${area.severity}/10)`)],
   );
+  const submittedQuestions = intakeSnapshot?.submittedQuestions && intakeSnapshot.submittedQuestions.length > 0
+    ? intakeSnapshot.submittedQuestions
+    : inferredSubmittedQuestions;
   const orderId = getOrderId("session", row.id);
   const executionReport = executionReportsByOrderId.get(orderId) ?? null;
 
@@ -1531,7 +1541,12 @@ function createReportCandidate(
         birth_date: intake?.birthDate ?? null,
         birth_time: intake?.birthTime ?? null,
         location: birthLocation,
-        submitted_questions: buildQuestions([intake?.primaryFocus ?? null]),
+        phone: intake?.phone ?? null,
+        timezone: intake?.birthTimezone ?? null,
+        consent_given: intake?.consentGiven ?? null,
+        submitted_questions: intake?.questions && intake.questions.length > 0
+          ? intake.questions
+          : buildQuestions([intake?.primaryFocus ?? null]),
         notes: intake?.notes ?? null,
       },
       availability: null,

@@ -7,6 +7,7 @@ import { refundAdminOrder } from "../services/orderRefundService.js";
 import { dispatchOrderExecution } from "../services/divin8ExecutionDispatcher.js";
 import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } from "../services/ordersService.js";
 import { markAdminOrderManualPaid } from "../services/adminOrderPaymentService.js";
+import { updateAdminOrderIntake, type AdminOrderIntakeUpdateInput } from "../services/adminOrderIntakeService.js";
 import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
 
 interface OrdersQuery {
@@ -122,6 +123,30 @@ export async function ordersRoutes(app: FastifyInstance) {
       return ok({
         data: await getAdminOrderById(db, request.params.orderId),
       });
+    },
+  );
+
+  app.patch<{ Params: { orderId: string }; Body: AdminOrderIntakeUpdateInput }>(
+    "/admin/orders/:orderId/intake",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      try {
+        await updateAdminOrderIntake(db, request.params.orderId, request.body ?? {});
+        return ok({
+          data: await getAdminOrderById(db, request.params.orderId),
+        });
+      } catch (error) {
+        if (error instanceof Error && "statusCode" in error) {
+          const statusCode = (error as { statusCode?: number }).statusCode;
+          if (statusCode === 400 || statusCode === 404) {
+            return sendApiError(reply, statusCode, error.message);
+          }
+        }
+        throw error;
+      }
     },
   );
 

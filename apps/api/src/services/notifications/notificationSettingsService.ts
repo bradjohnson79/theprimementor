@@ -3,6 +3,7 @@ import { notificationSettings, type Database } from "@wisdom/db";
 import {
   CONFIGURABLE_NOTIFICATION_EVENTS,
   type ConfigurableNotificationEvent,
+  isNotificationConfigurable,
   type NotificationEvent,
 } from "./events.js";
 import { resolveAdminNotificationEmails } from "../contactService.js";
@@ -26,7 +27,6 @@ const DEFAULT_ENABLED_EVENTS: NotificationSettingsMap = {
   "mentoring_circle.reminder_24h": true,
   "mentoring_circle.reminder_1h": true,
   "report.generated": true,
-  "admin.payment.received": true,
   "admin.new.booking": true,
   "admin.new.user": true,
 };
@@ -132,7 +132,7 @@ export async function isNotificationEnabled(
   db: Database,
   event: NotificationEvent,
 ): Promise<boolean> {
-  if (!CONFIGURABLE_NOTIFICATION_EVENTS.includes(event as ConfigurableNotificationEvent)) {
+  if (!isNotificationConfigurable(event)) {
     return true;
   }
 

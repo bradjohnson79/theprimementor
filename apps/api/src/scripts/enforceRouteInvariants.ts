@@ -245,6 +245,53 @@ async function assertNotificationBoundaries() {
   }
 }
 
+async function assertCriticalPaymentNotificationGuardrails() {
+  const srcDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const eventsPath = path.join(srcDir, "services", "notifications", "events.ts");
+  const webhookPath = path.join(srcDir, "services", "payments", "stripeWebhookService.ts");
+  const manualPaymentPath = path.join(srcDir, "services", "adminOrderPaymentService.ts");
+
+  const [eventsContent, webhookContent, manualPaymentContent] = await Promise.all([
+    fs.readFile(eventsPath, "utf8"),
+    fs.readFile(webhookPath, "utf8"),
+    fs.readFile(manualPaymentPath, "utf8"),
+  ]);
+
+  const configurableEventsMatch = eventsContent.match(
+    /export const CONFIGURABLE_NOTIFICATION_EVENTS = \[([\s\S]*?)\] as const/,
+  );
+  if (!configurableEventsMatch) {
+    throw new Error("Could not verify configurable notification events.");
+  }
+
+  if (/"admin\.payment\.received"/.test(configurableEventsMatch[1] ?? "")) {
+    throw new Error(
+      'Critical owner alert "admin.payment.received" must remain non-configurable unless explicitly re-approved.',
+    );
+  }
+
+  if (!/event:\s*"admin\.payment\.received"/.test(webhookContent)) {
+    throw new Error("Stripe payment completion flow must continue dispatching admin.payment.received.");
+  }
+
+  const paymentSuccessFunctionMatch = webhookContent.match(
+    /async function emitPaymentSucceededNotifications\([\s\S]*?\n\}/,
+  );
+  if (!paymentSuccessFunctionMatch) {
+    throw new Error("Could not verify emitPaymentSucceededNotifications.");
+  }
+
+  if (/if \(!input\.userId\) \{\s*return;\s*\}/.test(paymentSuccessFunctionMatch[0])) {
+    throw new Error(
+      "emitPaymentSucceededNotifications may not short-circuit owner alerts when user resolution is incomplete.",
+    );
+  }
+
+  if (!/markAdminOrderManualPaid[\s\S]*event:\s*"admin\.payment\.received"/.test(manualPaymentContent)) {
+    throw new Error("Manual mark-paid recovery flow must dispatch admin.payment.received.");
+  }
+}
+
 async function main() {
   await assertManifestMetadata();
   await assertRouteManifestMatchesRuntime();
@@ -253,6 +300,7 @@ async function main() {
   await assertValidationPolicies();
   await assertRouteFilesUseSharedContract();
   await assertNotificationBoundaries();
+  await assertCriticalPaymentNotificationGuardrails();
 }
 
 void main().catch((error) => {

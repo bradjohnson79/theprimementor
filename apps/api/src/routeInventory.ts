@@ -104,6 +104,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "GET", url: "/api/admin/orders/:orderId", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/generate", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/divin8ExecutionDispatcher.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/recording", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/orderRecordingService.ts", "services/ordersService.ts"] },
+  { method: "PATCH", url: "/api/admin/orders/:orderId/intake", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/adminOrderIntakeService.ts", "services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/refund", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/orderRefundService.ts", "services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/send-recovery-invoice", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/reportRecoveryInvoiceService.ts", "services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/:orderId/mark-paid", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/adminOrderPaymentService.ts", "services/ordersService.ts"] },

@@ -1,4 +1,5 @@
 import type { Database } from "@wisdom/db";
+import { sendNotification } from "./notifications/notificationService.js";
 import { createHttpError } from "./booking/errors.js";
 import {
   confirmPayment,
@@ -17,6 +18,19 @@ function orderTypeToPaymentEntity(type: AdminOrderType): PaymentEntityType | nul
     return type;
   }
   return null;
+}
+
+function getManualPaymentProductLabel(order: Awaited<ReturnType<typeof getAdminOrderById>>) {
+  if (order.type === "subscription") {
+    return order.metadata.plan_name ?? "subscription";
+  }
+  if (order.type === "mentor_training") {
+    return order.metadata.training_package ?? "mentor training";
+  }
+  if (order.type === "session") {
+    return order.metadata.event_name ?? order.metadata.session_type ?? "session";
+  }
+  return order.type;
 }
 
 /**
@@ -72,5 +86,19 @@ export async function markAdminOrderManualPaid(
     manual: true,
   });
 
-  return getAdminOrderById(db, input.orderId);
+  const updatedOrder = await getAdminOrderById(db, input.orderId);
+
+  await sendNotification(db, {
+    event: "admin.payment.received",
+    payload: {
+      entityId: updatedOrder.id,
+      paymentId: updatedOrder.payment_id ?? paymentId,
+      amount: Math.round(updatedOrder.amount * 100),
+      currency: updatedOrder.currency,
+      product: getManualPaymentProductLabel(updatedOrder),
+      userEmail: updatedOrder.email,
+    },
+  });
+
+  return updatedOrder;
 }

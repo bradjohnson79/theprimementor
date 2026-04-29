@@ -184,15 +184,23 @@ export const CONFIGURABLE_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "report.generated",
-  "admin.payment.received",
   "admin.new.booking",
   "admin.new.user",
 ] as const satisfies readonly NotificationEvent[];
 
 export type ConfigurableNotificationEvent = typeof CONFIGURABLE_NOTIFICATION_EVENTS[number];
 
+export const OWNER_GUARDED_NOTIFICATION_EVENTS = [
+  "admin.payment.received",
+] as const satisfies readonly NotificationEvent[];
+
+export function isNotificationConfigurable(event: NotificationEvent) {
+  return CONFIGURABLE_NOTIFICATION_EVENTS.includes(event as ConfigurableNotificationEvent);
+}
+
 export const ALL_NOTIFICATION_EVENTS = [
   ...CONFIGURABLE_NOTIFICATION_EVENTS,
+  ...OWNER_GUARDED_NOTIFICATION_EVENTS,
   "admin.test",
 ] as const satisfies readonly NotificationEvent[];
 
@@ -209,7 +217,7 @@ export function describeNotificationEvent(event: NotificationEvent): Notificatio
     event,
     label: getNotificationEventLabel(event),
     recipientType: getNotificationRecipientType(event),
-    configurable: CONFIGURABLE_NOTIFICATION_EVENTS.includes(event as ConfigurableNotificationEvent),
+    configurable: isNotificationConfigurable(event),
   };
 }
 

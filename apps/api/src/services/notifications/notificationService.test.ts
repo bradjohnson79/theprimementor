@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ALL_NOTIFICATION_EVENTS,
+  CONFIGURABLE_NOTIFICATION_EVENTS,
   describeNotificationEvent,
   getNotificationEntityId,
   getNotificationRecipientType,
@@ -49,6 +50,15 @@ test("notification event descriptors expose stable UI metadata", () => {
   assert.equal(descriptor.label, "Booking Confirmed");
   assert.equal(descriptor.recipientType, "user");
   assert.equal(descriptor.configurable, true);
+});
+
+test("owner payment alerts remain non-configurable", () => {
+  const descriptor = describeNotificationEvent("admin.payment.received");
+  const configurableEvents = new Set<string>(CONFIGURABLE_NOTIFICATION_EVENTS);
+
+  assert.equal(descriptor.recipientType, "admin");
+  assert.equal(descriptor.configurable, false);
+  assert.equal(configurableEvents.has("admin.payment.received"), false);
 });
 
 test("sample payloads are generated from the typed notification event map", () => {

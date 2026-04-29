@@ -244,23 +244,21 @@ async function emitPaymentSucceededNotifications(
     orderId?: string | null;
   },
 ) {
-  if (!input.userId) {
-    return;
-  }
-
   const userEmail = input.userEmail ?? await getUserEmail(db, input.userId);
-  queueNotification(db as Database, logger, {
-    event: "payment.succeeded",
-    userId: input.userId,
-    payload: {
-      entityId: input.entityId,
-      paymentId: input.paymentId,
-      amount: input.amount,
-      currency: input.currency,
-      product: input.product,
-      orderId: input.orderId ?? null,
-    },
-  }, { paymentId: input.paymentId });
+  if (input.userId) {
+    queueNotification(db as Database, logger, {
+      event: "payment.succeeded",
+      userId: input.userId,
+      payload: {
+        entityId: input.entityId,
+        paymentId: input.paymentId,
+        amount: input.amount,
+        currency: input.currency,
+        product: input.product,
+        orderId: input.orderId ?? null,
+      },
+    }, { paymentId: input.paymentId });
+  }
 
   queueNotification(db as Database, logger, {
     event: "admin.payment.received",

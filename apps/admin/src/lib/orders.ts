@@ -141,6 +141,21 @@ export interface AdminOrderDetailResponse {
   data: AdminOrder;
 }
 
+export interface AdminOrderIntakeUpdateBody {
+  phone: string | null;
+  birth_date: string | null;
+  birth_time: string | null;
+  location: string | null;
+  timezone: string | null;
+  consent_given: boolean;
+  topics: string[];
+  goals: string[];
+  health_focus_areas: AdminOrderHealthFocusArea[];
+  other: string | null;
+  submitted_questions: string[];
+  notes: string | null;
+}
+
 export interface AdminOrderRecoveryInvoiceResponse {
   order: AdminOrder;
   stripeInvoiceId: string;
