@@ -68,6 +68,21 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
         "7 days email support",
       ],
     },
+    {
+      id: "qa-session",
+      title: "Q&A Session",
+      price: "$149.99 CAD",
+      tag: "Quick Access",
+      description:
+        "A 30-minute open interaction for direct questions, clarity, and personal connection with Brad and/or Adronis without entering a structured Divin8 or mentoring framework.",
+      features: [
+        "30 minute live Zoom session",
+        "Open question-and-answer format",
+        "Direct interaction with Brad and/or Adronis",
+        "Scheduling through the standard session pipeline",
+        "Recording delivery through the existing member flow",
+      ],
+    },
   ],
   reports: [
     {

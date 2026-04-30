@@ -63,6 +63,10 @@ function buildCheckoutMetadata(
     type: CheckoutType;
     entityId: string;
     sessionType?: SessionCheckoutType;
+    sessionDurationMinutes?: number;
+    sessionTier?: "entry";
+    upgradeEligible?: boolean;
+    upgradeTarget?: Array<"focus" | "mentoring">;
     reportId?: string;
     reportTier?: ReportTierId;
     membershipId?: string;
@@ -106,6 +110,18 @@ function buildCheckoutMetadata(
   if (input.sessionType) {
     metadata.sessionType = input.sessionType;
   }
+  if (typeof input.sessionDurationMinutes === "number") {
+    metadata.sessionDurationMinutes = String(input.sessionDurationMinutes);
+  }
+  if (input.sessionTier) {
+    metadata.sessionTier = input.sessionTier;
+  }
+  if (typeof input.upgradeEligible === "boolean") {
+    metadata.upgradeEligible = String(input.upgradeEligible);
+  }
+  if (input.upgradeTarget?.length) {
+    metadata.upgradeTarget = input.upgradeTarget.join(",");
+  }
   if (input.packageType) {
     metadata.packageType = input.packageType;
   }
@@ -131,6 +147,7 @@ async function getBookingForSessionCheckout(db: Database, bookingId: string) {
       status: bookings.status,
       bookingTypeId: bookingTypes.id,
       bookingTypeName: bookingTypes.name,
+      durationMinutes: bookingTypes.duration_minutes,
       amountCents: bookingTypes.price_cents,
       currency: bookingTypes.currency,
     })
@@ -273,9 +290,18 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     booking.sessionType !== "focus"
     && booking.sessionType !== "mentoring"
     && booking.sessionType !== "regeneration"
+    && booking.sessionType !== "qa_session"
   ) {
     throw createHttpError(400, `Session checkout is not supported for ${booking.sessionType}`);
   }
+
+  const sessionMetadata = booking.sessionType === "qa_session"
+    ? {
+        sessionTier: "entry" as const,
+        upgradeEligible: true,
+        upgradeTarget: ["focus", "mentoring"] as Array<"focus" | "mentoring">,
+      }
+    : undefined;
 
   let payment = await getLatestPaymentForEntity(db, { entityType: "session", entityId: bookingId });
   if (!payment) {
@@ -290,6 +316,11 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
       metadata: {
         source: "session_checkout_recovery",
         bookingTypeId: booking.bookingTypeId,
+        sessionType: booking.sessionType,
+        sessionDurationMinutes: booking.durationMinutes,
+        sessionTier: sessionMetadata?.sessionTier,
+        upgradeEligible: sessionMetadata?.upgradeEligible,
+        upgradeTarget: sessionMetadata?.upgradeTarget,
       },
     });
     payment = await getLatestPaymentForEntity(db, { entityType: "session", entityId: bookingId });
@@ -321,6 +352,10 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     type: "session",
     entityId: bookingId,
     sessionType: booking.sessionType,
+    sessionDurationMinutes: booking.durationMinutes,
+    sessionTier: sessionMetadata?.sessionTier,
+    upgradeEligible: sessionMetadata?.upgradeEligible,
+    upgradeTarget: sessionMetadata?.upgradeTarget,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,

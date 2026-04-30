@@ -102,6 +102,14 @@ function getExistingOutput(order: AdminOrder | null): AdminOrder["execution"]["o
   return order?.execution.output ?? null;
 }
 
+function isQaSessionOrder(order: AdminOrder) {
+  if (order.type !== "session") {
+    return false;
+  }
+  const sessionLabel = order.metadata.session_type?.toLowerCase().replace(/[^a-z]+/g, "_") ?? "";
+  return sessionLabel.includes("qa_session") || sessionLabel.includes("q_a_session");
+}
+
 export async function dispatchOrderExecution(
   db: Database,
   orderId: string,
@@ -147,6 +155,9 @@ export async function dispatchOrderExecution(
 
   if (order.type !== "report" && order.type !== "session") {
     throw createError(400, "This order type is not eligible for Divin8 generation.");
+  }
+  if (isQaSessionOrder(order)) {
+    throw createError(400, "Divin8 generation is not supported for Q&A Session orders.");
   }
 
   const existingReport = await getOrderExecutionReport(db, order);

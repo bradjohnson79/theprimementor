@@ -20,6 +20,7 @@ import {
 import {
   FOCUS_LANDING_PATH,
   MENTORING_LANDING_PATH,
+  QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { startSessionCheckout } from "../lib/sessionCheckout";
@@ -59,6 +60,7 @@ interface CreateBookingResponse {
 
 const SESSION_CARD_PRICE_OVERRIDES: Partial<Record<SessionType, number>> = {
   regeneration: 9900,
+  qa_session: 14999,
   focus: 19900,
 };
 
@@ -109,6 +111,7 @@ function resolveBirthTimeInput(value: string) {
 
 function resolveSessionTypeFromPath(pathname: string): SessionType | null {
   if (pathname.includes(FOCUS_LANDING_PATH)) return "focus";
+  if (pathname.includes(QA_LANDING_PATH)) return "qa_session";
   if (pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
   if (pathname.includes(MENTORING_LANDING_PATH)) return "mentoring";
   return null;
@@ -242,6 +245,7 @@ export default function Bookings() {
 
   const requiresSchedule = selectedSessionType ? sessionTypeRequiresSchedule(selectedSessionType) : false;
   const isRegeneration = selectedSessionType === "regeneration";
+  const isQA = selectedSessionType === "qa_session";
   const suggestedTimezone = useMemo(
     () =>
       getSuggestedTimezone({
@@ -516,6 +520,10 @@ export default function Bookings() {
       intake.healthFocusAreas = normalizeHealthFocusAreas(form.healthFocusAreas);
     }
 
+    if (selectedSessionType === "qa_session" && normalizeText(form.otherDetail)) {
+      intake.other = normalizeText(form.otherDetail);
+    }
+
     if (normalizeText(form.otherDetail)) {
       intake.other = normalizeText(form.otherDetail);
     }
@@ -753,6 +761,8 @@ export default function Bookings() {
               ? (form.focusTopics.join(", ") || "Not selected yet")
               : selectedSessionType === "mentoring"
                 ? (form.mentoringTopics.join(", ") || "Not selected yet")
+                : selectedSessionType === "qa_session"
+                  ? (normalizeText(form.otherDetail) || "Open question space")
                 : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
         },
         {
@@ -807,7 +817,7 @@ export default function Bookings() {
               {loadingTypes ? <span className="text-xs text-white/45">Loading options...</span> : null}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               {SESSION_TYPE_OPTIONS.map((option) => {
                 const isAvailable = availableTypes.has(option.type);
                 const isActive = selectedSessionType === option.type;
@@ -1074,7 +1084,13 @@ export default function Bookings() {
       nextSteps.push({
         id: "availability",
         title: "Availability",
-        guidance: `Share the times that feel realistic for you. This helps us personally schedule your ${selectedSessionType === "focus" ? "focus" : "mentoring"} session without any rush.`,
+        guidance: `Share the times that feel realistic for you. This helps us personally schedule your ${
+          selectedSessionType === "focus"
+            ? "focus"
+            : selectedSessionType === "qa_session"
+              ? "Q&A"
+              : "mentoring"
+        } session without any rush.`,
         validate: validateAvailabilityStep,
         isComplete: () => hasSelectedAvailability(availabilitySelection),
         render: () => (
@@ -1131,15 +1147,18 @@ export default function Bookings() {
     nextSteps.push(
       {
         id: "intent",
-        title: selectedSessionType === "regeneration" ? "Health focus" : "Session intent",
+        title: selectedSessionType === "regeneration" ? "Health focus" : selectedSessionType === "qa_session" ? "Question focus" : "Session intent",
         guidance:
           selectedSessionType === "regeneration"
             ? "Tell us where you'd like support. This gives us a grounded starting point before your regeneration work begins."
+            : selectedSessionType === "qa_session"
+              ? "This session stays open by design. If you already know a question or theme you'd like to explore, you can share it here."
             : "This helps us better tune into your situation and guide the session with precision.",
         validate: validateIntentStep,
         isComplete: () => {
           if (selectedSessionType === "focus") return form.focusTopics.length > 0 && (!form.focusTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
           if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
+          if (selectedSessionType === "qa_session") return true;
           return normalizeHealthFocusAreas(form.healthFocusAreas).length > 0;
         },
         render: () => (
@@ -1247,6 +1266,25 @@ export default function Bookings() {
                 </div>
                 {fieldErrors.healthFocusAreas ? <p className="mt-3 text-sm text-amber-200">{fieldErrors.healthFocusAreas}</p> : null}
               </div>
+            ) : null}
+
+            {isQA ? (
+              <FormField
+                label="Questions or Areas to Explore"
+                htmlFor="session-qa-focus"
+                helperText="Optional - bring any themes, questions, or curiosities you'd like to open with."
+                optional
+                isComplete={Boolean(normalizeText(form.otherDetail))}
+              >
+                <textarea
+                  id="session-qa-focus"
+                  className={`${fieldClassName} min-h-[132px]`}
+                  rows={5}
+                  value={form.otherDetail}
+                  onChange={(event) => setFormField("otherDetail", event.target.value)}
+                  placeholder="Anything you'd like to ask or explore in the session."
+                />
+              </FormField>
             ) : null}
 
             {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))

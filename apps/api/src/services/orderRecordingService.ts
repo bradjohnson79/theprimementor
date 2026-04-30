@@ -60,7 +60,11 @@ function normalizeUrl(link: string) {
 
 function buildSessionOrderLabel(context: PersistedSessionOrderContext) {
   return context.bookingTypeName?.trim()
-    || (context.sessionType ? `${titleCase(context.sessionType)} Session` : "Session");
+    || (context.sessionType === "qa_session"
+      ? "Q&A Session"
+      : context.sessionType
+        ? `${titleCase(context.sessionType)} Session`
+        : "Session");
 }
 
 async function getLatestClientIdForUser(db: DbExecutor, userId: string) {
@@ -181,6 +185,9 @@ export async function ensurePersistedSessionOrder(db: DbExecutor, bookingId: str
         source: "session_purchase_alignment",
         bookingId: booking.id,
         sessionType: booking.sessionType,
+        sessionTier: booking.sessionType === "qa_session" ? "entry" : null,
+        upgradeEligible: booking.sessionType === "qa_session",
+        upgradeTarget: booking.sessionType === "qa_session" ? ["focus", "mentoring"] : [],
         scheduledAt: booking.startTimeUtc?.toISOString() ?? null,
         meetingLink: booking.joinUrl ?? booking.startUrl ?? null,
         bookingTypeName: booking.bookingTypeName,

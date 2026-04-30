@@ -240,7 +240,13 @@ export default function OrderDetail() {
   }, [order?.recording_link]);
 
   const canGenerate = useMemo(
-    () => Boolean(order?.available_actions.includes("generate_output")),
+    () => {
+      if (!order?.available_actions.includes("generate_output")) {
+        return false;
+      }
+      const sessionLabel = order.metadata.session_type?.toLowerCase().replace(/[^a-z]+/g, "_") ?? "";
+      return !sessionLabel.includes("qa_session") && !sessionLabel.includes("q_a_session");
+    },
     [order],
   );
 

@@ -31,38 +31,61 @@ import { trackCtaClick } from "../lib/analytics";
 import {
   FOCUS_LANDING_PATH,
   MENTORING_LANDING_PATH,
+  QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { ContactPublicContent } from "./ContactPublic";
 
 interface SessionCardData {
+  sessionKey: "regeneration" | "qa" | "focus" | "mentoring";
   title: string;
   priceLabel: string;
+  durationLabel: string;
   description: string;
   href: string;
   imageSrc: string;
+  imageFit?: "cover" | "contain";
+  imageClassName?: string;
 }
 
 const SESSION_CARDS: SessionCardData[] = [
   {
+    sessionKey: "regeneration",
     title: "Regeneration Session",
     priceLabel: "$99.00 CAD",
+    durationLabel: "Offline",
     description:
       "This is an offline session that aligns you into a state of wellness where you feel the effects of previous ailments become released. The Regeneration Session offers a 7 day span of priority email support that helps you to maintain an aligned 'prime' state of being. Custom-made exercises are created based on natal charts through our Divin8 engine designed to help you hold a particular feeling in alignment. Through this feeling and familiarity of it, you remain in a wellness state while shifting yourself into a Delta Brainwave phase. The Regeneration Session transcends healing and moves you into alignment removing old habits and behavioral patterns from your system as you enter a prime state of wellness.",
     href: REGENERATION_LANDING_PATH,
     imageSrc: regenerationSessionImage,
   },
   {
+    sessionKey: "qa",
+    title: "Q&A Session",
+    priceLabel: "$149.99 CAD",
+    durationLabel: "30 mins",
+    description:
+      "The Q&A Session is a 30-minute open interaction designed for clarity, insight, and direct connection. This session gives you the opportunity to ask any questions you have, whether they relate to your current life situation, spiritual direction, or general curiosity. It is also an open space for a personal interaction with Adronis, offering a unique and direct experience for those seeking perspective beyond conventional dialogue. This is not a structured Divin8 reading or mentoring session. Instead, it is designed for flexibility and fast access, allowing you to explore specific questions, gain immediate insight, and connect in a more open and conversational format.",
+    href: QA_LANDING_PATH,
+    imageSrc: "/images/Q&A Session.png",
+    imageFit: "cover",
+    imageClassName: "scale-[1.02] object-[center_44%]",
+  },
+  {
+    sessionKey: "focus",
     title: "Focus Session",
     priceLabel: "$199.00 CAD",
+    durationLabel: "45 mins",
     description:
       "A 45 minute interaction where Brad will prepare you for your intended state through a Divin8 Synthesis report. Brad will share insights on your current alignment in life, and how to align your mind's state of being. Whether you're navigating a decision, facing a challenge, or seeking direction, this session isolates the core pattern and brings it into sharp focus. You'll leave with clear, actionable insight and a grounded understanding of your next steps—cutting through confusion and helping you move forward with confidence and intention. The session works to clear stagnation, restore balance, and reconnect you to your natural state of flow—leaving you feeling lighter, clearer, and more internally supported.",
     href: FOCUS_LANDING_PATH,
     imageSrc: focusSessionImage,
   },
   {
+    sessionKey: "mentoring",
     title: "Mentoring Session",
     priceLabel: "$299.00 CAD",
+    durationLabel: "90 mins",
     description:
       "A comprehensive session that works across multiple layers of your blueprint to support deeper transformation and long-term growth. This is the most complete session of the 3 as Brad works with you 1 to 1 exploring your natal charts and metaphysical information overview through the Divin8 system. This is where patterns are not just identified—but understood, integrated, and evolved. This session focuses on setting a goal, neutralizing all setbacks towards that goal, and teaching you how to enter Prime Mind: Harmony with your preferred state of being. The Mentoring session is an interaction designed for those ready to go further; this session provides structured guidance, expanded awareness, and aligned direction—supporting real, sustained movement forward on your path.",
     href: MENTORING_LANDING_PATH,
@@ -222,7 +245,16 @@ function LandingSection({ id, children }: LandingSectionProps) {
   );
 }
 
-function SessionCard({ title, priceLabel, description, href, imageSrc }: SessionCardData) {
+function SessionCard({
+  title,
+  priceLabel,
+  durationLabel,
+  description,
+  href,
+  imageSrc,
+  imageFit,
+  imageClassName,
+}: SessionCardData) {
   const bookingHref = `${href}/book`;
 
   return (
@@ -231,7 +263,7 @@ function SessionCard({ title, priceLabel, description, href, imageSrc }: Session
         <img
           src={imageSrc}
           alt={title}
-          className="h-full w-full object-cover"
+          className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"} ${imageClassName ?? ""}`}
           loading="lazy"
           decoding="async"
         />
@@ -242,7 +274,9 @@ function SessionCard({ title, priceLabel, description, href, imageSrc }: Session
           <h3 className="line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug tracking-tight text-white">
             {title}
           </h3>
-          <p className="text-xs font-medium tabular-nums tracking-wide text-cyan-100/85">{priceLabel}</p>
+          <p className="text-xs font-medium tabular-nums tracking-wide text-cyan-100/85">
+            {[priceLabel, durationLabel].filter(Boolean).join(" · ")}
+          </p>
         </div>
 
         <p className="flex-1 text-sm leading-relaxed text-white/60">{description}</p>
@@ -622,9 +656,9 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:gap-6">
               {SESSION_CARDS.map((session) => (
-                <SessionCard key={session.title} {...session} />
+                <SessionCard key={session.sessionKey} {...session} />
               ))}
             </div>
             <InlineBackToTop />

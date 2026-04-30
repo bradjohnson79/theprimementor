@@ -168,6 +168,10 @@ export interface ConfirmBookingAvailabilityInput {
 interface BookingIntakeSnapshot {
   bookingTypeId: string;
   sessionType: BookingSessionType;
+  sessionDurationMinutes: number;
+  sessionTier: "entry" | null;
+  upgradeEligible: boolean;
+  upgradeTarget: Array<"focus" | "mentoring">;
   timezone: string;
   availability: BookingAvailability | null;
   fullName: string | null;
@@ -184,6 +188,35 @@ interface BookingIntakeSnapshot {
   consentGiven: boolean;
   intake: BookingIntakePayload;
   notes: string | null;
+}
+
+const QA_SESSION_DURATION_MINUTES = 30;
+
+function getSessionMetadataTags(sessionType: BookingSessionType) {
+  if (sessionType === "qa_session") {
+    return {
+      sessionTier: "entry" as const,
+      upgradeEligible: true,
+      upgradeTarget: ["focus", "mentoring"] as Array<"focus" | "mentoring">,
+    };
+  }
+
+  return {
+    sessionTier: null,
+    upgradeEligible: false,
+    upgradeTarget: [] as Array<"focus" | "mentoring">,
+  };
+}
+
+function getEnforcedSessionDurationMinutes(sessionType: BookingSessionType, durationMinutes: number) {
+  if (sessionType === "qa_session") {
+    if (durationMinutes !== QA_SESSION_DURATION_MINUTES) {
+      throw createHttpError(500, "Q&A Session must remain configured as a fixed 30-minute booking.");
+    }
+    return QA_SESSION_DURATION_MINUTES;
+  }
+
+  return durationMinutes;
 }
 
 function serializeBooking(row: BookingRow, now: Date): BookingSummary {
@@ -633,6 +666,10 @@ function buildNormalizedIntake(
     normalized.other = other;
   }
 
+  if (sessionType === "qa_session" && other) {
+    normalized.other = other;
+  }
+
   if (sessionType === "regeneration") {
     const healthFocusAreas = normalizeHealthFocusAreas(intake.healthFocusAreas, {
       requireAtLeastOne: !allowAdminFallbacks,
@@ -651,6 +688,7 @@ function buildNormalizedIntake(
 function buildBookingIntakeSnapshot(input: {
   bookingTypeId: string;
   sessionType: BookingSessionType;
+  sessionDurationMinutes: number;
   timezone: string;
   availability: BookingAvailability | null;
   fullName: string | null;
@@ -668,9 +706,14 @@ function buildBookingIntakeSnapshot(input: {
   intake: BookingIntakePayload;
   notes: string | null;
 }): BookingIntakeSnapshot {
+  const sessionMetadata = getSessionMetadataTags(input.sessionType);
   return {
     bookingTypeId: input.bookingTypeId,
     sessionType: input.sessionType,
+    sessionDurationMinutes: input.sessionDurationMinutes,
+    sessionTier: sessionMetadata.sessionTier,
+    upgradeEligible: sessionMetadata.upgradeEligible,
+    upgradeTarget: sessionMetadata.upgradeTarget,
     timezone: input.timezone,
     availability: input.availability,
     fullName: input.fullName,
@@ -727,7 +770,9 @@ async function resolveBookingTypeAndSessionType(db: Database, input: CreateBooki
         throw createHttpError(400, "bookingTypeId does not match sessionType");
       }
     }
-    return { bookingType, sessionType: bookingType.session_type };
+    const sessionType = bookingType.session_type;
+    getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
+    return { bookingType, sessionType };
   }
 
   if (!input.sessionType || !isBookingSessionType(input.sessionType)) {
@@ -735,7 +780,9 @@ async function resolveBookingTypeAndSessionType(db: Database, input: CreateBooki
   }
 
   const bookingType = await getBookingTypeForSessionTypeOrThrow(db, input.sessionType);
-  return { bookingType, sessionType: bookingType.session_type };
+  const sessionType = bookingType.session_type;
+  getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
+  return { bookingType, sessionType };
 }
 
 async function getMentoringCircleBookingRow(
@@ -936,6 +983,8 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
 
   const targetUser = await getTargetUserOrThrow(db, bookingUserId);
   const { bookingType, sessionType } = await resolveBookingTypeAndSessionType(db, input);
+  const sessionDurationMinutes = getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
+  const sessionMetadata = getSessionMetadataTags(sessionType);
   const timezone = assertValidTimeZone(input.timezone ?? "");
   const sharedFields = normalizeSharedFields(input, targetUser.email, allowAdminFallbacks);
   const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks);
@@ -945,6 +994,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const intakeSnapshot = buildBookingIntakeSnapshot({
     bookingTypeId: bookingType.id,
     sessionType,
+    sessionDurationMinutes,
     timezone,
     availability: normalizedAvailability,
     fullName: sharedFields.fullName,
@@ -982,6 +1032,11 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
         metadata: {
           source: "booking_reuse",
           bookingTypeId: bookingType.id,
+          sessionType,
+          sessionDurationMinutes,
+          sessionTier: sessionMetadata.sessionTier,
+          upgradeEligible: sessionMetadata.upgradeEligible,
+          upgradeTarget: sessionMetadata.upgradeTarget,
         },
       });
     }
@@ -1032,6 +1087,11 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
       metadata: {
         source: "booking_create",
         bookingTypeId: bookingType.id,
+        sessionType,
+        sessionDurationMinutes,
+        sessionTier: sessionMetadata.sessionTier,
+        upgradeEligible: sessionMetadata.upgradeEligible,
+        upgradeTarget: sessionMetadata.upgradeTarget,
       },
     });
 

@@ -527,6 +527,22 @@ function titleCase(value: string | null) {
     .join(" ");
 }
 
+function formatSessionTypeLabel(value: string | null, fallbackName?: string | null) {
+  if (fallbackName?.trim()) {
+    return fallbackName.trim();
+  }
+  if (value === "qa_session") {
+    return "Q&A Session";
+  }
+  return titleCase(value);
+}
+
+function isQaSessionLabel(value: string | null | undefined) {
+  if (!value) return false;
+  const normalized = value.toLowerCase().replace(/[^a-z]+/g, "_");
+  return normalized.includes("qa_session") || normalized.includes("q_a_session");
+}
+
 function resolveLocation(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const normalized = getString(value);
@@ -1105,12 +1121,12 @@ function chooseLatestClientByUser(rows: ClientRow[]) {
   return { byUserId, byId };
 }
 
-function getAvailableActions(type: AdminOrderType) {
+function getAvailableActions(type: AdminOrderType, sessionLabel?: string | null) {
   switch (type) {
     case "report":
       return ["generate_output"];
     case "session":
-      return ["generate_output", "schedule_session"];
+      return isQaSessionLabel(sessionLabel) ? ["schedule_session"] : ["generate_output", "schedule_session"];
     case "subscription":
       return ["view_subscription"];
     case "webinar":
@@ -1411,7 +1427,7 @@ function createSessionCandidate(
     sourceStatus: row.status,
     sourceCreatedAt: row.createdAt,
     membershipTier: entitlementsByUserId.get(row.userId)?.tier ?? null,
-    availableActions: getAvailableActions("session"),
+    availableActions: getAvailableActions("session", row.bookingTypeName),
     execution: buildOrderExecution(executionReport, orderId, row.userId),
     recordingLink: null,
     recordingAddedAt: null,
@@ -1445,7 +1461,7 @@ function createSessionCandidate(
       training_package_id: null,
       selected_systems: [],
       delivery_status: null,
-      session_type: titleCase(row.sessionType),
+      session_type: formatSessionTypeLabel(row.sessionType, row.bookingTypeName),
       scheduled_at: toIso(row.startTimeUtc),
       meeting_link: row.joinUrl ?? row.startUrl,
       plan_name: null,
@@ -1872,7 +1888,7 @@ function createPersistedAdminOrder(
     payment_provider: "stripe",
     created_at: createdAt.toISOString(),
     membership_tier: entitlementsByUserId.get(row.userId)?.tier ?? null,
-    available_actions: getAvailableActions(normalizedType),
+    available_actions: getAvailableActions(normalizedType, normalizedType === "session" ? row.label : null),
     execution: buildOrderExecution(null, getOrderId(normalizedType, row.id), row.userId),
     recording_link: row.recordingLink,
     recording_added_at: row.recordingAddedAt?.toISOString() ?? null,
@@ -1893,7 +1909,7 @@ function createPersistedAdminOrder(
       training_package_id: null,
       selected_systems: [],
       delivery_status: null,
-      session_type: normalizedType === "session" && sessionType ? titleCase(sessionType) : null,
+      session_type: normalizedType === "session" ? formatSessionTypeLabel(sessionType, row.label) : null,
       scheduled_at: normalizedType === "session" ? scheduledAt : null,
       meeting_link: normalizedType === "session" ? meetingLink : null,
       plan_name: normalizedType === "subscription" ? row.label : null,

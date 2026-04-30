@@ -23,6 +23,7 @@ import MembershipSignup from "./routes/MembershipSignup";
 import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
 import RegenerationSessionPage from "./routes/RegenerationSessionPage";
+import QASessionPage from "./routes/QASessionPage";
 import FocusSessionPage from "./routes/FocusSessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
 import {
@@ -30,6 +31,8 @@ import {
   FOCUS_LANDING_PATH,
   MENTORING_BOOKING_PATH,
   MENTORING_LANDING_PATH,
+  QA_BOOKING_PATH,
+  QA_LANDING_PATH,
   REGENERATION_BOOKING_PATH,
   REGENERATION_LANDING_PATH,
 } from "./lib/sessionLandingPaths";
@@ -75,6 +78,7 @@ export default function App() {
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
+          <Route path={QA_LANDING_PATH} element={<QASessionPage />} />
           <Route path={FOCUS_LANDING_PATH} element={<FocusSessionPage />} />
           <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
           <Route path="*" element={<NotFoundPage />} />
@@ -87,6 +91,7 @@ export default function App() {
             <Route path="/sessions" element={<Bookings />} />
             <Route path={FOCUS_BOOKING_PATH} element={<Bookings />} />
             <Route path={REGENERATION_BOOKING_PATH} element={<Bookings />} />
+            <Route path={QA_BOOKING_PATH} element={<Bookings />} />
             <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/reports" element={<Reports />} />

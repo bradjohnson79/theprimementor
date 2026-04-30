@@ -9,6 +9,7 @@ import { useUserSync } from "../hooks/useUserSync";
 import {
   FOCUS_LANDING_PATH,
   MENTORING_LANDING_PATH,
+  QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 
@@ -30,6 +31,7 @@ const NAV_GROUPS: NavGroup[] = [
     href: "/#sessions",
     items: [
       { label: "Regeneration Session", href: REGENERATION_LANDING_PATH },
+      { label: "Q&A Session", href: QA_LANDING_PATH },
       { label: "Focus Session", href: FOCUS_LANDING_PATH },
       { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
     ],
@@ -98,6 +100,7 @@ export default function RootLayout() {
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")
     || location.pathname === REGENERATION_LANDING_PATH
+    || location.pathname === QA_LANDING_PATH
     || location.pathname === FOCUS_LANDING_PATH
     || location.pathname === MENTORING_LANDING_PATH;
 
@@ -135,18 +138,32 @@ export default function RootLayout() {
     return location.pathname === "/" ? href.replace("/", "") : href;
   }
 
-  function renderNavLink(item: NavGroup | NavItem, className: string, onClick?: () => void) {
+  function isNavItemActive(item: NavGroup | NavItem) {
+    const href = item.href ?? "/";
+    if (href.startsWith("/#")) {
+      return location.pathname === "/";
+    }
+    return location.pathname === href;
+  }
+
+  function renderNavLink(
+    item: NavGroup | NavItem,
+    className: string,
+    activeClassName: string,
+    onClick?: () => void,
+  ) {
     const href = toNavHref(item.href ?? "/");
+    const classes = [className, isNavItemActive(item) ? activeClassName : ""].filter(Boolean).join(" ");
     if ("external" in item && item.external) {
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className={className} onClick={onClick}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className={classes} onClick={onClick}>
           {item.label}
         </a>
       );
     }
 
     return (
-      <a href={href} className={className} onClick={onClick}>
+      <a href={href} className={classes} onClick={onClick}>
         {item.label}
       </a>
     );
@@ -194,6 +211,9 @@ export default function RootLayout() {
                               ? "text-white/72 hover:bg-white/8 hover:text-white"
                               : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                           }`,
+                          isMarketingSurface
+                            ? "bg-white/10 text-white"
+                            : "bg-gray-100 text-gray-900",
                         )}
                         {group.items?.length ? (
                           <span
@@ -226,6 +246,9 @@ export default function RootLayout() {
                                       ? "text-white/72 hover:bg-white/8 hover:text-white"
                                       : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                                   }`,
+                                  isMarketingSurface
+                                    ? "bg-white/8 text-white"
+                                    : "bg-gray-50 text-gray-900",
                                 )}
                               </div>
                             ))}
@@ -318,6 +341,9 @@ export default function RootLayout() {
                                     ? "text-white/80 hover:bg-white/8 hover:text-white"
                                     : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                                 }`,
+                                isMarketingSurface
+                                  ? "bg-white/10 text-white"
+                                  : "bg-gray-100 text-gray-900",
                                 closeMobileMenus,
                               )}
                               {group.items?.length ? (
@@ -350,6 +376,9 @@ export default function RootLayout() {
                                           ? "text-white/72 hover:bg-white/8 hover:text-white"
                                           : "text-gray-600 hover:bg-white hover:text-gray-900"
                                       }`,
+                                      isMarketingSurface
+                                        ? "bg-white/8 text-white"
+                                        : "bg-white text-gray-900",
                                       closeMobileMenus,
                                     )}
                                   </div>

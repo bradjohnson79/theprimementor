@@ -1,4 +1,4 @@
-export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "mentoring_circle"] as const;
+export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "qa_session", "mentoring_circle"] as const;
 export type BookingSessionType = typeof BOOKING_SESSION_TYPES[number];
 
 export const BOOKING_STATUSES = ["pending_payment", "paid", "scheduled", "completed", "cancelled"] as const;
@@ -76,5 +76,5 @@ export function createEmptyBookingAvailability(): BookingAvailability {
 }
 
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
-  return sessionType === "focus" || sessionType === "mentoring";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session";
 }

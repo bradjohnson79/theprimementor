@@ -25,6 +25,7 @@ export const bookingSessionTypeEnum = pgEnum("booking_session_type", [
   "focus",
   "mentoring",
   "regeneration",
+  "qa_session",
   "mentoring_circle",
 ]);
 

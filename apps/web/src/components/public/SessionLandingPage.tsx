@@ -8,6 +8,7 @@ type LandingTheme = SessionLandingType;
 interface SessionLandingImage {
   src: string;
   alt: string;
+  fit?: "cover" | "contain";
 }
 
 interface SessionLandingCallout {
@@ -33,6 +34,8 @@ export interface SessionLandingSection {
   imagePosition?: "left" | "right";
   callout?: SessionLandingCallout;
   density?: "tight" | "default" | "spacious";
+  alignment?: "left" | "center";
+  bulletColumns?: 1 | 2;
 }
 
 export interface SessionLandingContent {
@@ -71,6 +74,22 @@ const themeStyles = {
       "bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.16),_transparent_45%),linear-gradient(180deg,rgba(9,13,24,0.94),rgba(5,7,16,0.94))]",
     ctaPanel:
       "bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_44%),linear-gradient(180deg,rgba(9,13,24,0.96),rgba(5,7,16,0.94))]",
+  },
+  qa: {
+    eyebrow: "text-amber-200/72",
+    sectionEyebrow: "text-amber-200/72",
+    heroGlowPrimary: "bg-amber-400/14",
+    heroGlowSecondary: "bg-fuchsia-500/12",
+    heroPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_50%),linear-gradient(180deg,rgba(11,8,24,0.98),rgba(6,5,16,0.95))]",
+    cta:
+      "bg-gradient-to-r from-amber-400 via-orange-400 to-fuchsia-500 text-slate-950 hover:from-amber-300 hover:via-orange-300 hover:to-fuchsia-400",
+    statement:
+      "border-amber-300/18 bg-amber-300/8 text-amber-50",
+    imageFrame:
+      "bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.14),_transparent_44%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.95))]",
+    ctaPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_transparent_46%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.95))]",
   },
   focus: {
     eyebrow: "text-sky-200/68",
@@ -159,7 +178,7 @@ function LandingImageCard({
         <img
           src={image.src}
           alt={image.alt}
-          className="aspect-[4/3] h-full w-full object-cover"
+          className={`aspect-[4/3] h-full w-full ${image.fit === "contain" ? "object-contain" : "object-cover"}`}
           loading="lazy"
           decoding="async"
         />
@@ -229,6 +248,12 @@ export default function SessionLandingPage({
       {content.sections.map((section) => {
         const imageFirst = section.imagePosition === "left";
         const hasSplit = Boolean(section.image);
+        const isCentered = section.alignment === "center";
+        const contentWidthClass = isCentered ? "mx-auto max-w-3xl text-center" : "min-w-0";
+        const paragraphWidthClass = isCentered ? "mx-auto max-w-3xl" : "max-w-3xl";
+        const bulletGridClass = section.bulletColumns === 2
+          ? "mt-6 grid gap-3 sm:grid-cols-2"
+          : "mt-6 space-y-3";
 
         return (
           <motion.section
@@ -244,24 +269,24 @@ export default function SessionLandingPage({
               <div className={hasSplit ? "grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center" : ""}>
                 {hasSplit && imageFirst ? <LandingImageCard image={section.image!} theme={content.theme} /> : null}
 
-                <div className="min-w-0">
+                <div className={contentWidthClass}>
                   <p className={`text-[0.72rem] font-semibold uppercase tracking-[0.34em] ${styles.sectionEyebrow}`}>
                     {section.label}
                   </p>
-                  <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem]">
+                  <h2 className={`mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem] ${isCentered ? "mx-auto" : ""}`}>
                     {section.title}
                   </h2>
 
                   <div className="mt-5 space-y-4">
                     {section.paragraphs.map((paragraph) => (
-                      <p key={paragraph} className="max-w-3xl text-sm leading-7 text-white/66 sm:text-base">
+                      <p key={paragraph} className={`${paragraphWidthClass} text-sm leading-7 text-white/66 sm:text-base`}>
                         {paragraph}
                       </p>
                     ))}
                   </div>
 
                   {section.statementLines?.length ? (
-                    <div className={["mt-6 rounded-2xl border px-5 py-4", styles.statement].join(" ")}>
+                    <div className={["mt-6 rounded-2xl border px-5 py-4", styles.statement, isCentered ? "mx-auto max-w-3xl" : ""].join(" ")}>
                       {section.statementLines.map((line) => (
                         <p key={line} className="text-lg font-medium tracking-[-0.03em] sm:text-xl">
                           {line}
@@ -271,7 +296,7 @@ export default function SessionLandingPage({
                   ) : null}
 
                   {section.bullets?.length ? (
-                    <ul className="mt-6 space-y-3">
+                    <ul className={bulletGridClass}>
                       {section.bullets.map((bullet) => (
                         <li key={bullet} className="flex gap-3 text-sm leading-7 text-white/68 sm:text-base">
                           <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/70" />
@@ -282,7 +307,7 @@ export default function SessionLandingPage({
                   ) : null}
 
                   {section.callout ? (
-                    <div className="mt-6 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className={`mt-6 max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-5 ${isCentered ? "mx-auto" : ""}`}>
                       <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
                         {section.callout.eyebrow}
                       </p>
@@ -296,7 +321,7 @@ export default function SessionLandingPage({
                   ) : null}
 
                   {section.cta ? (
-                    <div className="mt-8">
+                    <div className={`mt-8 ${isCentered ? "flex justify-center" : ""}`}>
                       <LandingCta
                         href={section.cta.href}
                         label={section.cta.label}

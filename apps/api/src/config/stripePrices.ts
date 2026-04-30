@@ -13,12 +13,17 @@ const SESSION_PRICE_ENV_KEYS: Record<SessionCheckoutType, { standard: string; li
     standard: "STRIPE_PRICE_REGENERATION",
     live: "STRIPE_LIVE_PRICE_REGENERATION",
   },
+  qa_session: {
+    standard: "STRIPE_PRICE_QA_SESSION",
+    live: "STRIPE_LIVE_PRICE_QA_SESSION",
+  },
 };
 
 const LIVE_SESSION_PRICE_FALLBACKS: Record<SessionCheckoutType, string> = {
   focus: "price_1TILliAd5V3LaCqjidvbVLrl",
   mentoring: "price_1TILnFAd5V3LaCqjkR9tAMuC",
   regeneration: "price_1TKj0yAd5V3LaCqjQC6LV0k2",
+  qa_session: "price_1TS1mkAd5V3LaCqjBfSoDdZn",
 };
 
 function isLiveStripeMode() {
