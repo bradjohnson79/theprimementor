@@ -1,14 +1,28 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { SeoRecommendationValue } from "@wisdom/db";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
+import { listSeoRecommendations } from "../services/seoRecommendationService.js";
 import {
+  createSeoAudit,
+  getSeoAuditById,
+  listLatestCompletedAudit,
+  listSeoAuditItems,
+  listSeoAudits,
+  runSeoAuditJob,
+} from "../services/seoAuditService.js";
+import {
+  editSeoRecommendation,
   approveSeoRecommendation,
-  generateInitialSeo,
-  listSeoRecommendations,
   rejectSeoRecommendation,
-  runWeeklySeoRecommendationJob,
-} from "../services/seoAiService.js";
+  rollbackSeoChange,
+} from "../services/seoReviewService.js";
+import {
+  exportSeoReportPdf,
+  getSeoReportById,
+  listSeoReports,
+} from "../services/seoReportService.js";
 import { createHttpError } from "../services/booking/errors.js";
 import { listSeoSettings, type SeoPayloadInput, updateSeoSetting, upsertSeoSetting } from "../services/seoService.js";
 
@@ -53,7 +67,10 @@ export async function seoRoutes(app: FastifyInstance) {
 
       try {
         return ok({
-          data: await listSeoSettings(db, { actorRole: actor.role }),
+          data: {
+            ...(await listSeoSettings(db, { actorRole: actor.role, actorUserId: actor.id })),
+            ...(await listLatestCompletedAudit(db, { actorRole: actor.role, actorUserId: actor.id })),
+          },
         });
       } catch (error) {
         return sendApiError(reply, 500, error instanceof Error ? error.message : "Failed to load SEO settings");
@@ -70,7 +87,7 @@ export async function seoRoutes(app: FastifyInstance) {
 
       try {
         return ok({
-          data: await upsertSeoSetting(db, { actorRole: actor.role }, request.body ?? {}),
+          data: await upsertSeoSetting(db, { actorRole: actor.role, actorUserId: actor.id }, request.body ?? {}),
         });
       } catch (error) {
         const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
@@ -90,7 +107,7 @@ export async function seoRoutes(app: FastifyInstance) {
 
       try {
         return ok({
-          data: await updateSeoSetting(db, { actorRole: actor.role }, request.params.pageKey, request.body ?? {}),
+          data: await updateSeoSetting(db, { actorRole: actor.role, actorUserId: actor.id }, request.params.pageKey, request.body ?? {}),
         });
       } catch (error) {
         const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
@@ -101,8 +118,8 @@ export async function seoRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Params: { pageKey: string } }>(
-    "/admin/seo/generate/:pageKey",
+  app.get(
+    "/admin/seo/audits",
     { preHandler: requireAuth },
     async (request, reply) => {
       const db = requireDatabase(app.db);
@@ -110,25 +127,100 @@ export async function seoRoutes(app: FastifyInstance) {
 
       try {
         return ok({
-          data: await generateInitialSeo(
-            db,
-            { actorRole: actor.role, actorUserId: actor.id },
-            request.params.pageKey,
-            {
-              warn: (payload, message) => app.log.warn(payload, message),
-            },
-          ),
+          data: await listSeoAudits(db, { actorRole: actor.role, actorUserId: actor.id }),
         });
       } catch (error) {
         const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
           ? (error as { statusCode: number }).statusCode
           : 500;
-        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to generate SEO recommendation");
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to load SEO audits");
       }
     },
   );
 
-  app.get<{ Querystring: { pageKey?: string; status?: string } }>(
+  app.post<{ Body: { scope?: string; mode?: "quick" | "full" } }>(
+    "/admin/seo/audits",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        const audit = await createSeoAudit(
+          db,
+          { actorRole: actor.role, actorUserId: actor.id },
+          request.body ?? {},
+        );
+        void runSeoAuditJob(
+          db,
+          audit.id,
+          {
+            warn: (payload, message) => app.log.warn(payload, message),
+            info: (payload, message) => app.log.info(payload, message),
+            error: (payload, message) => app.log.error(payload, message),
+          },
+        ).catch((error) => {
+          app.log.error(
+            {
+              auditId: audit.id,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "seo_audit_async_failed",
+          );
+        });
+        return ok({
+          data: { audit },
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to start SEO audit");
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/admin/seo/audits/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await getSeoAuditById(db, { actorRole: actor.role, actorUserId: actor.id }, request.params.id),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to load SEO audit");
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/admin/seo/audits/:id/items",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await listSeoAuditItems(db, { actorRole: actor.role, actorUserId: actor.id }, request.params.id),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to load SEO audit items");
+      }
+    },
+  );
+
+  app.get<{ Querystring: { auditId?: string; pageKey?: string; status?: string } }>(
     "/admin/seo/recommendations",
     { preHandler: requireAuth },
     async (request, reply) => {
@@ -152,7 +244,7 @@ export async function seoRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Params: { id: string }; Body: { adminImpactOverride?: string | null } }>(
+  app.post<{ Params: { id: string }; Body: { expectedVersion: number } }>(
     "/admin/seo/recommendations/:id/approve",
     { preHandler: requireAuth },
     async (request, reply) => {
@@ -177,7 +269,35 @@ export async function seoRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Params: { id: string } }>(
+  app.post<{ Params: { id: string }; Body: { expectedVersion: number; editedValue: unknown } }>(
+    "/admin/seo/recommendations/:id/edit",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await editSeoRecommendation(
+            db,
+            { actorRole: actor.role, actorUserId: actor.id },
+            request.params.id,
+            {
+              expectedVersion: request.body?.expectedVersion ?? Number.NaN,
+              editedValue: (request.body?.editedValue ?? null) as SeoRecommendationValue,
+            },
+          ),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to edit SEO recommendation");
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { expectedVersion: number } }>(
     "/admin/seo/recommendations/:id/reject",
     { preHandler: requireAuth },
     async (request, reply) => {
@@ -190,6 +310,7 @@ export async function seoRoutes(app: FastifyInstance) {
             db,
             { actorRole: actor.role, actorUserId: actor.id },
             request.params.id,
+            request.body ?? { expectedVersion: NaN },
           ),
         });
       } catch (error) {
@@ -197,6 +318,99 @@ export async function seoRoutes(app: FastifyInstance) {
           ? (error as { statusCode: number }).statusCode
           : 500;
         return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to reject SEO recommendation");
+      }
+    },
+  );
+
+  app.post<{ Params: { changeId: string } }>(
+    "/admin/seo/rollback/:changeId",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await rollbackSeoChange(
+            db,
+            { actorRole: actor.role, actorUserId: actor.id },
+            request.params.changeId,
+          ),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to roll back SEO change");
+      }
+    },
+  );
+
+  app.get(
+    "/admin/seo/reports",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await listSeoReports(db, { actorRole: actor.role, actorUserId: actor.id }),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to load SEO reports");
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/admin/seo/reports/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        return ok({
+          data: await getSeoReportById(db, { actorRole: actor.role, actorUserId: actor.id }, request.params.id),
+        });
+      } catch (error) {
+        const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to load SEO report");
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/seo/reports/:id/pdf",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+
+      try {
+        requireAdmin(request);
+        const exported = await exportSeoReportPdf(db, { actorRole: actor.role, actorUserId: actor.id }, request.params.id);
+        reply.header("Content-Type", "application/pdf");
+        reply.header("Content-Disposition", `attachment; filename="${exported.filename}"`);
+        return reply.send(exported.pdf);
+      } catch (error) {
+        const message = error instanceof Error && error.message === "PDF_EXPORT_FAILED"
+          ? "SEO PDF export is temporarily unavailable"
+          : error instanceof Error
+            ? error.message
+            : "Failed to export SEO PDF";
+        const statusCode = error instanceof Error && error.message === "PDF_EXPORT_FAILED"
+          ? 503
+          : typeof (error as { statusCode?: unknown })?.statusCode === "number"
+            ? (error as { statusCode: number }).statusCode
+            : 500;
+        return sendApiError(reply, statusCode, message);
       }
     },
   );
@@ -240,14 +454,21 @@ export async function seoRoutes(app: FastifyInstance) {
 
       try {
         const db = requireDatabase(app.db);
-        const result = await runWeeklySeoRecommendationJob(
+        const audit = await createSeoAudit(
           db,
+          { actorRole: "admin", actorUserId: null },
+          { scope: "all_pages", mode: "full" },
+        );
+        await runSeoAuditJob(
+          db,
+          audit.id,
           {
             warn: (payload, message) => app.log.warn(payload, message),
             info: (payload, message) => app.log.info(payload, message),
             error: (payload, message) => app.log.error(payload, message),
           },
         );
+        const result = await getSeoAuditById(db, { actorRole: "admin", actorUserId: null }, audit.id);
         app.log.info(
           {
             requestIp,
@@ -268,7 +489,7 @@ export async function seoRoutes(app: FastifyInstance) {
           },
           "seo_weekly_route_failed",
         );
-        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to generate weekly SEO recommendations");
+        return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Failed to run SEO audit");
       }
     },
   );

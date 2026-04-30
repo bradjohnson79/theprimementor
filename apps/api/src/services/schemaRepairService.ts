@@ -5,8 +5,12 @@ const REPAIRABLE_PREFIXES = [
   "profiles.",
   "conversation_memories.",
   "seo_settings.",
+  "seo_audits.",
+  "seo_audit_items.",
   "seo_recommendations.",
   "seo_recommendation_apply_history.",
+  "seo_changes_log.",
+  "seo_reports.",
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
@@ -38,6 +42,14 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
     END IF;
   END $$;`,
   `DO $$ BEGIN
+    BEGIN
+      ALTER TYPE "public"."seo_recommendation_type" ADD VALUE IF NOT EXISTS 'og_image_update';
+      ALTER TYPE "public"."seo_recommendation_type" ADD VALUE IF NOT EXISTS 'indexing_update';
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END;
+  END $$;`,
+  `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_recommendation_impact') THEN
       CREATE TYPE "public"."seo_recommendation_impact" AS ENUM('low', 'medium', 'high');
     END IF;
@@ -53,10 +65,106 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
     END IF;
   END $$;`,
   `DO $$ BEGIN
+    BEGIN
+      ALTER TYPE "public"."seo_recommendation_status" ADD VALUE IF NOT EXISTS 'edited';
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END;
+  END $$;`,
+  `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_intent') THEN
       CREATE TYPE "public"."seo_intent" AS ENUM('informational', 'transactional', 'navigational');
     END IF;
   END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_audit_status') THEN
+      CREATE TYPE "public"."seo_audit_status" AS ENUM('pending', 'running', 'complete', 'failed');
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_audit_severity') THEN
+      CREATE TYPE "public"."seo_audit_severity" AS ENUM('low', 'medium', 'high');
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_recommendation_field') THEN
+      CREATE TYPE "public"."seo_recommendation_field" AS ENUM('title', 'meta_description', 'keywords', 'og_image', 'indexing');
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_recommendation_action') THEN
+      CREATE TYPE "public"."seo_recommendation_action" AS ENUM('update', 'no_change');
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'seo_change_source') THEN
+      CREATE TYPE "public"."seo_change_source" AS ENUM('manual', 'ai_approved', 'ai_edited', 'rollback');
+    END IF;
+  END $$;`,
+  `CREATE TABLE IF NOT EXISTS "seo_audits" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "initiated_by" uuid,
+    "scope" text NOT NULL,
+    "mode" text DEFAULT 'full' NOT NULL,
+    "status" "seo_audit_status" DEFAULT 'pending' NOT NULL,
+    "summary_json" jsonb,
+    "completed_at" timestamp with time zone,
+    "failure_reason" text,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "initiated_by" uuid;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "scope" text;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "mode" text DEFAULT 'full' NOT NULL;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "status" "seo_audit_status" DEFAULT 'pending' NOT NULL;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "summary_json" jsonb;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "completed_at" timestamp with time zone;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "failure_reason" text;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "seo_audits" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_audits_initiated_by_users_id_fk') THEN
+      ALTER TABLE "seo_audits"
+        ADD CONSTRAINT "seo_audits_initiated_by_users_id_fk"
+        FOREIGN KEY ("initiated_by") REFERENCES "public"."users"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE INDEX IF NOT EXISTS "seo_audits_status_created_idx" ON "seo_audits" USING btree ("status", "created_at");`,
+  `CREATE INDEX IF NOT EXISTS "seo_audits_initiated_by_created_idx" ON "seo_audits" USING btree ("initiated_by", "created_at");`,
+  `CREATE TABLE IF NOT EXISTS "seo_audit_items" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "audit_id" uuid NOT NULL,
+    "page_key" text NOT NULL,
+    "issue_type" text NOT NULL,
+    "severity" "seo_audit_severity" NOT NULL,
+    "description" text NOT NULL,
+    "detected_value" jsonb,
+    "recommended_value" jsonb,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "audit_id" uuid;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "page_key" text;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "issue_type" text;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "severity" "seo_audit_severity";`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "description" text;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "detected_value" jsonb;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "recommended_value" jsonb;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "seo_audit_items" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_audit_items_audit_id_seo_audits_id_fk') THEN
+      ALTER TABLE "seo_audit_items"
+        ADD CONSTRAINT "seo_audit_items_audit_id_seo_audits_id_fk"
+        FOREIGN KEY ("audit_id") REFERENCES "public"."seo_audits"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE INDEX IF NOT EXISTS "seo_audit_items_audit_severity_idx" ON "seo_audit_items" USING btree ("audit_id", "severity", "created_at");`,
+  `CREATE INDEX IF NOT EXISTS "seo_audit_items_page_issue_idx" ON "seo_audit_items" USING btree ("page_key", "issue_type", "created_at");`,
   `CREATE TABLE IF NOT EXISTS "seo_recommendations" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "page_key" text NOT NULL,
@@ -79,6 +187,7 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
     "created_at" timestamp with time zone DEFAULT now() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now()
   );`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "audit_id" uuid;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "page_key" text;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "type" "seo_recommendation_type";`,
@@ -86,19 +195,37 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "expected_outcome" text;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "current_snapshot" jsonb;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "suggested_snapshot" jsonb;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "field" "seo_recommendation_field";`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "current_value" jsonb;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "suggested_value" jsonb;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "edited_value" jsonb;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "reasoning" text;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "expected_impact" text;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "action" "seo_recommendation_action" DEFAULT 'update' NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "impact" "seo_recommendation_impact";`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "admin_impact_override" "seo_recommendation_impact";`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "intent" "seo_intent";`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "confidence" double precision DEFAULT 0 NOT NULL;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "confidence_score" double precision DEFAULT 0 NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "source" "seo_recommendation_source";`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "status" "seo_recommendation_status" DEFAULT 'pending' NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "dedupe_hash" text;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "model_name" text;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "version" integer DEFAULT 1 NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "reviewed_at" timestamp with time zone;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "reviewed_by" uuid;`,
+  `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "resolved_at" timestamp with time zone;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "last_recommendation_at" timestamp with time zone DEFAULT now() NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
   `ALTER TABLE "seo_recommendations" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_recommendations_audit_id_seo_audits_id_fk') THEN
+      ALTER TABLE "seo_recommendations"
+        ADD CONSTRAINT "seo_recommendations_audit_id_seo_audits_id_fk"
+        FOREIGN KEY ("audit_id") REFERENCES "public"."seo_audits"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_recommendations_reviewed_by_users_id_fk') THEN
       ALTER TABLE "seo_recommendations"
@@ -107,6 +234,7 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
         ON DELETE set null ON UPDATE no action;
     END IF;
   END $$;`,
+  `CREATE INDEX IF NOT EXISTS "seo_recommendations_audit_page_status_idx" ON "seo_recommendations" USING btree ("audit_id", "page_key", "status", "created_at");`,
   `CREATE INDEX IF NOT EXISTS "seo_recommendations_page_status_created_idx" ON "seo_recommendations" USING btree ("page_key", "status", "created_at");`,
   `CREATE INDEX IF NOT EXISTS "seo_recommendations_status_created_idx" ON "seo_recommendations" USING btree ("status", "created_at");`,
   `CREATE INDEX IF NOT EXISTS "seo_recommendations_dedupe_hash_idx" ON "seo_recommendations" USING btree ("dedupe_hash", "created_at");`,
@@ -146,6 +274,68 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "seo_recommendation_apply_history_recommendation_idx" ON "seo_recommendation_apply_history" USING btree ("recommendation_id");`,
   `CREATE INDEX IF NOT EXISTS "seo_recommendation_apply_history_page_applied_idx" ON "seo_recommendation_apply_history" USING btree ("page_key", "applied_at");`,
   `CREATE INDEX IF NOT EXISTS "seo_recommendation_apply_history_applied_by_idx" ON "seo_recommendation_apply_history" USING btree ("applied_by", "applied_at");`,
+  `CREATE TABLE IF NOT EXISTS "seo_changes_log" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "recommendation_id" uuid,
+    "page_key" text NOT NULL,
+    "field" "seo_recommendation_field" NOT NULL,
+    "old_value" jsonb,
+    "new_value" jsonb,
+    "source" "seo_change_source" NOT NULL,
+    "applied_by" uuid,
+    "applied_at" timestamp with time zone DEFAULT now() NOT NULL
+  );`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "recommendation_id" uuid;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "page_key" text;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "field" "seo_recommendation_field";`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "old_value" jsonb;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "new_value" jsonb;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "source" "seo_change_source";`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "applied_by" uuid;`,
+  `ALTER TABLE "seo_changes_log" ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_changes_log_recommendation_id_seo_recommendations_id_fk') THEN
+      ALTER TABLE "seo_changes_log"
+        ADD CONSTRAINT "seo_changes_log_recommendation_id_seo_recommendations_id_fk"
+        FOREIGN KEY ("recommendation_id") REFERENCES "public"."seo_recommendations"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_changes_log_applied_by_users_id_fk') THEN
+      ALTER TABLE "seo_changes_log"
+        ADD CONSTRAINT "seo_changes_log_applied_by_users_id_fk"
+        FOREIGN KEY ("applied_by") REFERENCES "public"."users"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE INDEX IF NOT EXISTS "seo_changes_log_page_applied_idx" ON "seo_changes_log" USING btree ("page_key", "applied_at");`,
+  `CREATE INDEX IF NOT EXISTS "seo_changes_log_recommendation_idx" ON "seo_changes_log" USING btree ("recommendation_id", "applied_at");`,
+  `CREATE INDEX IF NOT EXISTS "seo_changes_log_applied_by_idx" ON "seo_changes_log" USING btree ("applied_by", "applied_at");`,
+  `CREATE TABLE IF NOT EXISTS "seo_reports" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "audit_id" uuid NOT NULL,
+    "report_json" jsonb NOT NULL,
+    "pdf_url" text,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "audit_id" uuid;`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "report_json" jsonb;`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "pdf_url" text;`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "seo_reports" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seo_reports_audit_id_seo_audits_id_fk') THEN
+      ALTER TABLE "seo_reports"
+        ADD CONSTRAINT "seo_reports_audit_id_seo_audits_id_fk"
+        FOREIGN KEY ("audit_id") REFERENCES "public"."seo_audits"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE INDEX IF NOT EXISTS "seo_reports_audit_created_idx" ON "seo_reports" USING btree ("audit_id", "created_at");`,
   `CREATE TABLE IF NOT EXISTS "profiles" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "user_id" uuid NOT NULL,

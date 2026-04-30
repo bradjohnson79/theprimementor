@@ -118,6 +118,8 @@ export const seoRecommendationTypeEnum = pgEnum("seo_recommendation_type", [
   "title_update",
   "meta_description_update",
   "keyword_update",
+  "og_image_update",
+  "indexing_update",
   "no_change",
 ]);
 
@@ -136,6 +138,7 @@ export const seoRecommendationStatusEnum = pgEnum("seo_recommendation_status", [
   "pending",
   "approved",
   "rejected",
+  "edited",
   "applied",
   "superseded",
 ]);
@@ -144,6 +147,39 @@ export const seoIntentEnum = pgEnum("seo_intent", [
   "informational",
   "transactional",
   "navigational",
+]);
+
+export const seoAuditStatusEnum = pgEnum("seo_audit_status", [
+  "pending",
+  "running",
+  "complete",
+  "failed",
+]);
+
+export const seoAuditSeverityEnum = pgEnum("seo_audit_severity", [
+  "low",
+  "medium",
+  "high",
+]);
+
+export const seoRecommendationFieldEnum = pgEnum("seo_recommendation_field", [
+  "title",
+  "meta_description",
+  "keywords",
+  "og_image",
+  "indexing",
+]);
+
+export const seoRecommendationActionEnum = pgEnum("seo_recommendation_action", [
+  "update",
+  "no_change",
+]);
+
+export const seoChangeSourceEnum = pgEnum("seo_change_source", [
+  "manual",
+  "ai_approved",
+  "ai_edited",
+  "rollback",
 ]);
 
 export interface SeoKeywordBuckets {
@@ -157,6 +193,67 @@ export interface SeoRecommendationSnapshot {
   keywords: SeoKeywordBuckets;
   ogImage: string | null;
   robotsIndex: boolean;
+}
+
+export type SeoRecommendationValue = string | boolean | SeoKeywordBuckets | null;
+
+export interface SeoAuditSummaryJson {
+  pagesScanned: number;
+  totalIssues: number;
+  issuesBySeverity: Record<"low" | "medium" | "high", number>;
+  pagesAffected: SeoPageSummary[];
+  healthScore: number;
+  previousScore: number | null;
+  delta: number | null;
+}
+
+export interface SeoPageSummary {
+  pageKey: string;
+  issueCount: number;
+}
+
+export interface SeoReportJson {
+  overview: {
+    auditId: string;
+    pagesScanned: number;
+    totalIssues: number;
+    healthScore: number;
+    previousScore: number | null;
+    delta: number | null;
+    createdAt: string;
+  };
+  issuesFound: Array<{
+    pageKey: string;
+    severity: "low" | "medium" | "high";
+    issueType: string;
+    description: string;
+    detectedValue: SeoRecommendationValue;
+    recommendedValue: SeoRecommendationValue;
+  }>;
+  recommendations: Array<{
+    recommendationId: string;
+    pageKey: string;
+    field: "title" | "meta_description" | "keywords" | "og_image" | "indexing";
+    currentValue: SeoRecommendationValue;
+    suggestedValue: SeoRecommendationValue;
+    editedValue: SeoRecommendationValue;
+    reasoning: string | null;
+    confidenceScore: number;
+    expectedImpact: string | null;
+    status: string;
+  }>;
+  actionsTaken: Array<{
+    changeId: string;
+    pageKey: string;
+    field: "title" | "meta_description" | "keywords" | "og_image" | "indexing";
+    source: "manual" | "ai_approved" | "ai_edited" | "rollback";
+    oldValue: SeoRecommendationValue;
+    newValue: SeoRecommendationValue;
+    appliedAt: string;
+    appliedBy: string | null;
+  }>;
+  strategicInsights: string[];
+  nextSteps: string[];
 }
 
 export const users = pgTable("users", {
@@ -427,27 +524,71 @@ export const seoSettings = pgTable("seo_settings", {
   createdIdx: index("seo_settings_created_idx").on(table.created_at),
 }));
 
+export const seoAudits = pgTable("seo_audits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  initiated_by: uuid("initiated_by").references(() => users.id, { onDelete: "set null" }),
+  scope: text("scope").notNull(),
+  mode: text("mode").default("full").notNull(),
+  status: seoAuditStatusEnum("status").default("pending").notNull(),
+  summary_json: jsonb("summary_json").$type<SeoAuditSummaryJson>(),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  failure_reason: text("failure_reason"),
+  ...timestamps,
+}, (table) => ({
+  statusCreatedIdx: index("seo_audits_status_created_idx").on(table.status, table.created_at),
+  initiatedByCreatedIdx: index("seo_audits_initiated_by_created_idx").on(table.initiated_by, table.created_at),
+}));
+
+export const seoAuditItems = pgTable("seo_audit_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  audit_id: uuid("audit_id")
+    .references(() => seoAudits.id, { onDelete: "cascade" })
+    .notNull(),
+  page_key: text("page_key").notNull(),
+  issue_type: text("issue_type").notNull(),
+  severity: seoAuditSeverityEnum("severity").notNull(),
+  description: text("description").notNull(),
+  detected_value: jsonb("detected_value").$type<SeoRecommendationValue>(),
+  recommended_value: jsonb("recommended_value").$type<SeoRecommendationValue>(),
+  ...timestamps,
+}, (table) => ({
+  auditSeverityIdx: index("seo_audit_items_audit_severity_idx").on(table.audit_id, table.severity, table.created_at),
+  pageIssueIdx: index("seo_audit_items_page_issue_idx").on(table.page_key, table.issue_type, table.created_at),
+}));
+
 export const seoRecommendations = pgTable("seo_recommendations", {
   id: uuid("id").primaryKey().defaultRandom(),
+  audit_id: uuid("audit_id").references(() => seoAudits.id, { onDelete: "set null" }),
   page_key: text("page_key").notNull(),
   type: seoRecommendationTypeEnum("type").notNull(),
   reason: text("reason"),
   expected_outcome: text("expected_outcome"),
   current_snapshot: jsonb("current_snapshot").$type<SeoRecommendationSnapshot>().notNull(),
   suggested_snapshot: jsonb("suggested_snapshot").$type<SeoRecommendationSnapshot>().notNull(),
+  field: seoRecommendationFieldEnum("field"),
+  current_value: jsonb("current_value").$type<SeoRecommendationValue>(),
+  suggested_value: jsonb("suggested_value").$type<SeoRecommendationValue>(),
+  edited_value: jsonb("edited_value").$type<SeoRecommendationValue>(),
+  reasoning: text("reasoning"),
+  expected_impact: text("expected_impact"),
+  action: seoRecommendationActionEnum("action").default("update").notNull(),
   impact: seoRecommendationImpactEnum("impact"),
   admin_impact_override: seoRecommendationImpactEnum("admin_impact_override"),
   intent: seoIntentEnum("intent"),
   confidence: doublePrecision("confidence").default(0).notNull(),
+  confidence_score: doublePrecision("confidence_score").default(0).notNull(),
   source: seoRecommendationSourceEnum("source").notNull(),
   status: seoRecommendationStatusEnum("status").default("pending").notNull(),
   dedupe_hash: text("dedupe_hash"),
   model_name: text("model_name"),
+  version: integer("version").default(1).notNull(),
   reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
   reviewed_by: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  resolved_at: timestamp("resolved_at", { withTimezone: true }),
   last_recommendation_at: timestamp("last_recommendation_at", { withTimezone: true }).defaultNow().notNull(),
   ...timestamps,
 }, (table) => ({
+  auditPageStatusIdx: index("seo_recommendations_audit_page_status_idx").on(table.audit_id, table.page_key, table.status, table.created_at),
   pageStatusCreatedIdx: index("seo_recommendations_page_status_created_idx").on(table.page_key, table.status, table.created_at),
   statusCreatedIdx: index("seo_recommendations_status_created_idx").on(table.status, table.created_at),
   dedupeHashIdx: index("seo_recommendations_dedupe_hash_idx").on(table.dedupe_hash, table.created_at),
@@ -468,6 +609,34 @@ export const seoRecommendationApplyHistory = pgTable("seo_recommendation_apply_h
   recommendationIdx: index("seo_recommendation_apply_history_recommendation_idx").on(table.recommendation_id),
   pageAppliedIdx: index("seo_recommendation_apply_history_page_applied_idx").on(table.page_key, table.applied_at),
   appliedByIdx: index("seo_recommendation_apply_history_applied_by_idx").on(table.applied_by, table.applied_at),
+}));
+
+export const seoChangesLog = pgTable("seo_changes_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  recommendation_id: uuid("recommendation_id").references(() => seoRecommendations.id, { onDelete: "set null" }),
+  page_key: text("page_key").notNull(),
+  field: seoRecommendationFieldEnum("field").notNull(),
+  old_value: jsonb("old_value").$type<SeoRecommendationValue>(),
+  new_value: jsonb("new_value").$type<SeoRecommendationValue>(),
+  source: seoChangeSourceEnum("source").notNull(),
+  applied_by: uuid("applied_by").references(() => users.id, { onDelete: "set null" }),
+  applied_at: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  pageAppliedIdx: index("seo_changes_log_page_applied_idx").on(table.page_key, table.applied_at),
+  recommendationIdx: index("seo_changes_log_recommendation_idx").on(table.recommendation_id, table.applied_at),
+  appliedByIdx: index("seo_changes_log_applied_by_idx").on(table.applied_by, table.applied_at),
+}));
+
+export const seoReports = pgTable("seo_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  audit_id: uuid("audit_id")
+    .references(() => seoAudits.id, { onDelete: "cascade" })
+    .notNull(),
+  report_json: jsonb("report_json").$type<SeoReportJson>().notNull(),
+  pdf_url: text("pdf_url"),
+  ...timestamps,
+}, (table) => ({
+  auditCreatedIdx: index("seo_reports_audit_created_idx").on(table.audit_id, table.created_at),
 }));
 
 export const invoices = pgTable("invoices", {

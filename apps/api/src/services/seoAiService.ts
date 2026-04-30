@@ -40,12 +40,14 @@ type SeoRecommendationType =
   | "title_update"
   | "meta_description_update"
   | "keyword_update"
+  | "og_image_update"
+  | "indexing_update"
   | "no_change";
 
 type SeoImpact = "low" | "medium" | "high";
 type SeoIntent = "informational" | "transactional" | "navigational";
 type RecommendationSource = "initial_scan" | "weekly_optimization";
-type RecommendationStatus = "pending" | "approved" | "rejected" | "applied" | "superseded";
+type RecommendationStatus = "pending" | "approved" | "rejected" | "edited" | "applied" | "superseded";
 type PageTrend = "up" | "down" | "stable";
 type PagePerformance = "high" | "medium" | "low";
 
@@ -898,7 +900,7 @@ export async function listSeoRecommendations(
 
   if (filters?.status) {
     const status = filters.status.trim() as RecommendationStatus;
-    if (["pending", "approved", "rejected", "applied", "superseded"].includes(status)) {
+    if (["pending", "approved", "rejected", "edited", "applied", "superseded"].includes(status)) {
       conditions.push(eq(seoRecommendations.status, status));
     }
   }

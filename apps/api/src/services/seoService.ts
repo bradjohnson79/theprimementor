@@ -1,10 +1,11 @@
-import { seoSettings, type Database, type SeoKeywordBuckets } from "@wisdom/db";
+import { seoChangesLog, seoSettings, type Database, type SeoKeywordBuckets, type SeoRecommendationValue } from "@wisdom/db";
 import { SEO_PAGE_OPTIONS, SEO_PAGES, type SeoPageKey } from "@wisdom/utils";
 import { asc, eq } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
 
 interface SeoActor {
   actorRole: string;
+  actorUserId?: string | null;
 }
 
 export interface SeoPayloadInput {
@@ -102,6 +103,75 @@ function buildSeoValues(pageKey: SeoPageKey, payload: SeoPayloadInput) {
   };
 }
 
+function seoValuesEqual(left: SeoRecommendationValue, right: SeoRecommendationValue) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+async function logManualSeoChanges(
+  db: Database,
+  actor: SeoActor,
+  pageKey: SeoPageKey,
+  input: {
+    previous: {
+      title: string | null;
+      metaDescription: string | null;
+      keywords: SeoKeywordBuckets;
+      ogImage: string | null;
+      robotsIndex: boolean;
+    };
+    next: {
+      title: string | null;
+      metaDescription: string | null;
+      keywords: SeoKeywordBuckets;
+      ogImage: string | null;
+      robotsIndex: boolean;
+    };
+  },
+) {
+  const rows = [
+    {
+      field: "title" as const,
+      oldValue: input.previous.title,
+      newValue: input.next.title,
+    },
+    {
+      field: "meta_description" as const,
+      oldValue: input.previous.metaDescription,
+      newValue: input.next.metaDescription,
+    },
+    {
+      field: "keywords" as const,
+      oldValue: input.previous.keywords,
+      newValue: input.next.keywords,
+    },
+    {
+      field: "og_image" as const,
+      oldValue: input.previous.ogImage,
+      newValue: input.next.ogImage,
+    },
+    {
+      field: "indexing" as const,
+      oldValue: input.previous.robotsIndex,
+      newValue: input.next.robotsIndex,
+    },
+  ].filter((entry) => !seoValuesEqual(entry.oldValue, entry.newValue));
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  await db.insert(seoChangesLog).values(
+    rows.map((entry) => ({
+      page_key: pageKey,
+      field: entry.field,
+      old_value: entry.oldValue ?? null,
+      new_value: entry.newValue ?? null,
+      source: "manual" as const,
+      applied_by: actor.actorUserId ?? null,
+    })),
+  );
+}
+
 export async function listSeoSettings(db: Database, actor: SeoActor) {
   assertAdminAccess(actor);
 
@@ -135,6 +205,16 @@ export async function upsertSeoSetting(
   assertAdminAccess(actor);
   const pageKey = assertSeoPageKey(payload.pageKey);
   const values = buildSeoValues(pageKey, payload);
+  let existing = null;
+  try {
+    [existing] = await db
+      .select()
+      .from(seoSettings)
+      .where(eq(seoSettings.page_key, pageKey))
+      .limit(1);
+  } catch (error) {
+    handleSeoStorageError(error);
+  }
 
   let row;
   try {
@@ -153,6 +233,23 @@ export async function upsertSeoSetting(
   if (!row) {
     throw createHttpError(500, "Unable to save SEO settings");
   }
+
+  await logManualSeoChanges(db, actor, pageKey, {
+    previous: {
+      title: existing?.title ?? null,
+      metaDescription: existing?.meta_description ?? null,
+      keywords: existing?.keywords ?? { primary: [], secondary: [] },
+      ogImage: existing?.og_image ?? null,
+      robotsIndex: existing?.robots_index ?? true,
+    },
+    next: {
+      title: row.title,
+      metaDescription: row.meta_description,
+      keywords: row.keywords,
+      ogImage: row.og_image,
+      robotsIndex: row.robots_index,
+    },
+  });
 
   return toSeoRecord(row);
 }
@@ -211,6 +308,23 @@ export async function updateSeoSetting(
   if (!updated) {
     throw createHttpError(500, "Unable to update SEO settings");
   }
+
+  await logManualSeoChanges(db, actor, pageKey, {
+    previous: {
+      title: existing.title,
+      metaDescription: existing.meta_description,
+      keywords: existing.keywords,
+      ogImage: existing.og_image,
+      robotsIndex: existing.robots_index,
+    },
+    next: {
+      title: updated.title,
+      metaDescription: updated.meta_description,
+      keywords: updated.keywords,
+      ogImage: updated.og_image,
+      robotsIndex: updated.robots_index,
+    },
+  });
 
   return toSeoRecord(updated);
 }
