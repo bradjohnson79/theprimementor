@@ -36,7 +36,11 @@ import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.j
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
 import { assertMentorTrainingStripeConfig } from "./config/mentorTrainingPackages.js";
 import { assertInternalApiEnvelope, fail, isApiResult, shouldBypassApiEnvelope, toLegacyPayload } from "./apiContract.js";
-import { canRepairKnownSchemaGaps, repairKnownSchemaGaps } from "./services/schemaRepairService.js";
+import {
+  canRepairKnownSchemaGaps,
+  ensureKnownDataRows,
+  repairKnownSchemaGaps,
+} from "./services/schemaRepairService.js";
 
 logger.info("zoom_env_loaded", {
   hasAccountId: Boolean(process.env.ZOOM_ACCOUNT_ID?.trim()),
@@ -648,6 +652,7 @@ export async function buildApp() {
       await repairKnownSchemaGaps(db);
     }
     await verifySchema(db);
+    await ensureKnownDataRows(db);
   }
 
   app.decorate("db", db);

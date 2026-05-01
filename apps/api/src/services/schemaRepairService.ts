@@ -403,12 +403,55 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "conversation_memories_conversation_type_content_uidx" ON "conversation_memories" USING btree ("conversation_id", "type", "content");`,
 ] as const;
 
+const KNOWN_DATA_REPAIR_STATEMENTS = [
+  `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
+  `INSERT INTO "booking_types" (
+    "id",
+    "name",
+    "session_type",
+    "duration_minutes",
+    "price_cents",
+    "currency",
+    "buffer_before_minutes",
+    "buffer_after_minutes",
+    "is_active"
+  )
+  VALUES (
+    'qa-session-30',
+    'Q&A Session',
+    'qa_session',
+    30,
+    14999,
+    'CAD',
+    10,
+    10,
+    true
+  )
+  ON CONFLICT ("id") DO UPDATE
+  SET
+    "name" = excluded."name",
+    "session_type" = excluded."session_type",
+    "duration_minutes" = excluded."duration_minutes",
+    "price_cents" = excluded."price_cents",
+    "currency" = excluded."currency",
+    "buffer_before_minutes" = excluded."buffer_before_minutes",
+    "buffer_after_minutes" = excluded."buffer_after_minutes",
+    "is_active" = true,
+    "updated_at" = now();`,
+] as const;
+
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {
   return missingEntries.some((entry) => REPAIRABLE_PREFIXES.some((prefix) => entry.startsWith(prefix)));
 }
 
 export async function repairKnownSchemaGaps(db: Database) {
   for (const statement of KNOWN_SCHEMA_REPAIR_STATEMENTS) {
+    await db.execute(sql.raw(statement));
+  }
+}
+
+export async function ensureKnownDataRows(db: Database) {
+  for (const statement of KNOWN_DATA_REPAIR_STATEMENTS) {
     await db.execute(sql.raw(statement));
   }
 }
