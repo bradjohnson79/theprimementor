@@ -739,7 +739,18 @@ export async function buildApp() {
       logger.warn("database_schema_repair_attempting", {
         missingColumns: missingEntries,
       });
-      await repairKnownSchemaGaps(db);
+      try {
+        await repairKnownSchemaGaps(db);
+        logger.info("database_schema_repair_succeeded", {
+          repairedColumns: missingEntries,
+        });
+      } catch (error) {
+        logger.error("database_schema_repair_failed", {
+          missingColumns: missingEntries,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
     }
     await verifySchema(db);
     await ensureKnownDataRows(db);

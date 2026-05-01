@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { and, desc, eq } from "drizzle-orm";
 import {
+  bookings,
   orders,
   payments,
   regenerationCheckIns,
@@ -15,6 +16,7 @@ import {
   REGENERATION_PRODUCT_KEY,
   getRegenerationStripePriceId,
 } from "../config/regenerationBilling.js";
+import { getFrontendUrl } from "../config/membershipBilling.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity, markPaymentPaidFromWebhook } from "./payments/paymentsService.js";
 
@@ -417,6 +419,7 @@ async function getLatestPendingPayment(db: Database, regenerationSubscriptionId:
     .select({
       id: payments.id,
       status: payments.status,
+      bookingId: payments.booking_id,
       metadata: payments.metadata,
     })
     .from(payments)
@@ -427,6 +430,43 @@ async function getLatestPendingPayment(db: Database, regenerationSubscriptionId:
     .orderBy(desc(payments.created_at))
     .limit(1);
   return payment ?? null;
+}
+
+async function getRegenerationBookingContext(
+  db: Database,
+  input: {
+    userId: string;
+    bookingId: string | null;
+  },
+) {
+  if (!input.bookingId) {
+    return null;
+  }
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      userId: bookings.user_id,
+      sessionType: bookings.session_type,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (!booking || booking.userId !== input.userId) {
+    throw createHttpError(404, "Regeneration intake record was not found.");
+  }
+
+  if (booking.sessionType !== "regeneration") {
+    throw createHttpError(400, "Checkout requires a regeneration intake record.");
+  }
+
+  if (!["pending_payment", "paid"].includes(booking.status)) {
+    throw createHttpError(400, "This regeneration intake is no longer in a payable state.");
+  }
+
+  return booking;
 }
 
 async function ensureLocalUserExists(db: Database, userId: string) {
@@ -621,9 +661,14 @@ export async function createRegenerationCheckoutSession(
   input: {
     userId: string;
     clerkId: string;
+    bookingId?: string | null;
   },
 ) {
   await ensureLocalUserExists(db, input.userId);
+  const booking = await getRegenerationBookingContext(db, {
+    userId: input.userId,
+    bookingId: input.bookingId ?? null,
+  });
   const existing = await getProjectionByUserId(db, input.userId);
   if (existing && normalizeAccessState(existing.accessState) !== "inactive") {
     throw createHttpError(409, "Your regeneration access is already active.");
@@ -642,7 +687,7 @@ export async function createRegenerationCheckoutSession(
     },
   });
   const priceId = getRegenerationStripePriceId();
-  const frontendUrl = process.env.FRONTEND_URL?.trim() || process.env.APP_URL?.trim() || "http://localhost:3000";
+  const frontendUrl = getFrontendUrl();
   const lastCheckoutStartedAt = new Date();
   const createdOrUpdated = await upsertProjection(db, {
     userId: input.userId,
@@ -667,7 +712,8 @@ export async function createRegenerationCheckoutSession(
       ...(parseObject(existing?.metadata) ?? {}),
       productKey: REGENERATION_PRODUCT_KEY,
       planName: REGENERATION_PLAN_NAME,
-      checkoutSource: "regeneration_monthly_landing",
+      checkoutSource: "regeneration_monthly_intake",
+      bookingId: booking?.id ?? null,
     },
   });
 
@@ -681,6 +727,7 @@ export async function createRegenerationCheckoutSession(
       userId: input.userId,
       entityType: "regeneration_subscription",
       entityId: createdOrUpdated.id,
+      bookingId: booking?.id ?? null,
       amountCents: 9900,
       currency: "CAD",
       status: "pending",
@@ -688,6 +735,7 @@ export async function createRegenerationCheckoutSession(
         source: "regeneration_checkout_create",
         planName: REGENERATION_PLAN_NAME,
         productKey: REGENERATION_PRODUCT_KEY,
+        bookingId: booking?.id ?? null,
       },
     });
   }
@@ -700,8 +748,10 @@ export async function createRegenerationCheckoutSession(
     entityType: "regeneration_subscription",
     entityId: createdOrUpdated.id,
     regenerationSubscriptionId: createdOrUpdated.id,
+    bookingId: booking?.id ?? null,
     productKey: REGENERATION_PRODUCT_KEY,
     planName: REGENERATION_PLAN_NAME,
+    checkoutSource: "/sessions/regeneration/book",
   };
 
   const session = await stripe.checkout.sessions.create({
@@ -711,8 +761,8 @@ export async function createRegenerationCheckoutSession(
     line_items: [{ price: priceId, quantity: 1 }],
     metadata,
     subscription_data: { metadata },
-    success_url: `${frontendUrl}/dashboard?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}/sessions/regeneration?checkout=canceled`,
+    success_url: `${frontendUrl}/sessions/regeneration/success?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}/sessions/regeneration/book?checkout=canceled${booking ? `&bookingId=${encodeURIComponent(booking.id)}` : ""}`,
     customer: stripeCustomerId,
   });
 
@@ -741,6 +791,7 @@ export async function createRegenerationCheckoutSession(
       stripePriceId: priceId,
       planName: REGENERATION_PLAN_NAME,
       productKey: REGENERATION_PRODUCT_KEY,
+      bookingId: booking?.id ?? null,
     },
   });
 
@@ -749,6 +800,7 @@ export async function createRegenerationCheckoutSession(
     await db
       .update(payments)
       .set({
+        booking_id: booking?.id ?? refreshedPayment.bookingId ?? null,
         metadata: {
           ...(parseObject(refreshedPayment.metadata) ?? {}),
           stripeCheckoutSessionId: session.id,
@@ -757,6 +809,7 @@ export async function createRegenerationCheckoutSession(
           stripePriceId: priceId,
           planName: REGENERATION_PLAN_NAME,
           productKey: REGENERATION_PRODUCT_KEY,
+          bookingId: booking?.id ?? null,
         },
         updated_at: new Date(),
       })

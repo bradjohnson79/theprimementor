@@ -31,6 +31,7 @@ interface CreateBookingBody {
   intake?: Record<string, unknown> | null;
   notes?: string;
   userId?: string;
+  deferPaymentRecord?: boolean;
 }
 
 interface BookingParams {
@@ -75,6 +76,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
       intake,
       notes,
       userId,
+      deferPaymentRecord,
     } = request.body ?? {};
     if (!bookingTypeId && !sessionType) {
       return sendApiError(reply, 400, "bookingTypeId or sessionType is required");
@@ -105,6 +107,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
       intake,
       notes,
       userId,
+      deferPaymentRecord,
     });
 
     return ok({

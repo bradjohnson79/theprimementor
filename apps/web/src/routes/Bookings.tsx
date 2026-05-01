@@ -25,6 +25,7 @@ import {
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import { submitRegenerationBooking } from "../lib/submitRegenerationBooking";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
   AVAILABILITY_DAYS,
@@ -599,9 +600,25 @@ export default function Bookings() {
     setIsProcessing(true);
     try {
       const token = await getToken();
+      const bookingPayload = buildBookingPayload(isQA ? null : birthplace);
+
+      if (isRegeneration) {
+        const { bookingId } = await submitRegenerationBooking({
+          token,
+          payload: bookingPayload,
+        });
+
+        trackEventOnce(`analytics:regeneration-booked:${bookingId}`, "session_booked", {
+          source: "regeneration_checkout_create",
+          sessionType: selectedSessionType,
+          bookingId,
+        });
+        return;
+      }
+
       const bookingResponse = (await api.post(
         "/bookings",
-        buildBookingPayload(isQA ? null : birthplace),
+        bookingPayload,
         token,
       )) as CreateBookingResponse;
 
@@ -624,7 +641,12 @@ export default function Bookings() {
         setPurchaseError("Something went wrong. Please try again.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start your session purchase.");
+      const message = err instanceof Error ? err.message : "Unable to start your session purchase.";
+      if (isRegeneration) {
+        setPurchaseError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -1448,7 +1470,9 @@ export default function Bookings() {
       {
         id: "review",
         title: "Review and confirm",
-        guidance: "Everything looks good. Take a moment to review your details before you proceed to payment.",
+        guidance: isRegeneration
+          ? "Everything looks good. Review your intake, then continue to secure checkout to start the Regeneration Monthly Package."
+          : "Everything looks good. Take a moment to review your details before you proceed to payment.",
         validate: validateReviewStep,
         isComplete: () => form.consentGiven,
         render: ({ goToStep }) => (
@@ -1460,7 +1484,7 @@ export default function Bookings() {
               }))}
             />
 
-            {selectedSessionType ? (
+            {selectedSessionType && !isRegeneration ? (
               <PromoCodeInput
                 code={promo.code}
                 onCodeChange={promo.setCode}
@@ -1541,9 +1565,13 @@ export default function Bookings() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Sessions</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-white">
+          {isRegeneration ? "Regeneration Monthly Package" : "Sessions"}
+        </h1>
         <p className="max-w-2xl text-white/60">
-          Choose your session type, complete the intake that fits it, and submit when you are ready.
+          {isRegeneration
+            ? "Complete your intake first, then continue to Stripe to begin your 30-day regeneration cycle at $99/month recurring."
+            : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
         </p>
       </div>
 
@@ -1565,7 +1593,7 @@ export default function Bookings() {
           resetKey={location.pathname}
           onValidationErrors={setFieldErrors}
           onComplete={handlePurchase}
-          completeLabel="Complete & Purchase Session"
+          completeLabel={isRegeneration ? "Continue to Secure Checkout" : "Complete & Purchase Session"}
           isSubmitting={isProcessing}
           submitError={purchaseError}
         />

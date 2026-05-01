@@ -219,7 +219,12 @@ function resolveBookingStatusAfterPayment(startTimeUtc: Date | null) {
 }
 
 async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) {
-  if ((current.entityType === "session" || current.entityType === "mentoring_circle") && current.bookingId) {
+  if (
+    (current.entityType === "session"
+      || current.entityType === "mentoring_circle"
+      || current.entityType === "regeneration_subscription")
+    && current.bookingId
+  ) {
     await db
       .update(bookings)
       .set({

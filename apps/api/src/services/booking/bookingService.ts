@@ -154,6 +154,7 @@ export interface CreateBookingInput {
   intake?: unknown;
   notes?: string;
   userId?: string;
+  deferPaymentRecord?: boolean;
   now?: Date;
 }
 
@@ -999,6 +1000,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const now = input.now ?? new Date();
   const bookingUserId = input.actorRole === "admin" && input.userId ? input.userId : input.actorUserId;
   const allowAdminFallbacks = input.actorRole === "admin";
+  const deferPaymentRecord = input.deferPaymentRecord === true;
 
   if (input.userId && input.actorRole !== "admin" && input.userId !== input.actorUserId) {
     throw createHttpError(403, "You cannot create bookings for another user");
@@ -1045,7 +1047,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
 
   if (reusableBookingId) {
     const existingPayment = await getReusablePaymentForBooking(db, reusableBookingId);
-    if (!existingPayment) {
+    if (!existingPayment && !deferPaymentRecord) {
       await createPaymentRecordForBooking(db, {
         userId: bookingUserId,
         bookingId: reusableBookingId,
@@ -1101,22 +1103,24 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
       })
       .returning({ id: bookings.id });
 
-    await createPaymentRecordForBooking(tx, {
-      userId: bookingUserId,
-      bookingId: created.id,
-      amountCents: bookingType.price_cents,
-      currency: bookingType.currency,
-      status: "pending",
-      metadata: {
-        source: "booking_create",
-        bookingTypeId: bookingType.id,
-        sessionType,
-        sessionDurationMinutes,
-        sessionTier: sessionMetadata.sessionTier,
-        upgradeEligible: sessionMetadata.upgradeEligible,
-        upgradeTarget: sessionMetadata.upgradeTarget,
-      },
-    });
+    if (!deferPaymentRecord) {
+      await createPaymentRecordForBooking(tx, {
+        userId: bookingUserId,
+        bookingId: created.id,
+        amountCents: bookingType.price_cents,
+        currency: bookingType.currency,
+        status: "pending",
+        metadata: {
+          source: "booking_create",
+          bookingTypeId: bookingType.id,
+          sessionType,
+          sessionDurationMinutes,
+          sessionTier: sessionMetadata.sessionTier,
+          upgradeEligible: sessionMetadata.upgradeEligible,
+          upgradeTarget: sessionMetadata.upgradeTarget,
+        },
+      });
+    }
 
     return created;
   });

@@ -16,6 +16,10 @@ interface ConfirmCheckoutBody {
   checkoutSessionId?: string;
 }
 
+interface CreateCheckoutBody {
+  bookingId?: string;
+}
+
 interface OverrideBody {
   enabled?: boolean;
   durationDays?: number;
@@ -35,14 +39,19 @@ export async function regenerationRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post("/member/regeneration-subscription/checkout", { preHandler: requireAuth }, async (request) => {
-    const db = requireDatabase(app.db);
-    const result = await createRegenerationCheckoutSession(db, {
-      userId: request.dbUser!.id,
-      clerkId: requireClerkId(request),
-    });
-    return ok(result);
-  });
+  app.post<{ Body: CreateCheckoutBody }>(
+    "/member/regeneration-subscription/checkout",
+    { preHandler: requireAuth },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const result = await createRegenerationCheckoutSession(db, {
+        userId: request.dbUser!.id,
+        clerkId: requireClerkId(request),
+        bookingId: request.body?.bookingId?.trim() || null,
+      });
+      return ok(result);
+    },
+  );
 
   app.post<{ Body: ConfirmCheckoutBody }>(
     "/member/regeneration-subscription/confirm",
