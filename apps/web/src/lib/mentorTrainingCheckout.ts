@@ -12,11 +12,12 @@ export async function startMentorTrainingCheckout(
   options: {
     token: string | null;
     onAlreadyPaid?: (trainingOrderId: string | null) => void;
+    promoCode?: string | null;
   },
 ): Promise<void> {
   const data = (await api.post(
     "/mentor-training/checkout",
-    { packageType },
+    { packageType, promoCode: options.promoCode ?? undefined },
     options.token,
   )) as MentorTrainingCheckoutResponse;
 

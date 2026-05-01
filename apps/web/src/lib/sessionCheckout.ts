@@ -9,13 +9,14 @@ export async function startSessionCheckout(
   bookingId: string,
   options: {
     token: string | null;
+    promoCode?: string | null;
   },
 ): Promise<void> {
   console.log("[Bookings] starting Stripe Checkout for booking", bookingId);
 
   const data = (await api.post(
     "/create-checkout-session",
-    { type: "session", bookingId },
+    { type: "session", bookingId, promoCode: options.promoCode ?? undefined },
     options.token,
   )) as CreateCheckoutSessionResponse;
 

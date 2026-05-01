@@ -31,6 +31,7 @@ import { mentorTrainingRoutes } from "./routes/mentor-training.js";
 import { adminNotificationRoutes } from "./routes/admin-notifications.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { seoRoutes } from "./routes/seo.js";
+import { promoCodesRoutes } from "./routes/promoCodes.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
@@ -473,6 +474,48 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "created_at",
     "updated_at",
   ],
+  promo_codes: [
+    "id",
+    "code",
+    "discount_type",
+    "discount_value",
+    "active",
+    "expires_at",
+    "usage_limit",
+    "times_used",
+    "applies_to",
+    "applies_to_billing",
+    "min_amount_cents",
+    "first_time_only",
+    "campaign",
+    "stripe_coupon_id",
+    "stripe_promotion_code_id",
+    "sync_status",
+    "last_validated_at",
+    "last_validation_ok",
+    "last_validation_snapshot",
+    "validation_failure_code",
+    "validation_failure_message",
+    "metadata",
+    "archived_at",
+    "created_at",
+    "updated_at",
+  ],
+  promo_code_usages: [
+    "id",
+    "promo_code_id",
+    "payment_id",
+    "created_at",
+  ],
+  promo_code_changes_log: [
+    "id",
+    "promo_code_id",
+    "field_changed",
+    "old_value",
+    "new_value",
+    "changed_by",
+    "changed_at",
+  ],
 };
 
 async function getMissingSchemaEntries(db: Database) {
@@ -511,7 +554,10 @@ async function getMissingSchemaEntries(db: Database) {
         'seo_recommendations',
         'seo_recommendation_apply_history',
         'seo_changes_log',
-        'seo_reports'
+        'seo_reports',
+        'promo_codes',
+        'promo_code_usages',
+        'promo_code_changes_log'
       )
   `);
 
@@ -718,6 +764,7 @@ export async function buildApp() {
   await app.register(adminNotificationRoutes, { prefix: "/api" });
   await app.register(analyticsRoutes, { prefix: "/api" });
   await app.register(seoRoutes, { prefix: "/api" });
+  await app.register(promoCodesRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 

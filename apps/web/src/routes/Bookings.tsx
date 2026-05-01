@@ -7,8 +7,10 @@ import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
 import ReviewStep from "../components/forms/ReviewStep";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
@@ -207,6 +209,7 @@ export default function Bookings() {
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [birthplace, setBirthplace] = useState<PlaceResult | null>(null);
+  const promo = usePromoCode(getToken);
   const {
     error: placesError,
     isResolving: resolvingPlace,
@@ -279,6 +282,10 @@ export default function Bookings() {
     setPurchaseError(null);
     setSuccess(null);
   }, [location.pathname]);
+
+  useEffect(() => {
+    promo.reset();
+  }, [promo.reset, selectedSessionType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -609,7 +616,10 @@ export default function Bookings() {
       });
 
       try {
-        await startSessionCheckout(bookingResponse.bookingId, { token });
+        await startSessionCheckout(bookingResponse.bookingId, {
+          token,
+          promoCode: promo.validation?.code ?? null,
+        });
       } catch {
         setPurchaseError("Something went wrong. Please try again.");
       }
@@ -1450,6 +1460,26 @@ export default function Bookings() {
               }))}
             />
 
+            {selectedSessionType ? (
+              <PromoCodeInput
+                code={promo.code}
+                onCodeChange={promo.setCode}
+                onApply={() => {
+                  void promo.apply({
+                    type: "session",
+                    sessionType: selectedSessionType,
+                  });
+                }}
+                onRemove={promo.clear}
+                applying={promo.applying}
+                error={promo.error}
+                appliedCode={promo.validation?.code ?? null}
+                estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+                finalEstimate={promo.validation?.finalEstimate ?? null}
+                currency={promo.validation?.currency ?? null}
+              />
+            ) : null}
+
             <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-white/75">
               <input
                 type="checkbox"
@@ -1505,6 +1535,7 @@ export default function Bookings() {
     selectedSessionType,
     suggestedTimezone,
     timezone,
+    promo,
   ]);
 
   return (

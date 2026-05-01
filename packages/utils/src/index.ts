@@ -35,3 +35,4 @@ export * from "./divin8Timeline.js";
 export * from "./languages.js";
 export * from "./systemSynonyms.js";
 export * from "./seo.js";
+export * from "./promo.js";

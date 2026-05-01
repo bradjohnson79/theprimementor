@@ -10,9 +10,11 @@ import {
   type MembershipSignupTierKey,
 } from "../config/membershipSignupPlans";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { startMembershipCheckoutSession } from "../lib/membershipCheckout";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
 
 function resolveTierFromPath(pathname: string): MembershipSignupTierKey | null {
   if (pathname.endsWith("/seeker")) return "seeker";
@@ -39,10 +41,15 @@ export default function MembershipSignup() {
   const [mentorTrainingEligibility, setMentorTrainingEligibility] = useState<MentorTrainingEligibilityData | null>(null);
   const [mentorTrainingLoading, setMentorTrainingLoading] = useState(false);
   const selectedTier = useMemo(() => resolveTierFromPath(location.pathname), [location.pathname]);
+  const promo = usePromoCode(getToken);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    promo.reset();
+  }, [promo.reset, selectedTier]);
 
   useEffect(() => {
     const checkoutState = searchParams.get("checkout");
@@ -173,7 +180,11 @@ export default function MembershipSignup() {
 
       setBusyTier(plan.tier);
       try {
-        await startMembershipCheckoutSession(plan.tier, { getToken, clerkUserId: userId ?? undefined });
+        await startMembershipCheckoutSession(plan.tier, {
+          getToken,
+          clerkUserId: userId ?? undefined,
+          promoCode: promo.validation?.code ?? null,
+        });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Checkout could not start. Please try again.");
       } finally {
@@ -235,6 +246,30 @@ export default function MembershipSignup() {
           {notice}
         </div>
       ) : null}
+
+          {selectedTier ? (
+            <div className="mb-8">
+              <PromoCodeInput
+                code={promo.code}
+                onCodeChange={promo.setCode}
+                onApply={() => {
+                  void promo.apply({
+                    type: "subscription",
+                    membershipTier: selectedTier,
+                    billingInterval: "monthly",
+                  });
+                }}
+                onRemove={promo.clear}
+                applying={promo.applying}
+                error={promo.error}
+                appliedCode={promo.validation?.code ?? null}
+                estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+                finalEstimate={promo.validation?.finalEstimate ?? null}
+                currency={promo.validation?.currency ?? null}
+                subtitle="Apply a single promo code to the membership tier currently highlighted on this page."
+              />
+            </div>
+          ) : null}
 
           <div className="grid items-stretch gap-8 lg:grid-cols-2 lg:gap-10">
             {MEMBERSHIP_SIGNUP_PLANS.map((plan) => (

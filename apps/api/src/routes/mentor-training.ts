@@ -12,6 +12,7 @@ import {
 
 interface MentorTrainingCheckoutBody {
   packageType?: MentorTrainingPackageType;
+  promoCode?: string;
 }
 
 interface MentorTrainingStatusBody {
@@ -52,6 +53,7 @@ export async function mentorTrainingRoutes(app: FastifyInstance) {
     const session = await createCheckoutSession(db, {
       type: "mentor_training",
       trainingOrderId: prepared.order.id,
+      promoCode: request.body.promoCode,
       userId: user.id,
       userEmail: user.email,
       clerkId,

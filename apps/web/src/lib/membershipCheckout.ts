@@ -20,6 +20,7 @@ export async function startMembershipCheckoutSession(
   options: {
     getToken: () => Promise<string | null>;
     clerkUserId: string | undefined;
+    promoCode?: string | null;
   },
 ): Promise<void> {
   const token = await options.getToken();
@@ -38,6 +39,7 @@ export async function startMembershipCheckoutSession(
     membershipId,
     tier,
     clerkId: options.clerkUserId?.trim() || undefined,
+    promoCode: options.promoCode ?? undefined,
   };
 
   const data = (await api.post("/create-checkout-session", body, token)) as CreateCheckoutSessionResponse;

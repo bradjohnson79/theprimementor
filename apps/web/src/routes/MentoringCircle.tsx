@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { useSearchParams } from "react-router-dom";
 import { formatPacificTime } from "@wisdom/utils";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
@@ -69,6 +71,7 @@ export default function MentoringCircle() {
   const [posterFailed, setPosterFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const promo = usePromoCode(getToken);
 
   const requestedEventId = searchParams.get("eventId");
 
@@ -200,6 +203,10 @@ export default function MentoringCircle() {
     return () => window.clearTimeout(timer);
   }, [copied]);
 
+  useEffect(() => {
+    promo.reset();
+  }, [promo.reset, purchasableEvent?.eventId]);
+
   const eventDateLabel = useMemo(() => {
     const iso = purchasableEvent?.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO;
     return formatPacificTime(iso);
@@ -220,7 +227,10 @@ export default function MentoringCircle() {
         label: "reserve_spot",
         eventId,
       });
-      await startMentoringCircleCheckout(eventId, { token });
+      await startMentoringCircleCheckout(eventId, {
+        token,
+        promoCode: promo.validation?.code ?? null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reserve your spot.");
     } finally {
@@ -297,6 +307,27 @@ export default function MentoringCircle() {
                       )} reservation`}
                 </p>
               </div>
+            </div>
+
+            <div className="mt-6">
+              <PromoCodeInput
+                code={promo.code}
+                onCodeChange={promo.setCode}
+                onApply={() => {
+                  if (!purchasableEvent?.eventId) return;
+                  void promo.apply({
+                    type: "mentoring_circle",
+                    eventId: purchasableEvent.eventId,
+                  });
+                }}
+                onRemove={promo.clear}
+                applying={promo.applying}
+                error={promo.error}
+                appliedCode={promo.validation?.code ?? null}
+                estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+                finalEstimate={promo.validation?.finalEstimate ?? null}
+                currency={promo.validation?.currency ?? null}
+              />
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">

@@ -30,6 +30,7 @@ import {
   getActiveMentoringCirclePurchaseEvent,
   getMentoringCircleEventOrThrow,
 } from "./mentoringCircleService.js";
+import { validatePromoCodeForCheckout } from "./promoCodeService.js";
 
 type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type CheckoutTier = "seeker" | "initiate";
@@ -56,6 +57,7 @@ export interface CreateCheckoutSessionInput {
   membershipId?: string;
   trainingOrderId?: string;
   eventId?: string;
+  promoCode?: string;
 }
 
 function buildCheckoutMetadata(
@@ -75,6 +77,9 @@ function buildCheckoutMetadata(
     billingInterval?: "monthly" | "annual";
     eventId?: string;
     eventKey?: string;
+    promoCode?: string;
+    promoCodeId?: string;
+    stripePromotionCodeId?: string;
   },
 ): Record<string, string> {
   const metadata: Record<string, string> = {
@@ -134,8 +139,28 @@ function buildCheckoutMetadata(
   if (input.eventKey?.trim()) {
     metadata.eventKey = input.eventKey.trim();
   }
+  if (input.promoCode?.trim()) {
+    metadata.promoCode = input.promoCode.trim();
+  }
+  if (input.promoCodeId?.trim()) {
+    metadata.promoCodeId = input.promoCodeId.trim();
+  }
+  if (input.stripePromotionCodeId?.trim()) {
+    metadata.stripePromotionCodeId = input.stripePromotionCodeId.trim();
+  }
 
   return metadata;
+}
+
+async function validatePromoForCheckout(db: Database, input: Parameters<typeof validatePromoCodeForCheckout>[1]) {
+  if (!input.code?.trim()) {
+    return null;
+  }
+  const validation = await validatePromoCodeForCheckout(db, input);
+  if (!validation.valid || !validation.stripePromotionCodeId || !validation.promoCodeId || !validation.code) {
+    throw createHttpError(400, validation.message ?? "This promo code is no longer valid");
+  }
+  return validation;
 }
 
 async function getBookingForSessionCheckout(db: Database, bookingId: string) {
@@ -346,6 +371,12 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
 
   const stripe = getStripe();
   const priceId = getSessionStripePriceId(booking.sessionType);
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "session",
+    bookingId,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     bookingId,
@@ -356,6 +387,9 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     sessionTier: sessionMetadata?.sessionTier,
     upgradeEligible: sessionMetadata?.upgradeEligible,
     upgradeTarget: sessionMetadata?.upgradeTarget,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -380,6 +414,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     mode: "payment",
     client_reference_id: bookingId,
     line_items: [{ price: priceId, quantity: 1 }],
+    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
@@ -395,6 +430,9 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     stripeProductId: null,
     stripeProductName: booking.bookingTypeName,
     sessionType: booking.sessionType,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 
@@ -474,12 +512,21 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
 
   const stripe = getStripe();
   const priceId = getMentorTrainingStripePriceId(trainingOrder.packageType);
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "mentor_training",
+    trainingOrderId,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     type: "mentor_training",
     entityId: trainingOrderId,
     trainingOrderId,
     packageType: trainingOrder.packageType,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -503,6 +550,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     mode: "payment",
     client_reference_id: trainingOrderId,
     line_items: [{ price: priceId, quantity: 1 }],
+    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
     metadata,
     success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentor-training?checkout=canceled&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
@@ -519,6 +567,9 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     stripeProductName: packageDefinition.title,
     packageType: trainingOrder.packageType,
     trainingOrderId,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 
@@ -597,6 +648,12 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
   }
 
   const stripe = getStripe();
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "mentoring_circle",
+    eventId: event.eventId,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     type: "mentoring_circle",
@@ -604,6 +661,9 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     bookingId: booking.id,
     eventId: event.eventId,
     eventKey: event.eventKey,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -637,6 +697,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
       },
       quantity: 1,
     }],
+    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
     metadata,
     success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
@@ -654,6 +715,9 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     eventId: event.eventId,
     eventKey: event.eventKey,
     bookingId: booking.id,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 
@@ -735,12 +799,21 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
 
   const stripe = getStripe();
   const priceId = getReportStripePriceId(tier);
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "report",
+    reportId,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     type: "report",
     entityId: reportId,
     reportId,
     reportTier: tier,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -765,6 +838,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     mode: "payment",
     client_reference_id: reportId,
     line_items: [{ price: priceId, quantity: 1 }],
+    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
@@ -781,6 +855,9 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     stripeProductName: `${tier}_report`,
     reportId,
     tier,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 
@@ -867,6 +944,12 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
   }
 
   const stripe = getStripe();
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "subscription",
+    membershipId,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     type: "subscription",
@@ -874,6 +957,9 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     membershipId,
     tier: membership.tier,
     billingInterval,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -892,6 +978,7 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     mode: "subscription",
     client_reference_id: membershipId,
     line_items: [{ price: priceId, quantity: 1 }],
+    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
     metadata,
     subscription_data: { metadata },
     success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
@@ -907,6 +994,9 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     membershipId,
     tier: membership.tier,
     billingInterval,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 

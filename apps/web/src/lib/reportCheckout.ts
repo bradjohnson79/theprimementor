@@ -9,11 +9,12 @@ export async function startReportCheckout(
   reportId: string,
   options: {
     token: string | null;
+    promoCode?: string | null;
   },
 ): Promise<void> {
   const data = (await api.post(
     "/create-checkout-session",
-    { type: "report", reportId },
+    { type: "report", reportId, promoCode: options.promoCode ?? undefined },
     options.token,
   )) as CreateCheckoutSessionResponse;
 

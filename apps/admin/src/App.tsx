@@ -16,6 +16,7 @@ import Events from "./pages/Events";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Seo from "./pages/Seo";
+import PromoCodes from "./pages/PromoCodes";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
 import NotificationsSettings from "./routes/settings/Notifications";
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="admin/settings/notifications" element={<NotificationsSettings />} />
             <Route path="admin/analytics" element={<Analytics />} />
             <Route path="admin/seo" element={<Seo />} />
+            <Route path="admin/promo-codes" element={<PromoCodes />} />
             <Route path="admin/divin8-chat/prompt" element={<Divin8Prompt />} />
             <Route path="blueprint" element={<Blueprint />} />
           </Route>

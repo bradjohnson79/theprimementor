@@ -63,6 +63,7 @@ export async function stripeRoutes(app: FastifyInstance) {
         membershipId: request.body?.membershipId,
         trainingOrderId: request.body?.trainingOrderId,
         eventId: request.body?.eventId,
+        promoCode: request.body?.promoCode,
         userId: user.id,
         userEmail: user.email,
         clerkId,

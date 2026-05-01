@@ -13,8 +13,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
 import ReviewStep from "../components/forms/ReviewStep";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import { trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
@@ -137,6 +139,7 @@ export default function Reports() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const promo = usePromoCode(getToken);
   const {
     error: placesError,
     isResolving: resolvingPlace,
@@ -169,6 +172,10 @@ export default function Reports() {
   useEffect(() => {
     setSelectedTier(resolveTierFromPath(location.pathname));
   }, [location.pathname]);
+
+  useEffect(() => {
+    promo.reset();
+  }, [promo.reset, selectedTier]);
 
   useEffect(() => {
     const stored = readStoredReportDraft();
@@ -409,7 +416,10 @@ export default function Reports() {
         throw new Error("Report checkout could not be created locally before Stripe redirect.");
       }
 
-      await startReportCheckout(reportId, { token });
+      await startReportCheckout(reportId, {
+        token,
+        promoCode: promo.validation?.code ?? null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to submit your report request.");
     } finally {
@@ -807,6 +817,24 @@ export default function Reports() {
                 ...section,
                 onEdit: () => goToStep(index),
               }))}
+            />
+
+            <PromoCodeInput
+              code={promo.code}
+              onCodeChange={promo.setCode}
+              onApply={() => {
+                void promo.apply({
+                  type: "report",
+                  reportTier: selectedTier,
+                });
+              }}
+              onRemove={promo.clear}
+              applying={promo.applying}
+              error={promo.error}
+              appliedCode={promo.validation?.code ?? null}
+              estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+              finalEstimate={promo.validation?.finalEstimate ?? null}
+              currency={promo.validation?.currency ?? null}
             />
 
             <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">

@@ -148,6 +148,24 @@ function getCheckoutSessionId(metadata: unknown) {
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 }
 
+function getPromoMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {
+      promoCode: null,
+      promoCodeId: null,
+      stripePromotionCodeId: null,
+    };
+  }
+  const raw = metadata as Record<string, unknown>;
+  return {
+    promoCode: typeof raw.promoCode === "string" && raw.promoCode.trim() ? raw.promoCode.trim() : null,
+    promoCodeId: typeof raw.promoCodeId === "string" && raw.promoCodeId.trim() ? raw.promoCodeId.trim() : null,
+    stripePromotionCodeId: typeof raw.stripePromotionCodeId === "string" && raw.stripePromotionCodeId.trim()
+      ? raw.stripePromotionCodeId.trim()
+      : null,
+  };
+}
+
 export async function ensurePersistedSessionOrder(db: DbExecutor, bookingId: string) {
   const existing = await getPersistedSessionOrderByBookingId(db, bookingId);
   if (existing) {
@@ -164,6 +182,7 @@ export async function ensurePersistedSessionOrder(db: DbExecutor, bookingId: str
   const paymentReference = payment.providerPaymentIntentId
     ?? getCheckoutSessionId(payment.metadata)
     ?? `session_booking_${booking.id}`;
+  const promo = getPromoMetadata(payment.metadata);
 
   const [created] = await db
     .insert(orders)
@@ -192,6 +211,9 @@ export async function ensurePersistedSessionOrder(db: DbExecutor, bookingId: str
         meetingLink: booking.joinUrl ?? booking.startUrl ?? null,
         bookingTypeName: booking.bookingTypeName,
         bookingStatus: booking.bookingStatus,
+        promoCode: promo.promoCode,
+        promoCodeId: promo.promoCodeId,
+        stripePromotionCodeId: promo.stripePromotionCodeId,
       },
     })
     .onConflictDoNothing({ target: orders.id })

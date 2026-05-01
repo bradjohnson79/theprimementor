@@ -9,11 +9,12 @@ export async function startMentoringCircleCheckout(
   eventId: string,
   options: {
     token: string | null;
+    promoCode?: string | null;
   },
 ): Promise<void> {
   const data = (await api.post(
     "/create-checkout-session",
-    { type: "mentoring_circle", eventId },
+    { type: "mentoring_circle", eventId, promoCode: options.promoCode ?? undefined },
     options.token,
   )) as CreateCheckoutSessionResponse;
 

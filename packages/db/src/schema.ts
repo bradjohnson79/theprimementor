@@ -21,6 +21,23 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+type PromoTarget =
+  | "qa_session"
+  | "focus"
+  | "mentoring"
+  | "regeneration"
+  | "report:intro"
+  | "report:deep_dive"
+  | "report:initiate"
+  | "subscription:seeker"
+  | "subscription:initiate"
+  | "mentor_training:entry"
+  | "mentor_training:seeker"
+  | "mentor_training:initiate"
+  | "mentoring_circle";
+
+type PromoBillingScope = "one_time" | "recurring";
+
 export const bookingSessionTypeEnum = pgEnum("booking_session_type", [
   "focus",
   "mentoring",
@@ -183,6 +200,21 @@ export const seoChangeSourceEnum = pgEnum("seo_change_source", [
   "rollback",
 ]);
 
+export const promoDiscountTypeEnum = pgEnum("promo_discount_type", [
+  "percentage",
+]);
+
+export const promoSyncStatusEnum = pgEnum("promo_sync_status", [
+  "synced",
+  "needs_sync",
+  "broken",
+]);
+
+export const promoBillingScopeEnum = pgEnum("promo_billing_scope", [
+  "one_time",
+  "recurring",
+]);
+
 export interface SeoKeywordBuckets {
   primary: string[];
   secondary: string[];
@@ -255,6 +287,17 @@ export interface SeoReportJson {
   }>;
   strategicInsights: string[];
   nextSteps: string[];
+}
+
+export interface PromoValidationSnapshot {
+  existsInStripe: boolean;
+  couponValid: boolean;
+  promotionCodeValid: boolean;
+  discountMatch: boolean;
+  activeMatch: boolean;
+  expiryMatch: boolean;
+  usageMatch: boolean;
+  issues: string[];
 }
 
 export const users = pgTable("users", {
@@ -767,6 +810,68 @@ export const mentorTrainingOrders = pgTable("mentor_training_orders", {
   userPackagePendingUnique: uniqueIndex("mentor_training_orders_user_package_pending_uidx")
     .on(table.user_id, table.package_type)
     .where(sql`${table.status} = 'pending_payment'`),
+}));
+
+export const promoCodes = pgTable("promo_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull(),
+  discount_type: promoDiscountTypeEnum("discount_type").default("percentage").notNull(),
+  discount_value: integer("discount_value").notNull(),
+  active: boolean("active").default(true).notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+  usage_limit: integer("usage_limit"),
+  times_used: integer("times_used").default(0).notNull(),
+  applies_to: jsonb("applies_to").$type<PromoTarget[] | null>(),
+  applies_to_billing: promoBillingScopeEnum("applies_to_billing").$type<PromoBillingScope | null>(),
+  min_amount_cents: integer("min_amount_cents"),
+  first_time_only: boolean("first_time_only").default(false).notNull(),
+  campaign: text("campaign"),
+  stripe_coupon_id: text("stripe_coupon_id").notNull(),
+  stripe_promotion_code_id: text("stripe_promotion_code_id").notNull(),
+  sync_status: promoSyncStatusEnum("sync_status").default("needs_sync").notNull(),
+  last_validated_at: timestamp("last_validated_at", { withTimezone: true }),
+  last_validation_ok: boolean("last_validation_ok"),
+  last_validation_snapshot: jsonb("last_validation_snapshot").$type<PromoValidationSnapshot | null>(),
+  validation_failure_code: text("validation_failure_code"),
+  validation_failure_message: text("validation_failure_message"),
+  metadata: jsonb("metadata"),
+  archived_at: timestamp("archived_at", { withTimezone: true }),
+  ...timestamps,
+}, (table) => ({
+  codeUnique: uniqueIndex("promo_codes_code_uidx").on(table.code),
+  stripeCouponUnique: uniqueIndex("promo_codes_stripe_coupon_uidx").on(table.stripe_coupon_id),
+  stripePromotionUnique: uniqueIndex("promo_codes_stripe_promotion_uidx").on(table.stripe_promotion_code_id),
+  activeCreatedIdx: index("promo_codes_active_created_idx").on(table.active, table.created_at),
+  syncStatusUpdatedIdx: index("promo_codes_sync_status_updated_idx").on(table.sync_status, table.updated_at),
+}));
+
+export const promoCodeUsages = pgTable("promo_code_usages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  promo_code_id: uuid("promo_code_id")
+    .references(() => promoCodes.id, { onDelete: "cascade" })
+    .notNull(),
+  payment_id: uuid("payment_id")
+    .references(() => payments.id, { onDelete: "cascade" })
+    .notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  promoPaymentUnique: uniqueIndex("promo_code_usages_promo_payment_uidx").on(table.promo_code_id, table.payment_id),
+  promoCreatedIdx: index("promo_code_usages_promo_created_idx").on(table.promo_code_id, table.created_at),
+}));
+
+export const promoCodeChangesLog = pgTable("promo_code_changes_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  promo_code_id: uuid("promo_code_id")
+    .references(() => promoCodes.id, { onDelete: "cascade" })
+    .notNull(),
+  field_changed: text("field_changed").notNull(),
+  old_value: jsonb("old_value"),
+  new_value: jsonb("new_value"),
+  changed_by: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
+  changed_at: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  promoChangedIdx: index("promo_code_changes_log_promo_changed_idx").on(table.promo_code_id, table.changed_at),
+  changedByIdx: index("promo_code_changes_log_changed_by_idx").on(table.changed_by, table.changed_at),
 }));
 
 export const mentoringCircleRegistrations = pgTable("mentoring_circle_registrations", {

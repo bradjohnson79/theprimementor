@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import type { MentorTrainingPackageDefinition, MentorTrainingPackageType } from "@wisdom/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
@@ -30,6 +32,8 @@ export default function MentorTraining() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedPackageForPromo, setSelectedPackageForPromo] = useState<MentorTrainingPackageType>("entry");
+  const promo = usePromoCode(getToken);
 
   useEffect(() => {
     if (tierState === "loading") {
@@ -129,6 +133,10 @@ export default function MentorTraining() {
     };
   }, [getToken, tierState]);
 
+  useEffect(() => {
+    promo.reset();
+  }, [promo.reset, selectedPackageForPromo]);
+
   async function handlePurchase(packageType: MentorTrainingPackageType) {
     setSubmittingPackage(packageType);
     setError(null);
@@ -141,6 +149,7 @@ export default function MentorTraining() {
       });
       await startMentorTrainingCheckout(packageType, {
         token,
+        promoCode: promo.validation?.code ?? null,
         onAlreadyPaid: (trainingOrderId) => {
           const params = new URLSearchParams();
           params.set("checkout", "success");
@@ -213,6 +222,43 @@ export default function MentorTraining() {
             {error}
           </section>
         ) : null}
+
+        <section className="dashboard-panel">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Promo Code</h2>
+              <p className="mt-1 text-sm text-white/60">Select the package you want to preview before applying a promo.</p>
+            </div>
+            <select
+              value={selectedPackageForPromo}
+              onChange={(event) => setSelectedPackageForPromo(event.target.value as MentorTrainingPackageType)}
+              className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+            >
+              {(pageData?.packages ?? []).map((pkg) => (
+                <option key={pkg.type} value={pkg.type} className="bg-slate-950">
+                  {pkg.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <PromoCodeInput
+            code={promo.code}
+            onCodeChange={promo.setCode}
+            onApply={() => {
+              void promo.apply({
+                type: "mentor_training",
+                packageType: selectedPackageForPromo,
+              });
+            }}
+            onRemove={promo.clear}
+            applying={promo.applying}
+            error={promo.error}
+            appliedCode={promo.validation?.code ?? null}
+            estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+            finalEstimate={promo.validation?.finalEstimate ?? null}
+            currency={promo.validation?.currency ?? null}
+          />
+        </section>
 
         <section
           className={`rounded-2xl border px-5 py-4 ${

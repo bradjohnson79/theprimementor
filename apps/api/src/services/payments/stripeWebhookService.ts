@@ -27,6 +27,7 @@ import {
   getMentoringCircleEventOrThrow,
   upsertMentoringCircleRegistrationProjection,
 } from "../mentoringCircleService.js";
+import { recordPromoUsage } from "../promoCodeService.js";
 import {
   createPersistedOrderFromInvoice,
   getInvoiceBySubscriptionId,
@@ -1402,6 +1403,13 @@ async function handleCheckoutSessionCompleted(
     providerCustomerId: stripeCustomerId,
     metadata: nextMetadata,
   });
+
+  if (typeof metadata.raw.promoCodeId === "string" && metadata.raw.promoCodeId.trim()) {
+    await recordPromoUsage(db as Database, {
+      paymentId: paidPayment.id,
+      promoCodeId: metadata.raw.promoCodeId.trim(),
+    });
+  }
 
   if (entity.entityType === "session" && bookingId) {
     await ensurePersistedSessionOrder(db, bookingId);

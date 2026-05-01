@@ -166,6 +166,48 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     "created_at",
     "updated_at",
   ],
+  promo_codes: [
+    "id",
+    "code",
+    "discount_type",
+    "discount_value",
+    "active",
+    "expires_at",
+    "usage_limit",
+    "times_used",
+    "applies_to",
+    "applies_to_billing",
+    "min_amount_cents",
+    "first_time_only",
+    "campaign",
+    "stripe_coupon_id",
+    "stripe_promotion_code_id",
+    "sync_status",
+    "last_validated_at",
+    "last_validation_ok",
+    "last_validation_snapshot",
+    "validation_failure_code",
+    "validation_failure_message",
+    "metadata",
+    "archived_at",
+    "created_at",
+    "updated_at",
+  ],
+  promo_code_usages: [
+    "id",
+    "promo_code_id",
+    "payment_id",
+    "created_at",
+  ],
+  promo_code_changes_log: [
+    "id",
+    "promo_code_id",
+    "field_changed",
+    "old_value",
+    "new_value",
+    "changed_by",
+    "changed_at",
+  ],
 };
 
 async function checkSchemaDrift() {
@@ -181,7 +223,7 @@ async function checkSchemaDrift() {
         column_default
       FROM information_schema.columns
       WHERE table_schema = 'public'
-        AND table_name IN ('booking_types', 'bookings', 'payments', 'invoices', 'orders', 'reports', 'report_tier_outputs', 'mentoring_circle_registrations');
+        AND table_name IN ('booking_types', 'bookings', 'payments', 'invoices', 'orders', 'reports', 'report_tier_outputs', 'mentoring_circle_registrations', 'promo_codes', 'promo_code_usages', 'promo_code_changes_log');
     `);
 
     if (!columnsResult.rows || columnsResult.rows.length === 0) {
