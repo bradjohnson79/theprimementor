@@ -99,3 +99,7 @@ export function createEmptyAvailabilitySelection(): AvailabilitySelection {
 export function sessionTypeRequiresSchedule(sessionType: SessionType) {
   return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session";
 }
+
+export function sessionTypeRequiresAvailabilitySelection(sessionType: SessionType) {
+  return sessionType === "focus" || sessionType === "mentoring";
+}

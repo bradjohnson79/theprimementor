@@ -47,7 +47,7 @@ const BOOKING_AVAILABILITY_DAY_SET = new Set<string>(BOOKING_AVAILABILITY_DAYS);
 
 export interface BookingIntakePayload {
   type: BookingSessionType;
-  topics?: string[];
+  topics?: string[] | string;
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];
   other?: string;
@@ -77,4 +77,8 @@ export function createEmptyBookingAvailability(): BookingAvailability {
 
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
   return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session";
+}
+
+export function sessionTypeRequiresAvailabilitySelection(sessionType: BookingSessionType) {
+  return sessionType === "focus" || sessionType === "mentoring";
 }

@@ -1069,9 +1069,14 @@ function parseReportPurchaseIntake(value: unknown) {
 
 function parseBookingIntake(value: unknown) {
   if (!isRecord(value)) return null;
+  const normalizedTopics = getString(value.topics)
+    ?.split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    ?? getStringArray(value.topics);
   return {
     type: getString(value.type),
-    topics: getStringArray(value.topics),
+    topics: normalizedTopics,
     goals: getStringArray(value.goals),
     healthFocusAreas: parseBookingHealthFocusAreas(value.healthFocusAreas),
     other: getString(value.other),

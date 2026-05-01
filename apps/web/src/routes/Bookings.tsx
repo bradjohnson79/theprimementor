@@ -34,7 +34,7 @@ import {
   SESSION_TYPE_OPTIONS,
   SESSION_TYPE_ORDER,
   createEmptyAvailabilitySelection,
-  sessionTypeRequiresSchedule,
+  sessionTypeRequiresAvailabilitySelection,
   type AvailabilityDay,
   type AvailabilitySelection,
   type HealthCondition,
@@ -75,6 +75,7 @@ interface IntakeFormState {
   focusTopics: string[];
   healthFocusAreas: Array<{ name: string; severity: string }>;
   mentoringTopics: string[];
+  qaTopics: string;
   otherDetail: string;
   consentGiven: boolean;
 }
@@ -95,6 +96,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     focusTopics: [],
     healthFocusAreas: createEmptyHealthFocusAreas(),
     mentoringTopics: [],
+    qaTopics: "",
     otherDetail: "",
     consentGiven: false,
   };
@@ -102,6 +104,11 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
 
 function normalizeText(value: string) {
   return value.trim();
+}
+
+function resolveBrowserTimezone() {
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone?.trim();
+  return browserTimezone || "UTC";
 }
 
 function resolveBirthTimeInput(value: string) {
@@ -243,7 +250,7 @@ export default function Bookings() {
       && Number.isFinite(birthplace.lng),
   );
 
-  const requiresSchedule = selectedSessionType ? sessionTypeRequiresSchedule(selectedSessionType) : false;
+  const requiresAvailabilitySelection = selectedSessionType ? sessionTypeRequiresAvailabilitySelection(selectedSessionType) : false;
   const isRegeneration = selectedSessionType === "regeneration";
   const isQA = selectedSessionType === "qa_session";
   const suggestedTimezone = useMemo(
@@ -359,6 +366,7 @@ export default function Bookings() {
       focusTopics: [],
       healthFocusAreas: createEmptyHealthFocusAreas(),
       mentoringTopics: [],
+      qaTopics: "",
       otherDetail: "",
     }));
     setBirthplace(null);
@@ -366,6 +374,28 @@ export default function Bookings() {
     setTimezoneSource("user");
     setBirthTimeEdited(false);
   }, [selectedSessionType]);
+
+  useEffect(() => {
+    if (!isQA) {
+      return;
+    }
+    const browserTimezone = resolveBrowserTimezone();
+    setTimezone(browserTimezone);
+    setTimezoneSource("fallback");
+    setBirthplace(null);
+    setForm((current) => ({
+      ...current,
+      birthPlace: "",
+      birthTime: "00:00",
+    }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.birthPlace;
+      delete next.timezone;
+      delete next.birthDate;
+      return next;
+    });
+  }, [isQA]);
 
   function setFormField<K extends keyof IntakeFormState>(field: K, value: IntakeFormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -459,18 +489,18 @@ export default function Bookings() {
     if (!selectedBookingType) {
       nextErrors.sessionType = "This session type is not available yet.";
     }
-    if (!timezone) {
+    if (!timezone && !isQA) {
       nextErrors.timezone = "A valid timezone is required.";
     }
-    if (requiresSchedule && !hasSelectedAvailability(availabilitySelection)) {
+    if (requiresAvailabilitySelection && !hasSelectedAvailability(availabilitySelection)) {
       nextErrors.availability = "Select at least one availability slot.";
     }
 
     if (!normalizeText(form.fullName)) nextErrors.fullName = "Full name is required.";
     if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
-    if (!normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
-    if (!normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
-    if (!isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
+    if (!isQA && !normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
+    if (!isQA && !normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
+    if (!isQA && !isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
     if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
 
     if (selectedSessionType === "focus" && form.focusTopics.length === 0) {
@@ -502,10 +532,9 @@ export default function Bookings() {
     return nextErrors;
   }
 
-  function buildBookingPayload(place: PlaceResult) {
+  function buildBookingPayload(place?: PlaceResult | null) {
     const intake: Record<string, unknown> = {
       type: selectedSessionType,
-      notes: normalizeText(form.additionalNotes) || undefined,
     };
 
     if (selectedSessionType === "focus") {
@@ -520,8 +549,8 @@ export default function Bookings() {
       intake.healthFocusAreas = normalizeHealthFocusAreas(form.healthFocusAreas);
     }
 
-    if (selectedSessionType === "qa_session" && normalizeText(form.otherDetail)) {
-      intake.other = normalizeText(form.otherDetail);
+    if (selectedSessionType === "qa_session" && normalizeText(form.qaTopics)) {
+      intake.topics = normalizeText(form.qaTopics);
     }
 
     if (normalizeText(form.otherDetail)) {
@@ -531,22 +560,22 @@ export default function Bookings() {
     return {
       bookingTypeId: selectedBookingType?.id,
       sessionType: selectedSessionType,
-      availability: requiresSchedule ? availabilitySelection : undefined,
-      timezone,
+      availability: requiresAvailabilitySelection ? availabilitySelection : undefined,
+      timezone: isQA ? resolveBrowserTimezone() : timezone,
       fullName: normalizeText(form.fullName),
       email: normalizeText(form.email),
-      phone: normalizeText(form.phone),
-      birthDate: form.birthDate,
-      birthTime: resolveBirthTimeInput(form.birthTime),
-      birthPlace: normalizeText(form.birthPlace),
-      birthPlaceName: place.name,
-      birthLat: place.lat,
-      birthLng: place.lng,
-      birthTimezone: timezone || undefined,
+      phone: normalizeText(form.phone) || undefined,
+      birthDate: form.birthDate || undefined,
+      birthTime: isQA ? undefined : resolveBirthTimeInput(form.birthTime),
+      birthPlace: isQA ? undefined : normalizeText(form.birthPlace),
+      birthPlaceName: isQA ? undefined : place?.name,
+      birthLat: isQA ? undefined : place?.lat,
+      birthLng: isQA ? undefined : place?.lng,
+      birthTimezone: isQA ? undefined : (timezone || undefined),
       timezoneSource,
       consentGiven: form.consentGiven,
       intake,
-      notes: normalizeText(form.additionalNotes) || undefined,
+      notes: isQA ? undefined : (normalizeText(form.additionalNotes) || undefined),
     };
   }
 
@@ -556,7 +585,7 @@ export default function Bookings() {
 
     const nextErrors = validateForm();
     setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0 || !selectedSessionType || !selectedBookingType || !birthplace) {
+    if (Object.keys(nextErrors).length > 0 || !selectedSessionType || !selectedBookingType || (!isQA && !birthplace)) {
       return;
     }
 
@@ -565,7 +594,7 @@ export default function Bookings() {
       const token = await getToken();
       const bookingResponse = (await api.post(
         "/bookings",
-        buildBookingPayload(birthplace),
+        buildBookingPayload(isQA ? null : birthplace),
         token,
       )) as CreateBookingResponse;
 
@@ -620,12 +649,15 @@ export default function Bookings() {
     const nextErrors: ValidationErrors = {};
     if (!normalizeText(form.fullName)) nextErrors.fullName = requiredStepMessage("Your full name");
     if (!normalizeText(form.email)) nextErrors.email = requiredStepMessage("Your email");
-    if (!normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
+    if (!isQA && !normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
     return createValidationResult(nextErrors);
   }
 
   function validateBirthDetailsStep() {
     const nextErrors: ValidationErrors = {};
+    if (isQA) {
+      return createValidationResult(nextErrors);
+    }
     if (!normalizeText(form.birthDate)) nextErrors.birthDate = requiredStepMessage("Your birth date");
     if (!isPlaceSelected) nextErrors.birthPlace = "Please choose your birthplace from the list so we can keep the details precise.";
     if (!timezone) nextErrors.timezone = requiredStepMessage("Your timezone");
@@ -634,7 +666,7 @@ export default function Bookings() {
 
   function validateAvailabilityStep() {
     const nextErrors: ValidationErrors = {};
-    if (requiresSchedule && !hasSelectedAvailability(availabilitySelection)) {
+    if (requiresAvailabilitySelection && !hasSelectedAvailability(availabilitySelection)) {
       nextErrors.availability = "Just one more step here before we continue. Pick at least one time that works for you.";
     }
     return createValidationResult(nextErrors);
@@ -642,6 +674,10 @@ export default function Bookings() {
 
   function validateIntentStep() {
     const nextErrors: ValidationErrors = {};
+
+    if (selectedSessionType === "qa_session" && normalizeText(form.qaTopics).length > 2000) {
+      nextErrors.qaTopics = "Keep this to 2000 characters or fewer so the intake stays focused.";
+    }
 
     if (selectedSessionType === "focus" && form.focusTopics.length === 0) {
       nextErrors.focusTopics = "Choose the area you'd like this session to focus on.";
@@ -684,14 +720,14 @@ export default function Bookings() {
     return createValidationResult(nextErrors);
   }
 
-  function handleFieldBlur(field: "fullName" | "email" | "phone" | "birthDate" | "birthPlace" | "timezone" | "otherDetail") {
+  function handleFieldBlur(field: "fullName" | "email" | "phone" | "birthDate" | "birthPlace" | "timezone" | "otherDetail" | "qaTopics") {
     const validators: Record<typeof field, () => string | undefined> = {
       fullName: () => (normalizeText(form.fullName) ? undefined : requiredStepMessage("Your full name")),
       email: () => (normalizeText(form.email) ? undefined : requiredStepMessage("Your email")),
-      phone: () => (normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
-      birthDate: () => (normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
-      birthPlace: () => (isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
-      timezone: () => (timezone ? undefined : requiredStepMessage("Your timezone")),
+      phone: () => (isQA || normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
+      birthDate: () => (isQA || normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
+      birthPlace: () => (isQA || isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
+      timezone: () => (isQA || timezone ? undefined : requiredStepMessage("Your timezone")),
       otherDetail: () => {
         const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
           || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"));
@@ -699,6 +735,9 @@ export default function Bookings() {
           ? undefined
           : "Tell us a little more about what 'Other' means for you.";
       },
+      qaTopics: () => (normalizeText(form.qaTopics).length <= 2000
+        ? undefined
+        : "Keep this to 2000 characters or fewer so the intake stays focused."),
     };
 
     setSingleFieldError(field, validators[field]());
@@ -720,10 +759,14 @@ export default function Bookings() {
         items: [
           { label: "Full Name", value: form.fullName || "Not provided yet" },
           { label: "Email", value: form.email || "Not provided yet" },
-          { label: "Phone", value: form.phone || "Not provided yet" },
+          { label: "Phone", value: form.phone || "None added" },
+          { label: "Birth Date", value: form.birthDate || "None added" },
         ],
       },
-      {
+    ];
+
+    if (!isQA) {
+      sections.push({
         id: "birth-details",
         title: "Birth Details",
         items: [
@@ -732,10 +775,10 @@ export default function Bookings() {
           { label: "Birthplace", value: form.birthPlace || "Not provided yet" },
           { label: "Timezone", value: timezone || "Not selected yet" },
         ],
-      },
-    ];
+      });
+    }
 
-    if (requiresSchedule) {
+    if (requiresAvailabilitySelection) {
       sections.push({
         id: "availability",
         title: "Availability",
@@ -750,36 +793,48 @@ export default function Bookings() {
       });
     }
 
-    sections.push({
-      id: "intent",
-      title: "Session Intent",
-      items: [
-        {
-          label: "Focus",
-          value:
-            selectedSessionType === "focus"
-              ? (form.focusTopics.join(", ") || "Not selected yet")
-              : selectedSessionType === "mentoring"
-                ? (form.mentoringTopics.join(", ") || "Not selected yet")
-                : selectedSessionType === "qa_session"
-                  ? (normalizeText(form.otherDetail) || "Open question space")
-                : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
-        },
-        {
-          label: "Other Detail",
-          value: normalizeText(form.otherDetail) || "None added",
-        },
-      ],
-    });
+    if (isQA) {
+      sections.push({
+        id: "topics",
+        title: "Topics",
+        items: [
+          {
+            label: "What you'd like to explore",
+            value: normalizeText(form.qaTopics) || "No topics added yet",
+          },
+          { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
+        ],
+      });
+    } else {
+      sections.push({
+        id: "intent",
+        title: "Session Intent",
+        items: [
+          {
+            label: "Focus",
+            value:
+              selectedSessionType === "focus"
+                ? (form.focusTopics.join(", ") || "Not selected yet")
+                : selectedSessionType === "mentoring"
+                  ? (form.mentoringTopics.join(", ") || "Not selected yet")
+                  : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
+          },
+          {
+            label: "Other Detail",
+            value: normalizeText(form.otherDetail) || "None added",
+          },
+        ],
+      });
 
-    sections.push({
-      id: "optional",
-      title: "Optional Inputs",
-      items: [
-        { label: "Additional Notes", value: normalizeText(form.additionalNotes) || "None added" },
-        { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
-      ],
-    });
+      sections.push({
+        id: "optional",
+        title: "Optional Inputs",
+        items: [
+          { label: "Additional Notes", value: normalizeText(form.additionalNotes) || "None added" },
+          { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
+        ],
+      });
+    }
 
     return sections;
   }, [
@@ -795,8 +850,10 @@ export default function Bookings() {
     form.healthFocusAreas,
     form.mentoringTopics,
     form.otherDetail,
+    form.qaTopics,
     form.phone,
-    requiresSchedule,
+    isQA,
+    requiresAvailabilitySelection,
     selectedBookingType,
     selectedSessionType,
     timezone,
@@ -877,9 +934,15 @@ export default function Bookings() {
       {
         id: "basic-info",
         title: "Basic info",
-        guidance: "Tell us who this session is for. Keeping this section simple helps everything feel more effortless.",
+        guidance: isQA
+          ? "Keep this simple. Confirm the basics so we can get your Q&A session moving quickly."
+          : "Tell us who this session is for. Keeping this section simple helps everything feel more effortless.",
         validate: validateBasicInfoStep,
-        isComplete: (state) => Boolean(normalizeText(state.fullName) && normalizeText(state.email) && normalizeText(state.phone)),
+        isComplete: (state) => Boolean(
+          normalizeText(state.fullName)
+          && normalizeText(state.email)
+          && (isQA || normalizeText(state.phone)),
+        ),
         render: () => (
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
@@ -919,10 +982,13 @@ export default function Bookings() {
             <FormField
               label="Phone Number"
               htmlFor="session-phone"
-              helperText="This helps us reach you if we need to confirm scheduling details."
-              errorText={fieldErrors.phone}
+              helperText={isQA
+                ? "Optional - include the best number if you'd like us to have it for scheduling follow-up."
+                : "This helps us reach you if we need to confirm scheduling details."}
+              errorText={isQA ? undefined : fieldErrors.phone}
               isComplete={Boolean(normalizeText(form.phone))}
               className="md:col-span-2"
+              optional={isQA}
             >
               <input
                 id="session-phone"
@@ -933,10 +999,33 @@ export default function Bookings() {
                 placeholder="Your phone number"
               />
             </FormField>
+
+            {isQA ? (
+              <FormField
+                label="Birthdate"
+                htmlFor="session-birth-date"
+                helperText="Optional - include it if it feels relevant for the session."
+                optional
+                isComplete={Boolean(normalizeText(form.birthDate))}
+                className="md:col-span-2"
+              >
+                <input
+                  id="session-birth-date"
+                  className={fieldClassName}
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(event) => setFormField("birthDate", event.target.value)}
+                  onBlur={() => handleFieldBlur("birthDate")}
+                />
+              </FormField>
+            ) : null}
           </div>
         ),
       },
-      {
+    ];
+
+    if (!isQA) {
+      nextSteps.push({
         id: "birth-details",
         title: "Birth details",
         guidance: "Enter your birth details. If you're unsure of your birth time, you can leave the default in place and continue.",
@@ -1077,10 +1166,10 @@ export default function Bookings() {
             </div>
           </div>
         ),
-      },
-    ];
+      });
+    }
 
-    if (requiresSchedule) {
+    if (requiresAvailabilitySelection) {
       nextSteps.push({
         id: "availability",
         title: "Availability",
@@ -1144,196 +1233,208 @@ export default function Bookings() {
       });
     }
 
-    nextSteps.push(
-      {
-        id: "intent",
-        title: selectedSessionType === "regeneration" ? "Health focus" : selectedSessionType === "qa_session" ? "Question focus" : "Session intent",
-        guidance:
-          selectedSessionType === "regeneration"
-            ? "Tell us where you'd like support. This gives us a grounded starting point before your regeneration work begins."
-            : selectedSessionType === "qa_session"
-              ? "This session stays open by design. If you already know a question or theme you'd like to explore, you can share it here."
-            : "This helps us better tune into your situation and guide the session with precision.",
+    if (isQA) {
+      nextSteps.push({
+        id: "topics",
+        title: "Topics",
+        guidance: "Use this space for any questions, themes, or areas you'd like to explore. It can stay broad or be very specific.",
         validate: validateIntentStep,
-        isComplete: () => {
-          if (selectedSessionType === "focus") return form.focusTopics.length > 0 && (!form.focusTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
-          if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
-          if (selectedSessionType === "qa_session") return true;
-          return normalizeHealthFocusAreas(form.healthFocusAreas).length > 0;
-        },
-        render: () => (
-          <div className="space-y-4">
-            {selectedSessionType === "focus" ? (
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-white/70">Topics</p>
-                  <span className="text-xs text-white/45">Select 1 topic maximum.</span>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {FOCUS_TOPICS.map((topic) => {
-                    const active = form.focusTopics.includes(topic);
-                    return (
-                      <label
-                        key={topic}
-                        className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
-                          active
-                            ? "border-accent-cyan/60 bg-accent-cyan/10 text-white"
-                            : "border-white/10 bg-white/5 text-white/75 hover:border-white/20"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={active}
-                          onChange={() => toggleFocusTopic(topic)}
-                          className="h-4 w-4 rounded border-white/20 bg-transparent"
-                        />
-                        <span>{topic}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {fieldErrors.focusTopics ? <p className="mt-2 text-sm text-amber-200">{fieldErrors.focusTopics}</p> : null}
-              </div>
-            ) : null}
-
-            {selectedSessionType === "mentoring" ? (
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-white/70">Topics</p>
-                  <span className="text-xs text-white/45">Select up to 3 topics maximum.</span>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {MENTORING_GOALS.map((topic) => {
-                    const active = form.mentoringTopics.includes(topic);
-                    const disableNewSelection = !active && form.mentoringTopics.length >= 3;
-                    return (
-                      <label
-                        key={topic}
-                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
-                          active
-                            ? "cursor-pointer border-accent-cyan/60 bg-accent-cyan/10 text-white"
-                            : disableNewSelection
-                              ? "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/35"
-                              : "cursor-pointer border-white/10 bg-white/5 text-white/75 hover:border-white/20"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={active}
-                          disabled={disableNewSelection}
-                          onChange={() => toggleMentoringTopic(topic)}
-                          className="h-4 w-4 rounded border-white/20 bg-transparent"
-                        />
-                        <span>{topic}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {fieldErrors.mentoringTopics ? <p className="mt-2 text-sm text-amber-200">{fieldErrors.mentoringTopics}</p> : null}
-              </div>
-            ) : null}
-
-            {isRegeneration ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-sm font-semibold text-white">Health Focus Areas</h3>
-                <p className="mt-2 text-sm text-white/60">
-                  Focus on physical, emotional, or energetic areas you want addressed.
-                </p>
-                <div className="mt-4 space-y-3">
-                  {form.healthFocusAreas.map((area, index) => (
-                    <div key={`health-focus-${index + 1}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-                      <input
-                        className={fieldClassName}
-                        type="text"
-                        value={area.name}
-                        onChange={(event) => updateHealthCondition(index, { name: event.target.value })}
-                        placeholder={`Condition ${index + 1}`}
-                      />
-                      <select
-                        className={`${fieldClassName} cursor-pointer`}
-                        value={area.severity}
-                        onChange={(event) => updateHealthCondition(index, { severity: event.target.value })}
-                      >
-                        <option value="" className="bg-slate-950">Severity</option>
-                        {Array.from({ length: 10 }, (_, severityIndex) => severityIndex + 1).map((severity) => (
-                          <option key={severity} value={severity} className="bg-slate-950">
-                            {severity}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-                {fieldErrors.healthFocusAreas ? <p className="mt-3 text-sm text-amber-200">{fieldErrors.healthFocusAreas}</p> : null}
-              </div>
-            ) : null}
-
-            {isQA ? (
-              <FormField
-                label="Questions or Areas to Explore"
-                htmlFor="session-qa-focus"
-                helperText="Optional - bring any themes, questions, or curiosities you'd like to open with."
-                optional
-                isComplete={Boolean(normalizeText(form.otherDetail))}
-              >
-                <textarea
-                  id="session-qa-focus"
-                  className={`${fieldClassName} min-h-[132px]`}
-                  rows={5}
-                  value={form.otherDetail}
-                  onChange={(event) => setFormField("otherDetail", event.target.value)}
-                  placeholder="Anything you'd like to ask or explore in the session."
-                />
-              </FormField>
-            ) : null}
-
-            {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-              || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"))) ? (
-                <FormField
-                  label="Other Detail"
-                  htmlFor="session-other-detail"
-                  helperText="A few words here helps us understand what matters most."
-                  errorText={fieldErrors.otherDetail}
-                  isComplete={Boolean(normalizeText(form.otherDetail))}
-                >
-                  <input
-                    id="session-other-detail"
-                    className={fieldClassName}
-                    value={form.otherDetail}
-                    onChange={(event) => setFormField("otherDetail", event.target.value)}
-                    onBlur={() => handleFieldBlur("otherDetail")}
-                    placeholder="Tell us more"
-                  />
-                </FormField>
-              ) : null}
-          </div>
-        ),
-      },
-      {
-        id: "optional",
-        title: "Optional inputs",
-        guidance: "You're almost done. Add any extra context here if it feels relevant, otherwise you can move forward.",
-        validate: validateOptionalStep,
-        isComplete: () => true,
+        isComplete: () => normalizeText(form.qaTopics).length <= 2000,
         render: () => (
           <FormField
-            label="Additional Notes"
-            htmlFor="session-additional-notes"
-            helperText="Optional - include anything that feels useful before the session begins."
+            label="What would you like to explore during this session?"
+            htmlFor="session-qa-topics"
+            helperText="Optional but encouraged. Share any questions, themes, or areas you'd like to discuss."
+            errorText={fieldErrors.qaTopics}
             optional
-            isComplete={Boolean(normalizeText(form.additionalNotes))}
+            isComplete={Boolean(normalizeText(form.qaTopics))}
           >
             <textarea
-              id="session-additional-notes"
-              className={`${fieldClassName} min-h-[132px]`}
-              rows={5}
-              value={form.additionalNotes}
-              onChange={(event) => setFormField("additionalNotes", event.target.value)}
-              placeholder="Anything else you want us to know before the session."
+              id="session-qa-topics"
+              className={`${fieldClassName} min-h-[168px]`}
+              rows={6}
+              maxLength={2000}
+              value={form.qaTopics}
+              onChange={(event) => setFormField("qaTopics", event.target.value)}
+              onBlur={() => handleFieldBlur("qaTopics")}
+              placeholder="List any questions, topics, or areas you would like to discuss. These can be personal, spiritual, practical, or curiosity-based."
             />
           </FormField>
         ),
-      },
+      });
+    } else {
+      nextSteps.push(
+        {
+          id: "intent",
+          title: selectedSessionType === "regeneration" ? "Health focus" : "Session intent",
+          guidance:
+            selectedSessionType === "regeneration"
+              ? "Tell us where you'd like support. This gives us a grounded starting point before your regeneration work begins."
+              : "This helps us better tune into your situation and guide the session with precision.",
+          validate: validateIntentStep,
+          isComplete: () => {
+            if (selectedSessionType === "focus") return form.focusTopics.length > 0 && (!form.focusTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
+            if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
+            return normalizeHealthFocusAreas(form.healthFocusAreas).length > 0;
+          },
+          render: () => (
+            <div className="space-y-4">
+              {selectedSessionType === "focus" ? (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-white/70">Topics</p>
+                    <span className="text-xs text-white/45">Select 1 topic maximum.</span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {FOCUS_TOPICS.map((topic) => {
+                      const active = form.focusTopics.includes(topic);
+                      return (
+                        <label
+                          key={topic}
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                            active
+                              ? "border-accent-cyan/60 bg-accent-cyan/10 text-white"
+                              : "border-white/10 bg-white/5 text-white/75 hover:border-white/20"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={() => toggleFocusTopic(topic)}
+                            className="h-4 w-4 rounded border-white/20 bg-transparent"
+                          />
+                          <span>{topic}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {fieldErrors.focusTopics ? <p className="mt-2 text-sm text-amber-200">{fieldErrors.focusTopics}</p> : null}
+                </div>
+              ) : null}
+
+              {selectedSessionType === "mentoring" ? (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-white/70">Topics</p>
+                    <span className="text-xs text-white/45">Select up to 3 topics maximum.</span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {MENTORING_GOALS.map((topic) => {
+                      const active = form.mentoringTopics.includes(topic);
+                      const disableNewSelection = !active && form.mentoringTopics.length >= 3;
+                      return (
+                        <label
+                          key={topic}
+                          className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                            active
+                              ? "cursor-pointer border-accent-cyan/60 bg-accent-cyan/10 text-white"
+                              : disableNewSelection
+                                ? "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/35"
+                                : "cursor-pointer border-white/10 bg-white/5 text-white/75 hover:border-white/20"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            disabled={disableNewSelection}
+                            onChange={() => toggleMentoringTopic(topic)}
+                            className="h-4 w-4 rounded border-white/20 bg-transparent"
+                          />
+                          <span>{topic}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {fieldErrors.mentoringTopics ? <p className="mt-2 text-sm text-amber-200">{fieldErrors.mentoringTopics}</p> : null}
+                </div>
+              ) : null}
+
+              {isRegeneration ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Health Focus Areas</h3>
+                  <p className="mt-2 text-sm text-white/60">
+                    Focus on physical, emotional, or energetic areas you want addressed.
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {form.healthFocusAreas.map((area, index) => (
+                      <div key={`health-focus-${index + 1}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                        <input
+                          className={fieldClassName}
+                          type="text"
+                          value={area.name}
+                          onChange={(event) => updateHealthCondition(index, { name: event.target.value })}
+                          placeholder={`Condition ${index + 1}`}
+                        />
+                        <select
+                          className={`${fieldClassName} cursor-pointer`}
+                          value={area.severity}
+                          onChange={(event) => updateHealthCondition(index, { severity: event.target.value })}
+                        >
+                          <option value="" className="bg-slate-950">Severity</option>
+                          {Array.from({ length: 10 }, (_, severityIndex) => severityIndex + 1).map((severity) => (
+                            <option key={severity} value={severity} className="bg-slate-950">
+                              {severity}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  {fieldErrors.healthFocusAreas ? <p className="mt-3 text-sm text-amber-200">{fieldErrors.healthFocusAreas}</p> : null}
+                </div>
+              ) : null}
+
+              {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))
+                || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"))) ? (
+                  <FormField
+                    label="Other Detail"
+                    htmlFor="session-other-detail"
+                    helperText="A few words here helps us understand what matters most."
+                    errorText={fieldErrors.otherDetail}
+                    isComplete={Boolean(normalizeText(form.otherDetail))}
+                  >
+                    <input
+                      id="session-other-detail"
+                      className={fieldClassName}
+                      value={form.otherDetail}
+                      onChange={(event) => setFormField("otherDetail", event.target.value)}
+                      onBlur={() => handleFieldBlur("otherDetail")}
+                      placeholder="Tell us more"
+                    />
+                  </FormField>
+                ) : null}
+            </div>
+          ),
+        },
+        {
+          id: "optional",
+          title: "Optional inputs",
+          guidance: "You're almost done. Add any extra context here if it feels relevant, otherwise you can move forward.",
+          validate: validateOptionalStep,
+          isComplete: () => true,
+          render: () => (
+            <FormField
+              label="Additional Notes"
+              htmlFor="session-additional-notes"
+              helperText="Optional - include anything that feels useful before the session begins."
+              optional
+              isComplete={Boolean(normalizeText(form.additionalNotes))}
+            >
+              <textarea
+                id="session-additional-notes"
+                className={`${fieldClassName} min-h-[132px]`}
+                rows={5}
+                value={form.additionalNotes}
+                onChange={(event) => setFormField("additionalNotes", event.target.value)}
+                placeholder="Anything else you want us to know before the session."
+              />
+            </FormField>
+          ),
+        },
+      );
+    }
+
+    nextSteps.push(
       {
         id: "review",
         title: "Review and confirm",
@@ -1395,7 +1496,9 @@ export default function Bookings() {
     isRegeneration,
     loadingTypes,
     placeSuggestions,
-    requiresSchedule,
+    fieldErrors.qaTopics,
+    isQA,
+    requiresAvailabilitySelection,
     resolvingPlace,
     searchingPlaces,
     selectedBookingType,

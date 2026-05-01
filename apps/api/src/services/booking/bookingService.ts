@@ -33,6 +33,7 @@ import {
   isBookingSessionType,
   type BookingAvailability,
   type BookingAvailabilityDay,
+  sessionTypeRequiresAvailabilitySelection,
   sessionTypeRequiresSchedule,
   type BookingIntakePayload,
   type BookingSessionType,
@@ -180,9 +181,9 @@ interface BookingIntakeSnapshot {
   birthDate: string | null;
   birthTime: string;
   birthPlace: string | null;
-  birthPlaceName: string;
-  birthLat: number;
-  birthLng: number;
+  birthPlaceName: string | null;
+  birthLat: number | null;
+  birthLng: number | null;
   birthTimezone: string | null;
   timezoneSource: "user" | "suggested" | "fallback";
   consentGiven: boolean;
@@ -473,13 +474,20 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (!type) return null;
 
   const intake: BookingIntakePayload = { type };
-  const topics = normalizeStringArray(raw.topics);
+  const topics = type === "qa_session"
+    ? (() => {
+      const textValue = normalizeText(raw.topics);
+      if (textValue) return textValue;
+      const arrayValue = normalizeStringArray(raw.topics);
+      return arrayValue.length > 0 ? arrayValue.join("\n") : null;
+    })()
+    : normalizeStringArray(raw.topics);
   const goals = normalizeStringArray(raw.goals);
   const other = normalizeText(raw.other);
   const notes = normalizeText(raw.notes);
   const healthFocusAreas = normalizeHealthFocusAreas(raw.healthFocusAreas, { requireAtLeastOne: false });
 
-  if (topics.length > 0) intake.topics = topics;
+  if (topics && (typeof topics === "string" ? Boolean(topics) : topics.length > 0)) intake.topics = topics;
   if (goals.length > 0) intake.goals = goals;
   if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
   if (other) intake.other = other;
@@ -559,6 +567,7 @@ function getFallbackNameFromEmail(email: string | null) {
 }
 
 function normalizeSharedFields(
+  sessionType: BookingSessionType,
   input: CreateBookingInput,
   fallbackEmail: string | null,
   allowAdminFallbacks: boolean,
@@ -568,12 +577,14 @@ function normalizeSharedFields(
   const phone = normalizeText(input.phone);
   const birthDate = normalizeBirthDate(input.birthDate);
   const birthTime = normalizeBirthTime(input.birthTime);
-  const birthplace = normalizeStructuredBirthplace({
-    birthPlaceName: input.birthPlaceName ?? input.birthPlace,
-    birthLat: input.birthLat,
-    birthLng: input.birthLng,
-    birthTimezone: input.birthTimezone ?? input.timezone,
-  });
+  const birthplace = sessionType === "qa_session"
+    ? null
+    : normalizeStructuredBirthplace({
+      birthPlaceName: input.birthPlaceName ?? input.birthPlace,
+      birthLat: input.birthLat,
+      birthLng: input.birthLng,
+      birthTimezone: input.birthTimezone ?? input.timezone,
+    });
   const consentGiven = input.consentGiven === true;
   const timezoneSource = input.timezoneSource === "suggested" || input.timezoneSource === "fallback"
     ? input.timezoneSource
@@ -586,10 +597,10 @@ function normalizeSharedFields(
     if (!email) {
       throw createHttpError(400, "email is required");
     }
-    if (!phone) {
+    if (!phone && sessionType !== "qa_session") {
       throw createHttpError(400, "phone is required");
     }
-    if (!birthDate) {
+    if (!birthDate && sessionType !== "qa_session") {
       throw createHttpError(400, "birthDate is required");
     }
     if (!consentGiven) {
@@ -603,7 +614,7 @@ function normalizeSharedFields(
     phone,
     birthDate,
     birthTime,
-    birthPlace: birthplace.name,
+    birthPlace: birthplace?.name ?? null,
     birthplace,
     timezoneSource: timezoneSource as "user" | "suggested" | "fallback",
     consentGiven,
@@ -628,7 +639,8 @@ function buildNormalizedIntake(
 
   if (sessionType === "focus") {
     const allowed = new Set<string>(FOCUS_TOPICS);
-    const topics = (intake.topics ?? []).filter((topic) => allowed.has(topic));
+    const rawTopics = Array.isArray(intake.topics) ? intake.topics : [];
+    const topics = rawTopics.filter((topic) => allowed.has(topic));
     if (!allowAdminFallbacks && topics.length === 0) {
       throw createHttpError(400, "At least one focus topic is required");
     }
@@ -670,6 +682,17 @@ function buildNormalizedIntake(
     normalized.other = other;
   }
 
+  if (sessionType === "qa_session") {
+    const topics = typeof intake.topics === "string"
+      ? normalizeText(intake.topics)
+      : Array.isArray(intake.topics)
+        ? normalizeText(intake.topics.join("\n"))
+        : null;
+    if (topics) {
+      normalized.topics = topics;
+    }
+  }
+
   if (sessionType === "regeneration") {
     const healthFocusAreas = normalizeHealthFocusAreas(intake.healthFocusAreas, {
       requireAtLeastOne: !allowAdminFallbacks,
@@ -697,9 +720,9 @@ function buildBookingIntakeSnapshot(input: {
   birthDate: string | null;
   birthTime: string;
   birthPlace: string | null;
-  birthPlaceName: string;
-  birthLat: number;
-  birthLng: number;
+  birthPlaceName: string | null;
+  birthLat: number | null;
+  birthLng: number | null;
   birthTimezone: string | null;
   timezoneSource: "user" | "suggested" | "fallback";
   consentGiven: boolean;
@@ -986,10 +1009,10 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const sessionDurationMinutes = getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
   const sessionMetadata = getSessionMetadataTags(sessionType);
   const timezone = assertValidTimeZone(input.timezone ?? "");
-  const sharedFields = normalizeSharedFields(input, targetUser.email, allowAdminFallbacks);
+  const sharedFields = normalizeSharedFields(sessionType, input, targetUser.email, allowAdminFallbacks);
   const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks);
   const normalizedAvailability = normalizeBookingAvailability(input.availability, {
-    requireSelection: sessionTypeRequiresSchedule(sessionType),
+    requireSelection: sessionTypeRequiresAvailabilitySelection(sessionType),
   });
   const intakeSnapshot = buildBookingIntakeSnapshot({
     bookingTypeId: bookingType.id,
@@ -1003,9 +1026,9 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     birthDate: sharedFields.birthDate,
     birthTime: sharedFields.birthTime,
     birthPlace: sharedFields.birthPlace,
-    birthPlaceName: sharedFields.birthplace.name,
-    birthLat: sharedFields.birthplace.lat,
-    birthLng: sharedFields.birthplace.lng,
+    birthPlaceName: sharedFields.birthplace?.name ?? null,
+    birthLat: sharedFields.birthplace?.lat ?? null,
+    birthLng: sharedFields.birthplace?.lng ?? null,
     birthTimezone: timezone,
     timezoneSource: sharedFields.timezoneSource,
     consentGiven: sharedFields.consentGiven,
@@ -1067,9 +1090,9 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
         birth_date: sharedFields.birthDate,
         birth_time: sharedFields.birthTime,
         birth_place: sharedFields.birthPlace,
-        birth_place_name: sharedFields.birthplace.name,
-        birth_lat: sharedFields.birthplace.lat,
-        birth_lng: sharedFields.birthplace.lng,
+        birth_place_name: sharedFields.birthplace?.name ?? null,
+        birth_lat: sharedFields.birthplace?.lat ?? null,
+        birth_lng: sharedFields.birthplace?.lng ?? null,
         birth_timezone: timezone,
         consent_given: sharedFields.consentGiven,
         intake,
