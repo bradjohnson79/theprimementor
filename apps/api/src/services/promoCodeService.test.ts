@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PROMO_TARGETS } from "@wisdom/utils";
 import {
+  buildStripePromotionCodeCreateParams,
   buildTargetFromReportTier,
   buildTargetsFromSessionType,
   computeEstimatedDiscountCents,
@@ -22,6 +23,26 @@ test("buildTargetFromReportTier maps deep dive reports", () => {
 test("computeEstimatedDiscountCents returns rounded preview amounts", () => {
   assert.equal(computeEstimatedDiscountCents(14999, 20), 3000);
   assert.equal(computeEstimatedDiscountCents(19900, 15), 2985);
+});
+
+test("buildStripePromotionCodeCreateParams uses Stripe promotion object", () => {
+  const params = buildStripePromotionCodeCreateParams({
+    couponId: "coupon_123",
+    code: "SESSION15",
+    active: true,
+    expiresAt: new Date("2026-05-01T12:00:00.000Z"),
+    usageLimit: 10,
+    firstTimeOnly: true,
+    campaign: "May",
+  });
+
+  assert.deepEqual(params.promotion, {
+    type: "coupon",
+    coupon: "coupon_123",
+  });
+  assert.equal("coupon" in params, false);
+  assert.equal(params.expires_at, 1777636800);
+  assert.deepEqual(params.restrictions, { first_time_transaction: true });
 });
 
 test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {

@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import ChatComposer from "./ChatComposer";
 import ChatWindow from "./ChatWindow";
@@ -12,6 +12,7 @@ import { classNames } from "./utils";
 import { useDivin8Chat, type UseDivin8ChatConfig, type UseDivin8ChatReturn } from "./useDivin8Chat";
 
 type SpeechRecognitionStatus = "idle" | "listening" | "error" | "disabled";
+type MobilePanel = "chat" | "conversations" | "profiles";
 
 export interface Divin8ChatPageProps {
   config: UseDivin8ChatConfig;
@@ -45,6 +46,7 @@ export default function Divin8ChatPage({
   imageUpload,
 }: Divin8ChatPageProps) {
   const chat = useDivin8Chat(config);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("chat");
   const mergedCapabilities: Divin8Capabilities = {
     showDebug: true,
     showTimeline: true,
@@ -54,6 +56,101 @@ export default function Divin8ChatPage({
     showTierToggle: true,
     ...capabilities,
   };
+
+  const desktopConversationList = (
+    <ConversationList
+      threads={chat.displayedThreads}
+      activeThreadId={chat.activeThreadId}
+      isLightTheme={isLightTheme}
+      isCreating={chat.isCreatingThread}
+      searchQuery={chat.searchQuery}
+      isSearching={chat.isSearching}
+      profiles={chat.profiles}
+      isLoadingProfiles={chat.isLoadingProfiles}
+      deletingProfileId={chat.deletingProfileId}
+      onSearchQueryChange={chat.setSearchQuery}
+      onCreate={chat.handleCreateConversation}
+      onAddProfile={chat.handleOpenProfileModal}
+      onInsertProfileTag={chat.insertProfileTag}
+      onDeleteProfile={(profileId) => {
+        void chat.handleDeleteProfile(profileId).catch(() => {});
+      }}
+      onSelect={chat.handleSelectConversation}
+      onArchiveRequest={chat.setArchiveTarget}
+    />
+  );
+
+  const mobileConversationList = (
+    <ConversationList
+      threads={chat.displayedThreads}
+      activeThreadId={chat.activeThreadId}
+      isLightTheme={isLightTheme}
+      isCreating={chat.isCreatingThread}
+      searchQuery={chat.searchQuery}
+      isSearching={chat.isSearching}
+      profiles={chat.profiles}
+      isLoadingProfiles={chat.isLoadingProfiles}
+      deletingProfileId={chat.deletingProfileId}
+      onSearchQueryChange={chat.setSearchQuery}
+      onCreate={() => {
+        chat.handleCreateConversation();
+        setMobilePanel("chat");
+      }}
+      onAddProfile={() => {
+        chat.handleOpenProfileModal();
+        setMobilePanel("profiles");
+      }}
+      onInsertProfileTag={(tag) => {
+        chat.insertProfileTag(tag);
+        setMobilePanel("chat");
+      }}
+      onDeleteProfile={(profileId) => {
+        void chat.handleDeleteProfile(profileId).catch(() => {});
+      }}
+      onSelect={(threadId) => {
+        chat.handleSelectConversation(threadId);
+        setMobilePanel("chat");
+      }}
+      onArchiveRequest={chat.setArchiveTarget}
+      mode="conversations"
+    />
+  );
+
+  const mobileProfileList = (
+    <ConversationList
+      threads={chat.displayedThreads}
+      activeThreadId={chat.activeThreadId}
+      isLightTheme={isLightTheme}
+      isCreating={chat.isCreatingThread}
+      searchQuery={chat.searchQuery}
+      isSearching={chat.isSearching}
+      profiles={chat.profiles}
+      isLoadingProfiles={chat.isLoadingProfiles}
+      deletingProfileId={chat.deletingProfileId}
+      onSearchQueryChange={chat.setSearchQuery}
+      onCreate={() => {
+        chat.handleCreateConversation();
+        setMobilePanel("chat");
+      }}
+      onAddProfile={() => {
+        chat.handleOpenProfileModal();
+        setMobilePanel("profiles");
+      }}
+      onInsertProfileTag={(tag) => {
+        chat.insertProfileTag(tag);
+        setMobilePanel("chat");
+      }}
+      onDeleteProfile={(profileId) => {
+        void chat.handleDeleteProfile(profileId).catch(() => {});
+      }}
+      onSelect={(threadId) => {
+        chat.handleSelectConversation(threadId);
+        setMobilePanel("chat");
+      }}
+      onArchiveRequest={chat.setArchiveTarget}
+      mode="profiles"
+    />
+  );
 
   return (
     <motion.div
@@ -67,28 +164,8 @@ export default function Divin8ChatPage({
       )}
     >
       <Divin8ChatShell
-        conversationList={
-          <ConversationList
-            threads={chat.displayedThreads}
-            activeThreadId={chat.activeThreadId}
-            isLightTheme={isLightTheme}
-            isCreating={chat.isCreatingThread}
-            searchQuery={chat.searchQuery}
-            isSearching={chat.isSearching}
-            profiles={chat.profiles}
-            isLoadingProfiles={chat.isLoadingProfiles}
-            deletingProfileId={chat.deletingProfileId}
-            onSearchQueryChange={chat.setSearchQuery}
-            onCreate={chat.handleCreateConversation}
-            onAddProfile={chat.handleOpenProfileModal}
-            onInsertProfileTag={chat.insertProfileTag}
-            onDeleteProfile={(profileId) => {
-              void chat.handleDeleteProfile(profileId).catch(() => {});
-            }}
-            onSelect={chat.handleSelectConversation}
-            onArchiveRequest={chat.setArchiveTarget}
-          />
-        }
+        isLightTheme={isLightTheme}
+        desktopSidebar={desktopConversationList}
         chatWindow={
           <ChatWindow
             title={chat.chatTitle}
@@ -119,7 +196,14 @@ export default function Divin8ChatPage({
                 imageName={chat.imageName}
                 imagePreviewUrl={chat.imagePreviewUrl}
                 imageError={chat.imageError || speech?.error || null}
-                disabled={chat.isGenerating || !!chat.blockMessage || !!chat.profileLimitMessage || !!chat.timelineLimitMessage || chat.isLoadingThread || chat.isBootstrapping}
+                disabled={
+                  chat.isGenerating ||
+                  !!chat.blockMessage ||
+                  !!chat.profileLimitMessage ||
+                  !!chat.timelineLimitMessage ||
+                  chat.isLoadingThread ||
+                  chat.isBootstrapping
+                }
                 isSpeechSupported={speech?.isSupported ?? false}
                 speechStatus={speech?.status ?? "disabled"}
                 speechButtonTitle={speech?.buttonTitle ?? "Speech unavailable"}
@@ -127,7 +211,12 @@ export default function Divin8ChatPage({
                 onOpenTimeline={chat.handleOpenTimelineModal}
                 isUploadingImage={chat.isUploadingImage}
                 isLightTheme={isLightTheme}
-                blockMessage={chat.blockMessage ?? chat.profileLimitMessage ?? chat.timelineLimitMessage ?? chat.timelineError}
+                blockMessage={
+                  chat.blockMessage ??
+                  chat.profileLimitMessage ??
+                  chat.timelineLimitMessage ??
+                  chat.timelineError
+                }
                 submitError={chat.sendError}
                 activeTimeline={chat.activeTimeline}
                 showTimelineButton={mergedCapabilities.showTimelineReading}
@@ -136,13 +225,19 @@ export default function Divin8ChatPage({
             }
           />
         }
+        mobileConversationList={mobileConversationList}
+        mobileProfileList={mobileProfileList}
+        mobilePanel={mobilePanel}
+        onMobilePanelChange={setMobilePanel}
       />
 
       {chat.archiveNotice ? (
         <div
           className={classNames(
             "fixed bottom-6 right-6 rounded-xl border px-4 py-2.5 text-sm shadow-lg",
-            isLightTheme ? "border-amber-200 bg-amber-50 text-amber-700" : "border-amber-500/30 bg-slate-950 text-amber-100",
+            isLightTheme
+              ? "border-amber-200 bg-amber-50 text-amber-700"
+              : "border-amber-500/30 bg-slate-950 text-amber-100",
           )}
           style={{ zIndex: "var(--z-toast)" }}
         >
@@ -158,11 +253,20 @@ export default function Divin8ChatPage({
             aria-labelledby="divin8-delete-conversation-title"
             className={classNames(
               "w-full max-w-sm rounded-2xl border p-5 shadow-[0_24px_80px_rgba(8,15,30,0.4)]",
-              isLightTheme ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-slate-950 text-white",
+              isLightTheme
+                ? "border-slate-200 bg-white text-slate-900"
+                : "border-white/10 bg-slate-950 text-white",
             )}
           >
-            <h3 id="divin8-delete-conversation-title" className="text-base font-semibold">Delete conversation?</h3>
-            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-600" : "text-white/65")}>
+            <h3 id="divin8-delete-conversation-title" className="text-base font-semibold">
+              Delete conversation?
+            </h3>
+            <p
+              className={classNames(
+                "mt-2 text-sm",
+                isLightTheme ? "text-slate-600" : "text-white/65",
+              )}
+            >
               This permanently deletes the conversation and its stored recall.
             </p>
             <div className="mt-5 flex justify-end gap-2">
@@ -173,7 +277,9 @@ export default function Divin8ChatPage({
                 }}
                 className={classNames(
                   "rounded-lg px-3.5 py-2 text-sm font-medium transition-colors",
-                  isLightTheme ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-white/10 text-white hover:bg-white/15",
+                  isLightTheme
+                    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-white/10 text-white hover:bg-white/15",
                 )}
               >
                 Cancel
@@ -184,7 +290,9 @@ export default function Divin8ChatPage({
                 onClick={chat.handleArchiveConversation}
                 className={classNames(
                   "rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors",
-                  chat.archivingThreadId ? "cursor-not-allowed bg-rose-300/40 text-white/60" : "bg-rose-600 text-white hover:bg-rose-500",
+                  chat.archivingThreadId
+                    ? "cursor-not-allowed bg-rose-300/40 text-white/60"
+                    : "bg-rose-600 text-white hover:bg-rose-500",
                 )}
               >
                 {chat.archivingThreadId ? "Deleting..." : "Delete"}

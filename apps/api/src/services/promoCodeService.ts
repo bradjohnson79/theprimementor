@@ -232,6 +232,32 @@ function toUnixTimestamp(value: Date | null) {
   return value ? Math.floor(value.getTime() / 1000) : undefined;
 }
 
+export function buildStripePromotionCodeCreateParams(input: {
+  couponId: string;
+  code: string;
+  active: boolean;
+  expiresAt: Date | null;
+  usageLimit: number | null;
+  firstTimeOnly: boolean;
+  campaign: string | null;
+}) {
+  return {
+    promotion: {
+      type: "coupon",
+      coupon: input.couponId,
+    },
+    code: input.code,
+    active: input.active,
+    expires_at: toUnixTimestamp(input.expiresAt),
+    max_redemptions: input.usageLimit ?? undefined,
+    restrictions: input.firstTimeOnly ? { first_time_transaction: true } : undefined,
+    metadata: {
+      promoCode: input.code,
+      campaign: input.campaign ?? "",
+    },
+  };
+}
+
 export function computeEstimatedDiscountCents(amountCents: number, percentage: number) {
   return Math.round(amountCents * (percentage / 100));
 }
@@ -606,18 +632,15 @@ async function createStripeResources(input: {
     },
   });
 
-  const promotionCode = await stripe.promotionCodes.create({
-    coupon: coupon.id,
+  const promotionCode = await stripe.promotionCodes.create(buildStripePromotionCodeCreateParams({
+    couponId: coupon.id,
     code: input.code,
     active: input.active,
-    expires_at: toUnixTimestamp(input.expiresAt),
-    max_redemptions: input.usageLimit ?? undefined,
-    restrictions: input.firstTimeOnly ? { first_time_transaction: true } : undefined,
-    metadata: {
-      promoCode: input.code,
-      campaign: input.campaign ?? "",
-    },
-  } as any);
+    expiresAt: input.expiresAt,
+    usageLimit: input.usageLimit,
+    firstTimeOnly: input.firstTimeOnly,
+    campaign: input.campaign,
+  }) as any);
 
   return {
     stripeCouponId: coupon.id,
