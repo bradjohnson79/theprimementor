@@ -10,7 +10,13 @@ type PaymentDbLike = Database | {
 };
 type PaymentReader = Pick<Database, "select">;
 
-export type PaymentEntityType = "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
+export type PaymentEntityType =
+  | "session"
+  | "report"
+  | "subscription"
+  | "mentor_training"
+  | "mentoring_circle"
+  | "regeneration_subscription";
 type PaymentStatus = "pending" | "requires_payment" | "paid" | "failed" | "refunded";
 
 interface PaymentRow {
@@ -254,6 +260,7 @@ async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) 
         updated_at: new Date(),
       })
       .where(eq(mentorTrainingOrders.id, current.entityId));
+    return;
   }
 }
 

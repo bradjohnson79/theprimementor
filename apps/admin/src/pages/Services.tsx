@@ -54,18 +54,19 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
       ],
     },
     {
-      id: "regeneration-session",
-      title: "Regeneration Session",
+      id: "regeneration-monthly-package",
+      title: "Regeneration Monthly Package",
       price: "$99 CAD",
-      tag: "Energy Work",
+      tag: "Monthly Process",
       description:
-        "Offline regenerative session using deep-state Theta and Delta frequency work to support reset, clarity, and nervous-system restoration.",
+        "A 30-day offline regeneration process with recurring billing, ongoing continuity, and priority support while the cycle is active.",
       features: [
         "Pre-screening intake",
-        "Up to 3 focus areas",
-        "Personalized clarity glyph",
-        "MP3 7-day regeneration plan",
-        "7 days email support",
+        "30-day active cycle",
+        "Priority email support",
+        "No live session scheduling required",
+        "Recurring checkout and renewal path",
+        "Weekly check-in tracking",
       ],
     },
     {

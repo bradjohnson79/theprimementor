@@ -505,6 +505,60 @@ export const subscriptions = pgTable("subscriptions", {
   statusPeriodIdx: index("subscriptions_status_period_idx").on(table.status, table.current_period_end),
 }));
 
+export const regenerationSubscriptions = pgTable("regeneration_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  stripe_customer_id: text("stripe_customer_id"),
+  stripe_subscription_id: text("stripe_subscription_id"),
+  stripe_price_id: text("stripe_price_id"),
+  stripe_checkout_session_id: text("stripe_checkout_session_id"),
+  status: text("status").default("inactive").notNull(),
+  access_state: text("access_state").default("inactive").notNull(),
+  current_period_start: timestamp("current_period_start", { withTimezone: true }),
+  current_period_end: timestamp("current_period_end", { withTimezone: true }),
+  cancel_at_period_end: boolean("cancel_at_period_end").default(false).notNull(),
+  canceled_at: timestamp("canceled_at", { withTimezone: true }),
+  ended_at: timestamp("ended_at", { withTimezone: true }),
+  priority_support: boolean("priority_support").default(false).notNull(),
+  is_admin_override: boolean("is_admin_override").default(false).notNull(),
+  override_expires_at: timestamp("override_expires_at", { withTimezone: true }),
+  last_payment_failed_at: timestamp("last_payment_failed_at", { withTimezone: true }),
+  last_checkout_started_at: timestamp("last_checkout_started_at", { withTimezone: true }),
+  last_reconciled_at: timestamp("last_reconciled_at", { withTimezone: true }),
+  metadata: jsonb("metadata"),
+  ...timestamps,
+}, (table) => ({
+  userIdx: uniqueIndex("regeneration_subscriptions_user_uidx").on(table.user_id),
+  stripeSubscriptionIdx: uniqueIndex("regeneration_subscriptions_stripe_subscription_uidx").on(table.stripe_subscription_id),
+  statusPeriodIdx: index("regeneration_subscriptions_status_period_idx").on(table.status, table.current_period_end),
+  prioritySupportIdx: index("regeneration_subscriptions_priority_support_idx").on(table.priority_support, table.updated_at),
+  stripeCustomerIdx: index("regeneration_subscriptions_customer_idx").on(table.stripe_customer_id),
+}));
+
+export const regenerationCheckIns = pgTable("regeneration_check_ins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscription_id: uuid("subscription_id")
+    .references(() => regenerationSubscriptions.id, { onDelete: "cascade" })
+    .notNull(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  week_start: date("week_start").notNull(),
+  week_number: integer("week_number").notNull(),
+  experiences: text("experiences"),
+  changes_noticed: text("changes_noticed"),
+  challenges: text("challenges"),
+  admin_notes: text("admin_notes"),
+  submitted_at: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  userWeekUnique: uniqueIndex("regeneration_check_ins_user_week_uidx").on(table.user_id, table.week_start),
+  subscriptionCreatedIdx: index("regeneration_check_ins_subscription_created_idx").on(table.subscription_id, table.created_at),
+  userSubmittedIdx: index("regeneration_check_ins_user_submitted_idx").on(table.user_id, table.submitted_at),
+}));
+
 export const webhookEvents = pgTable("webhook_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").default("stripe").notNull(),

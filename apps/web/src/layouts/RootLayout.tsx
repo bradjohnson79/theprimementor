@@ -30,7 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Sessions",
     href: "/#sessions",
     items: [
-      { label: "Regeneration Session", href: REGENERATION_LANDING_PATH },
+      { label: "Regeneration Monthly Package", href: REGENERATION_LANDING_PATH },
       { label: "Q&A Session", href: QA_LANDING_PATH },
       { label: "Focus Session", href: FOCUS_LANDING_PATH },
       { label: "Mentoring Session", href: MENTORING_LANDING_PATH },

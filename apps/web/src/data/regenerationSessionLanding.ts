@@ -1,122 +1,122 @@
-import regenerationSessionImage from "../assets/regeneration-session.webp";
+import regenerationMonthlyPackageImage from "../../../../images/regeneration service.jpg";
 import { type SessionLandingContent } from "../components/public/SessionLandingPage";
 import { REGENERATION_BOOKING_PATH } from "../lib/sessionLandingPaths";
 
 export const regenerationSessionLandingContent: SessionLandingContent = {
   theme: "regeneration",
-  pageTitle: "regeneration_session",
+  pageTitle: "regeneration_monthly_package",
   hero: {
-    eyebrow: "Regeneration Session",
-    title: "Regeneration: Enter Your Natural State of Wellness",
+    eyebrow: "Regeneration Monthly Package",
+    title: "A 30-day guided regeneration process with direct priority support.",
     subtitle:
-      "This is not about fixing what is broken. This is about aligning with what has always been whole.",
+      "The Regeneration Monthly Package is a remote energy facilitation service designed to support your system over a full 30-day cycle.",
     supportingLine:
-      "A guided offline experience designed to help you release old patterns and stabilize a 'prime' state of being.",
+      "$99 / month recurring. Cancel anytime. This is not a one-time session. It is continuous monthly work focused on deeper integration, stabilization, and measurable internal change over time.",
     cta: {
-      label: "Book Your Regeneration Session",
+      label: "Begin Your Regeneration Cycle",
       href: REGENERATION_BOOKING_PATH,
     },
     callout: {
-      eyebrow: "Why It Lands Differently",
-      title: "Regeneration reframes wellness as something you enter and remain within.",
+      eyebrow: "What You Are Starting",
+      title: "You are no longer buying a session. You are entering a guided monthly process.",
       description:
-        "Instead of chasing a future state where everything is finally fixed, this page needs to move people into the recognition that wellness is already available and can be stabilized through alignment.",
+        "Throughout the cycle, regeneration work is conducted offline while priority support stays available so you can report your experiences, receive guidance, and stay aligned as the process unfolds.",
     },
   },
   sections: [
     {
       id: "the-shift",
-      label: "The Shift",
-      title: "When the healing loop breaks, wellness starts to feel immediate.",
+      label: "The Process",
+      title: "A full 30-day cycle built for continuity instead of a single moment.",
       paragraphs: [
-        "For many people, wellness has been approached as something to fix, repair, or recover.",
-        "But what if there was never anything truly broken? Healing often keeps you in a state of becoming, working toward a version of yourself that always seems just out of reach.",
-        "Regeneration is different. It invites you into the realization that wellness is already present, and that your work now is to stabilize it, embody it, and live from it.",
+        "Throughout this period, you receive ongoing regeneration work conducted offline, focused on aligning your system to a renewed and stabilized state across all layers of being.",
+        "The deeper value comes from continuity. Rather than treating regeneration like a one-time intervention, the monthly package creates room for ongoing support, observation, and refinement over the full cycle.",
+        "This helps the process feel grounded, trackable, and easier to integrate into daily life.",
       ],
       statementLines: [
-        "Healing is the process of becoming well.",
-        "Regeneration is the state of being well.",
+        "You are selling a process, not a session.",
+        "You are entering ongoing support, not one-time delivery.",
       ],
       density: "default",
     },
     {
-      id: "what-it-is",
-      label: "What This Session Is",
-      title: "An offline energetic alignment designed to bring your system back into harmony.",
+      id: "what-it-includes",
+      label: "What It Includes",
+      title: "Offline energy facilitation paired with direct priority guidance.",
       paragraphs: [
-        "The Regeneration Session is an offline energetic alignment designed to bring your system into a stable state of wellness.",
-        "Rather than focusing on symptoms or problems, this session works at the level of alignment, supporting the release of old patterns, behaviors, and energetic imprints that no longer serve you.",
-        "Through this process, you begin to reconnect with a familiar state of balance where your system naturally maintains harmony without constant effort.",
+        "As part of the package, you have priority email access to Brad Johnson so you can report what you are noticing, receive grounded guidance, and stay aligned with the monthly work as it unfolds.",
+        "There is no live session required. The work is conducted remotely and begins within a designated time window following submission.",
+        "The focus is full-system alignment and regeneration, with ongoing continuity month to month when deeper support is needed.",
       ],
       image: {
-        src: regenerationSessionImage,
-        alt: "Regeneration Session artwork",
+        src: regenerationMonthlyPackageImage,
+        alt: "Regeneration Monthly Package artwork",
       },
       callout: {
-        eyebrow: "What Changes",
-        title: "The session moves from symptom management into state alignment.",
+        eyebrow: "Priority Support",
+        title: "Direct communication stays available while the cycle is active.",
         description:
-          "That shift is what helps the experience feel lighter, calmer, and more stable instead of effortful.",
+          "This keeps the experience structured and responsive, rather than leaving you to interpret changes on your own.",
       },
     },
     {
-      id: "how-it-works",
-      label: "How It Works",
-      title: "Your personalized alignment process begins as soon as the session is initiated.",
+      id: "why-continuity-matters",
+      label: "Why Continuity Matters",
+      title: "Monthly continuity creates better retention, support, and observable change.",
       paragraphs: [
-        "Using the Divin8 system, your unique blueprint is explored through a combination of astrology, numerology, and advanced metaphysical interpretation systems.",
-        "From this, custom-designed exercises are created specifically for you, guiding your awareness into a consistent state of alignment.",
-        "These exercises are not about effort. They are about familiarity. The more familiar the state becomes, the more natural it is to remain within it.",
+        "This is not positioned as a one-time correction. It is a continuous monthly progression designed to support deeper integration, stabilization, and measurable internal change over time.",
+        "That shift in framing matters because regeneration often lands more clearly when support remains active long enough for the process to be observed, refined, and reinforced.",
+        "If the cycle remains aligned, you can continue month to month without resetting the relationship or losing support visibility.",
       ],
       cta: {
-        label: "Book Your Regeneration Session",
+        label: "Start Monthly Regeneration",
         href: REGENERATION_BOOKING_PATH,
       },
       density: "tight",
     },
     {
       id: "benefits",
-      label: "What You Receive",
-      title: "Grounded support that helps your system hold the state it recognizes.",
+      label: "Key Features",
+      title: "Everything in the package is designed around consistency and support.",
       paragraphs: [
-        "The value here is not just insight. It is the structure that helps you stay aligned after the session begins working through your system.",
+        "The monthly package keeps the experience simple, structured, and supportive from start to finish.",
       ],
       bullets: [
-        "Personalized regeneration alignment guided by nearly 20 years of experience",
-        "Custom MP3 exercises designed to stabilize your 'prime' state of being",
-        "7 days of priority email support for continued guidance and alignment",
-        "Exercises developed through natal charts using astrology, numerology, and advanced metaphysical systems",
+        "30 days of continuous regeneration support",
+        "Priority email access for direct communication and guidance",
+        "Offline energy facilitation with no live session required",
+        "Focus on full-system alignment and regeneration",
+        "Monthly continuity for ongoing progress",
       ],
     },
     {
-      id: "the-experience",
-      label: "The Experience",
-      title: "What begins to release is often what once felt permanently heavy.",
+      id: "delivery",
+      label: "Delivery",
+      title: "The work is conducted remotely and begins within a designated time window following submission.",
       paragraphs: [
-        "As the session integrates, you may begin to notice a sense of lightness, clarity, and internal stability.",
-        "What once felt heavy or persistent begins to release, not through force, but through alignment.",
-        "Your system starts to recognize a different baseline, one where wellness is no longer something you chase, but something you remain within. This is where regeneration begins to take hold.",
+        "You do not need to schedule a live call for the monthly package to begin. The regeneration work is performed offline while your support channel remains open during the active cycle.",
+        "That makes the experience easier to continue, easier to track, and easier to return to without rebuilding the process from scratch.",
       ],
       density: "tight",
     },
     {
-      id: "support",
+      id: "integration",
       label: "Support + Integration",
-      title: "The shift is supported while your system learns to stay in it.",
+      title: "Priority guidance stays close while the cycle unfolds.",
       paragraphs: [
-        "Following your session, you receive 7 days of priority email support.",
-        "This gives you space to ask questions, receive guidance, and stay aligned as your system stabilizes into this new state. You are not left to figure it out alone. You are supported as the shift integrates.",
+        "You can use the active cycle to document experiences, note internal changes, and surface challenges while they are still relevant.",
+        "That ongoing contact is what turns regeneration into a supported monthly process instead of a disconnected one-time purchase.",
       ],
       density: "spacious",
     },
   ],
   finalCta: {
-    eyebrow: "Step Into The Baseline",
-    title: "Step Into a State Where Wellness Is Your Baseline",
+    eyebrow: "Begin The Cycle",
+    title: "Begin Your Regeneration Cycle",
     description:
-      "Move beyond cycles of healing and into a stable, aligned state of being.",
+      "Start monthly regeneration work with direct priority support, recurring continuity, and the freedom to cancel anytime.",
     cta: {
-      label: "Book Your Regeneration Session Now",
+      label: "Begin Your Regeneration Cycle",
       href: REGENERATION_BOOKING_PATH,
     },
   },

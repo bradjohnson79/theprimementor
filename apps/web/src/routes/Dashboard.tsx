@@ -58,6 +58,17 @@ interface MemberRecordingSummary {
   createdAt: string;
 }
 
+interface RegenerationCheckInSummary {
+  id: string;
+  weekStart: string;
+  weekNumber: number;
+  experiences: string | null;
+  changesNoticed: string | null;
+  challenges: string | null;
+  adminNotes: string | null;
+  submittedAt: string;
+}
+
 function collectPendingSyncTargets(
   bookingsData: BookingSummary[],
   reportsData: MemberReportsListData,
@@ -126,6 +137,16 @@ export default function Dashboard() {
   const [recordings, setRecordings] = useState<MemberRecordingSummary[]>([]);
   const [mentoringCircle, setMentoringCircle] = useState<MentoringCircleState | null>(null);
   const [copiedCircleLink, setCopiedCircleLink] = useState(false);
+  const [regenerationNotice, setRegenerationNotice] = useState<string | null>(null);
+  const [regenerationError, setRegenerationError] = useState<string | null>(null);
+  const [regenerationCheckIns, setRegenerationCheckIns] = useState<RegenerationCheckInSummary[]>([]);
+  const [regenerationCheckInsLoading, setRegenerationCheckInsLoading] = useState(false);
+  const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
+  const [checkInForm, setCheckInForm] = useState({
+    experiences: "",
+    changesNoticed: "",
+    challenges: "",
+  });
   const accessibleCircleEvent = mentoringCircle?.currentEvent?.joinEligible
     ? mentoringCircle.currentEvent
     : mentoringCircle?.nextEvent?.joinEligible
@@ -146,6 +167,19 @@ export default function Dashboard() {
   const hasUnlimitedChat = capabilities?.unlimitedChat === true;
   const upgradeTarget = isFree ? "/subscriptions/seeker" : memberTier === "seeker" ? "/subscriptions/initiate" : null;
   const upgradeLabel = isFree ? "Upgrade" : "Upgrade to Initiate";
+  const regeneration = dbUser?.regeneration;
+  const regenerationActive = regeneration?.hasActiveAccess === true;
+  const regenerationStatusLabel = regeneration?.accessState === "admin_override"
+    ? "Admin Override Active"
+    : regeneration?.accessState === "grace_period"
+      ? "Grace Period Active"
+      : regeneration?.status === "past_due"
+        ? "Past Due"
+        : regeneration?.status === "canceled_pending_expiry"
+          ? "Ending At Period End"
+          : regeneration?.status === "active"
+            ? "Regeneration Active"
+            : "Inactive";
   const sessionSummary = useMemo(() => {
     if (statsLoading) {
       return "Loading session stats...";
@@ -183,6 +217,47 @@ export default function Dashboard() {
     next.delete("tier");
     setSearchParams(next, { replace: true });
   }, [refetch, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const successState = searchParams.get("success");
+    const checkoutSessionId = searchParams.get("checkoutSessionId");
+    if (successState !== "regeneration" || !checkoutSessionId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function confirmRegeneration() {
+      try {
+        const token = await getToken();
+        await api.post(
+          "/member/regeneration-subscription/confirm",
+          { checkoutSessionId },
+          token,
+        );
+        if (cancelled) return;
+        await refetch();
+        setRegenerationError(null);
+        setRegenerationNotice("Your regeneration subscription is syncing. Priority support will appear here as soon as Stripe confirms the cycle.");
+      } catch (err) {
+        if (cancelled) return;
+        setRegenerationError(err instanceof Error ? err.message : "Regeneration access is still syncing.");
+      } finally {
+        if (!cancelled) {
+          const next = new URLSearchParams(searchParams);
+          next.delete("success");
+          next.delete("checkoutSessionId");
+          next.delete("regenerationSubscriptionId");
+          setSearchParams(next, { replace: true });
+        }
+      }
+    }
+
+    void confirmRegeneration();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, refetch, searchParams, setSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,6 +354,69 @@ export default function Dashboard() {
     };
   }, [getToken]);
 
+  useEffect(() => {
+    if (!regeneration) {
+      setRegenerationCheckIns([]);
+      setRegenerationNotice(null);
+      setRegenerationError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRegenerationCheckIns() {
+      setRegenerationCheckInsLoading(true);
+      try {
+        const token = await getToken();
+        const response = await api.get("/member/regeneration-subscription/check-ins", token) as {
+          data?: RegenerationCheckInSummary[];
+        };
+        if (!cancelled) {
+          setRegenerationCheckIns(response.data ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRegenerationError(err instanceof Error ? err.message : "Regeneration check-ins could not be loaded.");
+        }
+      } finally {
+        if (!cancelled) {
+          setRegenerationCheckInsLoading(false);
+        }
+      }
+    }
+
+    void loadRegenerationCheckIns();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, regeneration?.stripeSubscriptionId, regeneration?.accessState]);
+
+  async function handleSubmitRegenerationCheckIn() {
+    setSubmittingCheckIn(true);
+    setRegenerationError(null);
+    try {
+      const token = await getToken();
+      const response = await api.post(
+        "/member/regeneration-subscription/check-ins",
+        checkInForm,
+        token,
+      ) as { data?: RegenerationCheckInSummary };
+      const saved = response.data;
+      if (saved) {
+        setRegenerationCheckIns((current) => {
+          const next = current.filter((entry) => entry.id !== saved.id && entry.weekStart !== saved.weekStart);
+          return [saved, ...next].sort((left, right) => right.weekStart.localeCompare(left.weekStart));
+        });
+      }
+      setCheckInForm({ experiences: "", changesNoticed: "", challenges: "" });
+      setRegenerationNotice("Weekly regeneration check-in saved.");
+    } catch (err) {
+      setRegenerationError(err instanceof Error ? err.message : "Weekly regeneration check-in could not be saved.");
+    } finally {
+      setSubmittingCheckIn(false);
+    }
+  }
+
   async function copyMentoringCircleLink() {
     if (!accessibleCircleEvent?.joinUrl) return;
     await navigator.clipboard.writeText(accessibleCircleEvent.joinUrl);
@@ -327,6 +465,16 @@ export default function Dashboard() {
           <div className="dashboard-panel text-sm text-white/60">Loading dashboard...</div>
         ) : (
           <div className="space-y-4">
+            {regenerationNotice ? (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                {regenerationNotice}
+              </div>
+            ) : null}
+            {regenerationError ? (
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                {regenerationError}
+              </div>
+            ) : null}
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="dashboard-stat-card">
                 <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Active Sessions</p>
@@ -349,6 +497,30 @@ export default function Dashboard() {
             <TraumaCourseCard />
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <section className="dashboard-panel cosmic-motion">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Regeneration</h2>
+              <p className="mt-3 text-lg font-semibold text-white">{regenerationStatusLabel}</p>
+              <p className="mt-1 text-sm text-white/60">
+                {regenerationActive
+                  ? "Your current regeneration cycle is active. Priority support remains available while access is active."
+                  : "Begin a 30-day regeneration cycle with recurring monthly support."}
+              </p>
+              <div className="mt-4 space-y-2 text-sm text-white/70">
+                <p>Priority Support: {regeneration?.prioritySupport ? "Enabled" : "Not active"}</p>
+                <p>Current Period Ends: {regeneration?.currentPeriodEnd ? formatPacificDateOnly(regeneration.currentPeriodEnd) : "—"}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/sessions/regeneration" className="dashboard-action-secondary cosmic-motion">
+                  View Package
+                </Link>
+                {!regenerationActive ? (
+                  <Link to="/sessions/regeneration/book" className="dashboard-action-primary cosmic-motion">
+                    Begin Cycle
+                  </Link>
+                ) : null}
+              </div>
+            </section>
+
             {recordings.length > 0 ? (
               <section className="dashboard-panel cosmic-motion">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Recordings</h2>
@@ -490,6 +662,78 @@ export default function Dashboard() {
                 </>
               )}
             </section>
+
+            {regeneration ? (
+              <section className="dashboard-panel cosmic-motion lg:col-span-2 xl:col-span-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Weekly Regeneration Check-In</h2>
+                <p className="mt-3 text-sm text-white/60">
+                  Keep a weekly record of your experiences, changes noticed, and challenges so your cycle stays structured and reviewable.
+                </p>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <label className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-white/40">Experiences</span>
+                    <textarea
+                      value={checkInForm.experiences}
+                      onChange={(event) => setCheckInForm((current) => ({ ...current, experiences: event.target.value }))}
+                      rows={5}
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-white/40">Changes Noticed</span>
+                    <textarea
+                      value={checkInForm.changesNoticed}
+                      onChange={(event) => setCheckInForm((current) => ({ ...current, changesNoticed: event.target.value }))}
+                      rows={5}
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-white/40">Challenges</span>
+                    <textarea
+                      value={checkInForm.challenges}
+                      onChange={(event) => setCheckInForm((current) => ({ ...current, challenges: event.target.value }))}
+                      rows={5}
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-white/40">
+                    {regenerationActive
+                      ? "Priority support is currently active for this cycle."
+                      : "Check-ins stay available, but new submissions require active regeneration access."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmitRegenerationCheckIn()}
+                    disabled={submittingCheckIn || !regenerationActive}
+                    className="dashboard-action-primary cosmic-motion disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submittingCheckIn ? "Saving..." : "Save Weekly Check-In"}
+                  </button>
+                </div>
+                <div className="mt-6 space-y-3">
+                  {regenerationCheckInsLoading ? (
+                    <p className="text-sm text-white/50">Loading recent check-ins...</p>
+                  ) : regenerationCheckIns.length === 0 ? (
+                    <p className="text-sm text-white/50">No regeneration check-ins yet.</p>
+                  ) : regenerationCheckIns.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">Week {entry.weekNumber}</p>
+                        <p className="text-xs text-white/45">{formatPacificDateOnly(entry.weekStart)}</p>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-white/70">
+                        <p><span className="text-white/45">Experiences:</span> {entry.experiences || "—"}</p>
+                        <p><span className="text-white/45">Changes:</span> {entry.changesNoticed || "—"}</p>
+                        <p><span className="text-white/45">Challenges:</span> {entry.challenges || "—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
           </div>
         )}

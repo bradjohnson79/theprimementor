@@ -20,12 +20,12 @@ import initiatesReportImage from "../assets/initiates-report.webp";
 import introductoryReportImage from "../assets/introductory-report.webp";
 import mentoringCircleImage from "../assets/mentoring-circle.webp";
 import mentoringSessionImage from "../assets/mentoring-session.webp";
-import regenerationSessionImage from "../assets/regeneration-session.webp";
 import seekerMembershipImage from "../assets/seeker-membership.webp";
 import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
 import aetherxImage from "../assets/aetherx-3x3.png";
+import regenerationMonthlyPackageImage from "../../../../images/regeneration service.jpg";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
 import { trackCtaClick } from "../lib/analytics";
 import {
@@ -51,13 +51,13 @@ interface SessionCardData {
 const SESSION_CARDS: SessionCardData[] = [
   {
     sessionKey: "regeneration",
-    title: "Regeneration Session",
+    title: "Regeneration Monthly Package",
     priceLabel: "$99.00 CAD",
     durationLabel: "Offline",
     description:
-      "This is an offline session that aligns you into a state of wellness where you feel the effects of previous ailments become released. The Regeneration Session offers a 7 day span of priority email support that helps you to maintain an aligned 'prime' state of being. Custom-made exercises are created based on natal charts through our Divin8 engine designed to help you hold a particular feeling in alignment. Through this feeling and familiarity of it, you remain in a wellness state while shifting yourself into a Delta Brainwave phase. The Regeneration Session transcends healing and moves you into alignment removing old habits and behavioral patterns from your system as you enter a prime state of wellness.",
+      "A Regeneration Monthly Package is a remote energy facilitation service that lasts for an entire month. Through the course of 30 days, you will have priority email support as you report to Brad Johnson on the regeneration work performed on you. The Regeneration service is focused on helping you align to a renewed level of regeneration through all layers of being. This monthly package is conducted offline with no live interaction and is delivered within a designated time window following submission. The Regeneration Monthly Package transcends healing and moves you into alignment, removing old habits and behavioral patterns from your system while improving overall wellness.",
     href: REGENERATION_LANDING_PATH,
-    imageSrc: regenerationSessionImage,
+    imageSrc: regenerationMonthlyPackageImage,
   },
   {
     sessionKey: "qa",
@@ -246,6 +246,7 @@ function LandingSection({ id, children }: LandingSectionProps) {
 }
 
 function SessionCard({
+  sessionKey,
   title,
   priceLabel,
   durationLabel,
@@ -256,6 +257,7 @@ function SessionCard({
   imageClassName,
 }: SessionCardData) {
   const bookingHref = `${href}/book`;
+  const primaryCtaLabel = sessionKey === "regeneration" ? "Begin Cycle" : "Book Session";
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
@@ -290,7 +292,7 @@ function SessionCard({
             })}
             className="flex-1 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
           >
-            Book Session
+            {primaryCtaLabel}
           </Link>
           <Link
             to={href}
@@ -505,7 +507,7 @@ export default function Home() {
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200/62">With your free dashboard, you can:</p>
                 <ul className="mt-4 space-y-3 text-sm leading-7 text-white/68 sm:text-base">
                   <li><strong className="font-semibold text-white">Access the full 10-day Trauma Transcendence Technique E-Course</strong></li>
-                  <li>Book personalized mentoring and regeneration sessions</li>
+                  <li>Book personalized mentoring sessions and begin regeneration cycles</li>
                   <li>Order advanced Divin8 reports and insights</li>
                   <li>Register for exclusive events like the Mentoring Circle</li>
                   <li>View and manage your session recordings anytime</li>
@@ -648,7 +650,7 @@ export default function Home() {
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-widest text-white/40">Sessions</p>
 
-              <h2 className="max-w-3xl text-3xl font-semibold text-white">One-on-one sessions for grounded transformation</h2>
+              <h2 className="max-w-3xl text-3xl font-semibold text-white">Guided sessions and processes for grounded transformation</h2>
 
               <p className="max-w-2xl text-white/60">
                 Each session is designed to meet you where you are—whether you need clarity, recalibration, or deeper

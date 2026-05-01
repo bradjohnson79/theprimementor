@@ -1,4 +1,9 @@
-export type AllowedSupportRoute = "/sessions" | "/reports" | "/contact" | "/sign-in";
+export type AllowedSupportRoute =
+  | "/sessions"
+  | "/sessions/regeneration"
+  | "/reports"
+  | "/contact"
+  | "/sign-in";
 
 export interface SupportLink {
   label: string;

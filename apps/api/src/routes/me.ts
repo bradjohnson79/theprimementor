@@ -3,6 +3,7 @@ import { ok } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { resolveMemberAccess } from "../services/divin8/memberAccessService.js";
 import { listRecordingsForUser } from "../services/orderRecordingService.js";
+import { getRegenerationSubscriptionSummary } from "../services/regenerationSubscriptionService.js";
 
 export async function meRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: requireAuth }, async (request) => {
@@ -15,20 +16,30 @@ export async function meRoutes(app: FastifyInstance) {
     };
 
     try {
-      const memberAccess = await resolveMemberAccess(app.db, user.id);
-      if (!memberAccess) {
+      const [memberAccess, regeneration] = await Promise.all([
+        resolveMemberAccess(app.db, user.id),
+        getRegenerationSubscriptionSummary(app.db, user.id),
+      ]);
+      if (!memberAccess && !regeneration) {
         return ok(response);
       }
 
       return ok({
         ...response,
-        member: {
-          tier: memberAccess.tier,
-          subscriptionStatus: memberAccess.subscriptionStatus,
-          billingInterval: memberAccess.billingInterval,
-          capabilities: memberAccess.capabilities,
-          usage: memberAccess.usage,
-        },
+        member: memberAccess
+          ? {
+              tier: memberAccess.tier,
+              subscriptionStatus: memberAccess.subscriptionStatus,
+              billingInterval: memberAccess.billingInterval,
+              capabilities: memberAccess.capabilities,
+              usage: memberAccess.usage,
+            }
+          : undefined,
+        regeneration: regeneration
+          ? {
+              ...regeneration,
+            }
+          : undefined,
       });
     } catch (error) {
       request.log.warn({ err: error, userId: user.id }, "me_membership_resolution_failed");

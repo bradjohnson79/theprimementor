@@ -23,6 +23,7 @@ import MembershipSignup from "./routes/MembershipSignup";
 import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
 import RegenerationSessionPage from "./routes/RegenerationSessionPage";
+import RegenerationCheckoutStart from "./routes/RegenerationCheckoutStart";
 import QASessionPage from "./routes/QASessionPage";
 import FocusSessionPage from "./routes/FocusSessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
@@ -90,7 +91,7 @@ export default function App() {
             <Route path="/dashboard/recordings" element={<Recordings />} />
             <Route path="/sessions" element={<Bookings />} />
             <Route path={FOCUS_BOOKING_PATH} element={<Bookings />} />
-            <Route path={REGENERATION_BOOKING_PATH} element={<Bookings />} />
+            <Route path={REGENERATION_BOOKING_PATH} element={<RegenerationCheckoutStart />} />
             <Route path={QA_BOOKING_PATH} element={<Bookings />} />
             <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
             <Route path="/bookings" element={<Bookings />} />

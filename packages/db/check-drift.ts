@@ -129,6 +129,44 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     "created_at",
     "updated_at",
   ],
+  regeneration_subscriptions: [
+    "id",
+    "user_id",
+    "stripe_customer_id",
+    "stripe_subscription_id",
+    "stripe_price_id",
+    "stripe_checkout_session_id",
+    "status",
+    "access_state",
+    "current_period_start",
+    "current_period_end",
+    "cancel_at_period_end",
+    "canceled_at",
+    "ended_at",
+    "priority_support",
+    "is_admin_override",
+    "override_expires_at",
+    "last_payment_failed_at",
+    "last_checkout_started_at",
+    "last_reconciled_at",
+    "metadata",
+    "created_at",
+    "updated_at",
+  ],
+  regeneration_check_ins: [
+    "id",
+    "subscription_id",
+    "user_id",
+    "week_start",
+    "week_number",
+    "experiences",
+    "changes_noticed",
+    "challenges",
+    "admin_notes",
+    "submitted_at",
+    "created_at",
+    "updated_at",
+  ],
   reports: [
     "user_id",
     "member_status",
@@ -226,7 +264,7 @@ async function checkSchemaDrift() {
         column_default
       FROM information_schema.columns
       WHERE table_schema = 'public'
-        AND table_name IN ('booking_types', 'bookings', 'payments', 'invoices', 'orders', 'reports', 'report_tier_outputs', 'mentoring_circle_registrations', 'promo_codes', 'promo_code_usages', 'promo_code_changes_log');
+        AND table_name IN ('booking_types', 'bookings', 'payments', 'invoices', 'orders', 'regeneration_subscriptions', 'regeneration_check_ins', 'reports', 'report_tier_outputs', 'mentoring_circle_registrations', 'promo_codes', 'promo_code_usages', 'promo_code_changes_log');
     `);
 
     if (!columnsResult.rows || columnsResult.rows.length === 0) {

@@ -42,9 +42,9 @@ export const SESSION_TYPE_OPTIONS: Array<{
 }> = [
   {
     type: "regeneration",
-    label: "Regeneration Session",
+    label: "Regeneration Monthly Package",
     description:
-      "This is an offline session that aligns you into a state of wellness where you feel the effects of previous ailments become released. The Regeneration Session offers a 7 day span of priority email support that helps you to maintain an aligned 'prime' state of being. Custom-made exercises are created based on natal charts through our Divin8 engine designed to help you hold a particular feeling in alignment. Through this feeling and familiarity of it, you remain in a wellness state while shifting yourself into a Delta Brainwave phase. The Regeneration Session transcends healing and moves you into alignment removing old habits and behavioral patterns from your system as you enter a prime state of wellness.",
+      "A 30-day offline regeneration process with recurring billing, direct priority support, and no live session scheduling required. The Regeneration Monthly Package is designed for continuity so deeper shifts can be observed, stabilized, and supported across the full cycle.",
   },
   {
     type: "qa_session",

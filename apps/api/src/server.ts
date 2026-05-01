@@ -19,6 +19,7 @@ import { clientRoutes } from "./routes/clients.js";
 import { blueprintRoutes } from "./routes/blueprints.js";
 import { bookingsRoutes } from "./routes/bookings.js";
 import { paymentsRoutes } from "./routes/payments.js";
+import { regenerationRoutes } from "./routes/regeneration.js";
 import { imageRoutes } from "./routes/images.js";
 import { divin8Routes } from "./routes/divin8.js";
 import { placesRoutes } from "./routes/places.js";
@@ -134,6 +135,44 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "cancel_at_period_end",
     "current_period_end",
     "metadata",
+    "created_at",
+    "updated_at",
+  ],
+  regeneration_subscriptions: [
+    "id",
+    "user_id",
+    "stripe_customer_id",
+    "stripe_subscription_id",
+    "stripe_price_id",
+    "stripe_checkout_session_id",
+    "status",
+    "access_state",
+    "current_period_start",
+    "current_period_end",
+    "cancel_at_period_end",
+    "canceled_at",
+    "ended_at",
+    "priority_support",
+    "is_admin_override",
+    "override_expires_at",
+    "last_payment_failed_at",
+    "last_checkout_started_at",
+    "last_reconciled_at",
+    "metadata",
+    "created_at",
+    "updated_at",
+  ],
+  regeneration_check_ins: [
+    "id",
+    "subscription_id",
+    "user_id",
+    "week_start",
+    "week_number",
+    "experiences",
+    "changes_noticed",
+    "challenges",
+    "admin_notes",
+    "submitted_at",
     "created_at",
     "updated_at",
   ],
@@ -533,6 +572,8 @@ async function getMissingSchemaEntries(db: Database) {
         'payments',
         'stripe_customers',
         'subscriptions',
+        'regeneration_subscriptions',
+        'regeneration_check_ins',
         'webhook_events',
         'notification_events',
         'notification_settings',
@@ -755,6 +796,7 @@ export async function buildApp() {
   await app.register(blueprintRoutes, { prefix: "/api" });
   await app.register(bookingsRoutes, { prefix: "/api" });
   await app.register(paymentsRoutes, { prefix: "/api" });
+  await app.register(regenerationRoutes, { prefix: "/api" });
   await app.register(imageRoutes, { prefix: "/api" });
   await app.register(divin8Routes, { prefix: "/api" });
   await app.register(placesRoutes, { prefix: "/api" });

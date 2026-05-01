@@ -24,9 +24,10 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "booking",
     keywords: ["book", "booking", "session", "availability", "purchase"],
     answer:
-      "To request a session, sign in first, go to the Sessions page, choose a session type, and complete the intake form. Focus and Mentoring sessions collect availability, while Regeneration does not require a live time selection up front.",
+      "To request Focus or Mentoring sessions, sign in first, go to the Sessions page, choose a session type, and complete the intake form. The Regeneration Monthly Package starts its own recurring checkout flow and does not require a live time selection up front.",
     links: [
       { label: "Go to Sessions", href: "/sessions" },
+      { label: "View Regeneration Package", href: "/sessions/regeneration" },
       { label: "Sign in", href: "/sign-in" },
     ],
   },
@@ -34,8 +35,11 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "sessions",
     keywords: ["types", "difference", "focus", "mentoring", "regeneration", "sessions"],
     answer:
-      "There are three session types. Focus Session is a shorter guided session for a specific area of clarity or decision-making. Mentoring Session is a deeper live session for strategy and longer-form support. Regeneration Session is an offline regeneration request with no live date or time selection required up front.",
-    links: [{ label: "View Sessions", href: "/sessions" }],
+      "There are three core service paths. Focus Session is a shorter guided session for a specific area of clarity or decision-making. Mentoring Session is a deeper live session for strategy and longer-form support. The Regeneration Monthly Package is an offline 30-day regeneration cycle with recurring billing, no live session required, and priority support while it is active.",
+    links: [
+      { label: "View Sessions", href: "/sessions" },
+      { label: "View Regeneration Package", href: "/sessions/regeneration" },
+    ],
   },
   {
     id: "reports",

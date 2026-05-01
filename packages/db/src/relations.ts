@@ -11,6 +11,8 @@ import {
   payments,
   stripeCustomers,
   subscriptions,
+  regenerationSubscriptions,
+  regenerationCheckIns,
   reports,
   webhookEvents,
   invoices,
@@ -31,6 +33,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   payments: many(payments),
   stripeCustomers: many(stripeCustomers),
   subscriptions: many(subscriptions),
+  regenerationSubscriptions: many(regenerationSubscriptions),
+  regenerationCheckIns: many(regenerationCheckIns),
   invoices: many(invoices),
   orders: many(orders),
   reports: many(reports),
@@ -118,6 +122,25 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
   user: one(users, {
     fields: [subscriptions.user_id],
     references: [users.id],
+  }),
+}));
+
+export const regenerationSubscriptionsRelations = relations(regenerationSubscriptions, ({ one, many }) => ({
+  user: one(users, {
+    fields: [regenerationSubscriptions.user_id],
+    references: [users.id],
+  }),
+  checkIns: many(regenerationCheckIns),
+}));
+
+export const regenerationCheckInsRelations = relations(regenerationCheckIns, ({ one }) => ({
+  user: one(users, {
+    fields: [regenerationCheckIns.user_id],
+    references: [users.id],
+  }),
+  subscription: one(regenerationSubscriptions, {
+    fields: [regenerationCheckIns.subscription_id],
+    references: [regenerationSubscriptions.id],
   }),
 }));
 

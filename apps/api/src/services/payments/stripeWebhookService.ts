@@ -43,6 +43,13 @@ import {
 import { ensurePersistedSessionOrder } from "../orderRecordingService.js";
 import { markPaymentPaidFromWebhook } from "./paymentsService.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
+import {
+  handleRegenerationCheckoutSessionCompleted,
+  handleRegenerationInvoicePaid,
+  handleRegenerationInvoicePaymentFailed,
+  handleRegenerationSubscriptionDeleted,
+  handleRegenerationSubscriptionUpdated,
+} from "../regenerationSubscriptionService.js";
 
 type DbExecutor = {
   select: Database["select"];
@@ -57,7 +64,14 @@ type WebhookLogger = {
   error: (payload: unknown, message?: string) => void;
 };
 
-type StripePaymentType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
+type StripePaymentType =
+  | "webinar"
+  | "session"
+  | "report"
+  | "subscription"
+  | "mentor_training"
+  | "mentoring_circle"
+  | "regeneration_subscription";
 
 interface StandardStripeMetadata {
   userId: string | null;
@@ -70,6 +84,7 @@ interface StandardStripeMetadata {
   membershipId: string | null;
   trainingOrderId: string | null;
   packageType: string | null;
+  regenerationSubscriptionId: string | null;
   version: string | null;
   entityId: string | null;
   eventId: string | null;
@@ -339,6 +354,7 @@ function parseMetadata(
       || raw.type === "subscription"
       || raw.type === "mentor_training"
       || raw.type === "mentoring_circle"
+      || raw.type === "regeneration_subscription"
       ? raw.type
       : null,
     tier: clampTier(raw.tier),
@@ -347,6 +363,10 @@ function parseMetadata(
     membershipId: typeof raw.membershipId === "string" && raw.membershipId.trim() ? raw.membershipId.trim() : null,
     trainingOrderId: typeof raw.trainingOrderId === "string" && raw.trainingOrderId.trim() ? raw.trainingOrderId.trim() : null,
     packageType: typeof raw.packageType === "string" && raw.packageType.trim() ? raw.packageType.trim() : null,
+    regenerationSubscriptionId:
+      typeof raw.regenerationSubscriptionId === "string" && raw.regenerationSubscriptionId.trim()
+        ? raw.regenerationSubscriptionId.trim()
+        : null,
     version: typeof raw.version === "string" && raw.version.trim() ? raw.version.trim() : null,
     entityId: typeof raw.entityId === "string" && raw.entityId.trim() ? raw.entityId.trim() : null,
     eventId: typeof raw.eventId === "string" && raw.eventId.trim() ? raw.eventId.trim() : null,
@@ -369,7 +389,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -389,6 +409,10 @@ function resolvePaymentEntity(
   if (metadata.type === "mentor_training") {
     const entityId = metadata.entityId ?? metadata.trainingOrderId;
     return entityId ? { entityType: "mentor_training", entityId } : null;
+  }
+  if (metadata.type === "regeneration_subscription") {
+    const entityId = metadata.entityId ?? metadata.regenerationSubscriptionId;
+    return entityId ? { entityType: "regeneration_subscription", entityId } : null;
   }
   return null;
 }
@@ -570,7 +594,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1286,6 +1310,9 @@ async function handleCheckoutSessionCompleted(
       return;
     }
   }
+  if (await handleRegenerationCheckoutSessionCompleted(db as Database, session, logger)) {
+    return;
+  }
 
   const userId = await resolveUserForStripeObject(db, {
     stripeCustomerId,
@@ -1534,6 +1561,9 @@ async function handleSubscriptionCreatedOrUpdated(
     subscriptionId: stripeSubscriptionId,
     customerId: stripeCustomerId,
   });
+  if (await handleRegenerationSubscriptionUpdated(db as Database, subscription, logger)) {
+    return;
+  }
   const linkedInvoice = await getInvoiceBySubscriptionId(db, stripeSubscriptionId);
   if (linkedInvoice) {
     await syncInvoiceSubscriptionState(
@@ -1623,6 +1653,9 @@ async function handleSubscriptionDeleted(
     subscriptionId: stripeSubscriptionId,
     customerId: stripeCustomerId,
   });
+  if (await handleRegenerationSubscriptionDeleted(db as Database, subscription, logger)) {
+    return;
+  }
   const linkedInvoice = await getInvoiceBySubscriptionId(db, stripeSubscriptionId);
   if (linkedInvoice) {
     await syncInvoiceSubscriptionState(db, linkedInvoice, "canceled", stripeSubscriptionId);
@@ -1841,6 +1874,13 @@ async function handleInvoiceStatus(
       subscriptionId: stripeSubscriptionId,
     },
   );
+  if (status === "active") {
+    if (await handleRegenerationInvoicePaid(db as Database, invoice, logger)) {
+      return;
+    }
+  } else if (await handleRegenerationInvoicePaymentFailed(db as Database, invoice, logger)) {
+    return;
+  }
   if (isManagedInvoiceMetadata(metadata)) {
     const handled = await handleManagedInvoiceRecurringStatus(
       db,

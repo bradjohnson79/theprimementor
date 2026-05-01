@@ -21,6 +21,24 @@ interface DbUser {
       periodEnd: string;
     };
   };
+  regeneration?: {
+    id: string;
+    status: "inactive" | "pending_checkout" | "incomplete" | "active" | "past_due" | "canceled_pending_expiry" | "canceled";
+    accessState: "inactive" | "active" | "grace_period" | "admin_override";
+    hasActiveAccess: boolean;
+    prioritySupport: boolean;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    stripeCheckoutSessionId: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+    isAdminOverride: boolean;
+    overrideExpiresAt: string | null;
+    lastPaymentFailedAt: string | null;
+    lastCheckoutStartedAt: string | null;
+    lastReconciledAt: string | null;
+  };
 }
 
 export function useCurrentUser() {
