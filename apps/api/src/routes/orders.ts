@@ -9,6 +9,7 @@ import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } fro
 import { markAdminOrderManualPaid } from "../services/adminOrderPaymentService.js";
 import { updateAdminOrderIntake, type AdminOrderIntakeUpdateInput } from "../services/adminOrderIntakeService.js";
 import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
+import { createAdminOrderInvoice } from "../services/adminOrderInvoiceService.js";
 
 interface OrdersQuery {
   limit?: string;
@@ -166,6 +167,30 @@ export async function ordersRoutes(app: FastifyInstance) {
           customReason: request.body?.customReason,
         }),
       });
+    },
+  );
+
+  app.post<{ Params: { orderId: string } }>(
+    "/admin/orders/:orderId/create-invoice",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+
+      try {
+        const result = await createAdminOrderInvoice(db, {
+          orderId: request.params.orderId,
+        });
+        return ok(result);
+      } catch (error) {
+        if (error instanceof Error && "statusCode" in error) {
+          const statusCode = (error as { statusCode?: number }).statusCode;
+          if (statusCode === 400 || statusCode === 404 || statusCode === 409 || statusCode === 502) {
+            return sendApiError(reply, statusCode, error.message);
+          }
+        }
+        throw error;
+      }
     },
   );
 

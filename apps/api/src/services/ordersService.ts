@@ -136,6 +136,9 @@ export interface AdminOrder {
     invoice_expires_at: string | null;
     invoice_paid_at: string | null;
     invoice_consumed_at: string | null;
+    stripe_invoice_id: string | null;
+    stripe_invoice_url: string | null;
+    stripe_invoice_status: string | null;
     order_variant: string | null;
     invoice_label: string | null;
     subscription_state: string | null;
@@ -333,6 +336,9 @@ interface PersistedOrderRow {
   paymentReference: string | null;
   stripePaymentIntentId: string | null;
   stripeSubscriptionId: string | null;
+  stripeInvoiceId: string | null;
+  stripeInvoiceUrl: string | null;
+  stripeInvoiceStatus: string | null;
   refundedAt: Date | null;
   refundReason: string | null;
   refundNote: string | null;
@@ -579,6 +585,9 @@ function getEmptyInvoiceMetadata() {
     invoice_expires_at: null,
     invoice_paid_at: null,
     invoice_consumed_at: null,
+    stripe_invoice_id: null,
+    stripe_invoice_url: null,
+    stripe_invoice_status: null,
     order_variant: null,
     invoice_label: null,
     subscription_state: null,
@@ -1222,6 +1231,9 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         paymentReference: persistedOrdersTable.payment_reference,
         stripePaymentIntentId: persistedOrdersTable.stripe_payment_intent_id,
         stripeSubscriptionId: persistedOrdersTable.stripe_subscription_id,
+        stripeInvoiceId: persistedOrdersTable.stripe_invoice_id,
+        stripeInvoiceUrl: persistedOrdersTable.stripe_invoice_url,
+        stripeInvoiceStatus: persistedOrdersTable.stripe_invoice_status,
         refundedAt: persistedOrdersTable.refunded_at,
         refundReason: persistedOrdersTable.refund_reason,
         refundNote: persistedOrdersTable.refund_note,
@@ -1933,6 +1945,9 @@ function createPersistedAdminOrder(
       invoice_expires_at: toIso(invoice?.expiresAt ?? null),
       invoice_paid_at: toIso(invoice?.paidAt ?? null),
       invoice_consumed_at: toIso(invoice?.consumedAt ?? null),
+      stripe_invoice_id: row.stripeInvoiceId,
+      stripe_invoice_url: row.stripeInvoiceUrl,
+      stripe_invoice_status: row.stripeInvoiceStatus,
       order_variant: row.type,
       invoice_label: invoice?.label ?? row.label,
       subscription_state: subscriptionState,

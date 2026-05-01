@@ -113,6 +113,9 @@ export interface AdminOrder {
     invoice_expires_at: string | null;
     invoice_paid_at: string | null;
     invoice_consumed_at: string | null;
+    stripe_invoice_id: string | null;
+    stripe_invoice_url: string | null;
+    stripe_invoice_status: string | null;
     order_variant: string | null;
     invoice_label: string | null;
     subscription_state: string | null;
@@ -161,6 +164,14 @@ export interface AdminOrderRecoveryInvoiceResponse {
   stripeInvoiceId: string;
   hostedInvoiceUrl: string | null;
   resent: boolean;
+}
+
+export interface AdminOrderCreateInvoiceResponse {
+  success: true;
+  invoiceId: string;
+  invoiceUrl: string | null;
+  invoiceStatus: string;
+  order: AdminOrder;
 }
 
 export interface AdminOrderMarkPaidResponse {

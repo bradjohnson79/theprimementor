@@ -33,6 +33,19 @@ async function upsertStripeCustomerId(
     });
 }
 
+async function findStripeCustomerIdByEmail(stripe: Stripe, email: string) {
+  const normalizedEmail = email.trim();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const existing = await stripe.customers.list({
+    email: normalizedEmail,
+    limit: 1,
+  });
+  return existing.data[0]?.id ?? null;
+}
+
 function isMissingStripeCustomerError(error: unknown) {
   if (!error || typeof error !== "object") {
     return false;
@@ -69,6 +82,12 @@ export async function ensureStripeCustomerId(
         throw error;
       }
     }
+  }
+
+  const existingByEmail = await findStripeCustomerIdByEmail(input.stripe, input.email);
+  if (existingByEmail) {
+    await upsertStripeCustomerId(db, input.userId, existingByEmail);
+    return existingByEmail;
   }
 
   const created = await input.stripe.customers.create({

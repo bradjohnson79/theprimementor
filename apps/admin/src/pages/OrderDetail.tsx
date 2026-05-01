@@ -8,6 +8,7 @@ import OrderStatusBadge from "../components/OrderStatusBadge";
 import { api } from "../lib/api";
 import type { AdminInvoiceResponse } from "../lib/orders";
 import type {
+  AdminOrderCreateInvoiceResponse,
   AdminOrder,
   AdminOrderAvailability,
   AdminOrderAvailabilityDay,
@@ -174,6 +175,15 @@ function getRefundPolicyNote(order: AdminOrder) {
   return "Stripe will process the refund immediately. Local order records will only update after Stripe confirms the refund request.";
 }
 
+function formatInvoiceStatusLabel(status: string | null | undefined) {
+  if (!status) return "Unknown";
+  return status
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function OrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const { getToken } = useAuth();
@@ -191,6 +201,7 @@ export default function OrderDetail() {
   const [refundCustomReason, setRefundCustomReason] = useState("");
   const [refunding, setRefunding] = useState(false);
   const [sendingRecoveryInvoice, setSendingRecoveryInvoice] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [editingIntake, setEditingIntake] = useState(false);
   const [intakeForm, setIntakeForm] = useState<IntakeFormState | null>(null);
@@ -261,6 +272,12 @@ export default function OrderDetail() {
     if (order.type === "custom") return false;
     if (order.type === "webinar" && !order.payment_id) return false;
     return true;
+  }, [order]);
+
+  const canCreateInvoice = useMemo(() => {
+    if (!order || order.type !== "session") return false;
+    if (order.metadata.stripe_invoice_id) return false;
+    return !["paid", "completed", "refunded", "cancelled"].includes(order.status);
   }, [order]);
 
   async function handleGenerate(force = false) {
@@ -379,6 +396,29 @@ export default function OrderDetail() {
       setActionError(err instanceof Error ? err.message : "Failed to send Stripe invoice.");
     } finally {
       setSendingRecoveryInvoice(false);
+    }
+  }
+
+  async function handleCreateInvoice() {
+    if (!orderId || !canCreateInvoice) return;
+
+    setCreatingInvoice(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const token = await getToken();
+      const response = (await api.post(
+        `/admin/orders/${orderId}/create-invoice`,
+        {},
+        token,
+      )) as AdminOrderCreateInvoiceResponse;
+      setOrder(response.order);
+      setActionSuccess("Invoice created successfully");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unable to create invoice. Please try again.");
+    } finally {
+      setCreatingInvoice(false);
     }
   }
 
@@ -621,6 +661,20 @@ export default function OrderDetail() {
                 {markingPaid ? "Updating…" : "Mark as paid"}
               </button>
             ) : null}
+            {order.type === "session" ? (
+              <button
+                type="button"
+                onClick={() => void handleCreateInvoice()}
+                disabled={!canCreateInvoice || creatingInvoice}
+                className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-5 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {creatingInvoice
+                  ? "Creating…"
+                  : order.metadata.stripe_invoice_id
+                    ? "Invoice Created"
+                    : "Create Invoice"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => canRefund && setRefundModalOpen(true)}
@@ -640,6 +694,22 @@ export default function OrderDetail() {
           </div>
         </div>
         <p className="mt-4 text-sm text-white/55">{refundPolicyNote}</p>
+        {order.metadata.stripe_invoice_status ? (
+          <p className="mt-4 text-sm text-sky-100/85">
+            Invoice: {formatInvoiceStatusLabel(order.metadata.stripe_invoice_status)}
+          </p>
+        ) : null}
+        {order.metadata.stripe_invoice_url ? (
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => window.open(order.metadata.stripe_invoice_url!, "_blank", "noopener,noreferrer")}
+              className="rounded-xl border border-sky-300/25 bg-sky-500/10 px-4 py-2 text-sm text-sky-100 transition hover:border-sky-300/40 hover:bg-sky-500/15"
+            >
+              View Invoice
+            </button>
+          </div>
+        ) : null}
         {order.metadata.invoice_link ? (
           <div className="mt-4 flex flex-wrap gap-3">
             <button
