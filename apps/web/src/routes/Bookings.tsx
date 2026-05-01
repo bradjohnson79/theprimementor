@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { motion } from "framer-motion";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { getSuggestedTimezone } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
@@ -189,6 +189,27 @@ function normalizeHealthFocusAreas(
       severity: area.severity,
     }))
     .filter((area) => Number.isInteger(area.severity));
+}
+
+function RegenerationBillingNotice() {
+  return (
+    <div className="rounded-2xl border border-amber-300/25 bg-amber-500/10 px-5 py-4 text-sm leading-7 text-amber-50/90">
+      <p className="font-semibold uppercase tracking-[0.18em] text-amber-200/90">Important</p>
+      <p className="mt-2">
+        The Regeneration Monthly Package is a monthly recurring payment that&apos;s automatically set up to auto-renew
+        in 30 days. Once your payment renews, Brad will be contacting you by email preparing you for your next monthly
+        Regeneration service. Remember that you&apos;re under no obligation and can cancel your recurring payment at
+        anytime through your member dashboard settings.
+      </p>
+      <p className="mt-3">
+        If you have questions about your Regeneration Monthly Package, please{" "}
+        <Link to="/contact" className="font-medium text-amber-200 underline underline-offset-4 transition hover:text-white">
+          Contact us
+        </Link>
+        .
+      </p>
+    </div>
+  );
 }
 
 export default function Bookings() {
@@ -976,81 +997,84 @@ export default function Bookings() {
           && (isQA || normalizeText(state.phone)),
         ),
         render: () => (
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField
-              label="Full Name"
-              htmlFor="session-full-name"
-              helperText="Enter the full name you'd like associated with the session."
-              errorText={fieldErrors.fullName}
-              isComplete={Boolean(normalizeText(form.fullName))}
-            >
-              <input
-                id="session-full-name"
-                className={fieldClassName}
-                value={form.fullName}
-                onChange={(event) => setFormField("fullName", event.target.value)}
-                onBlur={() => handleFieldBlur("fullName")}
-                placeholder="Your full name"
-              />
-            </FormField>
-
-            <FormField
-              label="Email"
-              htmlFor="session-email"
-              helperText="We'll use the email on your account for updates and confirmations."
-              errorText={fieldErrors.email}
-              isComplete={Boolean(normalizeText(form.email))}
-            >
-              <input
-                id="session-email"
-                className={fieldClassName}
-                type="email"
-                value={form.email}
-                readOnly
-                onBlur={() => handleFieldBlur("email")}
-              />
-            </FormField>
-
-            <FormField
-              label="Phone Number"
-              htmlFor="session-phone"
-              helperText={isQA
-                ? "Optional - include the best number if you'd like us to have it for scheduling follow-up."
-                : "This helps us reach you if we need to confirm scheduling details."}
-              errorText={isQA ? undefined : fieldErrors.phone}
-              isComplete={Boolean(normalizeText(form.phone))}
-              className="md:col-span-2"
-              optional={isQA}
-            >
-              <input
-                id="session-phone"
-                className={fieldClassName}
-                value={form.phone}
-                onChange={(event) => setFormField("phone", event.target.value)}
-                onBlur={() => handleFieldBlur("phone")}
-                placeholder="Your phone number"
-              />
-            </FormField>
-
-            {isQA ? (
+          <div className="space-y-4">
+            {isRegeneration ? <RegenerationBillingNotice /> : null}
+            <div className="grid gap-4 md:grid-cols-2">
               <FormField
-                label="Birthdate"
-                htmlFor="session-birth-date"
-                helperText="Optional - include it if it feels relevant for the session."
-                optional
-                isComplete={Boolean(normalizeText(form.birthDate))}
-                className="md:col-span-2"
+                label="Full Name"
+                htmlFor="session-full-name"
+                helperText="Enter the full name you'd like associated with the session."
+                errorText={fieldErrors.fullName}
+                isComplete={Boolean(normalizeText(form.fullName))}
               >
                 <input
-                  id="session-birth-date"
+                  id="session-full-name"
                   className={fieldClassName}
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(event) => setFormField("birthDate", event.target.value)}
-                  onBlur={() => handleFieldBlur("birthDate")}
+                  value={form.fullName}
+                  onChange={(event) => setFormField("fullName", event.target.value)}
+                  onBlur={() => handleFieldBlur("fullName")}
+                  placeholder="Your full name"
                 />
               </FormField>
-            ) : null}
+
+              <FormField
+                label="Email"
+                htmlFor="session-email"
+                helperText="We'll use the email on your account for updates and confirmations."
+                errorText={fieldErrors.email}
+                isComplete={Boolean(normalizeText(form.email))}
+              >
+                <input
+                  id="session-email"
+                  className={fieldClassName}
+                  type="email"
+                  value={form.email}
+                  readOnly
+                  onBlur={() => handleFieldBlur("email")}
+                />
+              </FormField>
+
+              <FormField
+                label="Phone Number"
+                htmlFor="session-phone"
+                helperText={isQA
+                  ? "Optional - include the best number if you'd like us to have it for scheduling follow-up."
+                  : "This helps us reach you if we need to confirm scheduling details."}
+                errorText={isQA ? undefined : fieldErrors.phone}
+                isComplete={Boolean(normalizeText(form.phone))}
+                className="md:col-span-2"
+                optional={isQA}
+              >
+                <input
+                  id="session-phone"
+                  className={fieldClassName}
+                  value={form.phone}
+                  onChange={(event) => setFormField("phone", event.target.value)}
+                  onBlur={() => handleFieldBlur("phone")}
+                  placeholder="Your phone number"
+                />
+              </FormField>
+
+              {isQA ? (
+                <FormField
+                  label="Birthdate"
+                  htmlFor="session-birth-date"
+                  helperText="Optional - include it if it feels relevant for the session."
+                  optional
+                  isComplete={Boolean(normalizeText(form.birthDate))}
+                  className="md:col-span-2"
+                >
+                  <input
+                    id="session-birth-date"
+                    className={fieldClassName}
+                    type="date"
+                    value={form.birthDate}
+                    onChange={(event) => setFormField("birthDate", event.target.value)}
+                    onBlur={() => handleFieldBlur("birthDate")}
+                  />
+                </FormField>
+              ) : null}
+            </div>
           </div>
         ),
       },
@@ -1477,6 +1501,7 @@ export default function Bookings() {
         isComplete: () => form.consentGiven,
         render: ({ goToStep }) => (
           <div className="space-y-4">
+            {isRegeneration ? <RegenerationBillingNotice /> : null}
             <ReviewStep
               sections={reviewSections.map((section, index) => ({
                 ...section,
