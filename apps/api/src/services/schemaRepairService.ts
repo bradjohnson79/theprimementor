@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 const REPAIRABLE_PREFIXES = [
   "profiles.",
   "conversation_memories.",
+  "orders.",
   "seo_settings.",
   "seo_audits.",
   "seo_audit_items.",
@@ -17,6 +18,9 @@ const REPAIRABLE_PREFIXES = [
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
+  `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_id" text;`,
+  `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_url" text;`,
+  `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_status" text;`,
   `CREATE TABLE IF NOT EXISTS "seo_settings" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "page_key" text NOT NULL,
