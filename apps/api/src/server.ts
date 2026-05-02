@@ -801,6 +801,7 @@ export async function buildApp() {
   await app.register(syncUserRoutes, { prefix: "/api" });
   await app.register(meRoutes, { prefix: "/api" });
   await app.register(mentoringCircleRoutes, { prefix: "/api" });
+  await app.register(membershipsRoutes);
   await app.register(membershipsRoutes, { prefix: "/api" });
   await app.register(reportsRoutes, { prefix: "/api" });
   await app.register(clientRoutes, { prefix: "/api" });
