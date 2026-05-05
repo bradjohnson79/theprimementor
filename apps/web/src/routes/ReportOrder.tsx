@@ -7,12 +7,15 @@ import {
   resolveReportProductFromRouteSlug,
   type ReportProductKey,
 } from "@wisdom/utils";
-import { ZodError } from "zod";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
 import { startReportCheckout } from "../lib/reportCheckout";
 
 type FormState = Record<string, string | boolean | string[]>;
+type ValidationIssue = {
+  path: Array<string | number>;
+  message: string;
+};
 
 const AREA_OPTIONS = [
   "Career",
@@ -36,10 +39,19 @@ function fieldClassName(error?: string) {
   ].join(" ");
 }
 
-function zodMessages(error: ZodError) {
+function hasValidationIssues(error: unknown): error is { issues: ValidationIssue[] } {
+  return Boolean(
+    error
+      && typeof error === "object"
+      && "issues" in error
+      && Array.isArray((error as { issues?: unknown }).issues),
+  );
+}
+
+function validationMessages(error: { issues: ValidationIssue[] }) {
   return Object.fromEntries(error.issues.map((issue) => {
     const path = issue.path.join(".");
-    const formPath = path.replace(/^person([AB])\.(.)/, (_match, person: string, first: string) => `person${person}${first.toUpperCase()}`);
+    const formPath = path.replace(/^person([AB])\.(.)/, (_match: string, person: string, first: string) => `person${person}${first.toUpperCase()}`);
     return [formPath, issue.message];
   }));
 }
@@ -200,8 +212,8 @@ export default function ReportOrder() {
     try {
       getSchemaByReportType(currentReportType).parse(payload);
     } catch (error) {
-      if (error instanceof ZodError) {
-        setErrors(zodMessages(error));
+      if (hasValidationIssues(error)) {
+        setErrors(validationMessages(error));
         setMessage("Please complete the highlighted fields.");
         return;
       }
