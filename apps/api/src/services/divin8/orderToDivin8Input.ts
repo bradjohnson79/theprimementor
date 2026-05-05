@@ -1,5 +1,6 @@
 import type { AdminOrder } from "../ordersService.js";
 import type { Divin8Input, Divin8ReadingType, Divin8System } from "../divin8EngineService.js";
+import { resolveReportProductKey } from "@wisdom/utils";
 
 function normalizeSystem(value: string): Divin8System | null {
   switch (value.trim().toLowerCase()) {
@@ -51,6 +52,7 @@ export function mapOrderToDivin8Input(order: AdminOrder): Divin8Input {
     throw error;
   }
 
+  const reportType = resolveReportProductKey(order.metadata.report_type_id ?? order.metadata.report_type ?? null);
   return {
     mode: "order",
     user_id: order.user_id,
@@ -68,7 +70,8 @@ export function mapOrderToDivin8Input(order: AdminOrder): Divin8Input {
       client_name: order.client_name,
       email: order.email,
       report_type: order.metadata.report_type,
-      report_type_id: order.metadata.report_type_id,
+      report_type_id: reportType ?? order.metadata.report_type_id,
+      raw_intake: order.metadata.raw_intake ?? null,
       session_type: order.metadata.session_type,
       full_name: order.client_name,
     },

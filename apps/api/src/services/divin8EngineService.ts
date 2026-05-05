@@ -4,6 +4,7 @@ import {
   SECTION_MARKDOWN_LABELS,
   systemsConfigFromIncludeSystems,
   type BlueprintSystemName,
+  type ReportProductKey,
   type ReportTierId,
 } from "@wisdom/utils";
 import {
@@ -40,7 +41,7 @@ export interface Divin8Input {
 }
 
 export interface Divin8SectionOutput {
-  key: keyof InterpretationReport;
+  key: string;
   title: string;
   content: string;
 }
@@ -60,7 +61,7 @@ export interface Divin8ExecutionResult {
   output: Divin8Output;
   blueprint: BlueprintData;
   interpretation: InterpretationReport;
-  tier: ReportTierId;
+  tier: ReportProductKey;
   includeSystems: BlueprintSystemName[];
 }
 

@@ -1,4 +1,4 @@
-import type { ReportTierId } from "@wisdom/utils";
+import { REPORT_PRODUCTS, type ReportProductKey, type ReportTierId } from "@wisdom/utils";
 
 const REPORT_PRODUCT_NAMES: Record<ReportTierId, string[]> = {
   intro: ["Introductory Report", "Introductory", "Divin8 Introductory Report"],
@@ -6,16 +6,16 @@ const REPORT_PRODUCT_NAMES: Record<ReportTierId, string[]> = {
   initiate: ["Initiate Report", "Initiate", "Divin8 Initiate Report", "Divin8 Initiate's Report"],
 };
 
-const REPORT_CHECKOUT_PATHS: Record<ReportTierId, string> = {
-  intro: "/reports",
-  deep_dive: "/reports/deep-dive",
-  initiate: "/reports/initiate",
+const LEGACY_REPORT_CHECKOUT_PATHS: Record<ReportTierId, string> = {
+  intro: "/dashboard/reports/intro",
+  deep_dive: "/dashboard/reports/deep-dive",
+  initiate: "/dashboard/reports/initiate",
 };
 
 export function getReportCheckoutProductNames(tier: ReportTierId) {
   return REPORT_PRODUCT_NAMES[tier];
 }
 
-export function getReportCheckoutPath(tier: ReportTierId) {
-  return REPORT_CHECKOUT_PATHS[tier];
+export function getReportCheckoutPath(reportType: ReportProductKey) {
+  return REPORT_PRODUCTS[reportType]?.orderPath ?? LEGACY_REPORT_CHECKOUT_PATHS.intro;
 }

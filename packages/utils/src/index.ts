@@ -23,6 +23,8 @@ export {
 } from "./timezones.js";
 export * from "./reportMarkdown.js";
 export * from "./reportTiers.js";
+export * from "./reportProducts.js";
+export * from "./reportIntakeSchemas.js";
 export * from "./reportPricing.js";
 export * from "./reportHtml.js";
 export * from "./reportSanitize.js";

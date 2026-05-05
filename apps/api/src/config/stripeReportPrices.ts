@@ -1,4 +1,10 @@
-import type { ReportTierId } from "@wisdom/utils";
+import {
+  REPORT_PRODUCTS,
+  isCasualReportProduct,
+  isPremiumReportProduct,
+  type ReportProductKey,
+  type ReportTierId,
+} from "@wisdom/utils";
 
 /**
  * Stripe Checkout must use Price IDs from the Dashboard — never hardcode amounts.
@@ -37,10 +43,12 @@ const LIVE_DIVIN8_REPORT_PRICE_FALLBACKS: Record<ReportTierId, string> = {
 
 export type StripeReportPriceMapEntry = {
   product: string;
+  reportType: ReportProductKey;
   tier: ReportTierId;
 };
 
 export const STRIPE_REPORT_PRICE_ENTRIES: Array<{
+  reportType: ReportProductKey;
   tier: ReportTierId;
   envKey: string;
   liveEnvKey: string;
@@ -48,6 +56,7 @@ export const STRIPE_REPORT_PRICE_ENTRIES: Array<{
 }> = (Object.entries(REPORT_TIER_STRIPE_CONFIG) as Array<
   [ReportTierId, (typeof REPORT_TIER_STRIPE_CONFIG)[ReportTierId]]
 >).map(([tier, cfg]) => ({
+  reportType: tier,
   tier,
   envKey: cfg.standardEnvKey,
   liveEnvKey: cfg.liveEnvKey,
@@ -63,7 +72,7 @@ export function getStripeReportPriceMap(): Record<string, StripeReportPriceMapEn
   const map: Record<string, StripeReportPriceMapEntry> = {};
   for (const tier of Object.keys(REPORT_TIER_STRIPE_CONFIG) as ReportTierId[]) {
     const cfg = REPORT_TIER_STRIPE_CONFIG[tier];
-    const entry: StripeReportPriceMapEntry = { product: cfg.product, tier };
+    const entry: StripeReportPriceMapEntry = { product: cfg.product, reportType: tier, tier };
     const standard = process.env[cfg.standardEnvKey]?.trim();
     const live = process.env[cfg.liveEnvKey]?.trim();
     const fallback = LIVE_DIVIN8_REPORT_PRICE_FALLBACKS[tier];
@@ -77,6 +86,18 @@ export function getStripeReportPriceMap(): Record<string, StripeReportPriceMapEn
       map[fallback] = entry;
     }
   }
+
+  for (const product of Object.values(REPORT_PRODUCTS)) {
+    if (!isCasualReportProduct(product)) {
+      continue;
+    }
+    map[product.stripePriceId] = {
+      product: product.id,
+      reportType: product.key,
+      tier: "intro",
+    };
+  }
+
   return map;
 }
 
@@ -90,7 +111,20 @@ export function resolveReportTierFromStripePriceId(priceId: string): StripeRepor
   return getStripeReportPriceMap()[priceId] ?? null;
 }
 
-export function getReportStripePriceId(tier: ReportTierId) {
+export function getReportTypeFromPriceId(priceId: string): ReportProductKey | null {
+  return getStripeReportPriceMap()[priceId]?.reportType ?? null;
+}
+
+export function getReportStripePriceId(reportType: ReportProductKey) {
+  const product = REPORT_PRODUCTS[reportType];
+  if (isCasualReportProduct(product)) {
+    return product.stripePriceId;
+  }
+  if (!isPremiumReportProduct(product)) {
+    throw new Error(`Unsupported report product: ${reportType}`);
+  }
+
+  const tier = product.tier;
   const cfg = REPORT_TIER_STRIPE_CONFIG[tier];
   const livePriceId = process.env[cfg.liveEnvKey]?.trim();
   const standardPriceId = process.env[cfg.standardEnvKey]?.trim();
@@ -99,7 +133,7 @@ export function getReportStripePriceId(tier: ReportTierId) {
     : standardPriceId;
 
   if (!priceId) {
-    throw new Error(`Missing Stripe price ID for report tier: ${tier}`);
+    throw new Error(`Missing Stripe price ID for report type: ${reportType}`);
   }
 
   return priceId;

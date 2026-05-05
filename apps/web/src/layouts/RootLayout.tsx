@@ -38,11 +38,14 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Reports",
-    href: "/#reports",
+    href: "/reports",
     items: [
-      { label: "Introductory Report", href: "/reports/intro" },
-      { label: "Deep Dive Report", href: "/reports/deep-dive" },
-      { label: "Initiate Report", href: "/reports/initiate" },
+      { label: "3 Questions Report", href: "/dashboard/reports/three-questions" },
+      { label: "Compatibility Report", href: "/dashboard/reports/compatibility" },
+      { label: "12 Month Annual Report", href: "/dashboard/reports/annual-12-month" },
+      { label: "Introductory Report", href: "/dashboard/reports/intro" },
+      { label: "Deep Dive Report", href: "/dashboard/reports/deep-dive" },
+      { label: "Initiate Report", href: "/dashboard/reports/initiate" },
     ],
   },
   {
@@ -97,6 +100,7 @@ export default function RootLayout() {
   const [mobileDropdown, setMobileDropdown] = useState<string | null>(null);
   const isMarketingSurface =
     location.pathname === "/"
+    || location.pathname === "/reports"
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")
     || location.pathname === REGENERATION_LANDING_PATH

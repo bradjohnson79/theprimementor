@@ -56,7 +56,7 @@ export default function MemberLayout() {
     ...(isTierLoading || tierState === "free" ? [] : [{ to: "/dashboard/divin8", label: "Divin8 Chat", icon: "✺" }]),
     { to: "/dashboard/recordings", label: "Recordings", icon: "◉" },
     { to: "/sessions", label: "Sessions", icon: "◌" },
-    { to: "/reports", label: "Reports", icon: "▤" },
+    { to: "/dashboard/reports/intro", label: "Reports", icon: "▤" },
     { to: "/mentoring-circle", label: "Mentoring Circle", icon: "◎" },
     ...(tierState === "initiate" ? [{ to: "/mentor-training", label: "Mentor Training", icon: "◇" }] : []),
     { to: "/dashboard/courses", label: "Courses", icon: "▧" },

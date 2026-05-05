@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import RootLayout from "./layouts/RootLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import MemberLayout from "./layouts/MemberLayout";
@@ -18,7 +18,8 @@ import MentoringCircle from "./routes/MentoringCircle";
 import MentorTraining from "./routes/MentorTraining";
 import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
-import Reports from "./routes/Reports";
+import ReportOrder from "./routes/ReportOrder";
+import ReportsLanding from "./routes/ReportsLanding";
 import MembershipSignup from "./routes/MembershipSignup";
 import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/contact" element={<ContactPublic />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/reports" element={<ReportsLanding />} />
           <Route path="/error" element={<WebsiteErrorPage />} />
           <Route path="/membership-signup" element={<MembershipSignup />} />
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
@@ -96,10 +98,10 @@ export default function App() {
             <Route path={QA_BOOKING_PATH} element={<Bookings />} />
             <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
             <Route path="/bookings" element={<Bookings />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/reports/intro" element={<Reports />} />
-            <Route path="/reports/deep-dive" element={<Reports />} />
-            <Route path="/reports/initiate" element={<Reports />} />
+            <Route path="/dashboard/reports/:reportType" element={<ReportOrder />} />
+            <Route path="/reports/intro" element={<Navigate to="/dashboard/reports/intro" replace />} />
+            <Route path="/reports/deep-dive" element={<Navigate to="/dashboard/reports/deep-dive" replace />} />
+            <Route path="/reports/initiate" element={<Navigate to="/dashboard/reports/initiate" replace />} />
             <Route path="/mentoring-circle" element={<MentoringCircle />} />
             <Route path="/events/mentoring-circle" element={<MentoringCircle />} />
             <Route path="/mentor-training" element={<MentorTraining />} />

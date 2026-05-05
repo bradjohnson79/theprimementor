@@ -5,9 +5,12 @@ import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
   MENTOR_TRAINING_PACKAGES,
   MEMBER_PRICING,
-  isReportTierId,
   logger,
+  REPORT_PRODUCTS,
+  isPremiumReportProduct,
+  resolveReportProductKey,
   type MentorTrainingPackageType,
+  type ReportProductKey,
   type ReportTierId,
 } from "@wisdom/utils";
 import {
@@ -71,6 +74,7 @@ function buildCheckoutMetadata(
     upgradeTarget?: Array<"focus" | "mentoring">;
     reportId?: string;
     reportTier?: ReportTierId;
+    reportType?: ReportProductKey;
     membershipId?: string;
     trainingOrderId?: string;
     packageType?: MentorTrainingPackageType;
@@ -105,6 +109,9 @@ function buildCheckoutMetadata(
   }
   if (input.reportTier) {
     metadata.reportTier = input.reportTier;
+  }
+  if (input.reportType) {
+    metadata.reportType = input.reportType;
   }
   if (input.membershipId?.trim()) {
     metadata.membershipId = input.membershipId.trim();
@@ -754,11 +761,12 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     throw createHttpError(400, `Report is not in a payable state: ${report.memberStatus}`);
   }
 
-  if (!isReportTierId(report.tier)) {
-    throw createHttpError(400, "Report tier is invalid for checkout.");
+  const reportType = resolveReportProductKey(report.tier);
+  if (!reportType) {
+    throw createHttpError(400, "Report type is invalid for checkout.");
   }
-  const tier = report.tier;
-  const amountCents = DIVIN8_REPORT_PRICE_CENTS_BY_TIER[tier];
+  const product = REPORT_PRODUCTS[reportType];
+  const amountCents = isPremiumReportProduct(product) ? DIVIN8_REPORT_PRICE_CENTS_BY_TIER[product.tier] : 0;
   const currency = "CAD";
 
   let payment = await getLatestPaymentForEntity(db, { entityType: "report", entityId: reportId });
@@ -773,7 +781,8 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
       metadata: {
         source: "report_checkout_recovery",
         reportId,
-        tier,
+        reportType,
+        tier: isPremiumReportProduct(product) ? product.tier : reportType,
       },
     });
     payment = await getLatestPaymentForEntity(db, { entityType: "report", entityId: reportId });
@@ -798,7 +807,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
   }
 
   const stripe = getStripe();
-  const priceId = getReportStripePriceId(tier);
+  const priceId = getReportStripePriceId(reportType);
   const promo = await validatePromoForCheckout(db, {
     code: input.promoCode ?? "",
     type: "report",
@@ -810,7 +819,8 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     type: "report",
     entityId: reportId,
     reportId,
-    reportTier: tier,
+    reportType,
+    reportTier: isPremiumReportProduct(product) ? product.tier : undefined,
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
@@ -825,10 +835,10 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     },
   });
   const frontendUrl = getFrontendUrl();
-  const returnPath = getReportCheckoutPath(tier);
+  const returnPath = getReportCheckoutPath(reportType);
 
   logger.debug("report_checkout_prepared", {
-    tier,
+    reportType,
     priceId,
     reportId,
   });
@@ -852,9 +862,10 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     stripeCheckoutUrl: session.url,
     stripePriceId: priceId,
     stripeProductId: null,
-    stripeProductName: `${tier}_report`,
+    stripeProductName: product.displayName,
     reportId,
-    tier,
+    reportType,
+    tier: isPremiumReportProduct(product) ? product.tier : reportType,
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
@@ -866,10 +877,10 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     reportId,
     paymentId: payment.id,
     sessionId: session.id,
-    tier,
+    reportType,
     priceId,
     productId: null,
-    productName: `${tier}_report`,
+    productName: product.displayName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,

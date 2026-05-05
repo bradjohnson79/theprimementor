@@ -1,6 +1,11 @@
 import { clients, reports, reportTierOutputs, type Database } from "@wisdom/db";
 import { desc, eq } from "drizzle-orm";
-import { getReportTierDefinition, type ReportTierId } from "@wisdom/utils";
+import {
+  getReportTierDefinition,
+  isPremiumReportProduct,
+  REPORT_PRODUCTS,
+  type ReportProductKey,
+} from "@wisdom/utils";
 import type { AdminOrder } from "./ordersService.js";
 import type { Divin8ExecutionResult } from "./divin8EngineService.js";
 import { persistableInterpretationPayload } from "./reportFormat.js";
@@ -83,7 +88,7 @@ export async function getOrderExecutionReport(db: Database, order: AdminOrder): 
 export async function ensureOrderExecutionReport(
   db: Database,
   order: AdminOrder,
-  tier: ReportTierId,
+  tier: ReportProductKey,
 ): Promise<ReportRow> {
   const existing = await getOrderExecutionReport(db, order);
   if (existing) {
@@ -123,10 +128,13 @@ export async function ensureOrderExecutionReport(
 async function upsertTierOutput(
   db: Database,
   reportId: string,
-  tier: ReportTierId,
+  tier: ReportProductKey,
   values: Partial<typeof reportTierOutputs.$inferInsert>,
 ) {
-  const tierDefinition = getReportTierDefinition(tier);
+  const product = REPORT_PRODUCTS[tier];
+  const tierDefinition = isPremiumReportProduct(product)
+    ? getReportTierDefinition(product.tier)
+    : getReportTierDefinition(tier === "annual_12_month" ? "deep_dive" : "intro");
   const [row] = await db
     .insert(reportTierOutputs)
     .values({
@@ -153,7 +161,7 @@ async function upsertTierOutput(
 export async function markOrderExecutionState(
   db: Database,
   order: AdminOrder,
-  tier: ReportTierId,
+  tier: ReportProductKey,
   state: OrderExecutionState,
   options?: {
     errorMessage?: string | null;
@@ -217,9 +225,10 @@ export async function persistOrderExecutionResult(
       ?? execution.blueprint.core.birthData.birthLocation,
     birthTimezone: report.birth_timezone,
   });
+  const executionProduct = REPORT_PRODUCTS[execution.tier];
   const payload = persistableInterpretationPayload(
     execution.interpretation,
-    execution.tier,
+    isPremiumReportProduct(executionProduct) ? executionProduct.tier : "intro",
     order.client_name || "Client",
     structuredData,
   );

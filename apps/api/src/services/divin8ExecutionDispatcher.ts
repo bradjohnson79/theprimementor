@@ -2,7 +2,13 @@ import type { Database } from "@wisdom/db";
 import type { AdminOrder } from "./ordersService.js";
 import { getAdminOrderById } from "./ordersService.js";
 import { runDivin8Execution } from "./divin8EngineService.js";
+import {
+  generateAnnual12MonthReport,
+  generateCompatibilityReport,
+  generateThreeQuestionsReport,
+} from "./divin8/casualReportGenerationService.js";
 import { mapOrderToDivin8Input } from "./divin8/orderToDivin8Input.js";
+import { resolveReportProductKey, type ReportProductKey } from "@wisdom/utils";
 import {
   getOrderExecutionReport,
   markOrderExecutionState,
@@ -110,6 +116,29 @@ function isQaSessionOrder(order: AdminOrder) {
   return sessionLabel.includes("qa_session") || sessionLabel.includes("q_a_session");
 }
 
+function resolveExecutionReportType(order: AdminOrder): ReportProductKey {
+  return resolveReportProductKey(order.metadata.report_type_id ?? order.metadata.report_type ?? null) ?? "intro";
+}
+
+async function runExecutionByReportType(reportType: ReportProductKey, input: ReturnType<typeof mapOrderToDivin8Input>) {
+  switch (reportType) {
+    case "three_questions":
+      return generateThreeQuestionsReport(input);
+    case "compatibility":
+      return generateCompatibilityReport(input);
+    case "annual_12_month":
+      return generateAnnual12MonthReport(input);
+    case "intro":
+    case "deep_dive":
+    case "initiate":
+      return runDivin8Execution(input);
+    default: {
+      const exhaustive: never = reportType;
+      throw createError(400, `Unsupported report type: ${String(exhaustive)}`);
+    }
+  }
+}
+
 export async function dispatchOrderExecution(
   db: Database,
   orderId: string,
@@ -191,7 +220,8 @@ export async function dispatchOrderExecution(
 
   try {
     const divin8Input = mapOrderToDivin8Input(order);
-    await markOrderExecutionState(db, order, order.type === "report" ? (divin8Input.reading_type === "initiate" ? "initiate" : divin8Input.reading_type === "deep_dive" ? "deep_dive" : "intro") : "intro", "generating", {
+    const reportType = order.type === "report" ? resolveExecutionReportType(order) : "intro";
+    await markOrderExecutionState(db, order, reportType, "generating", {
       startedAt: generationStartedAt,
       lastAttemptAt: generationStartedAt,
       errorMessage: null,
@@ -202,7 +232,7 @@ export async function dispatchOrderExecution(
       "divin8_execution_started",
     );
 
-    const execution = await runDivin8Execution(divin8Input);
+    const execution = await runExecutionByReportType(reportType, divin8Input);
     await persistOrderExecutionResult(db, order, execution, { force: options.force });
     const refreshedOrder = await getAdminOrderById(db, orderId);
 
@@ -253,11 +283,7 @@ export async function dispatchOrderExecution(
     const awaitingInput = statusCode === 400;
     const nextState: OrderExecutionState = awaitingInput ? "awaiting_input" : "failed";
     const completedAt = new Date().toISOString();
-    const reportTier = order.metadata.report_type_id === "initiate"
-      ? "initiate"
-      : order.metadata.report_type_id === "deep_dive"
-        ? "deep_dive"
-        : "intro";
+    const reportTier = order.type === "report" ? resolveExecutionReportType(order) : "intro";
 
     await markOrderExecutionState(db, order, reportTier, nextState, {
       errorMessage: message,

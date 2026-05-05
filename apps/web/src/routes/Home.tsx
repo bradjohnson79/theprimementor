@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
-  REPORT_TIER_DEFINITIONS,
-  REPORT_TIER_ORDER,
-  divin8ReportTierListPrice,
   MEMBER_PRICING,
+  PREMIUM_REPORT_PRODUCT_KEYS,
+  REPORT_PRODUCTS,
+  type ReportProductKey,
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
 import OverviewSection from "../components/sections/OverviewSection";
@@ -103,10 +103,13 @@ interface MembershipCardData {
 
 interface ReportCardData {
   title: string;
-  meta: string;
+  meta?: string;
   description: string;
   imageSrc: string;
   href: string;
+  ctaLabel: string;
+  badge?: string;
+  variant?: "casual" | "premium";
 }
 
 interface SocialWidgetCardProps {
@@ -140,11 +143,47 @@ const MEMBERSHIP_CARDS: MembershipCardData[] = [
   },
 ];
 
-const REPORT_CARD_IMAGES: Record<"intro" | "deep_dive" | "initiate", string> = {
+const REPORT_CARD_IMAGES: Record<ReportProductKey, string> = {
+  three_questions: introductoryReportImage,
+  compatibility: deepDiveReportImage,
+  annual_12_month: initiatesReportImage,
   intro: introductoryReportImage,
   deep_dive: deepDiveReportImage,
   initiate: initiatesReportImage,
 };
+
+const CASUAL_REPORT_CARDS: ReportCardData[] = [
+  {
+    title: "Divin8 3 Questions Report",
+    description:
+      "Ask three meaningful questions and receive clear, focused insight through Divin8’s multi-system synthesis. Ideal for decision-making, life direction, or resolving specific concerns without committing to a full report.",
+    imageSrc: "/images/Divin8 3 Questions Report.png",
+    href: "/dashboard/reports/three-questions",
+    ctaLabel: "Ask Your 3 Questions",
+    badge: "Quick Insight",
+    variant: "casual",
+  },
+  {
+    title: "Divin8 Partner Compatibility Report",
+    description:
+      "Explore the deeper dynamic between you and another person. This report reveals strengths, challenges, communication patterns, and long-term compatibility across romantic, business, or personal relationships.",
+    imageSrc: "/images/Divin8 Partner Compatibility Report.png",
+    href: "/dashboard/reports/compatibility",
+    ctaLabel: "Check Compatibility",
+    badge: "Quick Insight",
+    variant: "casual",
+  },
+  {
+    title: "Divin8 12 Month Annual Report",
+    description:
+      "See what the next 12 months have in store. This report maps out your upcoming cycles, opportunities, and challenges so you can move forward with clarity and timing on your side.",
+    imageSrc: "/images/Divin8 12 Month Annual Report.png",
+    href: "/dashboard/reports/annual-12-month",
+    ctaLabel: "View Your Year Ahead",
+    badge: "Quick Insight",
+    variant: "casual",
+  },
+];
 
 const EVENT_ITEMS = [
   {
@@ -344,9 +383,12 @@ function MembershipCard({ title, meta, description, imageSrc, href }: Membership
   );
 }
 
-function ReportCard({ title, meta, description, imageSrc, href }: ReportCardData) {
+function ReportCard({ title, meta, description, imageSrc, href, ctaLabel, badge, variant = "premium" }: ReportCardData) {
+  const variantClasses = variant === "casual"
+    ? "border-cyan-200/18 shadow-[0_18px_48px_rgba(34,211,238,0.08)] hover:border-cyan-200/28 hover:shadow-[0_22px_56px_rgba(34,211,238,0.13)]"
+    : "border-amber-200/16 shadow-[0_18px_48px_rgba(251,191,36,0.08)] hover:border-amber-200/28 hover:shadow-[0_22px_56px_rgba(251,191,36,0.14)]";
   return (
-    <div className="flex h-full flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4">
+    <div className={`flex h-full flex-col rounded-xl border bg-white/[0.03] p-4 transition duration-300 ${variantClasses}`}>
       <div className="mx-auto shrink-0 aspect-square w-full max-w-[10.08rem] overflow-hidden rounded-lg border border-white/10 bg-white/5 sm:max-w-[10.8rem]">
         <img
           src={imageSrc}
@@ -359,8 +401,13 @@ function ReportCard({ title, meta, description, imageSrc, href }: ReportCardData
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 text-left">
         <div className="space-y-1">
+          {badge ? (
+            <span className="inline-flex rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-cyan-100/75">
+              {badge}
+            </span>
+          ) : null}
           <h3 className="text-base font-semibold leading-snug tracking-tight text-white">{title}</h3>
-          <p className="text-xs font-medium tabular-nums text-cyan-100/85">{meta}</p>
+          {meta ? <p className="text-xs font-medium tabular-nums text-cyan-100/85">{meta}</p> : null}
         </div>
         <p className="flex-1 text-sm leading-relaxed text-white/60 whitespace-pre-line">{description}</p>
       </div>
@@ -370,7 +417,7 @@ function ReportCard({ title, meta, description, imageSrc, href }: ReportCardData
         onClick={() => trackCtaClick("buy_report", "home_reports", { href, title })}
         className="mt-4 shrink-0 rounded-md bg-white/10 py-2 text-center text-sm text-white transition hover:bg-white/20"
       >
-        Buy Report
+        {ctaLabel}
       </Link>
       <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
     </div>
@@ -457,17 +504,15 @@ function InlineBackToTop() {
 
 export default function Home() {
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
-  const reportItems: ReportCardData[] = REPORT_TIER_ORDER.map((tier) => ({
-    title: REPORT_TIER_DEFINITIONS[tier].label,
-    meta: divin8ReportTierListPrice(tier),
-    description: REPORT_TIER_DEFINITIONS[tier].description,
-    imageSrc: REPORT_CARD_IMAGES[tier],
-    href:
-      tier === "deep_dive"
-        ? "/reports/deep-dive"
-        : tier === "initiate"
-          ? "/reports/initiate"
-          : "/reports/intro",
+  const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
+    title: REPORT_PRODUCTS[key].displayName,
+    meta: "Premium Report",
+    description: REPORT_PRODUCTS[key].shortDescription,
+    imageSrc: REPORT_CARD_IMAGES[key],
+    href: REPORT_PRODUCTS[key].orderPath,
+    ctaLabel: REPORT_PRODUCTS[key].ctaLabel,
+    badge: "Full Analysis",
+    variant: "premium",
   }));
 
   useEffect(() => {
@@ -679,12 +724,39 @@ export default function Home() {
               Structured written synthesis with precision, hierarchy, and enough depth to reveal your underlying life
               architecture without collapsing into generic spiritual language.
             </p>
+            <Link
+              to="/reports"
+              onClick={() => trackCtaClick("view_reports", "home_reports", { href: "/reports", title: "Divin8 Reports" })}
+              className="inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/5"
+            >
+              View All Reports
+            </Link>
           </div>
 
-          <div className="grid items-stretch gap-4 lg:grid-cols-3">
-            {reportItems.map((report) => (
-              <ReportCard key={report.title} {...report} />
-            ))}
+          <div className="space-y-10">
+            <div className="space-y-4">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-cyan-200/62">Casual Reports</p>
+                <p className="mt-1 text-sm text-white/50">Focused insights for immediate clarity</p>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {CASUAL_REPORT_CARDS.map((report) => (
+                  <ReportCard key={report.title} {...report} />
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-8">
+              <div className="mb-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/62">Premium Reports</p>
+                <p className="mt-1 text-sm text-white/50">Deep, comprehensive life synthesis</p>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {premiumReportItems.map((report) => (
+                  <ReportCard key={report.title} {...report} />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </LandingSection>

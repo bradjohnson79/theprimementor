@@ -11,11 +11,12 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 100px;
+  scroll-padding-top: 120px;
 }
 
-section {
-  scroll-margin-top: 100px;
+section[id],
+#top {
+  scroll-margin-top: 120px;
 }
 
 .dashboard-shell {

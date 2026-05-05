@@ -2,9 +2,16 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { reports, reportTierOutputs, users, type Database } from "@wisdom/db";
 import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
+  REPORT_PRODUCTS,
+  formatZodIssues,
   getReportTierDefinition,
-  isReportTierId,
-  type ReportTierId,
+  isPremiumReportProduct,
+  parseReportIntake,
+  resolveReportProductKey,
+  type AnnualReportIntake,
+  type CompatibilityReportIntake,
+  type PremiumReportIntake,
+  type ReportProductKey,
 } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import { assertValidTimeZone } from "./booking/timezoneService.js";
@@ -14,7 +21,7 @@ import { createPaymentRecordForEntity, getReusablePaymentForEntity } from "./pay
 
 export interface MemberReportSummary {
   id: string;
-  interpretation_tier: ReportTierId;
+  interpretation_tier: ReportProductKey;
   member_status: "pending_payment" | "paid" | "fulfilled";
   status: string;
   display_title: string;
@@ -39,7 +46,8 @@ export interface MemberReportDetail extends MemberReportSummary {
 
 interface CreateMemberReportInput {
   userId: string;
-  tier: unknown;
+  tier?: unknown;
+  reportType?: unknown;
   fullName?: unknown;
   email?: unknown;
   phone?: unknown;
@@ -53,6 +61,18 @@ interface CreateMemberReportInput {
   primaryFocus?: unknown;
   consentGiven?: unknown;
   notes?: unknown;
+  currentLocation?: unknown;
+  question1?: unknown;
+  question2?: unknown;
+  question3?: unknown;
+  personA?: unknown;
+  personB?: unknown;
+  relationshipType?: unknown;
+  relationshipQuestion?: unknown;
+  relationshipStatus?: unknown;
+  desiredFocus?: unknown;
+  currentLifeFocus?: unknown;
+  areasOfInterest?: unknown;
 }
 
 function normalizeText(value: unknown): string | null {
@@ -70,60 +90,128 @@ function normalizeEmail(value: unknown): string | null {
   return email;
 }
 
-function normalizeBirthDate(value: unknown): string | null {
-  const normalized = normalizeText(value);
-  if (!normalized) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    throw createHttpError(400, "birthDate must use YYYY-MM-DD");
+function normalizeReportType(input: CreateMemberReportInput): ReportProductKey {
+  const reportType = resolveReportProductKey(input.reportType) ?? resolveReportProductKey(input.tier);
+  if (!reportType) {
+    throw createHttpError(
+      400,
+      "reportType must be one of: three_questions, compatibility, annual_12_month, intro, deep_dive, initiate",
+    );
   }
-  return normalized;
-}
-
-function normalizeBirthTime(value: unknown): string {
-  const normalized = normalizeText(value);
-  if (!normalized) return "00:00";
-  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(normalized)) {
-    throw createHttpError(400, "birthTime must use HH:MM");
-  }
-  return normalized.slice(0, 5);
-}
-
-function normalizeTier(value: unknown): ReportTierId {
-  if (!isReportTierId(value)) {
-    throw createHttpError(400, "tier must be one of: intro, deep_dive, initiate");
-  }
-  return value;
+  return reportType;
 }
 
 function getDisplayTitle(
-  tier: ReportTierId,
+  reportType: ReportProductKey,
   rawTitle: string | null | undefined,
 ): string {
-  return rawTitle?.trim() || `Divin8 ${getReportTierDefinition(tier).label} Report`;
+  return rawTitle?.trim() || REPORT_PRODUCTS[reportType].displayName;
+}
+
+function getReportAmountCents(reportType: ReportProductKey) {
+  const product = REPORT_PRODUCTS[reportType];
+  return isPremiumReportProduct(product) ? DIVIN8_REPORT_PRICE_CENTS_BY_TIER[product.tier] : 0;
+}
+
+function getSystemsForReportType(reportType: ReportProductKey) {
+  const product = REPORT_PRODUCTS[reportType];
+  if (isPremiumReportProduct(product)) {
+    return getReportTierDefinition(product.tier).includeSystems;
+  }
+  return getReportTierDefinition(reportType === "annual_12_month" ? "deep_dive" : "intro").includeSystems;
+}
+
+function buildRawIntake(input: CreateMemberReportInput) {
+  return {
+    fullName: input.fullName,
+    email: input.email,
+    phone: input.phone,
+    birthDate: input.birthDate,
+    birthTime: input.birthTime,
+    birthPlaceName: input.birthPlaceName,
+    birthLat: input.birthLat,
+    birthLng: input.birthLng,
+    birthTimezone: input.birthTimezone,
+    timezoneSource: input.timezoneSource,
+    primaryFocus: input.primaryFocus,
+    consentGiven: input.consentGiven,
+    notes: input.notes,
+    currentLocation: input.currentLocation,
+    question1: input.question1,
+    question2: input.question2,
+    question3: input.question3,
+    personA: input.personA,
+    personB: input.personB,
+    relationshipType: input.relationshipType,
+    relationshipQuestion: input.relationshipQuestion,
+    relationshipStatus: input.relationshipStatus,
+    desiredFocus: input.desiredFocus,
+    currentLifeFocus: input.currentLifeFocus,
+    areasOfInterest: input.areasOfInterest,
+  };
+}
+
+function parseIntakeOrThrow(reportType: ReportProductKey, input: CreateMemberReportInput) {
+  try {
+    return parseReportIntake(reportType, buildRawIntake(input));
+  } catch (error) {
+    if (error && typeof error === "object" && "issues" in error && Array.isArray((error as { issues?: unknown }).issues)) {
+      throw createHttpError(400, formatZodIssues(error as Parameters<typeof formatZodIssues>[0]));
+    }
+    throw error;
+  }
+}
+
+function getPrimaryBirthplace(reportType: ReportProductKey, intake: ReturnType<typeof parseIntakeOrThrow>) {
+  function normalizeOrFallback(input: { birthPlaceName?: unknown; birthLat?: unknown; birthLng?: unknown; birthTimezone?: unknown }) {
+    try {
+      return normalizeStructuredBirthplace(input);
+    } catch (error) {
+      const name = normalizeText(input.birthPlaceName);
+      if (!name) {
+        throw error;
+      }
+      return {
+        name,
+        lat: null,
+        lng: null,
+        timezone: normalizeText(input.birthTimezone),
+      };
+    }
+  }
+
+  if (reportType === "compatibility") {
+    const compatibility = intake as CompatibilityReportIntake;
+    return normalizeOrFallback({
+      birthPlaceName: compatibility.personA.birthPlaceName,
+      birthLat: compatibility.personA.birthLat,
+      birthLng: compatibility.personA.birthLng,
+      birthTimezone: compatibility.personA.birthTimezone,
+    });
+  }
+
+  const single = intake as PremiumReportIntake | AnnualReportIntake;
+  return normalizeOrFallback({
+    birthPlaceName: single.birthPlaceName,
+    birthLat: single.birthLat,
+    birthLng: single.birthLng,
+    birthTimezone: single.birthTimezone,
+  });
 }
 
 export async function createMemberReportOrder(
   db: Database,
   input: CreateMemberReportInput,
 ): Promise<MemberReportSummary> {
-  const tier = normalizeTier(input.tier);
-  const fullName = normalizeText(input.fullName);
-  const email = normalizeEmail(input.email);
-  const phone = normalizeText(input.phone);
-  const birthDate = normalizeBirthDate(input.birthDate);
-  const birthTime = normalizeBirthTime(input.birthTime);
-  const primaryFocus = normalizeText(input.primaryFocus);
-  const consentGiven = input.consentGiven === true;
-  const notes = normalizeText(input.notes);
-  const timezoneSource = input.timezoneSource === "suggested" || input.timezoneSource === "fallback"
-    ? input.timezoneSource
+  const reportType = normalizeReportType(input);
+  const product = REPORT_PRODUCTS[reportType];
+  const parsedIntake = parseIntakeOrThrow(reportType, input);
+  const email = normalizeEmail((parsedIntake as { email?: unknown }).email);
+  const timezoneSource = (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "suggested"
+    || (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "fallback"
+    ? (parsedIntake as { timezoneSource: "suggested" | "fallback" }).timezoneSource
     : "user";
-  const birthplace = normalizeStructuredBirthplace({
-    birthPlaceName: input.birthPlaceName,
-    birthLat: input.birthLat,
-    birthLng: input.birthLng,
-    birthTimezone: input.birthTimezone,
-  });
+  const birthplace = getPrimaryBirthplace(reportType, parsedIntake);
 
   const [dbUser] = await db
     .select({ email: users.email })
@@ -134,31 +222,21 @@ export async function createMemberReportOrder(
     throw createHttpError(404, "User not found");
   }
 
-  if (!fullName) throw createHttpError(400, "fullName is required");
   if (!email) throw createHttpError(400, "email is required");
-  if (!phone) throw createHttpError(400, "phone is required");
-  if (!birthDate) throw createHttpError(400, "birthDate is required");
-  if (!input.birthTimezone || typeof input.birthTimezone !== "string" || !input.birthTimezone.trim()) {
-    throw createHttpError(400, "birthTimezone is required");
+  if (birthplace.timezone) {
+    assertValidTimeZone(birthplace.timezone);
   }
-  assertValidTimeZone(input.birthTimezone.trim());
-  if (!consentGiven) throw createHttpError(400, "consentGiven must be true");
   if (email !== dbUser.email.toLowerCase()) {
     throw createHttpError(400, "email must match the authenticated account");
   }
 
-  const title = getDisplayTitle(tier, null);
+  const title = getDisplayTitle(reportType, null);
   const purchaseIntake = {
-    fullName,
+    ...parsedIntake,
     email,
-    phone,
-    birthDate,
-    birthTime,
-    primaryFocus,
-    consentGiven,
-    notes,
-    birthplace,
     timezoneSource,
+    reportType,
+    productId: product.id,
   };
   const purchaseSnapshotJson = JSON.stringify(purchaseIntake);
 
@@ -175,14 +253,14 @@ export async function createMemberReportOrder(
     .from(reports)
     .where(and(
       eq(reports.user_id, input.userId),
-      eq(reports.interpretation_tier, tier),
+      eq(reports.interpretation_tier, reportType),
       eq(reports.member_status, "pending_payment"),
       sql`${reports.purchase_intake} = ${purchaseSnapshotJson}::jsonb`,
     ))
     .orderBy(desc(reports.created_at))
     .limit(1);
 
-  const amountCents = DIVIN8_REPORT_PRICE_CENTS_BY_TIER[tier];
+  const amountCents = getReportAmountCents(reportType);
   const currency = "CAD";
 
   if (reusable) {
@@ -201,17 +279,18 @@ export async function createMemberReportOrder(
         metadata: {
           source: "report_reuse",
           reportId: reusable.id,
-          tier,
+          reportType,
+          tier: isPremiumReportProduct(product) ? product.tier : reportType,
         },
       });
     }
 
     return {
       id: reusable.id,
-      interpretation_tier: reusable.interpretation_tier as ReportTierId,
+      interpretation_tier: resolveReportProductKey(reusable.interpretation_tier) ?? "intro",
       member_status: reusable.member_status,
       status: reusable.status,
-      display_title: getDisplayTitle(reusable.interpretation_tier as ReportTierId, reusable.display_title),
+      display_title: getDisplayTitle(resolveReportProductKey(reusable.interpretation_tier) ?? "intro", reusable.display_title),
       created_at: reusable.created_at.toISOString(),
       updated_at: reusable.updated_at?.toISOString() ?? null,
       viewable: false,
@@ -225,9 +304,9 @@ export async function createMemberReportOrder(
         user_id: input.userId,
         status: "draft",
         member_status: "pending_payment",
-        interpretation_tier: tier,
+        interpretation_tier: reportType,
         display_title: title,
-        systems_used: getReportTierDefinition(tier).includeSystems,
+        systems_used: getSystemsForReportType(reportType),
         purchase_intake: purchaseIntake,
         birth_place_name: birthplace.name,
         birth_lat: birthplace.lat,
@@ -236,6 +315,9 @@ export async function createMemberReportOrder(
         meta: {
           createdFrom: "member_purchase",
           timezone_source: timezoneSource,
+          report_type: reportType,
+          product_id: product.id,
+          product_category: product.type,
         },
       })
       .returning({
@@ -258,7 +340,8 @@ export async function createMemberReportOrder(
       metadata: {
         source: "report_create",
         reportId: inserted.id,
-        tier,
+          reportType,
+          tier: isPremiumReportProduct(product) ? product.tier : reportType,
       },
     });
 
@@ -267,10 +350,10 @@ export async function createMemberReportOrder(
 
   return {
     id: created.id,
-    interpretation_tier: created.interpretation_tier as ReportTierId,
+    interpretation_tier: resolveReportProductKey(created.interpretation_tier) ?? "intro",
     member_status: created.member_status,
     status: created.status,
-    display_title: getDisplayTitle(created.interpretation_tier as ReportTierId, created.display_title),
+    display_title: getDisplayTitle(resolveReportProductKey(created.interpretation_tier) ?? "intro", created.display_title),
     created_at: created.created_at.toISOString(),
     updated_at: created.updated_at?.toISOString() ?? null,
     viewable: false,
@@ -293,14 +376,14 @@ export async function listMemberReports(db: Database, userId: string): Promise<M
     .orderBy(desc(reports.created_at));
 
   const summaries = rows.map((row) => {
-    const tier = isReportTierId(row.interpretation_tier) ? row.interpretation_tier : "intro";
+    const reportType = resolveReportProductKey(row.interpretation_tier) ?? "intro";
     const memberStatus = row.member_status === "fulfilled" ? "fulfilled" : row.member_status;
     return {
       id: row.id,
-      interpretation_tier: tier,
+      interpretation_tier: reportType,
       member_status: memberStatus,
       status: row.status,
-      display_title: getDisplayTitle(tier, row.display_title),
+      display_title: getDisplayTitle(reportType, row.display_title),
       created_at: row.created_at.toISOString(),
       updated_at: row.updated_at?.toISOString() ?? null,
       viewable: memberStatus === "fulfilled",
@@ -359,8 +442,8 @@ export async function getMemberReportDetail(
     .where(eq(reportTierOutputs.report_id, report.id))
     .orderBy(desc(reportTierOutputs.updated_at), desc(reportTierOutputs.created_at));
 
-  const requestedTier = isReportTierId(report.interpretation_tier) ? report.interpretation_tier : "intro";
-  const activeTierOutput = tierRows.find((row) => row.tier === requestedTier) ?? tierRows[0] ?? null;
+  const requestedReportType = resolveReportProductKey(report.interpretation_tier) ?? "intro";
+  const activeTierOutput = tierRows.find((row) => row.tier === requestedReportType) ?? tierRows[0] ?? null;
   const markdown = resolveFullMarkdown(
     activeTierOutput?.full_markdown ?? report.full_markdown,
     activeTierOutput?.generated_report ?? report.generated_report,
@@ -372,10 +455,10 @@ export async function getMemberReportDetail(
 
   return {
     id: report.id,
-    interpretation_tier: requestedTier,
+    interpretation_tier: requestedReportType,
     member_status: "fulfilled",
     status: report.status,
-    display_title: getDisplayTitle(requestedTier, report.display_title),
+    display_title: getDisplayTitle(requestedReportType, report.display_title),
     created_at: report.created_at.toISOString(),
     updated_at: report.updated_at?.toISOString() ?? null,
     viewable: true,

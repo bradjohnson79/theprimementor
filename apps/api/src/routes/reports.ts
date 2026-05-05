@@ -10,6 +10,7 @@ import {
 
 interface CreateMemberReportBody {
   tier?: string;
+  reportType?: string;
   fullName?: string;
   email?: string;
   phone?: string;
@@ -23,6 +24,18 @@ interface CreateMemberReportBody {
   primaryFocus?: string;
   consentGiven?: boolean;
   notes?: string;
+  currentLocation?: string;
+  question1?: string;
+  question2?: string;
+  question3?: string;
+  personA?: unknown;
+  personB?: unknown;
+  relationshipType?: string;
+  relationshipQuestion?: string;
+  relationshipStatus?: string;
+  desiredFocus?: string;
+  currentLifeFocus?: string;
+  areasOfInterest?: string[];
 }
 
 export async function reportsRoutes(app: FastifyInstance) {
@@ -33,6 +46,7 @@ export async function reportsRoutes(app: FastifyInstance) {
     const report = await createMemberReportOrder(db, {
       userId: request.dbUser!.id,
       tier: body.tier,
+      reportType: body.reportType,
       fullName: body.fullName,
       email: body.email,
       phone: body.phone,
@@ -46,6 +60,18 @@ export async function reportsRoutes(app: FastifyInstance) {
       primaryFocus: body.primaryFocus,
       consentGiven: body.consentGiven,
       notes: body.notes,
+      currentLocation: body.currentLocation,
+      question1: body.question1,
+      question2: body.question2,
+      question3: body.question3,
+      personA: body.personA,
+      personB: body.personB,
+      relationshipType: body.relationshipType,
+      relationshipQuestion: body.relationshipQuestion,
+      relationshipStatus: body.relationshipStatus,
+      desiredFocus: body.desiredFocus,
+      currentLifeFocus: body.currentLifeFocus,
+      areasOfInterest: body.areasOfInterest,
     });
 
     return ok({

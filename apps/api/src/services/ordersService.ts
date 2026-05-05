@@ -115,6 +115,7 @@ export interface AdminOrder {
     availability: AdminOrderAvailability | null;
     report_type: string | null;
     report_type_id: string | null;
+    raw_intake?: unknown;
     training_package: string | null;
     training_package_id: string | null;
     selected_systems: string[];
@@ -1061,17 +1062,20 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
 function parseReportPurchaseIntake(value: unknown) {
   if (!isRecord(value)) return null;
   const birthplace = isRecord(value.birthplace) ? value.birthplace : null;
+  const personA = isRecord(value.personA) ? value.personA : null;
   return {
-    fullName: getString(value.fullName),
+    fullName: getString(value.fullName) ?? getString(personA?.fullName),
     email: getString(value.email),
     phone: getString(value.phone),
-    birthDate: getString(value.birthDate),
-    birthTime: getString(value.birthTime),
-    birthLocation: getString(birthplace?.name),
-    birthTimezone: getString(birthplace?.timezone) ?? getString(value.birthTimezone),
+    birthDate: getString(value.birthDate) ?? getString(personA?.birthDate),
+    birthTime: getString(value.birthTime) ?? getString(personA?.birthTime),
+    birthLocation: getString(birthplace?.name) ?? getString(personA?.birthPlaceName),
+    birthTimezone: getString(birthplace?.timezone) ?? getString(value.birthTimezone) ?? getString(personA?.birthTimezone),
     consentGiven: getBoolean(value.consentGiven),
     primaryFocus: getString(value.primaryFocus),
-    questions: getStringArray(value.questions),
+    questions: getStringArray(value.questions).length > 0
+      ? getStringArray(value.questions)
+      : [getString(value.question1), getString(value.question2), getString(value.question3)].filter((entry): entry is string => Boolean(entry)),
     notes: getString(value.notes),
   };
 }
@@ -1585,6 +1589,7 @@ function createReportCandidate(
       availability: null,
       report_type: reportTypeLabel,
       report_type_id: row.interpretationTier,
+      raw_intake: row.purchaseIntake,
       training_package: null,
       training_package_id: null,
       selected_systems: selectedSystems,

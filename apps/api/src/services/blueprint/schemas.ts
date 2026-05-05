@@ -62,9 +62,8 @@ export function validateGenerateRequest(body: unknown): {
   // Validate based on mode
   if (mode === "client") {
     const hasClientId = typeof clientId === "string" && clientId.trim().length > 0;
-    const hasEmail = typeof email === "string" && email.trim().length > 0;
-    if (!hasClientId && !hasEmail) {
-      return { valid: false, error: "clientId or email is required for client mode" };
+    if (!hasClientId) {
+      return { valid: false, error: "clientId (string) is required for client mode" };
     }
     if (email !== undefined && email !== null && (typeof email !== "string" || !email.trim())) {
       return { valid: false, error: "email must be a non-empty string when provided" };
