@@ -16,6 +16,15 @@ const NAV_LINKS = [
   ["Begin Your Report", "#begin-report"],
 ] as const;
 
+const DIVIN8_SYSTEM_LABELS = [
+  "Astrology",
+  "Numerology",
+  "Tarot",
+  "I Ching",
+  "Kabbalah",
+  "Human Systems",
+];
+
 const BEST_FOR: Record<ReportProductKey, string[]> = {
   three_questions: ["Personal questions", "Life direction", "Career or financial clarity", "Relationship questions", "Spiritual guidance", "Decision-making support"],
   compatibility: ["Romantic partners", "Business partners", "Creative collaborators", "Friendships", "Family relationships", "Future partnership insight"],
@@ -77,14 +86,37 @@ export default function ReportsLanding() {
       <section className="relative overflow-hidden px-6 pb-16 pt-24 md:pt-32">
         <div className="absolute inset-x-0 top-20 -z-10 mx-auto h-72 max-w-4xl rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="mx-auto max-w-6xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent-cyan">Divin8 Reports</p>
-          <h1 className="mt-5 max-w-4xl text-5xl font-semibold leading-tight md:text-7xl">Personalized metaphysical reports for clarity, timing, and direction.</h1>
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-white/72">
-            Divin8 Reports use natal chart systems, ancient calculation methods, and deep synthesis to help you understand yourself, your relationships, and the energetic patterns surrounding your life.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <a href="#casual-reports" className="rounded-xl bg-white px-5 py-3 text-center text-sm font-semibold text-slate-950">Explore Reports</a>
-            <a href="#how-reports-work" className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-white/5">How It Works</a>
+          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent-cyan">Divin8 Reports</p>
+              <div className="mb-6 mt-4 flex flex-wrap gap-2">
+                {DIVIN8_SYSTEM_LABELS.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-wide text-white/80 backdrop-blur-sm"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <h1 className="max-w-4xl text-5xl font-semibold leading-tight md:text-7xl">Personalized metaphysical reports for clarity, timing, and direction.</h1>
+              <p className="mt-6 max-w-3xl text-lg leading-8 text-white/72">
+                Divin8 Reports use natal chart systems, ancient calculation methods, and deep synthesis to help you understand yourself, your relationships, and the energetic patterns surrounding your life.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a href="#casual-reports" className="rounded-xl bg-white px-5 py-3 text-center text-sm font-semibold text-slate-950">Explore Reports</a>
+                <a href="#how-reports-work" className="rounded-xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-white/5">How It Works</a>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-yellow-500/10 blur-3xl" />
+              <img
+                src="/images/Divin8-Ancient-System-Reports.png"
+                alt="Divin8 Ancient System Reports"
+                className="relative mx-auto w-full max-w-[520px] rounded-3xl border border-white/10 shadow-2xl"
+              />
+            </div>
           </div>
         </div>
       </section>

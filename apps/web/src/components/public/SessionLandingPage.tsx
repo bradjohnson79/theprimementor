@@ -187,6 +187,84 @@ function LandingImageCard({
   );
 }
 
+function AdvancedSupportServices({
+  theme,
+}: {
+  theme: LandingTheme;
+}) {
+  if (theme !== "regeneration" && theme !== "qa") {
+    return null;
+  }
+
+  const pageSpecificLine = theme === "regeneration"
+    ? "These advanced services may be integrated as part of your regeneration process where appropriate."
+    : "These advanced services can be explored as an additional focus during your session if relevant.";
+
+  return (
+    <section className="mt-16">
+      <div className="mx-auto max-w-6xl px-4">
+        <h2 className="mb-2 text-2xl font-semibold text-white md:text-3xl">
+          Advanced Support Services
+        </h2>
+
+        <p className="mb-8 text-sm text-white opacity-80">
+          Optional focused work for resolving conflict and accelerating intentional outcomes
+        </p>
+
+        <p className="mb-6 text-xs text-white opacity-60">
+          {pageSpecificLine}
+        </p>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="glass-card p-6">
+            <span className="text-xs uppercase tracking-wide text-white opacity-60">
+              Optional Focus Area
+            </span>
+
+            <h3 className="mb-3 mt-2 text-xl font-semibold text-white">
+              Timeline Rewriting
+            </h3>
+
+            <p className="text-sm text-white opacity-90">
+              A focused intervention designed to help shift you out of recurring conflict patterns and into a more stable and coherent life path.
+            </p>
+
+            <p className="mt-3 text-sm text-white opacity-90">
+              Through guided cooperation with your practitioner, disruptive cycles can be neutralized and cleared, allowing a new direction to take hold with greater clarity and support.
+            </p>
+
+            <p className="mt-3 text-sm text-white opacity-70">
+              Ideal for recurring conflicts, emotional loops, or persistent instability in key areas of life.
+            </p>
+          </div>
+
+          <div className="glass-card p-6">
+            <span className="text-xs uppercase tracking-wide text-white opacity-60">
+              Optional Focus Area
+            </span>
+
+            <h3 className="mb-3 mt-2 text-xl font-semibold text-white">
+              Manifestation Holding
+            </h3>
+
+            <p className="text-sm text-white opacity-90">
+              A directed support process where your intention is stabilized and reinforced to reduce internal resistance and increase follow-through.
+            </p>
+
+            <p className="mt-3 text-sm text-white opacity-90">
+              Your chosen outcome is held in a more consistent and coherent state, helping to minimize doubt cycles, emotional interference, and self-sabotage patterns.
+            </p>
+
+            <p className="mt-3 text-sm text-white opacity-70">
+              Ideal for strengthening goals, maintaining focus, and aligning fully with your intended results.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function SessionLandingPage({
   content,
 }: {
@@ -219,6 +297,11 @@ export default function SessionLandingPage({
               <p className="mt-5 max-w-2xl text-sm leading-7 text-white/58 sm:text-base">
                 {content.hero.supportingLine}
               </p>
+              {(content.theme === "regeneration" || content.theme === "qa") ? (
+                <p className="mt-3 text-sm opacity-80">
+                  Includes advanced support options such as Timeline Rewriting and Manifestation Holding for deeper transformation and directed outcomes.
+                </p>
+              ) : null}
               <div className="mt-8">
                 <LandingCta
                   href={content.hero.cta.href}
@@ -244,6 +327,8 @@ export default function SessionLandingPage({
           </div>
         </div>
       </section>
+
+      <AdvancedSupportServices theme={content.theme} />
 
       {content.sections.map((section) => {
         const imageFirst = section.imagePosition === "left";
