@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { initGoogleAdsGlobalSiteTag } from "./lib/googleAdsTag";
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import RootLayout from "./layouts/RootLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
@@ -64,6 +65,10 @@ function ScrollToTop() {
 }
 
 export default function App() {
+  useEffect(() => {
+    initGoogleAdsGlobalSiteTag();
+  }, []);
+
   return (
     <BrowserRouter>
       <ScrollToTop />
