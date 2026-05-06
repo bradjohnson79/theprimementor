@@ -43,6 +43,15 @@ const COMPARISON = [
   ["Initiate Report", "Full-spectrum metaphysical synthesis", "Highest", "Advanced spiritual and life-path analysis"],
 ];
 
+const REPORT_WORKFLOW_STEPS: { title: string; helper?: string }[] = [
+  { title: "Choose your report" },
+  { title: "Create a free account", helper: "Save reports, purchases, and future activity" },
+  { title: "Submit your intake information" },
+  { title: "Complete checkout" },
+  { title: "Your report is generated and prepared" },
+  { title: "Receive your report within 48 hours Monday–Friday" },
+];
+
 function BackToTop() {
   return <a href="#top" className="mt-8 inline-flex text-sm font-medium text-accent-cyan hover:text-white">Back to Top</a>;
 }
@@ -138,11 +147,12 @@ export default function ReportsLanding() {
       </Section>
 
       <Section id="how-reports-work" eyebrow="Process" title="How The Reports Work">
-        <div className="grid gap-4 md:grid-cols-5">
-          {["Choose your report", "Submit your intake information", "Complete checkout", "Your report is generated and prepared", "Receive your completed report"].map((step, index) => (
-            <div key={step} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {REPORT_WORKFLOW_STEPS.map((step, index) => (
+            <div key={step.title} className="glass-card flex h-full flex-col rounded-2xl p-4 sm:p-5">
               <p className="text-sm text-accent-cyan">Step {index + 1}</p>
-              <p className="mt-2 text-sm leading-6 text-white/75">{step}</p>
+              <p className="mt-2 text-sm leading-6 text-white/75">{step.title}</p>
+              {step.helper ? <p className="text-xs opacity-60 mt-2">{step.helper}</p> : null}
             </div>
           ))}
         </div>
