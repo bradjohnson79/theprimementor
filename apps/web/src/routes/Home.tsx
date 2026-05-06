@@ -50,26 +50,14 @@ interface SessionCardData {
 
 const SESSION_CARDS: SessionCardData[] = [
   {
-    sessionKey: "regeneration",
-    title: "Regeneration Monthly Package",
-    priceLabel: "$99.00 CAD",
-    durationLabel: "Offline",
+    sessionKey: "mentoring",
+    title: "Mentoring Session",
+    priceLabel: "$299.00 CAD",
+    durationLabel: "90 mins",
     description:
-      "A Regeneration Monthly Package is a remote energy facilitation service that lasts for an entire month. Through the course of 30 days, you will have priority email support as you report to Brad Johnson on the regeneration work performed on you. The Regeneration service is focused on helping you align to a renewed level of regeneration through all layers of being. This monthly package is conducted offline with no live interaction and is delivered within a designated time window following submission. The Regeneration Monthly Package transcends healing and moves you into alignment, removing old habits and behavioral patterns from your system while improving overall wellness.",
-    href: REGENERATION_LANDING_PATH,
-    imageSrc: regenerationMonthlyPackageImage,
-  },
-  {
-    sessionKey: "qa",
-    title: "Q&A Session",
-    priceLabel: "$149.99 CAD",
-    durationLabel: "30 mins",
-    description:
-      "The Q&A Session is a 30-minute open interaction designed for clarity, insight, and direct connection. This session gives you the opportunity to ask any questions you have, whether they relate to your current life situation, spiritual direction, or general curiosity. It is also an open space for a personal interaction with Adronis, offering a unique and direct experience for those seeking perspective beyond conventional dialogue. This is not a structured Divin8 reading or mentoring session. Instead, it is designed for flexibility and fast access, allowing you to explore specific questions, gain immediate insight, and connect in a more open and conversational format.",
-    href: QA_LANDING_PATH,
-    imageSrc: "/images/Q&A Session.png",
-    imageFit: "cover",
-    imageClassName: "scale-[1.02] object-[center_44%]",
+      "A deep 1:1 session for life direction, blueprint insight, goal alignment, and practical transformation through the Divin8 system.",
+    href: MENTORING_LANDING_PATH,
+    imageSrc: mentoringSessionImage,
   },
   {
     sessionKey: "focus",
@@ -77,19 +65,31 @@ const SESSION_CARDS: SessionCardData[] = [
     priceLabel: "$199.00 CAD",
     durationLabel: "45 mins",
     description:
-      "A 45 minute interaction where Brad will prepare you for your intended state through a Divin8 Synthesis report. Brad will share insights on your current alignment in life, and how to align your mind's state of being. Whether you're navigating a decision, facing a challenge, or seeking direction, this session isolates the core pattern and brings it into sharp focus. You'll leave with clear, actionable insight and a grounded understanding of your next steps—cutting through confusion and helping you move forward with confidence and intention. The session works to clear stagnation, restore balance, and reconnect you to your natural state of flow—leaving you feeling lighter, clearer, and more internally supported.",
+      "A focused Divin8-guided session for one important issue, decision, or life pattern so you can move forward with clarity.",
     href: FOCUS_LANDING_PATH,
     imageSrc: focusSessionImage,
   },
   {
-    sessionKey: "mentoring",
-    title: "Mentoring Session",
-    priceLabel: "$299.00 CAD",
-    durationLabel: "90 mins",
+    sessionKey: "qa",
+    title: "Q&A Session",
+    priceLabel: "$149.99 CAD",
+    durationLabel: "30 mins",
     description:
-      "A comprehensive session that works across multiple layers of your blueprint to support deeper transformation and long-term growth. This is the most complete session of the 3 as Brad works with you 1 to 1 exploring your natal charts and metaphysical information overview through the Divin8 system. This is where patterns are not just identified—but understood, integrated, and evolved. This session focuses on setting a goal, neutralizing all setbacks towards that goal, and teaching you how to enter Prime Mind: Harmony with your preferred state of being. The Mentoring session is an interaction designed for those ready to go further; this session provides structured guidance, expanded awareness, and aligned direction—supporting real, sustained movement forward on your path.",
-    href: MENTORING_LANDING_PATH,
-    imageSrc: mentoringSessionImage,
+      "A direct open-format session for personal questions, spiritual perspective, and timely insight when you need fast clarity.",
+    href: QA_LANDING_PATH,
+    imageSrc: "/images/Q&A Session.png",
+    imageFit: "cover",
+    imageClassName: "scale-[1.02] object-[center_44%]",
+  },
+  {
+    sessionKey: "regeneration",
+    title: "Regeneration Monthly Package",
+    priceLabel: "$99.00 CAD",
+    durationLabel: "Offline",
+    description:
+      "A 30-day remote regeneration process with priority email support to help restore alignment, release old patterns, and support renewal.",
+    href: REGENERATION_LANDING_PATH,
+    imageSrc: regenerationMonthlyPackageImage,
   },
 ];
 
@@ -129,7 +129,7 @@ const MEMBERSHIP_CARDS: MembershipCardData[] = [
     title: "Seeker Membership",
     meta: MEMBER_PRICING.seeker.monthly.label,
     description:
-      "Explore our starter membership subscription as you access our Divin8 Universal Knowledge System with a 150 prompt monthly limit.",
+      "Start your Divin8 access with 150 monthly prompts, guided learning tools, dashboard access, and ongoing support for practical insight.",
     imageSrc: seekerMembershipImage,
     href: "/subscriptions/seeker",
   },
@@ -137,7 +137,7 @@ const MEMBERSHIP_CARDS: MembershipCardData[] = [
     title: "Initiate Membership",
     meta: MEMBER_PRICING.initiate.monthly.label,
     description:
-      "Dive into our complete membership subscription as you access the Divin8 Universal Knowledge System with unlimited prompt usage, free access to our monthly Mentoring Circle, and eligibility for our Mentoring Packages after completing a single Mentoring Session.",
+      "Unlock unlimited Divin8 prompts, deeper learning systems, monthly Mentoring Circle access, and expanded mentoring eligibility for sustained growth.",
     imageSrc: initiateMembershipImage,
     href: "/subscriptions/initiate",
   },
@@ -274,7 +274,7 @@ function LandingSection({ id, children }: LandingSectionProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
-      className="relative scroll-mt-28 border-t border-white/8 py-16"
+      className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16"
     >
       <div className="mx-auto max-w-6xl space-y-8 px-6">
         {children}
@@ -528,6 +528,107 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+
+      <section id="sessions" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
+        <div className="relative mx-auto max-w-6xl px-6">
+          <div className="space-y-8 text-left">
+            <div className="space-y-3">
+              <p className="text-xs uppercase tracking-widest text-white/40">Sessions</p>
+
+              <h2 className="max-w-3xl text-3xl font-semibold text-white">Guided sessions and processes for grounded transformation</h2>
+
+              <p className="max-w-2xl text-white/60">
+                Each session is designed to meet you where you are—whether you need clarity, recalibration, or deeper
+                integration across your life path.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:gap-6">
+              {SESSION_CARDS.map((session) => (
+                <SessionCard key={session.sessionKey} {...session} />
+              ))}
+            </div>
+            <InlineBackToTop />
+          </div>
+        </div>
+      </section>
+
+      <LandingSection id="reports">
+        <div className="space-y-8 text-left">
+          <div className="space-y-3">
+            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Reports</p>
+            <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white">
+              Detailed life reports that remove guesswork
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+              Divin8 Reports bring astrology, numerology, compatibility, forecasts, and metaphysical systems into clear
+              written guidance for timing, relationships, and personal direction.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {["Divin8 Reports", "Astrology Reports", "Numerology Reports", "Compatibility Reports", "Forecast Reports", "Metaphysical Reports"].map((label) => (
+                <span key={label} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65">
+                  {label}
+                </span>
+              ))}
+            </div>
+            <Link
+              to="/reports"
+              onClick={() => trackCtaClick("view_reports", "home_reports", { href: "/reports", title: "Divin8 Reports" })}
+              className="inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/5"
+            >
+              View All Reports
+            </Link>
+          </div>
+
+          <div className="space-y-10">
+            <div className="space-y-4">
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-cyan-200/62">Casual Reports</p>
+                <p className="mt-1 text-sm text-white/50">Focused insights for immediate clarity</p>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {CASUAL_REPORT_CARDS.map((report) => (
+                  <ReportCard key={report.title} {...report} />
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 pt-8">
+              <div className="mb-4">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/62">Premium Reports</p>
+                <p className="mt-1 text-sm text-white/50">Deep, comprehensive life synthesis</p>
+              </div>
+              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {premiumReportItems.map((report) => (
+                  <ReportCard key={report.title} {...report} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </LandingSection>
+
+      <LandingSection id="subscriptions">
+        <div className="space-y-8 text-left">
+          <div className="space-y-3">
+            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Subscriptions</p>
+            <h2 className="max-w-xl text-3xl font-semibold tracking-[-0.035em] text-white">
+              Membership tiers for sustained momentum
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+              Designed for people who want more than a single insight hit. Membership keeps Divin8 access, prompt
+              capacity, mentoring pathways, and learning systems active in your daily life.
+            </p>
+          </div>
+
+          <div className="grid items-stretch gap-4 sm:grid-cols-2">
+            {MEMBERSHIP_CARDS.map((membership) => (
+              <MembershipCard key={membership.title} {...membership} />
+            ))}
+          </div>
+        </div>
+      </LandingSection>
+
       <OverviewSection />
 
       <LandingSection id="courses">
@@ -688,99 +789,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <section id="sessions" className="relative scroll-mt-28 border-t border-white/8 py-16">
-        <div className="relative mx-auto max-w-6xl px-6">
-          <div className="space-y-8 text-left">
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-widest text-white/40">Sessions</p>
-
-              <h2 className="max-w-3xl text-3xl font-semibold text-white">Guided sessions and processes for grounded transformation</h2>
-
-              <p className="max-w-2xl text-white/60">
-                Each session is designed to meet you where you are—whether you need clarity, recalibration, or deeper
-                integration across your life path.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:gap-6">
-              {SESSION_CARDS.map((session) => (
-                <SessionCard key={session.sessionKey} {...session} />
-              ))}
-            </div>
-            <InlineBackToTop />
-          </div>
-        </div>
-      </section>
-
-      <LandingSection id="reports">
-        <div className="space-y-8 text-left">
-          <div className="space-y-3">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Reports</p>
-            <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white">
-              Detailed life reports that remove guesswork
-            </h2>
-            <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-              Structured written synthesis with precision, hierarchy, and enough depth to reveal your underlying life
-              architecture without collapsing into generic spiritual language.
-            </p>
-            <Link
-              to="/reports"
-              onClick={() => trackCtaClick("view_reports", "home_reports", { href: "/reports", title: "Divin8 Reports" })}
-              className="inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/5"
-            >
-              View All Reports
-            </Link>
-          </div>
-
-          <div className="space-y-10">
-            <div className="space-y-4">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-cyan-200/62">Casual Reports</p>
-                <p className="mt-1 text-sm text-white/50">Focused insights for immediate clarity</p>
-              </div>
-              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {CASUAL_REPORT_CARDS.map((report) => (
-                  <ReportCard key={report.title} {...report} />
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t border-white/10 pt-8">
-              <div className="mb-4">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/62">Premium Reports</p>
-                <p className="mt-1 text-sm text-white/50">Deep, comprehensive life synthesis</p>
-              </div>
-              <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {premiumReportItems.map((report) => (
-                  <ReportCard key={report.title} {...report} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </LandingSection>
-
-      <LandingSection id="subscriptions">
-        <div className="space-y-8 text-left">
-          <div className="space-y-3">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Subscriptions</p>
-            <h2 className="max-w-xl text-3xl font-semibold tracking-[-0.035em] text-white">
-              Membership tiers for sustained momentum
-            </h2>
-            <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-              Designed for people who want more than a single insight hit. Membership keeps the system active in your
-              life with continuity, access, and deeper integration.
-            </p>
-          </div>
-
-          <div className="grid items-stretch gap-4 sm:grid-cols-2">
-            {MEMBERSHIP_CARDS.map((membership) => (
-              <MembershipCard key={membership.title} {...membership} />
-            ))}
-          </div>
-        </div>
-      </LandingSection>
 
       <LandingSection id="links">
         <div className="space-y-8 text-left">
