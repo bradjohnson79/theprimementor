@@ -17,6 +17,7 @@ import type {
   AdminOrderIntakeUpdateBody,
   AdminOrderMarkPaidResponse,
   AdminOrderRecoveryInvoiceResponse,
+  AdminSubscriptionDetails,
 } from "../lib/orders";
 import { formatOrderDate, formatOrderMoney, getOrderExecutionLabel, getOrderTypeLabel, getPaymentMatchLabel } from "../lib/orders";
 
@@ -184,6 +185,89 @@ function formatInvoiceStatusLabel(status: string | null | undefined) {
     .join(" ");
 }
 
+type SubscriptionActionId = keyof typeof SUBSCRIPTION_ACTION_LABELS;
+
+const SUBSCRIPTION_ACTION_LABELS = {
+  view_subscription: "View Subscription",
+  pause_subscription: "Pause Subscription",
+  resume_subscription: "Resume Subscription",
+  cancel_period_end: "Cancel At Period End",
+  cancel_immediately: "Cancel Immediately",
+  reactivate_subscription: "Reactivate Subscription",
+  extend_renewal: "Extend Renewal Date",
+  grant_courtesy_month: "Grant Courtesy Month",
+  retry_payment: "Retry Payment",
+  send_manual_invoice: "Manual Invoice Send",
+  extend_regeneration_access: "Extend Access",
+  toggle_regeneration_priority_support: "Toggle Priority Support",
+  set_regeneration_grace_period: "Manual Grace Period",
+  emergency_reactivate_regeneration: "Emergency Reactivation",
+} as const;
+
+const SUBSCRIPTION_ACTION_ENDPOINTS: Partial<Record<SubscriptionActionId, string>> = {
+  pause_subscription: "pause",
+  resume_subscription: "resume",
+  cancel_period_end: "cancel-period-end",
+  cancel_immediately: "cancel-immediately",
+  reactivate_subscription: "reactivate",
+  extend_renewal: "extend-renewal",
+  grant_courtesy_month: "grant-courtesy-month",
+  retry_payment: "retry-payment",
+  send_manual_invoice: "send-manual-invoice",
+  extend_regeneration_access: "regeneration/extend-access",
+  toggle_regeneration_priority_support: "regeneration/priority-support",
+  set_regeneration_grace_period: "regeneration/grace-period",
+  emergency_reactivate_regeneration: "regeneration/emergency-reactivate",
+};
+
+const SUBSCRIPTION_DAY_ACTIONS = new Set<SubscriptionActionId>([
+  "extend_renewal",
+  "extend_regeneration_access",
+  "set_regeneration_grace_period",
+]);
+
+function formatSubscriptionLifecycle(value: AdminSubscriptionDetails["lifecycle_status"]) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function subscriptionActionButtonClass(subscription: AdminSubscriptionDetails, action: SubscriptionActionId) {
+  const severity = subscription.action_requirements[action]?.severity ?? "secondary";
+  if (severity === "danger") {
+    return "rounded-xl border border-rose-300/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60";
+  }
+  if (severity === "primary") {
+    return "rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/20 via-sky-400/20 to-violet-400/20 px-4 py-2.5 text-sm font-medium text-cyan-100 shadow-[0_0_20px_rgba(56,189,248,0.14)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60";
+  }
+  return "rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/75 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60";
+}
+
+function subscriptionActionDescription(action: SubscriptionActionId) {
+  switch (action) {
+    case "cancel_period_end":
+      return "The client will retain access until the current billing cycle ends.";
+    case "cancel_immediately":
+      return "This will immediately revoke subscription access.";
+    case "pause_subscription":
+      return "Billing collection is paused in Stripe and local access is suspended until resumed.";
+    case "resume_subscription":
+      return "Stripe billing collection and local access will be restored if the subscription is active.";
+    case "reactivate_subscription":
+      return "Auto-renew will be re-enabled in Stripe.";
+    default:
+      return "This action will be audit logged with the current admin identity.";
+  }
+}
+
+function formatSubscriptionActivityAction(action: string) {
+  return action
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function OrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const { getToken } = useAuth();
@@ -202,10 +286,17 @@ export default function OrderDetail() {
   const [refunding, setRefunding] = useState(false);
   const [sendingRecoveryInvoice, setSendingRecoveryInvoice] = useState(false);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [createdInvoiceUrl, setCreatedInvoiceUrl] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [editingIntake, setEditingIntake] = useState(false);
   const [intakeForm, setIntakeForm] = useState<IntakeFormState | null>(null);
   const [savingIntake, setSavingIntake] = useState(false);
+  const [subscriptionAction, setSubscriptionAction] = useState<SubscriptionActionId | null>(null);
+  const [subscriptionActionReason, setSubscriptionActionReason] = useState("");
+  const [subscriptionActionDays, setSubscriptionActionDays] = useState("30");
+  const [subscriptionActionProcessing, setSubscriptionActionProcessing] = useState(false);
+  const [subscriptionNote, setSubscriptionNote] = useState("");
+  const [savingSubscriptionNote, setSavingSubscriptionNote] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -278,6 +369,16 @@ export default function OrderDetail() {
     if (!order || order.type !== "session") return false;
     if (order.metadata.stripe_invoice_id) return false;
     return !["paid", "completed", "refunded", "cancelled"].includes(order.status);
+  }, [order]);
+
+  const createInvoiceUnavailableReason = useMemo(() => {
+    if (!order) return "Order is still loading.";
+    if (order.type !== "session") return "Manual invoice creation is currently only supported for session orders.";
+    if (order.metadata.stripe_invoice_id) return "Invoice already exists for this order.";
+    if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
+      return "Invoice cannot be created for an order that is already paid or closed.";
+    }
+    return null;
   }, [order]);
 
   async function handleGenerate(force = false) {
@@ -405,6 +506,7 @@ export default function OrderDetail() {
     setCreatingInvoice(true);
     setActionError(null);
     setActionSuccess(null);
+    setCreatedInvoiceUrl(null);
 
     try {
       const token = await getToken();
@@ -414,12 +516,17 @@ export default function OrderDetail() {
         token,
       )) as AdminOrderCreateInvoiceResponse;
       setOrder(response.order);
-      setActionSuccess("Invoice created successfully");
+      setCreatedInvoiceUrl(response.invoiceUrl);
+      setActionSuccess("Invoice created and emailed to customer.");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Unable to create invoice. Please try again.");
     } finally {
       setCreatingInvoice(false);
     }
+  }
+
+  async function handleCopyInvoiceLink(url: string) {
+    await navigator.clipboard.writeText(url);
   }
 
   async function handleMarkAsPaid() {
@@ -545,6 +652,91 @@ export default function OrderDetail() {
     }
   }
 
+  function openSubscriptionAction(action: SubscriptionActionId) {
+    if (!order?.subscription?.local_id) return;
+    if (action === "view_subscription") {
+      const stripeSubscriptionId = order.subscription.stripe_subscription_id;
+      if (stripeSubscriptionId) {
+        window.open(`https://dashboard.stripe.com/subscriptions/${stripeSubscriptionId}`, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    const defaultDays = action === "extend_regeneration_access" || action === "set_regeneration_grace_period" ? "14" : "30";
+    setSubscriptionAction(action);
+    setSubscriptionActionReason("");
+    setSubscriptionActionDays(defaultDays);
+    setActionError(null);
+    setActionSuccess(null);
+  }
+
+  async function handleSubscriptionAction() {
+    if (!order?.subscription?.local_id || !subscriptionAction) return;
+    const endpoint = SUBSCRIPTION_ACTION_ENDPOINTS[subscriptionAction];
+    if (!endpoint) return;
+    const requirement = order.subscription.action_requirements[subscriptionAction];
+    const reason = subscriptionActionReason.trim();
+    if (requirement?.reason_required && !reason) {
+      setActionError("Admin action reason is required.");
+      setActionSuccess(null);
+      return;
+    }
+
+    const body: Record<string, unknown> = {};
+    if (reason) body.reason = reason;
+    if (SUBSCRIPTION_DAY_ACTIONS.has(subscriptionAction)) {
+      const days = Number(subscriptionActionDays);
+      if (!Number.isInteger(days) || days < 1) {
+        setActionError("Days must be a positive whole number.");
+        setActionSuccess(null);
+        return;
+      }
+      body.days = days;
+    }
+    if (subscriptionAction === "toggle_regeneration_priority_support") {
+      body.enabled = !order.subscription.priority_support;
+    }
+
+    setSubscriptionActionProcessing(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const token = await getToken();
+      await api.post(`/admin/subscriptions/${order.subscription.local_id}/${endpoint}`, body, token);
+      await loadOrder();
+      setSubscriptionAction(null);
+      setSubscriptionActionReason("");
+      setActionSuccess(`${SUBSCRIPTION_ACTION_LABELS[subscriptionAction]} completed.`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Subscription action failed.");
+    } finally {
+      setSubscriptionActionProcessing(false);
+    }
+  }
+
+  async function handleSaveSubscriptionNote() {
+    if (!order?.subscription?.local_id) return;
+    const note = subscriptionNote.trim();
+    if (!note) {
+      setActionError("Admin note is required.");
+      setActionSuccess(null);
+      return;
+    }
+    setSavingSubscriptionNote(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const token = await getToken();
+      await api.post(`/admin/subscriptions/${order.subscription.local_id}/notes`, { note }, token);
+      setSubscriptionNote("");
+      await loadOrder();
+      setActionSuccess("Admin note saved.");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save admin note.");
+    } finally {
+      setSavingSubscriptionNote(false);
+    }
+  }
+
   if (loading) {
     return <Loading />;
   }
@@ -570,6 +762,14 @@ export default function OrderDetail() {
     && ["paid", "completed", "processing", "in_progress"].includes(order.status)
     && Boolean(order.stripe_payment_id || order.payment_id);
   const refundPolicyNote = getRefundPolicyNote(order);
+  const subscription = order.subscription ?? null;
+  const subscriptionInlineActions = subscription?.available_actions.filter((action): action is SubscriptionActionId =>
+    action in SUBSCRIPTION_ACTION_LABELS && action !== "view_subscription" && subscription.action_requirements[action]?.severity !== "danger") ?? [];
+  const subscriptionDangerActions = subscription?.available_actions.filter((action): action is SubscriptionActionId =>
+    action in SUBSCRIPTION_ACTION_LABELS && subscription.action_requirements[action]?.severity === "danger") ?? [];
+  const selectedSubscriptionRequirement = subscriptionAction && subscription
+    ? subscription.action_requirements[subscriptionAction]
+    : null;
 
   return (
     <motion.div
@@ -606,7 +806,16 @@ export default function OrderDetail() {
               </div>
               <div>
                 <p className="text-xs text-white/40">Available Actions</p>
-                <p className="mt-1 text-white/85">{renderList(order.available_actions)}</p>
+                {subscription ? (
+                  <p className="mt-1 text-white/85">
+                    {formatSubscriptionLifecycle(subscription.lifecycle_status)}
+                    {subscription.cancel_at_period_end && subscription.current_period_end
+                      ? ` · cancels ${formatOrderDate(subscription.current_period_end)}`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-white/85">{renderList(order.available_actions)}</p>
+                )}
               </div>
             </div>
             {order.metadata.recovery_invoice_sent_at || order.metadata.recovery_invoice_hosted_url ? (
@@ -666,6 +875,7 @@ export default function OrderDetail() {
                 type="button"
                 onClick={() => void handleCreateInvoice()}
                 disabled={!canCreateInvoice || creatingInvoice}
+                title={createInvoiceUnavailableReason ?? undefined}
                 className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-5 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {creatingInvoice
@@ -675,11 +885,38 @@ export default function OrderDetail() {
                     : "Create Invoice"}
               </button>
             ) : null}
+            {subscription?.stripe_subscription_id ? (
+              <button
+                type="button"
+                onClick={() => openSubscriptionAction("view_subscription")}
+                className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/15"
+              >
+                View Subscription
+              </button>
+            ) : null}
+            {subscriptionInlineActions.map((action) => {
+              const requirement = subscription?.action_requirements[action];
+              return (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => openSubscriptionAction(action)}
+                  disabled={!subscription?.local_id || requirement?.disabled || subscriptionActionProcessing}
+                  title={requirement?.disabled_reason ?? undefined}
+                  className={subscription ? subscriptionActionButtonClass(subscription, action) : ""}
+                >
+                  {SUBSCRIPTION_ACTION_LABELS[action]}
+                </button>
+              );
+            })}
             <button
               type="button"
               onClick={() => canRefund && setRefundModalOpen(true)}
               disabled={!canRefund || refunding}
-              className="rounded-xl border border-rose-300/30 bg-rose-500/10 px-5 py-3 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              title={order.type === "subscription" ? "Subscriptions are managed through Stripe billing lifecycle controls." : undefined}
+              className={order.type === "subscription"
+                ? "rounded-xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-white/35 transition disabled:cursor-not-allowed"
+                : "rounded-xl border border-rose-300/30 bg-rose-500/10 px-5 py-3 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"}
             >
               {order.status === "refunded"
                 ? "Order Refunded"
@@ -741,7 +978,128 @@ export default function OrderDetail() {
         ) : null}
         {actionError ? <p className="mt-4 text-sm text-rose-300">{actionError}</p> : null}
         {actionSuccess ? <p className="mt-4 text-sm text-emerald-300">{actionSuccess}</p> : null}
+        {actionSuccess === "Invoice created and emailed to customer." && createdInvoiceUrl ? (
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => window.open(createdInvoiceUrl, "_blank", "noopener,noreferrer")}
+              className="rounded-xl border border-emerald-300/25 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100 transition hover:border-emerald-300/40 hover:bg-emerald-500/15"
+            >
+              View Invoice
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopyInvoiceLink(createdInvoiceUrl)}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/10"
+            >
+              Copy Link
+            </button>
+          </div>
+        ) : null}
       </Card>
+
+      {subscription ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-white/40">Subscription Lifecycle</p>
+                <h3 className="mt-2 text-lg font-semibold text-white">{formatSubscriptionLifecycle(subscription.lifecycle_status)}</h3>
+                {subscription.lifecycle_status === "cancel_pending" && subscription.current_period_end ? (
+                  <p className="mt-2 text-sm text-amber-100/85">
+                    Subscription scheduled to cancel on {formatOrderDate(subscription.current_period_end)}.
+                  </p>
+                ) : null}
+                {subscription.lifecycle_status === "paused" ? (
+                  <p className="mt-2 text-sm text-white/55">Billing collection is paused and access is suspended until resumed.</p>
+                ) : null}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
+                <p>Kind: {subscription.kind}</p>
+                <p>Access: {renderValue(subscription.access_state)}</p>
+                <p>Priority: {subscription.priority_support === null ? "—" : subscription.priority_support ? "Enabled" : "Disabled"}</p>
+              </div>
+            </div>
+
+            {subscriptionDangerActions.length > 0 ? (
+              <div className="mt-6 rounded-2xl border border-rose-300/20 bg-rose-500/[0.06] p-4">
+                <p className="text-sm font-semibold text-rose-100">Danger Zone</p>
+                <p className="mt-2 text-sm text-rose-100/65">
+                  These actions can revoke access immediately or force a high-impact support override.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {subscriptionDangerActions.map((action) => {
+                    const requirement = subscription.action_requirements[action];
+                    return (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => openSubscriptionAction(action)}
+                        disabled={!subscription.local_id || requirement?.disabled || subscriptionActionProcessing}
+                        title={requirement?.disabled_reason ?? undefined}
+                        className={subscriptionActionButtonClass(subscription, action)}
+                      >
+                        {SUBSCRIPTION_ACTION_LABELS[action]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </Card>
+
+          <Card>
+            <h3 className="text-lg font-semibold text-white">Admin Notes</h3>
+            <textarea
+              value={subscriptionNote}
+              onChange={(event) => setSubscriptionNote(event.target.value)}
+              placeholder="Client requested cancellation via email."
+              className="mt-4 min-h-28 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+            />
+            <button
+              type="button"
+              onClick={() => void handleSaveSubscriptionNote()}
+              disabled={savingSubscriptionNote || !subscription.local_id}
+              className="mt-3 rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingSubscriptionNote ? "Saving…" : "Save Internal Note"}
+            </button>
+            <div className="mt-5 space-y-3">
+              {subscription.admin_notes.length > 0 ? subscription.admin_notes.map((note) => (
+                <div key={note.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xs text-white/40">{formatOrderDate(note.created_at)}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-white/75">{note.note}</p>
+                </div>
+              )) : (
+                <p className="text-sm text-white/45">No internal subscription notes yet.</p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="xl:col-span-2">
+            <h3 className="text-lg font-semibold text-white">Subscription Activity</h3>
+            <div className="mt-5 space-y-3">
+              {subscription.activity.length > 0 ? subscription.activity.map((entry) => (
+                <div key={entry.id} className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm md:grid-cols-[12rem_1fr]">
+                  <p className="text-white/45">{formatOrderDate(entry.timestamp)}</p>
+                  <div>
+                    <p className="text-white/80">
+                      {formatSubscriptionActivityAction(entry.action)}
+                      {entry.actor_label ? ` by ${entry.actor_label}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-white/45">
+                      {entry.previous_status ?? "—"} → {entry.new_status ?? "—"}
+                      {entry.reason ? ` · Reason: ${entry.reason}` : ""}
+                    </p>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-sm text-white/45">No subscription activity has been audit logged yet.</p>
+              )}
+            </div>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
@@ -1281,6 +1639,100 @@ export default function OrderDetail() {
           </Card>
         )}
       </div>
+
+      {subscriptionAction && subscription ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
+          <div className={`w-full max-w-lg rounded-3xl border p-6 shadow-2xl ${
+            selectedSubscriptionRequirement?.severity === "danger"
+              ? "border-rose-300/25 bg-rose-950/95"
+              : "border-white/10 bg-slate-950"
+          }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold text-white">
+                  {SUBSCRIPTION_ACTION_LABELS[subscriptionAction]}
+                </h3>
+                <p className="mt-2 text-sm text-white/60">
+                  {subscriptionActionDescription(subscriptionAction)}
+                </p>
+                {selectedSubscriptionRequirement?.severity === "danger" ? (
+                  <p className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-3 text-sm text-rose-100/80">
+                    Danger Zone: this can immediately remove subscription access, priority support, or entitlement state.
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => !subscriptionActionProcessing && setSubscriptionAction(null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 transition hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {selectedSubscriptionRequirement?.reason_required ? (
+                <label className="block">
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/40">Admin Action Reason Required</span>
+                  <textarea
+                    value={subscriptionActionReason}
+                    onChange={(event) => setSubscriptionActionReason(event.target.value)}
+                    placeholder="Document why this subscription lifecycle change is being made."
+                    className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                  />
+                </label>
+              ) : (
+                <label className="block">
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/40">Optional Reason</span>
+                  <input
+                    type="text"
+                    value={subscriptionActionReason}
+                    onChange={(event) => setSubscriptionActionReason(event.target.value)}
+                    placeholder="Optional support note"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                  />
+                </label>
+              )}
+
+              {SUBSCRIPTION_DAY_ACTIONS.has(subscriptionAction) ? (
+                <label className="block">
+                  <span className="text-xs uppercase tracking-[0.2em] text-white/40">Days</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={subscriptionActionDays}
+                    onChange={(event) => setSubscriptionActionDays(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/[0.07]"
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSubscriptionAction(null)}
+                disabled={subscriptionActionProcessing}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubscriptionAction()}
+                disabled={subscriptionActionProcessing}
+                className={selectedSubscriptionRequirement?.severity === "danger"
+                  ? "rounded-xl border border-rose-300/30 bg-rose-500/20 px-5 py-3 text-sm font-medium text-rose-100 transition hover:bg-rose-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  : "rounded-xl border border-cyan-300/30 bg-cyan-500/15 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-60"}
+              >
+                {subscriptionActionProcessing ? "Processing…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {refundModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">

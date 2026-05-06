@@ -171,6 +171,10 @@ interface BookingIntakeSnapshot {
   bookingTypeId: string;
   sessionType: BookingSessionType;
   sessionDurationMinutes: number;
+  priceSnapshotCents: number;
+  priceSnapshotCurrency: string;
+  price_snapshot_cents: number;
+  price_snapshot_currency: string;
   sessionTier: "entry" | null;
   upgradeEligible: boolean;
   upgradeTarget: Array<"focus" | "mentoring">;
@@ -713,6 +717,8 @@ function buildBookingIntakeSnapshot(input: {
   bookingTypeId: string;
   sessionType: BookingSessionType;
   sessionDurationMinutes: number;
+  priceSnapshotCents: number;
+  priceSnapshotCurrency: string;
   timezone: string;
   availability: BookingAvailability | null;
   fullName: string | null;
@@ -735,6 +741,10 @@ function buildBookingIntakeSnapshot(input: {
     bookingTypeId: input.bookingTypeId,
     sessionType: input.sessionType,
     sessionDurationMinutes: input.sessionDurationMinutes,
+    priceSnapshotCents: input.priceSnapshotCents,
+    priceSnapshotCurrency: input.priceSnapshotCurrency,
+    price_snapshot_cents: input.priceSnapshotCents,
+    price_snapshot_currency: input.priceSnapshotCurrency,
     sessionTier: sessionMetadata.sessionTier,
     upgradeEligible: sessionMetadata.upgradeEligible,
     upgradeTarget: sessionMetadata.upgradeTarget,
@@ -1020,6 +1030,8 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     bookingTypeId: bookingType.id,
     sessionType,
     sessionDurationMinutes,
+    priceSnapshotCents: bookingType.price_cents,
+    priceSnapshotCurrency: bookingType.currency,
     timezone,
     availability: normalizedAvailability,
     fullName: sharedFields.fullName,
@@ -1059,6 +1071,10 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
           bookingTypeId: bookingType.id,
           sessionType,
           sessionDurationMinutes,
+          priceSnapshotCents: bookingType.price_cents,
+          priceSnapshotCurrency: bookingType.currency,
+          price_snapshot_cents: bookingType.price_cents,
+          price_snapshot_currency: bookingType.currency,
           sessionTier: sessionMetadata.sessionTier,
           upgradeEligible: sessionMetadata.upgradeEligible,
           upgradeTarget: sessionMetadata.upgradeTarget,
@@ -1115,6 +1131,10 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
           bookingTypeId: bookingType.id,
           sessionType,
           sessionDurationMinutes,
+          priceSnapshotCents: bookingType.price_cents,
+          priceSnapshotCurrency: bookingType.currency,
+          price_snapshot_cents: bookingType.price_cents,
+          price_snapshot_currency: bookingType.currency,
           sessionTier: sessionMetadata.sessionTier,
           upgradeEligible: sessionMetadata.upgradeEligible,
           upgradeTarget: sessionMetadata.upgradeTarget,

@@ -8,16 +8,20 @@ import {
   mentoringCircleRegistrations,
   orders as persistedOrdersTable,
   payments,
+  regenerationSubscriptions,
   reports,
+  subscriptionAdminAuditEntries,
+  subscriptionAdminNotes,
   subscriptions,
   users,
   type Database,
 } from "@wisdom/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, or, sql } from "drizzle-orm";
 import { getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
 import { logger } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import { getSectionsFromStoredReport } from "./reportFormat.js";
+import type { SubscriptionActorType } from "./adminSubscriptionLifecycleService.js";
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -68,6 +72,64 @@ export interface AdminOrderExecution {
   output: AdminOrderOutput | null;
 }
 
+export type AdminSubscriptionLifecycleStatus =
+  | "active"
+  | "cancel_pending"
+  | "canceled"
+  | "past_due"
+  | "incomplete"
+  | "paused"
+  | "trialing"
+  | "expired"
+  | "grace_period"
+  | "payment_failed";
+
+export type AdminSubscriptionActionSeverity = "primary" | "secondary" | "danger";
+
+export interface AdminSubscriptionActionRequirement {
+  reason_required: boolean;
+  confirmation_required: boolean;
+  severity: AdminSubscriptionActionSeverity;
+  disabled?: boolean;
+  disabled_reason?: string | null;
+}
+
+export interface AdminSubscriptionTimelineEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor_type: SubscriptionActorType;
+  actor_label: string | null;
+  admin_user_id: string | null;
+  previous_status: string | null;
+  new_status: string | null;
+  reason: string | null;
+  source: "audit" | "note";
+}
+
+export interface AdminSubscriptionNote {
+  id: string;
+  note: string;
+  admin_user_id: string | null;
+  created_at: string;
+}
+
+export interface AdminSubscriptionDetails {
+  kind: "membership" | "regeneration" | "managed_invoice" | "unknown";
+  local_id: string | null;
+  stripe_subscription_id: string | null;
+  lifecycle_status: AdminSubscriptionLifecycleStatus;
+  cancel_at_period_end: boolean;
+  pause_collection: Record<string, unknown> | null;
+  current_period_end: string | null;
+  access_state: string | null;
+  priority_support: boolean | null;
+  available_actions: string[];
+  action_requirements: Record<string, AdminSubscriptionActionRequirement>;
+  activity: AdminSubscriptionTimelineEntry[];
+  admin_notes: AdminSubscriptionNote[];
+}
+
 export interface AdminOrder {
   id: string;
   source_id: string;
@@ -92,6 +154,7 @@ export interface AdminOrder {
   refunded_at: string | null;
   refund_reason: string | null;
   refund_note: string | null;
+  subscription?: AdminSubscriptionDetails | null;
   metadata: {
     source_status: string | null;
     source_created_at: string;
@@ -152,6 +215,10 @@ export interface AdminOrder {
     recovery_invoice_id: string | null;
     recovery_invoice_sent_at: string | null;
     recovery_invoice_hosted_url: string | null;
+    invoice_origin?: string | null;
+    price_snapshot_cents?: number | null;
+    price_snapshot_currency?: string | null;
+    invoice_timeline?: unknown[];
   };
 }
 
@@ -399,6 +466,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseObject(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 function toIso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
@@ -487,6 +558,8 @@ function applyPersistedOrderState(candidate: OrderCandidate, persistedOrder: Per
     return candidate;
   }
 
+  const metadata = parseObject(persistedOrder.metadata);
+
   return {
     ...candidate,
     recordingLink: persistedOrder.recordingLink ?? candidate.recordingLink,
@@ -494,6 +567,16 @@ function applyPersistedOrderState(candidate: OrderCandidate, persistedOrder: Per
     refundedAt: persistedOrder.refundedAt?.toISOString() ?? candidate.refundedAt,
     refundReason: persistedOrder.refundReason ?? candidate.refundReason,
     refundNote: persistedOrder.refundNote ?? candidate.refundNote,
+    metadata: {
+      ...candidate.metadata,
+      stripe_invoice_id: persistedOrder.stripeInvoiceId ?? candidate.metadata.stripe_invoice_id,
+      stripe_invoice_url: persistedOrder.stripeInvoiceUrl ?? candidate.metadata.stripe_invoice_url,
+      stripe_invoice_status: persistedOrder.stripeInvoiceStatus ?? candidate.metadata.stripe_invoice_status,
+      invoice_origin: getString(metadata.invoice_origin) ?? candidate.metadata.invoice_origin ?? null,
+      price_snapshot_cents: getNumber(metadata.price_snapshot_cents) ?? candidate.metadata.price_snapshot_cents ?? null,
+      price_snapshot_currency: getString(metadata.price_snapshot_currency) ?? candidate.metadata.price_snapshot_currency ?? null,
+      invoice_timeline: Array.isArray(metadata.invoice_timeline) ? metadata.invoice_timeline : candidate.metadata.invoice_timeline,
+    },
   };
 }
 
@@ -1051,12 +1134,297 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     refunded_at: candidate.refundedAt,
     refund_reason: candidate.refundReason,
     refund_note: candidate.refundNote,
+    subscription: null,
     metadata: {
       ...candidate.metadata,
       payment_match_strategy: paymentMatchStrategy,
       ...extractRecoveryInvoiceMetadata(payment?.metadata ?? null),
     },
   };
+}
+
+function normalizeSubscriptionLifecycleStatus(input: {
+  kind: AdminSubscriptionDetails["kind"];
+  status: string | null;
+  cancelAtPeriodEnd: boolean;
+  accessState?: string | null;
+  pauseCollection?: Record<string, unknown> | null;
+  currentPeriodEnd?: Date | null;
+}): AdminSubscriptionLifecycleStatus {
+  const status = input.status ?? "incomplete";
+  if (input.pauseCollection || status === "paused") return "paused";
+  if (input.kind === "regeneration" && input.accessState === "grace_period") return "grace_period";
+  if (input.cancelAtPeriodEnd && (status === "active" || status === "trialing" || status === "canceled_pending_expiry")) {
+    return "cancel_pending";
+  }
+  if (status === "trialing") return "trialing";
+  if (status === "past_due") return "past_due";
+  if (status === "unpaid") return "payment_failed";
+  if (status === "canceled" || status === "cancelled") {
+    if (input.currentPeriodEnd && input.currentPeriodEnd.getTime() < Date.now()) return "expired";
+    return "canceled";
+  }
+  if (status === "canceled_pending_expiry") return "cancel_pending";
+  if (status === "active") return "active";
+  if (status === "incomplete" || status === "incomplete_expired" || status === "pending_payment") return "incomplete";
+  return "incomplete";
+}
+
+function subscriptionActionRequirements(kind: AdminSubscriptionDetails["kind"], lifecycle: AdminSubscriptionLifecycleStatus) {
+  const requirements: Record<string, AdminSubscriptionActionRequirement> = {
+    view_subscription: { reason_required: false, confirmation_required: false, severity: "secondary" },
+    pause_subscription: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    resume_subscription: { reason_required: false, confirmation_required: true, severity: "primary" },
+    cancel_period_end: { reason_required: false, confirmation_required: true, severity: "secondary" },
+    cancel_immediately: { reason_required: true, confirmation_required: true, severity: "danger" },
+    reactivate_subscription: { reason_required: false, confirmation_required: true, severity: "primary" },
+    extend_renewal: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    grant_courtesy_month: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    retry_payment: { reason_required: false, confirmation_required: true, severity: "primary" },
+    send_manual_invoice: { reason_required: false, confirmation_required: true, severity: "secondary" },
+    extend_regeneration_access: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    toggle_regeneration_priority_support: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    set_regeneration_grace_period: { reason_required: true, confirmation_required: true, severity: "secondary" },
+    emergency_reactivate_regeneration: { reason_required: true, confirmation_required: true, severity: "danger" },
+  };
+
+  if (kind !== "regeneration") {
+    for (const action of ["extend_regeneration_access", "toggle_regeneration_priority_support", "set_regeneration_grace_period", "emergency_reactivate_regeneration"]) {
+      requirements[action] = {
+        ...requirements[action],
+        disabled: true,
+        disabled_reason: "Regeneration-only action.",
+      };
+    }
+  }
+
+  if (lifecycle === "canceled" || lifecycle === "expired") {
+    for (const [action, requirement] of Object.entries(requirements)) {
+      if (action !== "view_subscription") {
+        requirements[action] = {
+          ...requirement,
+          disabled: true,
+          disabled_reason: "Subscription is fully canceled.",
+        };
+      }
+    }
+  }
+
+  return requirements;
+}
+
+function subscriptionActions(kind: AdminSubscriptionDetails["kind"], lifecycle: AdminSubscriptionLifecycleStatus) {
+  const actions = ["view_subscription"];
+  if (lifecycle === "active" || lifecycle === "trialing") {
+    actions.push("pause_subscription", "cancel_period_end", "cancel_immediately", "extend_renewal", "grant_courtesy_month");
+  } else if (lifecycle === "cancel_pending") {
+    actions.push("reactivate_subscription", "pause_subscription", "cancel_immediately");
+  } else if (lifecycle === "paused") {
+    actions.push("resume_subscription", "cancel_period_end", "cancel_immediately");
+  } else if (lifecycle === "past_due" || lifecycle === "payment_failed") {
+    actions.push("retry_payment", "send_manual_invoice", "cancel_period_end", "cancel_immediately");
+  }
+
+  if (kind === "regeneration" && lifecycle !== "expired" && lifecycle !== "canceled") {
+    actions.push(
+      "extend_regeneration_access",
+      "toggle_regeneration_priority_support",
+      "set_regeneration_grace_period",
+      "emergency_reactivate_regeneration",
+    );
+  }
+
+  return actions;
+}
+
+function parsePauseCollection(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  return value;
+}
+
+async function loadSubscriptionActivity(
+  db: Database,
+  identity: { kind: "membership" | "regeneration"; id: string; stripeSubscriptionId: string | null },
+) {
+  const primary = identity.kind === "membership"
+    ? eq(subscriptionAdminAuditEntries.membership_subscription_id, identity.id)
+    : eq(subscriptionAdminAuditEntries.regeneration_subscription_id, identity.id);
+  const rows = await db
+    .select()
+    .from(subscriptionAdminAuditEntries)
+    .where(identity.stripeSubscriptionId ? or(primary, eq(subscriptionAdminAuditEntries.stripe_subscription_id, identity.stripeSubscriptionId)) : primary)
+    .orderBy(desc(subscriptionAdminAuditEntries.created_at));
+
+  return rows.map((row): AdminSubscriptionTimelineEntry => ({
+    id: row.id,
+    timestamp: row.created_at.toISOString(),
+    action: row.action_type,
+    actor_type: row.actor_type as SubscriptionActorType,
+    actor_label: row.actor_label,
+    admin_user_id: row.admin_user_id,
+    previous_status: row.previous_status,
+    new_status: row.new_status,
+    reason: row.reason,
+    source: "audit",
+  }));
+}
+
+async function loadSubscriptionNotes(
+  db: Database,
+  identity: { kind: "membership" | "regeneration"; id: string; stripeSubscriptionId: string | null },
+) {
+  const primary = identity.kind === "membership"
+    ? eq(subscriptionAdminNotes.membership_subscription_id, identity.id)
+    : eq(subscriptionAdminNotes.regeneration_subscription_id, identity.id);
+  const rows = await db
+    .select()
+    .from(subscriptionAdminNotes)
+    .where(identity.stripeSubscriptionId ? or(primary, eq(subscriptionAdminNotes.stripe_subscription_id, identity.stripeSubscriptionId)) : primary)
+    .orderBy(desc(subscriptionAdminNotes.created_at));
+
+  return rows.map((row): AdminSubscriptionNote => ({
+    id: row.id,
+    note: row.note,
+    admin_user_id: row.admin_user_id,
+    created_at: row.created_at.toISOString(),
+  }));
+}
+
+async function resolveSubscriptionDetailsForOrder(db: Database, order: AdminOrder): Promise<AdminSubscriptionDetails | null> {
+  if (order.type !== "subscription") return null;
+
+  const stripeSubscriptionId = order.metadata.stripe_subscription_id;
+  const [membership] = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      stripeSubscriptionId
+        ? or(eq(subscriptions.id, order.source_id), eq(subscriptions.stripe_subscription_id, stripeSubscriptionId))
+        : eq(subscriptions.id, order.source_id),
+    )
+    .limit(1);
+
+  if (membership) {
+    const metadata = parseObject(membership.metadata);
+    const pauseCollection = parsePauseCollection(metadata.pauseCollection);
+    const lifecycle = normalizeSubscriptionLifecycleStatus({
+      kind: "membership",
+      status: membership.status,
+      cancelAtPeriodEnd: membership.cancel_at_period_end,
+      pauseCollection,
+      currentPeriodEnd: membership.current_period_end,
+    });
+    const identity = {
+      kind: "membership" as const,
+      id: membership.id,
+      stripeSubscriptionId: membership.stripe_subscription_id,
+    };
+    return {
+      kind: "membership",
+      local_id: membership.id,
+      stripe_subscription_id: membership.stripe_subscription_id,
+      lifecycle_status: lifecycle,
+      cancel_at_period_end: membership.cancel_at_period_end,
+      pause_collection: pauseCollection,
+      current_period_end: toIso(membership.current_period_end),
+      access_state: lifecycle === "paused" ? "inactive" : null,
+      priority_support: null,
+      available_actions: subscriptionActions("membership", lifecycle),
+      action_requirements: subscriptionActionRequirements("membership", lifecycle),
+      activity: await loadSubscriptionActivity(db, identity),
+      admin_notes: await loadSubscriptionNotes(db, identity),
+    };
+  }
+
+  const [regeneration] = await db
+    .select()
+    .from(regenerationSubscriptions)
+    .where(
+      stripeSubscriptionId
+        ? eq(regenerationSubscriptions.stripe_subscription_id, stripeSubscriptionId)
+        : eq(regenerationSubscriptions.id, order.source_id),
+    )
+    .limit(1);
+
+  if (regeneration) {
+    const metadata = parseObject(regeneration.metadata);
+    const pauseCollection = parsePauseCollection(metadata.pauseCollection);
+    const lifecycle = normalizeSubscriptionLifecycleStatus({
+      kind: "regeneration",
+      status: regeneration.status,
+      cancelAtPeriodEnd: regeneration.cancel_at_period_end,
+      accessState: regeneration.access_state,
+      pauseCollection,
+      currentPeriodEnd: regeneration.current_period_end,
+    });
+    const identity = {
+      kind: "regeneration" as const,
+      id: regeneration.id,
+      stripeSubscriptionId: regeneration.stripe_subscription_id,
+    };
+    return {
+      kind: "regeneration",
+      local_id: regeneration.id,
+      stripe_subscription_id: regeneration.stripe_subscription_id,
+      lifecycle_status: lifecycle,
+      cancel_at_period_end: regeneration.cancel_at_period_end,
+      pause_collection: pauseCollection,
+      current_period_end: toIso(regeneration.current_period_end),
+      access_state: regeneration.access_state,
+      priority_support: regeneration.priority_support,
+      available_actions: subscriptionActions("regeneration", lifecycle),
+      action_requirements: subscriptionActionRequirements("regeneration", lifecycle),
+      activity: await loadSubscriptionActivity(db, identity),
+      admin_notes: await loadSubscriptionNotes(db, identity),
+    };
+  }
+
+  if (stripeSubscriptionId) {
+    return {
+      kind: "managed_invoice",
+      local_id: null,
+      stripe_subscription_id: stripeSubscriptionId,
+      lifecycle_status: normalizeSubscriptionLifecycleStatus({
+        kind: "managed_invoice",
+        status: order.metadata.subscription_state,
+        cancelAtPeriodEnd: false,
+      }),
+      cancel_at_period_end: false,
+      pause_collection: null,
+      current_period_end: order.metadata.renewal_date,
+      access_state: null,
+      priority_support: null,
+      available_actions: ["view_subscription"],
+      action_requirements: {
+        view_subscription: { reason_required: false, confirmation_required: false, severity: "secondary" },
+      },
+      activity: [],
+      admin_notes: [],
+    };
+  }
+
+  return {
+    kind: "unknown",
+    local_id: null,
+    stripe_subscription_id: null,
+    lifecycle_status: "incomplete",
+    cancel_at_period_end: false,
+    pause_collection: null,
+    current_period_end: order.metadata.renewal_date,
+    access_state: null,
+    priority_support: null,
+    available_actions: [],
+    action_requirements: {},
+    activity: [],
+    admin_notes: [],
+  };
+}
+
+async function attachSubscriptionDetails(db: Database, orders: AdminOrder[]) {
+  return Promise.all(orders.map(async (order) => ({
+    ...order,
+    subscription: await resolveSubscriptionDetailsForOrder(db, order),
+  })));
 }
 
 function parseReportPurchaseIntake(value: unknown) {
@@ -1961,6 +2329,10 @@ function createPersistedAdminOrder(
       failure_message_normalized: row.failureMessageNormalized ?? invoice?.failureMessageNormalized ?? null,
       last_payment_attempt_at: toIso(invoice?.lastPaymentAttemptAt ?? null),
       ...getEmptyRecoveryInvoiceMetadata(),
+      invoice_origin: getString(orderMetadata?.invoice_origin),
+      price_snapshot_cents: getNumber(orderMetadata?.price_snapshot_cents),
+      price_snapshot_currency: getString(orderMetadata?.price_snapshot_currency),
+      invoice_timeline: Array.isArray(orderMetadata?.invoice_timeline) ? orderMetadata.invoice_timeline : [],
       payment_match_strategy: "persisted_order",
     },
   };
@@ -2086,6 +2458,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   for (const row of persistedOrderRows) {
     for (const candidate of candidates) {
       if (persistedOrderMatchesSource(row, candidate.type, candidate.sourceId)) {
+        persistedSourceBackedOrderIds.add(getOrderId(candidate.type, row.id));
         persistedSourceBackedOrderIds.add(getOrderId(candidate.type, candidate.sourceId));
       }
     }
@@ -2099,8 +2472,9 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     return buildAdminOrder(candidate, payment, strategy);
   });
 
-  return [...persistedOrders.filter((row) => !persistedSourceBackedOrderIds.has(row.id)), ...orders]
+  const ordered = [...persistedOrders.filter((row) => !persistedSourceBackedOrderIds.has(row.id)), ...orders]
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  return attachSubscriptionDetails(db, ordered);
 }
 
 export async function getOrdersGroupedByUser(

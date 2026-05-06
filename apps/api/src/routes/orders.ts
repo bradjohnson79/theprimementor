@@ -174,12 +174,14 @@ export async function ordersRoutes(app: FastifyInstance) {
     "/admin/orders/:orderId/create-invoice",
     { preHandler: requireAuth },
     async (request, reply) => {
-      requireAdmin(request);
+      const adminUser = requireAdmin(request);
       const db = requireDatabase(app.db);
 
       try {
         const result = await createAdminOrderInvoice(db, {
           orderId: request.params.orderId,
+          adminUserId: adminUser.id,
+          adminActorLabel: adminUser.email,
         });
         return ok(result);
       } catch (error) {

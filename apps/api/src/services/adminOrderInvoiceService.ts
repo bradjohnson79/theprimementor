@@ -1,7 +1,13 @@
 import Stripe from "stripe";
-import { orders as persistedOrdersTable, users, type Database } from "@wisdom/db";
+import {
+  bookings,
+  bookingTypes,
+  orders as persistedOrdersTable,
+  users,
+  type Database,
+} from "@wisdom/db";
 import { logger } from "@wisdom/utils";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
 import { getAdminOrderById, parseOrderId } from "./ordersService.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
@@ -19,11 +25,7 @@ function getStripe(): Stripe {
   return stripeSingleton;
 }
 
-function logDev(level: "info" | "warn" | "error", message: string, context: Record<string, unknown>) {
-  if (process.env.NODE_ENV !== "development") {
-    return;
-  }
-
+function logInvoice(level: "info" | "warn" | "error", message: string, context: Record<string, unknown>) {
   if (level === "error") {
     logger.error(message, context);
     return;
@@ -33,6 +35,118 @@ function logDev(level: "info" | "warn" | "error", message: string, context: Reco
     return;
   }
   logger.info(message, context);
+}
+
+const INVOICE_ORIGINS = [
+  "admin_manual_recovery",
+  "automated_retry",
+  "abandoned_checkout",
+  "payment_failure_recovery",
+  "client_requested",
+  "subscription_reactivation",
+] as const;
+
+type InvoiceOrigin = typeof INVOICE_ORIGINS[number];
+type InvoiceActorType = "admin" | "system" | "webhook" | "stripe";
+
+const ADMIN_MANUAL_INVOICE_ORIGIN: InvoiceOrigin = "admin_manual_recovery";
+
+interface InvoiceTimelineEvent {
+  timestamp: string;
+  type: string;
+  actor_type: InvoiceActorType;
+  actor_label: string | null;
+  admin_user_id: string | null;
+  stripe_invoice_id: string;
+  invoice_origin: InvoiceOrigin;
+  status: string | null;
+}
+
+type MetadataRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is MetadataRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeMetadata(value: unknown): MetadataRecord {
+  return isRecord(value) ? { ...value } : {};
+}
+
+function getInvoiceTimeline(value: unknown): InvoiceTimelineEvent[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is InvoiceTimelineEvent => isRecord(entry) && typeof entry.type === "string");
+}
+
+export function resolveInvoicePriceSnapshot(input: {
+  orderMetadata?: unknown;
+  bookingIntakeSnapshot?: unknown;
+  fallbackAmountCents: number;
+  fallbackCurrency: string;
+}) {
+  const orderMetadata = isRecord(input.orderMetadata) ? input.orderMetadata : null;
+  const bookingSnapshot = isRecord(input.bookingIntakeSnapshot) ? input.bookingIntakeSnapshot : null;
+  const snapshotAmount = getNumber(orderMetadata?.price_snapshot_cents)
+    ?? getNumber(orderMetadata?.priceSnapshotCents)
+    ?? getNumber(bookingSnapshot?.price_snapshot_cents)
+    ?? getNumber(bookingSnapshot?.priceSnapshotCents);
+  const snapshotCurrency = getString(orderMetadata?.price_snapshot_currency)
+    ?? getString(orderMetadata?.priceSnapshotCurrency)
+    ?? getString(bookingSnapshot?.price_snapshot_currency)
+    ?? getString(bookingSnapshot?.priceSnapshotCurrency);
+
+  if (snapshotAmount !== null && Number.isInteger(snapshotAmount) && snapshotAmount > 0) {
+    return {
+      amountCents: snapshotAmount,
+      currency: snapshotCurrency ?? input.fallbackCurrency,
+      source: "snapshot" as const,
+    };
+  }
+
+  return {
+    amountCents: input.fallbackAmountCents,
+    currency: input.fallbackCurrency,
+    source: "booking_type_fallback" as const,
+  };
+}
+
+export function buildInvoiceTimelineEvents(input: {
+  timestamp: string;
+  stripeInvoiceId: string;
+  stripeInvoiceStatus: string;
+  invoiceOrigin?: InvoiceOrigin;
+  actorLabel?: string | null;
+  adminUserId?: string | null;
+}): InvoiceTimelineEvent[] {
+  const base = {
+    timestamp: input.timestamp,
+    actor_type: "admin" as const,
+    actor_label: input.actorLabel ?? "Admin",
+    admin_user_id: input.adminUserId ?? null,
+    stripe_invoice_id: input.stripeInvoiceId,
+    invoice_origin: input.invoiceOrigin ?? ADMIN_MANUAL_INVOICE_ORIGIN,
+    status: input.stripeInvoiceStatus,
+  };
+
+  return [
+    { ...base, type: "invoice_created" },
+    { ...base, type: "invoice_emailed_to_customer" },
+  ];
+}
+
+export function appendInvoiceTimelineEvents(metadata: unknown, events: InvoiceTimelineEvent[]) {
+  const base = normalizeMetadata(metadata);
+  return {
+    ...base,
+    invoice_timeline: [...getInvoiceTimeline(base.invoice_timeline), ...events],
+  };
 }
 
 function isPersistedOrderTypeMatch(orderType: string, parsedType: ReturnType<typeof parseOrderId>["type"]) {
@@ -72,13 +186,24 @@ export async function createAdminOrderInvoice(
   db: Database,
   input: {
     orderId: string;
+    adminUserId?: string | null;
+    adminActorLabel?: string | null;
   },
 ): Promise<CreateAdminOrderInvoiceResult> {
   const parsed = parseOrderId(input.orderId);
   const order = await getAdminOrderById(db, input.orderId);
   assertOrderCanCreateInvoice(order);
 
-  const [row] = await db
+  logInvoice("info", "admin_order_invoice_create_attempt", {
+    orderId: input.orderId,
+    parsedType: parsed.type,
+    sourceId: parsed.sourceId,
+    localOrderType: order.type,
+    localOrderStatus: order.status,
+    invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+  });
+
+  const persistedRows = await db
     .select({
       id: persistedOrdersTable.id,
       userId: persistedOrdersTable.user_id,
@@ -87,22 +212,132 @@ export async function createAdminOrderInvoice(
       amount: persistedOrdersTable.amount,
       currency: persistedOrdersTable.currency,
       stripeInvoiceId: persistedOrdersTable.stripe_invoice_id,
+      metadata: persistedOrdersTable.metadata,
       email: users.email,
     })
     .from(persistedOrdersTable)
     .innerJoin(users, eq(persistedOrdersTable.user_id, users.id))
     .where(and(
-      eq(persistedOrdersTable.id, parsed.sourceId),
       eq(persistedOrdersTable.archived, false),
+      or(
+        eq(persistedOrdersTable.id, parsed.sourceId),
+        sql`${persistedOrdersTable.metadata}->>'bookingId' = ${parsed.sourceId}`,
+        sql`${persistedOrdersTable.metadata}->>'booking_id' = ${parsed.sourceId}`,
+      ),
     ))
-    .limit(1);
+    .limit(5);
 
-  if (!row || !isPersistedOrderTypeMatch(row.type, parsed.type)) {
-    throw createHttpError(404, "Order not found");
+  let row = persistedRows.find((entry) => isPersistedOrderTypeMatch(entry.type, parsed.type)) ?? null;
+
+  if (persistedRows.length > 0 && !row) {
+    throw createHttpError(409, "Invoice cannot be generated for this order state.");
   }
 
-  if (row.stripeInvoiceId) {
+  if (row?.stripeInvoiceId) {
     throw createHttpError(409, "Invoice already exists for this order.");
+  }
+
+  let priceSource: "persisted_order" | "snapshot" | "booking_type_fallback" = "persisted_order";
+  let metadata = normalizeMetadata(row?.metadata);
+
+  if (!row) {
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        userId: bookings.user_id,
+        fullName: bookings.full_name,
+        bookingEmail: bookings.email,
+        intakeSnapshot: bookings.intake_snapshot,
+        bookingTypeName: bookingTypes.name,
+        priceCents: bookingTypes.price_cents,
+        currency: bookingTypes.currency,
+        userEmail: users.email,
+      })
+      .from(bookings)
+      .innerJoin(bookingTypes, eq(bookings.booking_type_id, bookingTypes.id))
+      .innerJoin(users, eq(bookings.user_id, users.id))
+      .where(eq(bookings.id, parsed.sourceId))
+      .limit(1);
+
+    if (!booking) {
+      logInvoice("warn", "admin_order_invoice_booking_source_missing", {
+        orderId: input.orderId,
+        sourceId: parsed.sourceId,
+      });
+      throw createHttpError(404, "No session source record exists for this order.");
+    }
+
+    const price = resolveInvoicePriceSnapshot({
+      orderMetadata: order.metadata,
+      bookingIntakeSnapshot: booking.intakeSnapshot,
+      fallbackAmountCents: booking.priceCents,
+      fallbackCurrency: booking.currency,
+    });
+    priceSource = price.source;
+
+    if (!Number.isInteger(price.amountCents) || price.amountCents <= 0) {
+      throw createHttpError(400, "Session pricing is missing, so an invoice cannot be generated.");
+    }
+
+    metadata = {
+      bookingId: booking.id,
+      booking_id: booking.id,
+      adminOrderId: input.orderId,
+      sessionType: order.metadata.session_type,
+      session_type: order.metadata.session_type,
+      invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      price_snapshot_cents: price.amountCents,
+      price_snapshot_currency: price.currency,
+      price_source: price.source,
+      invoice_timeline: [],
+    };
+
+    const [createdOrder] = await db
+      .insert(persistedOrdersTable)
+      .values({
+        user_id: booking.userId,
+        type: "session",
+        label: booking.bookingTypeName || order.metadata.session_type || "Session",
+        amount: price.amountCents,
+        currency: price.currency,
+        status: "pending",
+        metadata,
+      })
+      .returning({
+        id: persistedOrdersTable.id,
+        userId: persistedOrdersTable.user_id,
+        type: persistedOrdersTable.type,
+        label: persistedOrdersTable.label,
+        amount: persistedOrdersTable.amount,
+        currency: persistedOrdersTable.currency,
+        stripeInvoiceId: persistedOrdersTable.stripe_invoice_id,
+        metadata: persistedOrdersTable.metadata,
+      });
+
+    row = {
+      ...createdOrder,
+      email: booking.bookingEmail ?? booking.userEmail,
+    };
+
+    logInvoice("info", "admin_order_invoice_persisted_order_created", {
+      orderId: input.orderId,
+      persistedOrderId: row.id,
+      sourceId: parsed.sourceId,
+      userId: row.userId,
+      invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      priceSource,
+    });
+  } else {
+    metadata = {
+      ...metadata,
+      bookingId: getString(metadata.bookingId) ?? parsed.sourceId,
+      booking_id: getString(metadata.booking_id) ?? parsed.sourceId,
+      adminOrderId: getString(metadata.adminOrderId) ?? input.orderId,
+      invoice_origin: getString(metadata.invoice_origin) ?? ADMIN_MANUAL_INVOICE_ORIGIN,
+      price_snapshot_cents: getNumber(metadata.price_snapshot_cents) ?? row.amount,
+      price_snapshot_currency: getString(metadata.price_snapshot_currency) ?? row.currency,
+      price_source: getString(metadata.price_source) ?? "persisted_order",
+    };
   }
 
   const email = row.email?.trim();
@@ -118,14 +353,6 @@ export async function createAdminOrderInvoice(
   const currency = row.currency.trim().toLowerCase();
   const description = row.label.trim() || "Session";
 
-  logDev("info", "admin_order_invoice_create_attempt", {
-    orderId: input.orderId,
-    persistedOrderId: row.id,
-    userId: row.userId,
-    currency,
-    amountCents: row.amount,
-  });
-
   try {
     const customerId = await ensureStripeCustomerId(db, {
       stripe,
@@ -138,11 +365,11 @@ export async function createAdminOrderInvoice(
       },
     });
 
-    const metadata = {
+    const stripeMetadata = {
       adminOrderId: input.orderId,
       persistedOrderId: row.id,
       type: order.type,
-      email,
+      invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
     };
 
     const draftInvoice = await stripe.invoices.create({
@@ -151,7 +378,7 @@ export async function createAdminOrderInvoice(
       collection_method: "send_invoice",
       days_until_due: 7,
       description,
-      metadata,
+      metadata: stripeMetadata,
     });
 
     await stripe.invoiceItems.create({
@@ -160,7 +387,7 @@ export async function createAdminOrderInvoice(
       amount: row.amount,
       currency,
       description,
-      metadata,
+      metadata: stripeMetadata,
     });
 
     const finalizedInvoice = draftInvoice.status === "draft"
@@ -173,6 +400,19 @@ export async function createAdminOrderInvoice(
     const stripeInvoiceId = sentInvoice.id;
     const stripeInvoiceUrl = sentInvoice.hosted_invoice_url ?? finalizedInvoice.hosted_invoice_url ?? null;
     const stripeInvoiceStatus = normalizeStripeInvoiceStatus(sentInvoice.status);
+    const invoiceTimelineEvents = buildInvoiceTimelineEvents({
+      timestamp: new Date().toISOString(),
+      stripeInvoiceId,
+      stripeInvoiceStatus,
+      invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      actorLabel: input.adminActorLabel,
+      adminUserId: input.adminUserId,
+    });
+    const nextMetadata = appendInvoiceTimelineEvents({
+      ...metadata,
+      stripe_invoice_id: stripeInvoiceId,
+      stripe_invoice_status: stripeInvoiceStatus,
+    }, invoiceTimelineEvents);
 
     await db
       .update(persistedOrdersTable)
@@ -180,16 +420,20 @@ export async function createAdminOrderInvoice(
         stripe_invoice_id: stripeInvoiceId,
         stripe_invoice_url: stripeInvoiceUrl,
         stripe_invoice_status: stripeInvoiceStatus,
+        metadata: nextMetadata,
         updated_at: new Date(),
       })
       .where(eq(persistedOrdersTable.id, row.id));
 
-    logDev("info", "admin_order_invoice_create_success", {
+    logInvoice("info", "admin_order_invoice_create_success", {
       orderId: input.orderId,
       persistedOrderId: row.id,
+      sourceId: parsed.sourceId,
+      stripeCustomerId: customerId,
       stripeInvoiceId,
       stripeInvoiceStatus,
-      stripeInvoiceUrl,
+      invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      priceSource,
     });
 
     const updatedOrder = await getAdminOrderById(db, input.orderId);
@@ -201,9 +445,12 @@ export async function createAdminOrderInvoice(
       order: updatedOrder,
     };
   } catch (error) {
-    logDev("error", "admin_order_invoice_create_failed", {
+    logInvoice("error", "admin_order_invoice_create_failed", {
       orderId: input.orderId,
       persistedOrderId: row.id,
+      sourceId: parsed.sourceId,
+      invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      priceSource,
       error: error instanceof Error ? error.message : error,
     });
 

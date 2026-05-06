@@ -559,6 +559,45 @@ export const regenerationCheckIns = pgTable("regeneration_check_ins", {
   userSubmittedIdx: index("regeneration_check_ins_user_submitted_idx").on(table.user_id, table.submitted_at),
 }));
 
+export const subscriptionAdminAuditEntries = pgTable("subscription_admin_audit_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscription_kind: text("subscription_kind").notNull(),
+  membership_subscription_id: uuid("membership_subscription_id").references(() => subscriptions.id, { onDelete: "cascade" }),
+  regeneration_subscription_id: uuid("regeneration_subscription_id").references(() => regenerationSubscriptions.id, { onDelete: "cascade" }),
+  stripe_subscription_id: text("stripe_subscription_id"),
+  admin_user_id: uuid("admin_user_id").references(() => users.id, { onDelete: "set null" }),
+  actor_type: text("actor_type").default("admin").notNull(),
+  actor_label: text("actor_label"),
+  action_type: text("action_type").notNull(),
+  previous_status: text("previous_status"),
+  new_status: text("new_status"),
+  reason: text("reason"),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  membershipCreatedIdx: index("subscription_audit_membership_created_idx").on(table.membership_subscription_id, table.created_at),
+  regenerationCreatedIdx: index("subscription_audit_regeneration_created_idx").on(table.regeneration_subscription_id, table.created_at),
+  stripeCreatedIdx: index("subscription_audit_stripe_created_idx").on(table.stripe_subscription_id, table.created_at),
+  actionCreatedIdx: index("subscription_audit_action_created_idx").on(table.action_type, table.created_at),
+  actorCreatedIdx: index("subscription_audit_actor_created_idx").on(table.actor_type, table.created_at),
+}));
+
+export const subscriptionAdminNotes = pgTable("subscription_admin_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscription_kind: text("subscription_kind").notNull(),
+  membership_subscription_id: uuid("membership_subscription_id").references(() => subscriptions.id, { onDelete: "cascade" }),
+  regeneration_subscription_id: uuid("regeneration_subscription_id").references(() => regenerationSubscriptions.id, { onDelete: "cascade" }),
+  stripe_subscription_id: text("stripe_subscription_id"),
+  admin_user_id: uuid("admin_user_id").references(() => users.id, { onDelete: "set null" }),
+  note: text("note").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  membershipCreatedIdx: index("subscription_notes_membership_created_idx").on(table.membership_subscription_id, table.created_at),
+  regenerationCreatedIdx: index("subscription_notes_regeneration_created_idx").on(table.regeneration_subscription_id, table.created_at),
+  stripeCreatedIdx: index("subscription_notes_stripe_created_idx").on(table.stripe_subscription_id, table.created_at),
+  adminCreatedIdx: index("subscription_notes_admin_created_idx").on(table.admin_user_id, table.created_at),
+}));
+
 export const webhookEvents = pgTable("webhook_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   provider: text("provider").default("stripe").notNull(),

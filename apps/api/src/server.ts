@@ -27,6 +27,7 @@ import { contactRoutes } from "./routes/contact.js";
 import { zoomRoutes } from "./routes/zoom.js";
 import { socialRoutes } from "./routes/social.js";
 import { ordersRoutes } from "./routes/orders.js";
+import { adminSubscriptionsRoutes } from "./routes/admin-subscriptions.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { mentorTrainingRoutes } from "./routes/mentor-training.js";
 import { adminNotificationRoutes } from "./routes/admin-notifications.js";
@@ -818,6 +819,7 @@ export async function buildApp() {
   await app.register(dashboardRoutes, { prefix: "/api" });
   await app.register(mentorTrainingRoutes, { prefix: "/api" });
   await app.register(ordersRoutes, { prefix: "/api" });
+  await app.register(adminSubscriptionsRoutes, { prefix: "/api" });
   await app.register(adminNotificationRoutes, { prefix: "/api" });
   await app.register(analyticsRoutes, { prefix: "/api" });
   await app.register(seoRoutes, { prefix: "/api" });

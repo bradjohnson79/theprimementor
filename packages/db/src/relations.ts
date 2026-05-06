@@ -13,6 +13,8 @@ import {
   subscriptions,
   regenerationSubscriptions,
   regenerationCheckIns,
+  subscriptionAdminAuditEntries,
+  subscriptionAdminNotes,
   reports,
   webhookEvents,
   invoices,
@@ -35,6 +37,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   subscriptions: many(subscriptions),
   regenerationSubscriptions: many(regenerationSubscriptions),
   regenerationCheckIns: many(regenerationCheckIns),
+  subscriptionAdminAuditEntries: many(subscriptionAdminAuditEntries),
+  subscriptionAdminNotes: many(subscriptionAdminNotes),
   invoices: many(invoices),
   orders: many(orders),
   reports: many(reports),
@@ -118,11 +122,13 @@ export const stripeCustomersRelations = relations(stripeCustomers, ({ one }) => 
   }),
 }));
 
-export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
   user: one(users, {
     fields: [subscriptions.user_id],
     references: [users.id],
   }),
+  adminAuditEntries: many(subscriptionAdminAuditEntries),
+  adminNotes: many(subscriptionAdminNotes),
 }));
 
 export const regenerationSubscriptionsRelations = relations(regenerationSubscriptions, ({ one, many }) => ({
@@ -131,6 +137,8 @@ export const regenerationSubscriptionsRelations = relations(regenerationSubscrip
     references: [users.id],
   }),
   checkIns: many(regenerationCheckIns),
+  adminAuditEntries: many(subscriptionAdminAuditEntries),
+  adminNotes: many(subscriptionAdminNotes),
 }));
 
 export const regenerationCheckInsRelations = relations(regenerationCheckIns, ({ one }) => ({
@@ -140,6 +148,36 @@ export const regenerationCheckInsRelations = relations(regenerationCheckIns, ({ 
   }),
   subscription: one(regenerationSubscriptions, {
     fields: [regenerationCheckIns.subscription_id],
+    references: [regenerationSubscriptions.id],
+  }),
+}));
+
+export const subscriptionAdminAuditEntriesRelations = relations(subscriptionAdminAuditEntries, ({ one }) => ({
+  adminUser: one(users, {
+    fields: [subscriptionAdminAuditEntries.admin_user_id],
+    references: [users.id],
+  }),
+  membershipSubscription: one(subscriptions, {
+    fields: [subscriptionAdminAuditEntries.membership_subscription_id],
+    references: [subscriptions.id],
+  }),
+  regenerationSubscription: one(regenerationSubscriptions, {
+    fields: [subscriptionAdminAuditEntries.regeneration_subscription_id],
+    references: [regenerationSubscriptions.id],
+  }),
+}));
+
+export const subscriptionAdminNotesRelations = relations(subscriptionAdminNotes, ({ one }) => ({
+  adminUser: one(users, {
+    fields: [subscriptionAdminNotes.admin_user_id],
+    references: [users.id],
+  }),
+  membershipSubscription: one(subscriptions, {
+    fields: [subscriptionAdminNotes.membership_subscription_id],
+    references: [subscriptions.id],
+  }),
+  regenerationSubscription: one(regenerationSubscriptions, {
+    fields: [subscriptionAdminNotes.regeneration_subscription_id],
     references: [regenerationSubscriptions.id],
   }),
 }));

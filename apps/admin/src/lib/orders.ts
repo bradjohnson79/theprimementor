@@ -45,6 +45,64 @@ export interface AdminOrderExecution {
   output: AdminOrderOutput | null;
 }
 
+export type AdminSubscriptionLifecycleStatus =
+  | "active"
+  | "cancel_pending"
+  | "canceled"
+  | "past_due"
+  | "incomplete"
+  | "paused"
+  | "trialing"
+  | "expired"
+  | "grace_period"
+  | "payment_failed";
+
+export type AdminSubscriptionActionSeverity = "primary" | "secondary" | "danger";
+
+export interface AdminSubscriptionActionRequirement {
+  reason_required: boolean;
+  confirmation_required: boolean;
+  severity: AdminSubscriptionActionSeverity;
+  disabled?: boolean;
+  disabled_reason?: string | null;
+}
+
+export interface AdminSubscriptionTimelineEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor_type: "admin" | "system" | "webhook" | "stripe";
+  actor_label: string | null;
+  admin_user_id: string | null;
+  previous_status: string | null;
+  new_status: string | null;
+  reason: string | null;
+  source: "audit" | "note";
+}
+
+export interface AdminSubscriptionNote {
+  id: string;
+  note: string;
+  admin_user_id: string | null;
+  created_at: string;
+}
+
+export interface AdminSubscriptionDetails {
+  kind: "membership" | "regeneration" | "managed_invoice" | "unknown";
+  local_id: string | null;
+  stripe_subscription_id: string | null;
+  lifecycle_status: AdminSubscriptionLifecycleStatus;
+  cancel_at_period_end: boolean;
+  pause_collection: Record<string, unknown> | null;
+  current_period_end: string | null;
+  access_state: string | null;
+  priority_support: boolean | null;
+  available_actions: string[];
+  action_requirements: Record<string, AdminSubscriptionActionRequirement>;
+  activity: AdminSubscriptionTimelineEntry[];
+  admin_notes: AdminSubscriptionNote[];
+}
+
 export interface AdminOrder {
   id: string;
   source_id: string;
@@ -69,6 +127,7 @@ export interface AdminOrder {
   refunded_at: string | null;
   refund_reason: string | null;
   refund_note: string | null;
+  subscription?: AdminSubscriptionDetails | null;
   metadata: {
     source_status: string | null;
     source_created_at: string;
@@ -127,6 +186,10 @@ export interface AdminOrder {
     recovery_invoice_id: string | null;
     recovery_invoice_sent_at: string | null;
     recovery_invoice_hosted_url: string | null;
+    invoice_origin?: string | null;
+    price_snapshot_cents?: number | null;
+    price_snapshot_currency?: string | null;
+    invoice_timeline?: unknown[];
   };
 }
 
