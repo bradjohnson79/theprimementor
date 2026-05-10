@@ -11,7 +11,7 @@ export default function SignUpPage() {
         <div className="mb-5 text-center">
           <h1 className="text-3xl font-semibold text-white">Create a Free Account</h1>
           <p className="mt-2 text-sm text-slate-300">
-            Sign up for free to access the platform and explore services before purchasing any membership.
+            Sign up for free to access the Prime Mentor member dashboard, order sessions & reports, access free courses and more!
           </p>
         </div>
 
