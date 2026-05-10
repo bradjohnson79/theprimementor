@@ -460,7 +460,7 @@ function SessionCard({
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-      <div className="aspect-[4/3] w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+      <div className="h-[clamp(12rem,28vw,20rem)] w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5">
         <img
           src={imageSrc}
           alt={title}
