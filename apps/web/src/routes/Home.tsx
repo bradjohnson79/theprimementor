@@ -3,7 +3,6 @@ import { useAuth } from "@clerk/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
-  MEMBER_PRICING,
   PREMIUM_REPORT_PRODUCT_KEYS,
   REPORT_PRODUCTS,
   type ReportProductKey,
@@ -15,11 +14,9 @@ import TestimonialsSlider from "../components/public/TestimonialsSlider";
 import SectionContentBlock from "../components/public/SectionContentBlock";
 import SectionMediaPanel from "../components/public/SectionMediaPanel";
 import deepDiveReportImage from "../assets/deep-dive-report.webp";
-import initiateMembershipImage from "../assets/initiate-membership.webp";
 import initiatesReportImage from "../assets/initiates-report.webp";
 import introductoryReportImage from "../assets/introductory-report.webp";
 import mentoringCircleImage from "../assets/mentoring-circle.webp";
-import seekerMembershipImage from "../assets/seeker-membership.webp";
 import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
@@ -62,14 +59,6 @@ const REGENERATION_CARD: SessionCardData = {
   imageSrc: regenerationMonthlyPackageImage,
 };
 
-interface MembershipCardData {
-  title: string;
-  meta: string;
-  description: string;
-  imageSrc: string;
-  href: string;
-}
-
 interface ReportCardData {
   title: string;
   meta?: string;
@@ -92,25 +81,6 @@ interface SocialWidgetCardProps {
 }
 
 const SERVICE_PURCHASE_NOTE = "Free account created before purchase.";
-
-const MEMBERSHIP_CARDS: MembershipCardData[] = [
-  {
-    title: "Seeker Membership",
-    meta: MEMBER_PRICING.seeker.monthly.label,
-    description:
-      "Start your Divin8 access with 150 monthly prompts, guided learning tools, dashboard access, and ongoing support for practical insight.",
-    imageSrc: seekerMembershipImage,
-    href: "/subscriptions/seeker",
-  },
-  {
-    title: "Initiate Membership",
-    meta: MEMBER_PRICING.initiate.monthly.label,
-    description:
-      "Unlock unlimited Divin8 prompts, deeper learning systems, monthly Mentoring Circle access, and expanded mentoring eligibility for sustained growth.",
-    imageSrc: initiateMembershipImage,
-    href: "/subscriptions/initiate",
-  },
-];
 
 const REPORT_CARD_IMAGES: Record<ReportProductKey, string> = {
   three_questions: introductoryReportImage,
@@ -540,39 +510,6 @@ function SessionCard({
   );
 }
 
-function MembershipCard({ title, meta, description, imageSrc, href }: MembershipCardData) {
-  return (
-    <div className="flex h-full flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="mx-auto w-1/2 max-w-[12rem] shrink-0 aspect-square overflow-hidden rounded-lg border border-white/10 bg-white/5">
-        <img
-          src={imageSrc}
-          alt={title}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
-
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 text-left">
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold leading-snug tracking-tight text-white">{title}</h3>
-          <p className="text-xs font-medium tabular-nums text-cyan-100/85">{meta}</p>
-        </div>
-        <p className="flex-1 text-sm leading-relaxed text-white/60">{description}</p>
-      </div>
-
-      <Link
-        to={href}
-        onClick={() => trackCtaClick("sign_up", "home_subscriptions", { href, title })}
-        className="mt-4 shrink-0 rounded-md bg-white/10 py-2 text-center text-sm text-white transition hover:bg-white/20"
-      >
-        Sign Up
-      </Link>
-      <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
-    </div>
-  );
-}
-
 function ReportCard({ title, meta, description, imageSrc, href, ctaLabel, badge, variant = "premium" }: ReportCardData) {
   const variantClasses = variant === "casual"
     ? "border-cyan-200/18 shadow-[0_18px_48px_rgba(34,211,238,0.08)] hover:border-cyan-200/28 hover:shadow-[0_22px_56px_rgba(34,211,238,0.13)]"
@@ -793,27 +730,6 @@ export default function Home() {
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-      </LandingSection>
-
-      <LandingSection id="subscriptions">
-        <div className="space-y-8 text-left">
-          <div className="space-y-3">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Subscriptions</p>
-            <h2 className="max-w-xl text-3xl font-semibold tracking-[-0.035em] text-white">
-              Membership tiers for sustained momentum
-            </h2>
-            <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-              Designed for people who want more than a single insight hit. Membership keeps Divin8 access, prompt
-              capacity, mentoring pathways, and learning systems active in your daily life.
-            </p>
-          </div>
-
-          <div className="grid items-stretch gap-4 sm:grid-cols-2">
-            {MEMBERSHIP_CARDS.map((membership) => (
-              <MembershipCard key={membership.title} {...membership} />
-            ))}
           </div>
         </div>
       </LandingSection>

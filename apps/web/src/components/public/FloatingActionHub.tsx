@@ -102,8 +102,8 @@ const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
     title: "Subscriptions",
     items: [
-      { label: "Membership Tiers", anchor: "#subscriptions" },
-      { label: "What's Included", anchor: "#subscriptions" },
+      { label: "Seeker", href: "/subscriptions/seeker" },
+      { label: "Initiate", href: "/subscriptions/initiate" },
     ],
   },
   {
