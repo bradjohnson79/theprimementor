@@ -1,7 +1,6 @@
 import type { NotificationPayloadMap } from "../events.js";
 import {
   buildFrontendUrl,
-  escapeHtml,
   money,
   renderInfoCard,
   renderKeyValueTable,
@@ -115,9 +114,107 @@ export function renderPaymentFailedTemplate(
   };
 }
 
+const SESSION_24H_FOOTER = "If you do not hear from Brad Johnson within 24 hours, please contact us through our Contact page.";
+
+function formatDurationLabel(minutes: number | null | undefined) {
+  return typeof minutes === "number" && minutes > 0 ? `${minutes} Minutes` : "Selected duration";
+}
+
+function renderIntakeSummary(lines: string[] | undefined) {
+  if (!lines?.length) {
+    return renderParagraph("No additional intake details were submitted beyond the core booking information.");
+  }
+
+  return lines.map((line) => renderParagraph(line)).join("");
+}
+
+function renderQaSessionBookingCreatedTemplate(
+  payload: NotificationPayloadMap["booking.created"],
+): RenderedTemplate {
+  const durationLabel = formatDurationLabel(payload.durationMinutes);
+  return {
+    subject: `Q&A Session confirmed - ${durationLabel}`,
+    templateVersion: "qa-session-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Purchase Confirmed",
+      title: "Your Q&A Session is confirmed",
+      intro: "Your Q&A Session purchase and intake have been received. Brad will review your questions and follow up with the next scheduling details.",
+      sections: [
+        renderInfoCard(
+          "Session details",
+          renderKeyValueTable([
+            { label: "Client", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+            { label: "Duration", value: durationLabel },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Purchase", value: "Confirmed" },
+          ]),
+        ),
+        renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
+        renderParagraph("Support instructions: keep this email for your records. If you need to update anything important before Brad contacts you, use the Contact page and include your booking reference."),
+      ],
+      callToAction: {
+        label: "Contact Support",
+        url: buildFrontendUrl("/contact"),
+      },
+      secondaryCallToAction: {
+        label: "Return to Dashboard",
+        url: buildFrontendUrl("/dashboard"),
+      },
+      footerNote: SESSION_24H_FOOTER,
+    }),
+  };
+}
+
+function renderMentoringSessionBookingCreatedTemplate(
+  payload: NotificationPayloadMap["booking.created"],
+): RenderedTemplate {
+  const durationLabel = formatDurationLabel(payload.durationMinutes);
+  return {
+    subject: `Mentoring Session confirmed - ${durationLabel}`,
+    templateVersion: "mentoring-session-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Purchase Confirmed",
+      title: "Your Mentoring Session is confirmed",
+      intro: "Your Mentoring Session purchase and intake have been received. Brad will review your blueprint details, goals, and session context before following up with scheduling details.",
+      sections: [
+        renderInfoCard(
+          "Session details",
+          renderKeyValueTable([
+            { label: "Client", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+            { label: "Duration", value: durationLabel },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Purchase", value: "Confirmed" },
+          ]),
+        ),
+        renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
+        renderParagraph("Mentoring expectations: this session is guided by Brad Johnson and is designed to explore your blueprint, clarify goals, and identify practical next steps for integration."),
+        renderParagraph("Support instructions: keep this email for your records. If any important detail changes before Brad contacts you, use the Contact page and include your booking reference."),
+      ],
+      callToAction: {
+        label: "Contact Support",
+        url: buildFrontendUrl("/contact"),
+      },
+      secondaryCallToAction: {
+        label: "Return to Dashboard",
+        url: buildFrontendUrl("/dashboard"),
+      },
+      footerNote: SESSION_24H_FOOTER,
+    }),
+  };
+}
+
 export function renderBookingCreatedTemplate(
   payload: NotificationPayloadMap["booking.created"],
 ): RenderedTemplate {
+  if (payload.purchaseConfirmed && payload.sessionType === "qa_session") {
+    return renderQaSessionBookingCreatedTemplate(payload);
+  }
+  if (payload.purchaseConfirmed && payload.sessionType === "mentoring") {
+    return renderMentoringSessionBookingCreatedTemplate(payload);
+  }
+
   const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "your booking");
   return {
     subject: `Booking request received for ${bookingLabel}`,

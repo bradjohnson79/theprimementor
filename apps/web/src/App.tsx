@@ -27,7 +27,6 @@ import SupportWidget from "./components/support/SupportWidget";
 import RegenerationSessionPage from "./routes/RegenerationSessionPage";
 import RegenerationSuccess from "./routes/RegenerationSuccess";
 import QASessionPage from "./routes/QASessionPage";
-import FocusSessionPage from "./routes/FocusSessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
 import {
   FOCUS_BOOKING_PATH,
@@ -87,7 +86,8 @@ export default function App() {
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
           <Route path={QA_LANDING_PATH} element={<QASessionPage />} />
-          <Route path={FOCUS_LANDING_PATH} element={<FocusSessionPage />} />
+          <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#sessions" replace />} />
+          <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />
           <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
@@ -97,7 +97,7 @@ export default function App() {
             <Route path="/dashboard/divin8" element={<MemberDivin8Chat />} />
             <Route path="/dashboard/recordings" element={<Recordings />} />
             <Route path="/sessions" element={<Bookings />} />
-            <Route path={FOCUS_BOOKING_PATH} element={<Bookings />} />
+            <Route path="/sessions/live/book" element={<Bookings />} />
             <Route path={REGENERATION_BOOKING_PATH} element={<Bookings />} />
             <Route path="/sessions/regeneration/success" element={<RegenerationSuccess />} />
             <Route path={QA_BOOKING_PATH} element={<Bookings />} />

@@ -21,6 +21,7 @@ import { sendNotification } from "../notifications/notificationService.js";
 import {
   sendAdminNewBookingNotification,
   sendMentoringCircleConfirmedNotification,
+  sendSessionPurchaseConfirmedNotification,
 } from "../booking/notificationService.js";
 import { confirmMentoringCircleBooking } from "../booking/bookingService.js";
 import {
@@ -1440,6 +1441,16 @@ async function handleCheckoutSessionCompleted(
 
   if (entity.entityType === "session" && bookingId) {
     await ensurePersistedSessionOrder(db, bookingId);
+    void sendSessionPurchaseConfirmedNotification(db as Database, {
+      bookingId,
+      userId,
+    }).catch((error) => {
+      logger.error({
+        bookingId,
+        userId,
+        error: error instanceof Error ? error.message : error,
+      }, "session_purchase_confirmation_notification_failed");
+    });
   }
 
   if (entity.entityType === "mentoring_circle" && bookingId) {

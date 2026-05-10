@@ -24,7 +24,7 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "booking",
     keywords: ["book", "booking", "session", "availability", "purchase"],
     answer:
-      "To request Focus or Mentoring sessions, sign in first, go to the Sessions page, choose a session type, and complete the intake form. The Regeneration Monthly Package starts its own recurring checkout flow and does not require a live time selection up front.",
+      "To request Q&A or Mentoring sessions, choose your path from the Guided Private Sessions card, sign in or create your account if prompted, and complete the intake form. The Regeneration Monthly Package starts its own recurring checkout flow and does not require a live time selection up front.",
     links: [
       { label: "Go to Sessions", href: "/sessions" },
       { label: "View Regeneration Package", href: "/sessions/regeneration" },
@@ -33,9 +33,9 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
   },
   {
     id: "sessions",
-    keywords: ["types", "difference", "focus", "mentoring", "regeneration", "sessions"],
+    keywords: ["types", "difference", "qa", "questions", "mentoring", "regeneration", "sessions"],
     answer:
-      "There are three core service paths. Focus Session is a shorter guided session for a specific area of clarity or decision-making. Mentoring Session is a deeper live session for strategy and longer-form support. The Regeneration Monthly Package is an offline 30-day regeneration cycle with recurring billing, no live session required, and priority support while it is active.",
+      "There are three core service paths. Q&A Session is an open format for direct questions and fast clarity. Mentoring Session is a deeper guided session for blueprint insight, goal alignment, and longer-form support. The Regeneration Monthly Package is an offline 30-day regeneration cycle with recurring billing, no live session required, and priority support while it is active.",
     links: [
       { label: "View Sessions", href: "/sessions" },
       { label: "View Regeneration Package", href: "/sessions/regeneration" },

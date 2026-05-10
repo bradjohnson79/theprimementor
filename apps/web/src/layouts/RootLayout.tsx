@@ -7,7 +7,6 @@ import pmLogo from "../assets/prime-mentor-logo.webp";
 import { getUmamiScriptUrl, getUmamiWebsiteId } from "../lib/analytics";
 import { useUserSync } from "../hooks/useUserSync";
 import {
-  FOCUS_LANDING_PATH,
   MENTORING_LANDING_PATH,
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
@@ -32,7 +31,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Regeneration Monthly Package", href: REGENERATION_LANDING_PATH },
       { label: "Q&A Session", href: QA_LANDING_PATH },
-      { label: "Focus Session", href: FOCUS_LANDING_PATH },
       { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
     ],
   },
@@ -105,7 +103,6 @@ export default function RootLayout() {
     || location.pathname.startsWith("/subscriptions/")
     || location.pathname === REGENERATION_LANDING_PATH
     || location.pathname === QA_LANDING_PATH
-    || location.pathname === FOCUS_LANDING_PATH
     || location.pathname === MENTORING_LANDING_PATH;
 
   useUserSync();

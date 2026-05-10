@@ -50,6 +50,10 @@ export interface NotificationPayloadMap {
     availability?: NotificationAvailability | null;
     eventId?: string | null;
     eventTitle?: string | null;
+    sessionType?: string | null;
+    durationMinutes?: number | null;
+    intakeSummaryLines?: string[];
+    purchaseConfirmed?: boolean;
   };
   "booking.confirmed": {
     entityId: string;

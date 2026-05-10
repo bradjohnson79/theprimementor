@@ -1,4 +1,4 @@
-import { bookings, clients, users, type Database } from "@wisdom/db";
+import { bookingTypes, bookings, clients, users, type Database } from "@wisdom/db";
 import { desc, eq } from "drizzle-orm";
 import { logger } from "@wisdom/utils";
 import { sendNotification } from "../notifications/notificationService.js";
@@ -19,6 +19,10 @@ export interface BookingNotificationPayload {
   eventTitle?: string | null;
   joinUrl?: string | null;
   accessPagePath?: string | null;
+  sessionType?: string | null;
+  durationMinutes?: number | null;
+  intakeSummaryLines?: string[];
+  purchaseConfirmed?: boolean;
 }
 
 interface BookingNotificationContactInput {
@@ -95,7 +99,95 @@ export async function sendBookingCreatedNotification(
       availability: payload.availability ?? null,
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
+      sessionType: payload.sessionType ?? null,
+      durationMinutes: payload.durationMinutes ?? null,
+      intakeSummaryLines: payload.intakeSummaryLines ?? [],
+      purchaseConfirmed: payload.purchaseConfirmed ?? false,
     },
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function summarizeIntake(intake: unknown) {
+  if (!isRecord(intake)) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  const topics = intake.topics;
+  if (typeof topics === "string" && topics.trim()) {
+    lines.push(`Topics: ${topics.trim()}`);
+  } else if (Array.isArray(topics) && topics.length > 0) {
+    const topicText = topics.filter((item) => typeof item === "string" && item.trim()).join(", ");
+    if (topicText) lines.push(`Topics: ${topicText}`);
+  }
+
+  const goals = intake.goals;
+  if (Array.isArray(goals) && goals.length > 0) {
+    const goalText = goals.filter((item) => typeof item === "string" && item.trim()).join(", ");
+    if (goalText) lines.push(`Goals: ${goalText}`);
+  }
+
+  if (typeof intake.other === "string" && intake.other.trim()) {
+    lines.push(`Additional focus: ${intake.other.trim()}`);
+  }
+  if (typeof intake.notes === "string" && intake.notes.trim()) {
+    lines.push(`Notes: ${intake.notes.trim()}`);
+  }
+
+  return lines.filter(Boolean).slice(0, 8);
+}
+
+export async function sendSessionPurchaseConfirmedNotification(
+  db: Database,
+  input: {
+    bookingId: string;
+    userId: string;
+  },
+): Promise<void> {
+  const [booking] = await db
+    .select({
+      bookingId: bookings.id,
+      userId: bookings.user_id,
+      bookingType: bookingTypes.name,
+      sessionType: bookings.session_type,
+      durationMinutes: bookingTypes.duration_minutes,
+      timezone: bookings.timezone,
+      intake: bookings.intake,
+      fullName: bookings.full_name,
+      email: bookings.email,
+    })
+    .from(bookings)
+    .innerJoin(bookingTypes, eq(bookings.booking_type_id, bookingTypes.id))
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (!booking || booking.userId !== input.userId) {
+    logger.warn("session_purchase_confirmation_missing_booking", {
+      bookingId: input.bookingId,
+      userId: input.userId,
+    });
+    return;
+  }
+
+  if (booking.sessionType !== "qa_session" && booking.sessionType !== "mentoring") {
+    return;
+  }
+
+  await sendBookingCreatedNotification(db, {
+    bookingId: booking.bookingId,
+    userId: booking.userId,
+    bookingType: booking.bookingType,
+    timezone: booking.timezone,
+    fullName: booking.fullName,
+    email: booking.email,
+    sessionType: booking.sessionType,
+    durationMinutes: booking.durationMinutes,
+    intakeSummaryLines: summarizeIntake(booking.intake),
+    purchaseConfirmed: true,
   });
 }
 

@@ -24,7 +24,7 @@ import { getMentorTrainingStripePriceId } from "../config/mentorTrainingPackages
 import { getReportCheckoutPath } from "../config/reportCheckout.js";
 import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
-import { getSessionStripePriceId } from "../config/stripePrices.js";
+import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { createHttpError } from "./booking/errors.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
@@ -71,7 +71,7 @@ function buildCheckoutMetadata(
     sessionDurationMinutes?: number;
     sessionTier?: "entry";
     upgradeEligible?: boolean;
-    upgradeTarget?: Array<"focus" | "mentoring">;
+    upgradeTarget?: Array<"mentoring">;
     reportId?: string;
     reportTier?: ReportTierId;
     reportType?: ReportProductKey;
@@ -331,7 +331,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     ? {
         sessionTier: "entry" as const,
         upgradeEligible: true,
-        upgradeTarget: ["focus", "mentoring"] as Array<"focus" | "mentoring">,
+        upgradeTarget: ["mentoring"] as Array<"mentoring">,
       }
     : undefined;
 
@@ -377,7 +377,12 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
   }
 
   const stripe = getStripe();
-  const priceId = getSessionStripePriceId(booking.sessionType);
+  let priceId: string;
+  try {
+    priceId = getBookingTypeStripePriceId(booking.bookingTypeId);
+  } catch {
+    throw createHttpError(400, `Stripe price is not configured for booking type ${booking.bookingTypeId}`);
+  }
   const promo = await validatePromoForCheckout(db, {
     code: input.promoCode ?? "",
     type: "session",

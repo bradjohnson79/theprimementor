@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getSessionStripePriceId } from "./stripePrices.js";
+import { getBookingTypeStripePriceId, getSessionStripePriceId } from "./stripePrices.js";
 
 test("getSessionStripePriceId prefers live session prices with a live Stripe key", () => {
   const originalSecret = process.env.STRIPE_SECRET_KEY;
@@ -56,4 +56,27 @@ test("getSessionStripePriceId returns the Q&A live fallback price", () => {
     if (originalLiveQa === undefined) delete process.env.STRIPE_LIVE_PRICE_QA_SESSION;
     else process.env.STRIPE_LIVE_PRICE_QA_SESSION = originalLiveQa;
   }
+});
+
+test("getBookingTypeStripePriceId resolves Q&A duration prices by booking type id", () => {
+  const originalSecret = process.env.STRIPE_SECRET_KEY;
+  const originalQa45 = process.env.STRIPE_PRICE_QA_SESSION_45;
+
+  try {
+    process.env.STRIPE_SECRET_KEY = "sk_test_example";
+    process.env.STRIPE_PRICE_QA_SESSION_45 = "price_test_qa_45";
+
+    assert.equal(getBookingTypeStripePriceId("qa-session-45"), "price_test_qa_45");
+  } finally {
+    process.env.STRIPE_SECRET_KEY = originalSecret;
+    if (originalQa45 === undefined) delete process.env.STRIPE_PRICE_QA_SESSION_45;
+    else process.env.STRIPE_PRICE_QA_SESSION_45 = originalQa45;
+  }
+});
+
+test("getBookingTypeStripePriceId fails fast for unmapped guided booking types", () => {
+  assert.throws(
+    () => getBookingTypeStripePriceId("unknown-session-45"),
+    /Missing Stripe price mapping for booking type/,
+  );
 });

@@ -206,7 +206,7 @@ export async function ensurePersistedSessionOrder(db: DbExecutor, bookingId: str
         sessionType: booking.sessionType,
         sessionTier: booking.sessionType === "qa_session" ? "entry" : null,
         upgradeEligible: booking.sessionType === "qa_session",
-        upgradeTarget: booking.sessionType === "qa_session" ? ["focus", "mentoring"] : [],
+        upgradeTarget: booking.sessionType === "qa_session" ? ["mentoring"] : [],
         scheduledAt: booking.startTimeUtc?.toISOString() ?? null,
         meetingLink: booking.joinUrl ?? booking.startUrl ?? null,
         bookingTypeName: booking.bookingTypeName,

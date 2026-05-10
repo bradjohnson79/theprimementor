@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { motion } from "framer-motion";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getSuggestedTimezone } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
@@ -20,18 +20,20 @@ import {
   type ValidationErrors,
 } from "../lib/forms/validationEngine";
 import {
-  FOCUS_LANDING_PATH,
   MENTORING_LANDING_PATH,
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import {
+  GUIDED_SESSION_BOOKING_PATH,
+  getGuidedSessionDuration,
+} from "../lib/sessionCatalog";
 import { submitRegenerationBooking } from "../lib/submitRegenerationBooking";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
   AVAILABILITY_DAYS,
   AVAILABILITY_DAY_LABELS,
   AVAILABILITY_SLOTS,
-  FOCUS_TOPICS,
   MAX_HEALTH_FOCUS_AREAS,
   MENTORING_GOALS,
   SESSION_TYPE_OPTIONS,
@@ -63,8 +65,7 @@ interface CreateBookingResponse {
 
 const SESSION_CARD_PRICE_OVERRIDES: Partial<Record<SessionType, number>> = {
   regeneration: 9900,
-  qa_session: 14999,
-  focus: 19900,
+  qa_session: 14900,
 };
 
 interface IntakeFormState {
@@ -75,7 +76,6 @@ interface IntakeFormState {
   birthTime: string;
   birthPlace: string;
   additionalNotes: string;
-  focusTopics: string[];
   healthFocusAreas: Array<{ name: string; severity: string }>;
   mentoringTopics: string[];
   qaTopics: string;
@@ -96,7 +96,6 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     birthTime: "00:00",
     birthPlace: "",
     additionalNotes: "",
-    focusTopics: [],
     healthFocusAreas: createEmptyHealthFocusAreas(),
     mentoringTopics: [],
     qaTopics: "",
@@ -119,8 +118,10 @@ function resolveBirthTimeInput(value: string) {
   return normalized ? normalized.slice(0, 5) : "00:00";
 }
 
-function resolveSessionTypeFromPath(pathname: string): SessionType | null {
-  if (pathname.includes(FOCUS_LANDING_PATH)) return "focus";
+function resolveSessionTypeFromPath(pathname: string, bookingTypeId?: string | null): SessionType | null {
+  if (pathname.includes(GUIDED_SESSION_BOOKING_PATH) && bookingTypeId) {
+    return getGuidedSessionDuration(bookingTypeId)?.option.sessionType ?? null;
+  }
   if (pathname.includes(QA_LANDING_PATH)) return "qa_session";
   if (pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
   if (pathname.includes(MENTORING_LANDING_PATH)) return "mentoring";
@@ -217,8 +218,10 @@ export default function Bookings() {
   const { user: clerkUser } = useUser();
   const { user: dbUser } = useCurrentUser();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [bookingTypes, setBookingTypes] = useState<BookingType[]>([]);
   const [selectedSessionType, setSelectedSessionType] = useState<SessionType | null>(null);
+  const [selectedBookingTypeId, setSelectedBookingTypeId] = useState<string | null>(null);
   const [timezone, setTimezone] = useState("");
   const [timezoneSource, setTimezoneSource] = useState<"user" | "suggested" | "fallback">("user");
   const [availabilitySelection, setAvailabilitySelection] = useState<AvailabilitySelection>(createEmptyAvailabilitySelection);
@@ -254,8 +257,13 @@ export default function Bookings() {
   );
 
   const selectedBookingType = useMemo(
-    () => bookingTypes.find((item) => item.session_type === selectedSessionType) ?? null,
-    [bookingTypes, selectedSessionType],
+    () => {
+      if (selectedBookingTypeId) {
+        return bookingTypes.find((item) => item.id === selectedBookingTypeId) ?? null;
+      }
+      return bookingTypes.find((item) => item.session_type === selectedSessionType) ?? null;
+    },
+    [bookingTypes, selectedBookingTypeId, selectedSessionType],
   );
 
   const availabilitySummary = useMemo(
@@ -299,11 +307,14 @@ export default function Bookings() {
   }, [clerkUser?.fullName, clerkUser?.primaryEmailAddress?.emailAddress, dbUser?.email]);
 
   useEffect(() => {
-    setSelectedSessionType(resolveSessionTypeFromPath(location.pathname));
+    const bookingTypeId = searchParams.get("bookingTypeId")?.trim() || null;
+    const resolvedSessionType = resolveSessionTypeFromPath(location.pathname, bookingTypeId);
+    setSelectedSessionType(resolvedSessionType);
+    setSelectedBookingTypeId(bookingTypeId);
     setError(null);
     setPurchaseError(null);
     setSuccess(null);
-  }, [location.pathname]);
+  }, [location.pathname, searchParams]);
 
   useEffect(() => {
     promo.reset();
@@ -366,7 +377,10 @@ export default function Bookings() {
         const token = await getToken();
         const response = (await api.get("/booking-types", token)) as { data: BookingType[] };
         const ordered = [...response.data].sort(
-          (left, right) => SESSION_TYPE_ORDER.indexOf(left.session_type) - SESSION_TYPE_ORDER.indexOf(right.session_type),
+          (left, right) => {
+            const typeOrder = SESSION_TYPE_ORDER.indexOf(left.session_type) - SESSION_TYPE_ORDER.indexOf(right.session_type);
+            return typeOrder || left.duration_minutes - right.duration_minutes;
+          },
         );
         setBookingTypes(ordered);
       } catch (err) {
@@ -384,7 +398,6 @@ export default function Bookings() {
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.availability;
-      delete next.focusTopics;
       delete next.healthFocusAreas;
       delete next.mentoringTopics;
       delete next.otherDetail;
@@ -392,7 +405,6 @@ export default function Bookings() {
     });
     setForm((current) => ({
       ...current,
-      focusTopics: [],
       healthFocusAreas: createEmptyHealthFocusAreas(),
       mentoringTopics: [],
       qaTopics: "",
@@ -431,24 +443,6 @@ export default function Bookings() {
     setFieldErrors((current) => {
       const next = { ...current };
       delete next[field];
-      return next;
-    });
-  }
-
-  function toggleFocusTopic(topic: string) {
-    setForm((current) => {
-      const hasTopic = current.focusTopics.includes(topic);
-      const focusTopics = hasTopic ? [] : [topic];
-      return {
-        ...current,
-        focusTopics,
-        otherDetail: topic === "Other" && hasTopic ? "" : current.otherDetail,
-      };
-    });
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.focusTopics;
-      delete next.otherDetail;
       return next;
     });
   }
@@ -532,10 +526,6 @@ export default function Bookings() {
     if (!isQA && !isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
     if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
 
-    if (selectedSessionType === "focus" && form.focusTopics.length === 0) {
-      nextErrors.focusTopics = "Select at least one topic.";
-    }
-
     if (selectedSessionType === "mentoring" && form.mentoringTopics.length === 0) {
       nextErrors.mentoringTopics = "Select at least one topic.";
     }
@@ -552,8 +542,7 @@ export default function Bookings() {
       }
     }
 
-    const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-      || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"));
+    const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
     if (needsOtherDetail && !normalizeText(form.otherDetail)) {
       nextErrors.otherDetail = "Tell us what “Other” means for you.";
     }
@@ -565,10 +554,6 @@ export default function Bookings() {
     const intake: Record<string, unknown> = {
       type: selectedSessionType,
     };
-
-    if (selectedSessionType === "focus") {
-      intake.topics = form.focusTopics;
-    }
 
     if (selectedSessionType === "mentoring") {
       intake.goals = form.mentoringTopics;
@@ -732,10 +717,6 @@ export default function Bookings() {
       nextErrors.qaTopics = "Keep this to 2000 characters or fewer so the intake stays focused.";
     }
 
-    if (selectedSessionType === "focus" && form.focusTopics.length === 0) {
-      nextErrors.focusTopics = "Choose the area you'd like this session to focus on.";
-    }
-
     if (selectedSessionType === "mentoring" && form.mentoringTopics.length === 0) {
       nextErrors.mentoringTopics = "Choose at least one mentoring topic so we can tune in properly.";
     }
@@ -752,8 +733,7 @@ export default function Bookings() {
       }
     }
 
-    const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-      || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"));
+    const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
     if (needsOtherDetail && !normalizeText(form.otherDetail)) {
       nextErrors.otherDetail = "Tell us a little more about what 'Other' means for you.";
     }
@@ -782,8 +762,7 @@ export default function Bookings() {
       birthPlace: () => (isQA || isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
       timezone: () => (isQA || timezone ? undefined : requiredStepMessage("Your timezone")),
       otherDetail: () => {
-        const needsOtherDetail = (selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-          || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"));
+        const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
         return !needsOtherDetail || normalizeText(form.otherDetail)
           ? undefined
           : "Tell us a little more about what 'Other' means for you.";
@@ -864,13 +843,10 @@ export default function Bookings() {
         title: "Session Intent",
         items: [
           {
-            label: "Focus",
-            value:
-              selectedSessionType === "focus"
-                ? (form.focusTopics.join(", ") || "Not selected yet")
-                : selectedSessionType === "mentoring"
-                  ? (form.mentoringTopics.join(", ") || "Not selected yet")
-                  : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
+            label: selectedSessionType === "mentoring" ? "Mentoring goals" : "Health focus",
+            value: selectedSessionType === "mentoring"
+              ? (form.mentoringTopics.join(", ") || "Not selected yet")
+              : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
           },
           {
             label: "Other Detail",
@@ -898,7 +874,6 @@ export default function Bookings() {
     form.birthTime,
     form.consentGiven,
     form.email,
-    form.focusTopics,
     form.fullName,
     form.healthFocusAreas,
     form.mentoringTopics,
@@ -941,6 +916,7 @@ export default function Bookings() {
                     disabled={!isAvailable}
                     onClick={() => {
                       setSelectedSessionType(option.type);
+                      setSelectedBookingTypeId(bookingTypeForCard?.id ?? null);
                       setError(null);
                       setSuccess(null);
                       setSingleFieldError("sessionType");
@@ -1230,11 +1206,7 @@ export default function Bookings() {
         id: "availability",
         title: "Availability",
         guidance: `Share the times that feel realistic for you. This helps us personally schedule your ${
-          selectedSessionType === "focus"
-            ? "focus"
-            : selectedSessionType === "qa_session"
-              ? "Q&A"
-              : "mentoring"
+          selectedSessionType === "qa_session" ? "Q&A" : "mentoring"
         } session without any rush.`,
         validate: validateAvailabilityStep,
         isComplete: () => hasSelectedAvailability(availabilitySelection),
@@ -1329,45 +1301,11 @@ export default function Bookings() {
               : "This helps us better tune into your situation and guide the session with precision.",
           validate: validateIntentStep,
           isComplete: () => {
-            if (selectedSessionType === "focus") return form.focusTopics.length > 0 && (!form.focusTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
             if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
             return normalizeHealthFocusAreas(form.healthFocusAreas).length > 0;
           },
           render: () => (
             <div className="space-y-4">
-              {selectedSessionType === "focus" ? (
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-white/70">Topics</p>
-                    <span className="text-xs text-white/45">Select 1 topic maximum.</span>
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {FOCUS_TOPICS.map((topic) => {
-                      const active = form.focusTopics.includes(topic);
-                      return (
-                        <label
-                          key={topic}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
-                            active
-                              ? "border-accent-cyan/60 bg-accent-cyan/10 text-white"
-                              : "border-white/10 bg-white/5 text-white/75 hover:border-white/20"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={active}
-                            onChange={() => toggleFocusTopic(topic)}
-                            className="h-4 w-4 rounded border-white/20 bg-transparent"
-                          />
-                          <span>{topic}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {fieldErrors.focusTopics ? <p className="mt-2 text-sm text-amber-200">{fieldErrors.focusTopics}</p> : null}
-                </div>
-              ) : null}
-
               {selectedSessionType === "mentoring" ? (
                 <div>
                   <div className="flex items-center gap-2">
@@ -1440,8 +1378,7 @@ export default function Bookings() {
                 </div>
               ) : null}
 
-              {((selectedSessionType === "focus" && form.focusTopics.includes("Other"))
-                || (selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other"))) ? (
+              {selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other") ? (
                   <FormField
                     label="Other Detail"
                     htmlFor="session-other-detail"
@@ -1562,7 +1499,6 @@ export default function Bookings() {
     fieldErrors.birthPlace,
     fieldErrors.consentGiven,
     fieldErrors.email,
-    fieldErrors.focusTopics,
     fieldErrors.fullName,
     fieldErrors.healthFocusAreas,
     fieldErrors.mentoringTopics,
@@ -1615,7 +1551,7 @@ export default function Bookings() {
         <FormStepper
           steps={steps}
           state={form}
-          resetKey={location.pathname}
+          resetKey={`${location.pathname}${location.search}`}
           onValidationErrors={setFieldErrors}
           onComplete={handlePurchase}
           completeLabel={isRegeneration ? "Continue to Secure Checkout" : "Complete & Purchase Session"}

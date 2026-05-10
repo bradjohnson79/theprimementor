@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
@@ -13,13 +14,11 @@ import CompactCardGrid from "../components/public/CompactCardGrid";
 import TestimonialsSlider from "../components/public/TestimonialsSlider";
 import SectionContentBlock from "../components/public/SectionContentBlock";
 import SectionMediaPanel from "../components/public/SectionMediaPanel";
-import focusSessionImage from "../assets/focus-session.webp";
 import deepDiveReportImage from "../assets/deep-dive-report.webp";
 import initiateMembershipImage from "../assets/initiate-membership.webp";
 import initiatesReportImage from "../assets/initiates-report.webp";
 import introductoryReportImage from "../assets/introductory-report.webp";
 import mentoringCircleImage from "../assets/mentoring-circle.webp";
-import mentoringSessionImage from "../assets/mentoring-session.webp";
 import seekerMembershipImage from "../assets/seeker-membership.webp";
 import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
@@ -29,15 +28,19 @@ import regenerationMonthlyPackageImage from "../../../../images/regeneration ser
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
 import { trackCtaClick } from "../lib/analytics";
 import {
-  FOCUS_LANDING_PATH,
-  MENTORING_LANDING_PATH,
-  QA_LANDING_PATH,
+  GUIDED_SESSION_OPTIONS,
+  buildGuidedSessionBookingPath,
+  formatGuidedSessionDisplayPrice,
+  type GuidedSessionDurationOption,
+  type GuidedSessionOption,
+} from "../lib/sessionCatalog";
+import {
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { ContactPublicContent } from "./ContactPublic";
 
 interface SessionCardData {
-  sessionKey: "regeneration" | "qa" | "focus" | "mentoring";
+  sessionKey: "regeneration";
   title: string;
   priceLabel: string;
   durationLabel: string;
@@ -48,50 +51,16 @@ interface SessionCardData {
   imageClassName?: string;
 }
 
-const SESSION_CARDS: SessionCardData[] = [
-  {
-    sessionKey: "mentoring",
-    title: "Mentoring Session",
-    priceLabel: "$299.00 CAD",
-    durationLabel: "90 mins",
-    description:
-      "A deep 1:1 session for life direction, blueprint insight, goal alignment, and practical transformation through the Divin8 system.",
-    href: MENTORING_LANDING_PATH,
-    imageSrc: mentoringSessionImage,
-  },
-  {
-    sessionKey: "focus",
-    title: "Focus Session",
-    priceLabel: "$199.00 CAD",
-    durationLabel: "45 mins",
-    description:
-      "A focused Divin8-guided session for one important issue, decision, or life pattern so you can move forward with clarity.",
-    href: FOCUS_LANDING_PATH,
-    imageSrc: focusSessionImage,
-  },
-  {
-    sessionKey: "qa",
-    title: "Q&A Session",
-    priceLabel: "$149.99 CAD",
-    durationLabel: "30 mins",
-    description:
-      "A direct open-format session for personal questions, spiritual perspective, and timely insight when you need fast clarity.",
-    href: QA_LANDING_PATH,
-    imageSrc: "/images/Q&A Session.png",
-    imageFit: "cover",
-    imageClassName: "scale-[1.02] object-[center_44%]",
-  },
-  {
-    sessionKey: "regeneration",
-    title: "Regeneration Monthly Package",
-    priceLabel: "$99.00 CAD",
-    durationLabel: "Offline",
-    description:
-      "A 30-day remote regeneration process with priority email support to help restore alignment, release old patterns, and support renewal.",
-    href: REGENERATION_LANDING_PATH,
-    imageSrc: regenerationMonthlyPackageImage,
-  },
-];
+const REGENERATION_CARD: SessionCardData = {
+  sessionKey: "regeneration",
+  title: "Regeneration Monthly Package",
+  priceLabel: "$99.00 CAD",
+  durationLabel: "Offline",
+  description:
+    "A 30-day remote regeneration process with priority email support to help restore alignment, release old patterns, and support renewal.",
+  href: REGENERATION_LANDING_PATH,
+  imageSrc: regenerationMonthlyPackageImage,
+};
 
 interface MembershipCardData {
   title: string;
@@ -281,6 +250,227 @@ function LandingSection({ id, children }: LandingSectionProps) {
         <InlineBackToTop />
       </div>
     </motion.section>
+  );
+}
+
+function InfoTooltip({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        type="button"
+        aria-label={`About ${label}`}
+        aria-expanded={open}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((current) => !current);
+        }}
+        onBlur={() => setOpen(false)}
+        className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-cyan-200/25 bg-cyan-300/10 text-[0.7rem] font-semibold text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+      >
+        ?
+      </button>
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute left-1/2 top-full z-20 mt-3 w-72 -translate-x-1/2 rounded-2xl border border-white/12 bg-slate-950/95 p-4 text-left text-xs leading-6 text-white/78 shadow-2xl backdrop-blur-xl transition duration-150 ${
+          open ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
+        } sm:group-hover:translate-y-0 sm:group-hover:opacity-100`}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function GuidedSessionTypeRadio({
+  option,
+  active,
+  onSelect,
+}: {
+  option: GuidedSessionOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <label
+      className={`group relative flex cursor-pointer gap-4 rounded-2xl border p-4 transition duration-200 ${
+        active
+          ? "border-cyan-200/45 bg-cyan-300/10 shadow-[0_0_34px_rgba(34,211,238,0.12)]"
+          : "border-white/10 bg-white/[0.04] hover:border-white/22 hover:bg-white/[0.06]"
+      }`}
+    >
+      <input
+        type="radio"
+        name="guided-session-type"
+        checked={active}
+        onChange={onSelect}
+        className="mt-1 h-5 w-5 border-white/30 bg-transparent text-cyan-300 focus:ring-cyan-300/40"
+      />
+      <span className="min-w-0">
+        <span className="flex items-center text-base font-semibold text-white">
+          {option.label}
+          <InfoTooltip label={option.label} text={option.tooltip} />
+        </span>
+        <span className="mt-2 block text-sm leading-6 text-white/60">{option.description}</span>
+      </span>
+    </label>
+  );
+}
+
+function GuidedDurationRadio({
+  duration,
+  active,
+  onSelect,
+}: {
+  duration: GuidedSessionDurationOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <label
+      className={`flex min-h-16 cursor-pointer items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition duration-200 ${
+        active
+          ? "border-amber-200/55 bg-amber-200/10 text-white"
+          : "border-white/10 bg-white/[0.04] text-white/72 hover:border-white/22 hover:text-white"
+      }`}
+    >
+      <span className="flex items-center gap-3">
+        <input
+          type="radio"
+          name="guided-session-duration"
+          checked={active}
+          onChange={onSelect}
+          className="h-5 w-5 border-white/30 bg-transparent text-amber-200 focus:ring-amber-200/40"
+        />
+        <span className="font-medium">{duration.minutes} Minutes</span>
+      </span>
+      <span className="text-sm font-semibold tabular-nums text-amber-100/90">
+        {formatGuidedSessionDisplayPrice(duration)}
+      </span>
+    </label>
+  );
+}
+
+function GuidedSessionSummary({
+  option,
+  duration,
+}: {
+  option: GuidedSessionOption;
+  duration: GuidedSessionDurationOption;
+}) {
+  return (
+    <aside className="rounded-3xl border border-white/12 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition duration-200">
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100/62">Your Session</p>
+      <dl className="mt-5 space-y-4 text-sm">
+        <div>
+          <dt className="text-white/45">Session Type:</dt>
+          <dd className="mt-1 text-base font-semibold text-white">{option.label}</dd>
+        </div>
+        <div>
+          <dt className="text-white/45">Duration:</dt>
+          <dd className="mt-1 text-base font-semibold text-white">{duration.minutes} Minutes</dd>
+        </div>
+        <div>
+          <dt className="text-white/45">Price:</dt>
+          <dd className="mt-1 text-base font-semibold text-amber-100">{formatGuidedSessionDisplayPrice(duration)}</dd>
+        </div>
+      </dl>
+    </aside>
+  );
+}
+
+function GuidedPrivateSessionsCard() {
+  const { isSignedIn } = useAuth();
+  const [selectedIntakeType, setSelectedIntakeType] = useState<GuidedSessionOption["intakeType"]>("qa");
+  const [selectedBookingTypeId, setSelectedBookingTypeId] = useState("qa-session-30");
+  const selectedOption = GUIDED_SESSION_OPTIONS.find((option) => option.intakeType === selectedIntakeType)
+    ?? GUIDED_SESSION_OPTIONS[0];
+  const selectedDuration = selectedOption.durations.find((duration) => duration.bookingTypeId === selectedBookingTypeId)
+    ?? selectedOption.durations[0];
+  const bookingPath = buildGuidedSessionBookingPath({
+    intakeType: selectedOption.intakeType,
+    minutes: selectedDuration.minutes,
+    bookingTypeId: selectedDuration.bookingTypeId,
+  });
+  const proceedHref = isSignedIn ? bookingPath : `/sign-up?redirect_url=${encodeURIComponent(bookingPath)}`;
+  const helperText = useMemo(
+    () => (isSignedIn ? "Next step: Session Intake" : "Next step: Sign-up or Login"),
+    [isSignedIn],
+  );
+
+  function selectOption(option: GuidedSessionOption) {
+    setSelectedIntakeType(option.intakeType);
+    setSelectedBookingTypeId(option.durations[0].bookingTypeId);
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6 lg:p-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.13),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.12),transparent_40%)]" />
+      <div className="relative grid gap-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+        <div className="space-y-7">
+          <div className="space-y-3">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.34em] text-cyan-100/62">Guided Sessions</p>
+            <h3 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">Guided Private Sessions</h3>
+            <p className="max-w-2xl text-sm leading-7 text-white/62 sm:text-base">
+              Choose the session path that best supports your current needs.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-white/80">Step 1 — Choose Session Type</p>
+              <p className="mt-1 text-xs text-white/45">Door one or door two. We will guide the rest.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {GUIDED_SESSION_OPTIONS.map((option) => (
+                <GuidedSessionTypeRadio
+                  key={option.intakeType}
+                  option={option}
+                  active={selectedOption.intakeType === option.intakeType}
+                  onSelect={() => selectOption(option)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-white/80">Step 2 — Choose Duration</p>
+              <p className="mt-1 text-xs text-white/45">Pricing updates with the selected session length.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {selectedOption.durations.map((duration) => (
+                <GuidedDurationRadio
+                  key={duration.bookingTypeId}
+                  duration={duration}
+                  active={selectedDuration.bookingTypeId === duration.bookingTypeId}
+                  onSelect={() => setSelectedBookingTypeId(duration.bookingTypeId)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <Link
+              to={proceedHref}
+              onClick={() => trackCtaClick("proceed_guided_session", "home_sessions", {
+                session: selectedOption.label,
+                bookingTypeId: selectedDuration.bookingTypeId,
+                minutes: selectedDuration.minutes,
+                href: proceedHref,
+              })}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_45px_rgba(34,211,238,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-cyan-200 sm:w-auto sm:min-w-48"
+            >
+              Proceed
+            </Link>
+            <p className="text-sm text-white/45">{helperText}</p>
+          </div>
+        </div>
+
+        <GuidedSessionSummary option={selectedOption} duration={selectedDuration} />
+      </div>
+    </div>
   );
 }
 
@@ -543,10 +733,9 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:gap-6">
-              {SESSION_CARDS.map((session) => (
-                <SessionCard key={session.sessionKey} {...session} />
-              ))}
+            <div className="space-y-6">
+              <GuidedPrivateSessionsCard />
+              <SessionCard {...REGENERATION_CARD} />
             </div>
             <InlineBackToTop />
           </div>

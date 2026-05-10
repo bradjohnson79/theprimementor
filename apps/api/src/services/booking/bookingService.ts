@@ -177,7 +177,7 @@ interface BookingIntakeSnapshot {
   price_snapshot_currency: string;
   sessionTier: "entry" | null;
   upgradeEligible: boolean;
-  upgradeTarget: Array<"focus" | "mentoring">;
+  upgradeTarget: Array<"mentoring">;
   timezone: string;
   availability: BookingAvailability | null;
   fullName: string | null;
@@ -196,32 +196,23 @@ interface BookingIntakeSnapshot {
   notes: string | null;
 }
 
-const QA_SESSION_DURATION_MINUTES = 30;
-
 function getSessionMetadataTags(sessionType: BookingSessionType) {
   if (sessionType === "qa_session") {
     return {
       sessionTier: "entry" as const,
       upgradeEligible: true,
-      upgradeTarget: ["focus", "mentoring"] as Array<"focus" | "mentoring">,
+      upgradeTarget: ["mentoring"] as Array<"mentoring">,
     };
   }
 
   return {
     sessionTier: null,
     upgradeEligible: false,
-    upgradeTarget: [] as Array<"focus" | "mentoring">,
+    upgradeTarget: [] as Array<"mentoring">,
   };
 }
 
-function getEnforcedSessionDurationMinutes(sessionType: BookingSessionType, durationMinutes: number) {
-  if (sessionType === "qa_session") {
-    if (durationMinutes !== QA_SESSION_DURATION_MINUTES) {
-      throw createHttpError(500, "Q&A Session must remain configured as a fixed 30-minute booking.");
-    }
-    return QA_SESSION_DURATION_MINUTES;
-  }
-
+function getEnforcedSessionDurationMinutes(_sessionType: BookingSessionType, durationMinutes: number) {
   return durationMinutes;
 }
 
@@ -1150,20 +1141,24 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     throw createHttpError(500, "Booking created but could not be loaded");
   }
 
-  void sendBookingCreatedNotification(db, {
-    bookingId: summary.id,
-    userId: summary.userId,
-    bookingType: summary.bookingTypeName,
-    timezone: summary.timezone,
-    fullName: summary.fullName,
-    email: summary.email ?? summary.userEmail ?? null,
-    availability: parseStoredAvailability(summary.availability),
-  }).catch((error) => {
-    logger.error("booking_created_notification_failed", {
+  if (summary.sessionType !== "qa_session" && summary.sessionType !== "mentoring") {
+    void sendBookingCreatedNotification(db, {
       bookingId: summary.id,
-      error: error instanceof Error ? error.message : error,
+      userId: summary.userId,
+      bookingType: summary.bookingTypeName,
+      timezone: summary.timezone,
+      fullName: summary.fullName,
+      email: summary.email ?? summary.userEmail ?? null,
+      availability: parseStoredAvailability(summary.availability),
+      sessionType: summary.sessionType,
+      durationMinutes: summary.durationMinutes,
+    }).catch((error) => {
+      logger.error("booking_created_notification_failed", {
+        bookingId: summary.id,
+        error: error instanceof Error ? error.message : error,
+      });
     });
-  });
+  }
 
   void sendAdminNewBookingNotification(db, {
     bookingId: summary.id,

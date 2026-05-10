@@ -20,7 +20,7 @@ export const mentoringSessionLandingContent: SessionLandingContent = {
       eyebrow: "Why This Is Different",
       title: "This is the most complete experience in the system.",
       description:
-        "It is not a longer Focus Session. It is where your full blueprint, your patterns, and your intended direction are brought together so change can become lived and sustainable.",
+        "It is a deeper guided container where your full blueprint, your patterns, and your intended direction are brought together so change can become lived and sustainable.",
     },
   },
   sections: [
