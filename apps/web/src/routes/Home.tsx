@@ -21,7 +21,7 @@ import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
 import aetherxImage from "../assets/aetherx-3x3.png";
-import regenerationMonthlyPackageImage from "../../../../images/regeneration service.jpg";
+import regenerationMonthlyPackageImage from "../../../../images/regeneration-monthly-package.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
 import { trackCtaClick } from "../lib/analytics";
 import {
@@ -54,9 +54,10 @@ const REGENERATION_CARD: SessionCardData = {
   priceLabel: "$99.00 CAD",
   durationLabel: "Offline",
   description:
-    "A 30-day remote regeneration process with priority email support to help restore alignment, release old patterns, and support renewal.",
+    "The Regeneration Monthly Package is a remote energy facilitation service designed to support your system over a full 30-day cycle.\n\n$99 / month recurring. Cancel anytime. This is not a one-time session. It is continuous monthly work focused on deeper integration, stabilization, and measurable internal change over time.\n\nIncludes advanced support options such as Timeline Rewriting and Manifestation Holding for deeper transformation and directed outcomes.",
   href: REGENERATION_LANDING_PATH,
   imageSrc: regenerationMonthlyPackageImage,
+  imageFit: "contain",
 };
 
 interface ReportCardData {
@@ -459,18 +460,18 @@ function SessionCard({
   const primaryCtaLabel = sessionKey === "regeneration" ? "Begin Cycle" : "Book Session";
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-      <div className="h-[clamp(12rem,28vw,20rem)] w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+    <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid sm:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] sm:items-center sm:gap-5 sm:p-5 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
+      <div className="aspect-square w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 sm:max-w-[20rem]">
         <img
           src={imageSrc}
           alt={title}
-          className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"} ${imageClassName ?? ""}`}
+          className={`h-full w-full ${imageFit === "contain" ? "object-contain p-1" : "object-cover"} ${imageClassName ?? ""}`}
           loading="lazy"
           decoding="async"
         />
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 sm:mt-0">
         <div className="space-y-1.5">
           <h3 className="line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug tracking-tight text-white">
             {title}
@@ -480,7 +481,7 @@ function SessionCard({
           </p>
         </div>
 
-        <p className="flex-1 text-sm leading-relaxed text-white/60">{description}</p>
+        <p className="flex-1 whitespace-pre-line text-sm leading-relaxed text-white/60">{description}</p>
 
         <div className="mt-auto flex flex-col gap-2 sm:flex-row">
           <Link
