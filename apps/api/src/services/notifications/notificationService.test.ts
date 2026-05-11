@@ -16,7 +16,7 @@ import {
   renderMentoringCircleConfirmedTemplate,
   renderReportGeneratedTemplate,
 } from "./templates/userTemplates.js";
-import { renderAdminNewBookingTemplate } from "./templates/adminTemplates.js";
+import { renderAdminNewBookingTemplate, renderAdminPaymentReceivedTemplate } from "./templates/adminTemplates.js";
 
 test("notification events map to the correct recipient types", () => {
   assert.equal(getNotificationRecipientType("payment.succeeded"), "user");
@@ -173,6 +173,7 @@ test("admin booking template falls back safely when optional fields are missing"
     bookingType: "",
   });
 
+  assert.match(rendered.subject, /NICE! YOU JUST GOT AN ORDER:/i);
   assert.match(rendered.subject, /booking/i);
   assert.match(rendered.html, /The Prime Mentor/i);
   assert.match(rendered.html, /Customer[\s\S]*Unavailable/i);
@@ -195,11 +196,26 @@ test("admin booking template renders submitted availability and customer email",
     },
   });
 
+  assert.match(rendered.subject, /NICE! YOU JUST GOT AN ORDER:/i);
+  assert.match(rendered.subject, /Focus Session/i);
   assert.match(rendered.html, /Customer email[\s\S]*craig@example.com/i);
   assert.match(rendered.html, /Submitted availability/i);
   assert.match(rendered.html, /Monday[\s\S]*10am, 11am/i);
   assert.match(rendered.html, /Wednesday[\s\S]*3pm/i);
   assert.doesNotMatch(rendered.html, /Start[\s\S]*TBD/i);
+});
+
+test("admin payment received template uses celebratory order subject", () => {
+  const rendered = renderAdminPaymentReceivedTemplate({
+    entityId: "admin_payment_test",
+    product: "Q&A Session",
+    amount: 99,
+    currency: "cad",
+    userEmail: "buyer@example.com",
+    paymentId: "pi_test",
+  });
+
+  assert.equal(rendered.subject, "NICE! YOU JUST GOT AN ORDER: Q&A Session");
 });
 
 test("customer booking template includes customer details", () => {

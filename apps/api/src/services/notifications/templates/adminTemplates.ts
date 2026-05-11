@@ -21,7 +21,7 @@ export function renderAdminPaymentReceivedTemplate(
 ): RenderedTemplate {
   const product = text(payload.product, "Unknown product");
   return {
-    subject: `Order Received: ${product}`,
+    subject: `NICE! YOU JUST GOT AN ORDER: ${product}`,
     templateVersion: "admin-payment-received-v2",
     html: renderPrimeMentorEmail({
       eyebrow: "Order Received",
@@ -59,7 +59,7 @@ export function renderAdminNewBookingTemplate(
     (slots) => Array.isArray(slots) && slots.length > 0,
   );
   return {
-    subject: `Order Received: ${bookingLabel}`,
+    subject: `NICE! YOU JUST GOT AN ORDER: ${bookingLabel}`,
     templateVersion: "admin-new-booking-v3",
     html: renderPrimeMentorEmail({
       eyebrow: "Order Received",
