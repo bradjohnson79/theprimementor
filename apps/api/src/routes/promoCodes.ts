@@ -7,6 +7,7 @@ import {
   applyPromoFixSync,
   createPromoCode,
   listPromoCodes,
+  testPromoCodeAgainstPrice,
   updatePromoCode,
   validatePromoCodeForCheckout,
   verifyPromoCodeWithStripe,
@@ -18,7 +19,9 @@ interface PromoParams {
 
 interface CreatePromoBody {
   code?: string;
+  discountType?: "percentage" | "fixed_amount";
   discountValue?: number;
+  discountCurrency?: string | null;
   active?: boolean;
   expiresAt?: string | null;
   usageLimit?: number | null;
@@ -52,6 +55,11 @@ interface FixSyncBody {
   direction?: "db_to_stripe" | "stripe_to_db";
 }
 
+interface TestCheckoutBody {
+  code?: string;
+  priceId?: string;
+}
+
 export async function promoCodesRoutes(app: FastifyInstance) {
   app.get("/admin/promo-codes", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
@@ -69,7 +77,9 @@ export async function promoCodesRoutes(app: FastifyInstance) {
     }
     const created = await createPromoCode(db, {
       code: body.code,
+      discountType: body.discountType ?? "percentage",
       discountValue: body.discountValue,
+      discountCurrency: body.discountCurrency ?? null,
       active: body.active ?? true,
       expiresAt: body.expiresAt ?? null,
       usageLimit: body.usageLimit ?? null,
@@ -105,6 +115,20 @@ export async function promoCodesRoutes(app: FastifyInstance) {
       return sendApiError(reply, 400, "direction must be db_to_stripe or stripe_to_db");
     }
     const result = await applyPromoFixSync(db, request.params.promoCodeId, request.body.direction, user.id);
+    return ok({ data: result });
+  });
+
+  app.post<{ Body: TestCheckoutBody }>("/admin/promo-codes/test-checkout", { preHandler: requireAuth }, async (request, reply) => {
+    const db = requireDatabase(app.db);
+    requireAdmin(request);
+    const body = request.body ?? {};
+    if (!body.code?.trim() || !body.priceId?.trim()) {
+      return sendApiError(reply, 400, "code and priceId are required");
+    }
+    const result = await testPromoCodeAgainstPrice(db, {
+      code: body.code,
+      priceId: body.priceId,
+    });
     return ok({ data: result });
   });
 

@@ -169,6 +169,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "PATCH", url: "/api/admin/promo-codes/:promoCodeId", auth: "admin", validation: "service", handlerFile: "routes/promoCodes.ts", serviceRefs: ["services/promoCodeService.ts"] },
   { method: "POST", url: "/api/admin/promo-codes/:promoCodeId/verify", auth: "admin", validation: "service", handlerFile: "routes/promoCodes.ts", serviceRefs: ["services/promoCodeService.ts"] },
   { method: "POST", url: "/api/admin/promo-codes/:promoCodeId/fix-sync", auth: "admin", validation: "service", handlerFile: "routes/promoCodes.ts", serviceRefs: ["services/promoCodeService.ts"] },
+  { method: "POST", url: "/api/admin/promo-codes/test-checkout", auth: "admin", validation: "service", handlerFile: "routes/promoCodes.ts", serviceRefs: ["services/promoCodeService.ts"] },
   { method: "POST", url: "/api/promo-codes/validate", auth: "bearer", validation: "service", handlerFile: "routes/promoCodes.ts", serviceRefs: ["services/promoCodeService.ts"] },
   { method: "POST", url: "/api/create-checkout-session", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/paymentService.ts"] },
   { method: "POST", url: "/api/checkout-session/sync", auth: "bearer", validation: "service", handlerFile: "routes/stripe.ts", serviceRefs: ["services/payments/stripeWebhookService.ts"] },

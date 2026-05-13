@@ -12,12 +12,16 @@ import { api } from "../lib/api";
 
 type PromoSyncStatus = "synced" | "needs_sync" | "broken";
 type PromoLifecycleStatus = "active" | "inactive" | "expired" | "archived";
+type PromoDiscountType = "percentage" | "fixed_amount";
 
 interface PromoCodeSummary {
   id: string;
   code: string;
-  discountType: "percentage";
+  discountType: PromoDiscountType;
   discountValue: number;
+  percentOff: number | null;
+  amountOffCents: number | null;
+  currency: string | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -51,7 +55,9 @@ interface PromoCodeSummary {
 
 interface PromoFormState {
   code: string;
+  discountType: PromoDiscountType;
   discountValue: string;
+  discountCurrency: string;
   active: boolean;
   permanent: boolean;
   expiresAt: string;
@@ -63,10 +69,22 @@ interface PromoFormState {
   campaign: string;
 }
 
+interface PromoTestResult {
+  pass: boolean;
+  promoCode: string;
+  priceAmount: number | null;
+  discountAmount: number | null;
+  finalAmount: number | null;
+  currency: string | null;
+  message: string;
+}
+
 function createInitialFormState(): PromoFormState {
   return {
     code: "",
+    discountType: "percentage",
     discountValue: "",
+    discountCurrency: "cad",
     active: true,
     permanent: true,
     expiresAt: "",
@@ -104,7 +122,11 @@ function toDatetimeLocal(value: string | null) {
 function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
   return {
     code: promo.code,
-    discountValue: String(promo.discountValue),
+    discountType: promo.discountType,
+    discountValue: promo.discountType === "fixed_amount"
+      ? String((promo.amountOffCents ?? promo.discountValue) / 100)
+      : String(promo.percentOff ?? promo.discountValue),
+    discountCurrency: promo.currency ?? "cad",
     active: promo.active,
     permanent: !promo.expiresAt,
     expiresAt: toDatetimeLocal(promo.expiresAt),
@@ -115,6 +137,19 @@ function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
     firstTimeOnly: promo.firstTimeOnly,
     campaign: promo.campaign ?? "",
   };
+}
+
+function amountToCents(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return NaN;
+  return Math.round(parsed * 100);
+}
+
+function formatPromoDiscount(promo: PromoCodeSummary) {
+  if (promo.discountType === "fixed_amount") {
+    return `${formatMoney(promo.amountOffCents ?? promo.discountValue, promo.currency ?? "CAD")} OFF`;
+  }
+  return `${promo.percentOff ?? promo.discountValue}% OFF`;
 }
 
 function syncBadgeStyles(status: PromoSyncStatus) {
@@ -149,6 +184,10 @@ export default function PromoCodes() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
   const [form, setForm] = useState<PromoFormState>(createInitialFormState());
+  const [testCode, setTestCode] = useState("");
+  const [testPriceId, setTestPriceId] = useState("");
+  const [testingPromo, setTestingPromo] = useState(false);
+  const [testResult, setTestResult] = useState<PromoTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -207,9 +246,14 @@ export default function PromoCodes() {
     setMessage(null);
     try {
       const token = await getToken();
+      const discountValue = form.discountType === "fixed_amount"
+        ? amountToCents(form.discountValue)
+        : Number(form.discountValue);
       const payload = {
         code: form.code,
-        discountValue: Number(form.discountValue),
+        discountType: form.discountType,
+        discountValue,
+        discountCurrency: form.discountType === "fixed_amount" ? form.discountCurrency : null,
         active: form.active,
         expiresAt: form.permanent ? null : (form.expiresAt ? new Date(form.expiresAt).toISOString() : null),
         usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
@@ -234,6 +278,25 @@ export default function PromoCodes() {
       setError(err instanceof Error ? err.message : "Failed to save promo code.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleTestPromo() {
+    setTestingPromo(true);
+    setError(null);
+    setMessage(null);
+    setTestResult(null);
+    try {
+      const token = await getToken();
+      const response = (await api.post("/admin/promo-codes/test-checkout", {
+        code: testCode,
+        priceId: testPriceId,
+      }, token)) as { data: PromoTestResult };
+      setTestResult(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Promo test failed.");
+    } finally {
+      setTestingPromo(false);
     }
   }
 
@@ -354,16 +417,31 @@ export default function PromoCodes() {
             />
           </label>
           <label className="text-sm text-white/70">
-            <span className="mb-2 block">Discount Percentage</span>
+            <span className="mb-2 block">Discount Type</span>
+            <select
+              value={form.discountType}
+              onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value as PromoDiscountType, discountValue: "" }))}
+              disabled={Boolean(editingPromo)}
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
+            >
+              <option value="percentage" className="bg-slate-950">Percentage (%)</option>
+              <option value="fixed_amount" className="bg-slate-950">Fixed Amount ($)</option>
+            </select>
+          </label>
+          <label className="text-sm text-white/70">
+            <span className="mb-2 block">
+              {form.discountType === "fixed_amount" ? "Amount Discount (CAD)" : "Discount Percentage"}
+            </span>
             <input
               type="number"
               min={1}
-              max={100}
+              max={form.discountType === "percentage" ? 100 : undefined}
+              step={form.discountType === "fixed_amount" ? "0.01" : "1"}
               value={form.discountValue}
               onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))}
               disabled={Boolean(editingPromo)}
               className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
-              placeholder="20"
+              placeholder={form.discountType === "fixed_amount" ? "25.00" : "20"}
             />
           </label>
           <label className="text-sm text-white/70">
@@ -498,6 +576,73 @@ export default function PromoCodes() {
       </Card>
 
       <Card>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Test Promo Code</h3>
+          <p className="mt-1 text-sm text-white/55">Validate Stripe recognition and preview exact discount math against a Stripe Price ID without charging a card.</p>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="text-sm text-white/70">
+            <span className="mb-2 block">Promo Code</span>
+            <input
+              value={testCode}
+              onChange={(event) => setTestCode(event.target.value.toUpperCase())}
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+              placeholder="TEST25"
+            />
+          </label>
+          <label className="text-sm text-white/70">
+            <span className="mb-2 block">Stripe Price ID</span>
+            <input
+              value={testPriceId}
+              onChange={(event) => setTestPriceId(event.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+              placeholder="price_..."
+            />
+          </label>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleTestPromo()}
+            disabled={testingPromo || !testCode.trim() || !testPriceId.trim()}
+            className="rounded-xl bg-accent-teal px-4 py-3 text-sm font-semibold text-navy-deep transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {testingPromo ? "Testing..." : "Run Promo Test"}
+          </button>
+          {testResult ? (
+            <span className={`rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] ${
+              testResult.pass ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-rose-400/25 bg-rose-400/10 text-rose-100"
+            }`}>
+              {testResult.pass ? "PASS" : "FAIL"}
+            </span>
+          ) : null}
+        </div>
+        {testResult ? (
+          <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+            <p className={testResult.pass ? "font-medium text-emerald-100" : "font-medium text-rose-100"}>{testResult.message}</p>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <dt className="text-white/45">Price</dt>
+                <dd>{testResult.priceAmount == null ? "n/a" : formatMoney(testResult.priceAmount, testResult.currency ?? "CAD")}</dd>
+              </div>
+              <div>
+                <dt className="text-white/45">Discount</dt>
+                <dd>{testResult.discountAmount == null ? "n/a" : formatMoney(testResult.discountAmount, testResult.currency ?? "CAD")}</dd>
+              </div>
+              <div>
+                <dt className="text-white/45">Final</dt>
+                <dd>{testResult.finalAmount == null ? "n/a" : formatMoney(testResult.finalAmount, testResult.currency ?? "CAD")}</dd>
+              </div>
+              <div>
+                <dt className="text-white/45">Currency</dt>
+                <dd>{testResult.currency?.toUpperCase() ?? "n/a"}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card>
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-white">Promo Inventory</h3>
@@ -519,6 +664,9 @@ export default function PromoCodes() {
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-semibold text-cyan-100">
+                          {promo.discountType === "fixed_amount" ? "[$]" : "[%]"}
+                        </span>
                         <h4 className="text-lg font-semibold">{promo.code}</h4>
                         <span className={`rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] ${syncBadgeStyles(promo.syncStatus)}`}>
                           {promo.syncStatus.replace("_", " ")}
@@ -528,7 +676,7 @@ export default function PromoCodes() {
                         </span>
                       </div>
                       <p className="text-sm text-white/75">
-                        {promo.discountValue}% off · {promo.expiresAt ? formatDateTime(promo.expiresAt) : "Permanent"} · Used {promo.timesUsed}
+                        {formatPromoDiscount(promo)} · {promo.expiresAt ? formatDateTime(promo.expiresAt) : "Permanent"} · Used {promo.timesUsed}
                         {promo.usageLimit != null ? ` / ${promo.usageLimit}` : ""}
                       </p>
                       <p className="text-sm text-white/55">
@@ -580,7 +728,7 @@ export default function PromoCodes() {
                         disabled={rowBusy}
                         className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:border-white/30 hover:text-white disabled:opacity-50"
                       >
-                        {rowBusy ? "Working..." : "Verify with Stripe"}
+                        {rowBusy ? "Working..." : "Check Stripe Sync"}
                       </button>
                       <button
                         type="button"

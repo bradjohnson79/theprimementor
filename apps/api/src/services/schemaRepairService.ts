@@ -488,9 +488,10 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "seo_reports_audit_created_idx" ON "seo_reports" USING btree ("audit_id", "created_at");`,
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'promo_discount_type') THEN
-      CREATE TYPE "public"."promo_discount_type" AS ENUM('percentage');
+      CREATE TYPE "public"."promo_discount_type" AS ENUM('percentage', 'fixed_amount');
     END IF;
   END $$;`,
+  `ALTER TYPE "public"."promo_discount_type" ADD VALUE IF NOT EXISTS 'fixed_amount';`,
   `DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'promo_sync_status') THEN
       CREATE TYPE "public"."promo_sync_status" AS ENUM('synced', 'needs_sync', 'broken');
@@ -506,6 +507,7 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
     "code" text NOT NULL,
     "discount_type" "promo_discount_type" DEFAULT 'percentage' NOT NULL,
     "discount_value" integer NOT NULL,
+    "discount_currency" text,
     "active" boolean DEFAULT true NOT NULL,
     "expires_at" timestamp with time zone,
     "usage_limit" integer,
@@ -532,6 +534,7 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "code" text;`,
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "discount_type" "promo_discount_type" DEFAULT 'percentage' NOT NULL;`,
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "discount_value" integer;`,
+  `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "discount_currency" text;`,
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;`,
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "expires_at" timestamp with time zone;`,
   `ALTER TABLE "promo_codes" ADD COLUMN IF NOT EXISTS "usage_limit" integer;`,

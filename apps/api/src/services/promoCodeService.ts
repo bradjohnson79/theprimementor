@@ -27,9 +27,17 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
 import { getActiveMentoringCirclePurchaseEvent, getMentoringCircleEventOrThrow } from "./mentoringCircleService.js";
 
+// Promo pipeline audit:
+// Admin CRUD creates local promo rows and Stripe coupon/promotion resources here.
+// Checkout validation returns local estimates, while paymentService still passes
+// the Stripe promotion code to Checkout so Stripe executes the actual discount.
+// Webhook redemption tracking remains recordPromoUsage below.
 type CheckoutType = "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type SyncDirection = "db_to_stripe" | "stripe_to_db";
 type PromoSyncStatus = "synced" | "needs_sync" | "broken";
+type PromoDiscountType = "percentage" | "fixed_amount";
+const DEFAULT_PROMO_CURRENCY = "cad";
+const MAX_FIXED_PROMO_AMOUNT_CENTS = 1_000_000;
 
 interface PromoContextInput {
   userId: string;
@@ -52,7 +60,9 @@ interface PromoValidationInput extends PromoContextInput {
 
 interface PromoMutationInput {
   code: string;
+  discountType?: PromoDiscountType;
   discountValue: number;
+  discountCurrency?: string | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -85,6 +95,8 @@ interface StripeValidationResult {
   couponValid: boolean;
   promotionCodeValid: boolean;
   discountMatch: boolean;
+  discountTypeMatch: boolean;
+  currencyMatch: boolean;
   activeMatch: boolean;
   expiryMatch: boolean;
   usageMatch: boolean;
@@ -105,8 +117,11 @@ type PromoRow = typeof promoCodes.$inferSelect;
 export interface PromoCodeListItem {
   id: string;
   code: string;
-  discountType: "percentage";
+  discountType: PromoDiscountType;
   discountValue: number;
+  percentOff: number | null;
+  amountOffCents: number | null;
+  currency: string | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -147,6 +162,16 @@ export interface PromoCodeValidationResponse {
   estimatedDiscountCents: number | null;
   finalEstimateCents: number | null;
   currency: string | null;
+}
+
+export interface PromoCodeTestCheckoutResponse {
+  pass: boolean;
+  promoCode: string;
+  priceAmount: number | null;
+  discountAmount: number | null;
+  finalAmount: number | null;
+  currency: string | null;
+  message: string;
 }
 
 let stripeInstance: Stripe | null = null;
@@ -191,6 +216,21 @@ function normalizeExpiresAt(value: string | null | undefined) {
 function normalizeDiscountValue(value: number) {
   if (!Number.isInteger(value) || value <= 0 || value > 100) {
     throw createHttpError(400, "discountValue must be an integer between 1 and 100");
+  }
+  return value;
+}
+
+function normalizeDiscountCurrency(value: string | null | undefined) {
+  const normalized = (value ?? DEFAULT_PROMO_CURRENCY).trim().toLowerCase();
+  if (!/^[a-z]{3}$/.test(normalized)) {
+    throw createHttpError(400, "discountCurrency must be a three-letter currency code");
+  }
+  return normalized;
+}
+
+function normalizeFixedAmountCents(value: number) {
+  if (!Number.isInteger(value) || value <= 0 || value > MAX_FIXED_PROMO_AMOUNT_CENTS) {
+    throw createHttpError(400, "discountValue must be a positive integer amount in cents");
   }
   return value;
 }
@@ -253,6 +293,8 @@ export function buildStripePromotionCodeCreateParams(input: {
     restrictions: input.firstTimeOnly ? { first_time_transaction: true } : undefined,
     metadata: {
       promoCode: input.code,
+      promo_code: input.code,
+      platform: "prime_mentor",
       campaign: input.campaign ?? "",
     },
   };
@@ -260,6 +302,17 @@ export function buildStripePromotionCodeCreateParams(input: {
 
 export function computeEstimatedDiscountCents(amountCents: number, percentage: number) {
   return Math.round(amountCents * (percentage / 100));
+}
+
+export function computePromoDiscountCents(amountCents: number, discountType: PromoDiscountType, discountValue: number) {
+  if (discountType === "fixed_amount") {
+    return Math.min(amountCents, discountValue);
+  }
+  return computeEstimatedDiscountCents(amountCents, discountValue);
+}
+
+export function promoCurrencyMatchesCheckout(promoCurrency: string | null, checkoutCurrency: string) {
+  return !promoCurrency || promoCurrency.toLowerCase() === checkoutCurrency.toLowerCase();
 }
 
 function centsToAmount(value: number | null) {
@@ -560,6 +613,44 @@ function compareUsageLimit(dbValue: number | null, stripeValue: number | null | 
   return (dbValue ?? null) === (stripeValue ?? null);
 }
 
+function getCouponDiscountType(coupon: Stripe.Coupon): PromoDiscountType | null {
+  if (typeof coupon.percent_off === "number") return "percentage";
+  if (typeof coupon.amount_off === "number") return "fixed_amount";
+  return null;
+}
+
+function getPromoCurrency(promo: PromoRow) {
+  return promo.discount_type === "fixed_amount"
+    ? (promo.discount_currency ?? DEFAULT_PROMO_CURRENCY).toLowerCase()
+    : promo.discount_currency?.toLowerCase() ?? null;
+}
+
+function isStripeCoupon(value: Stripe.Coupon | Stripe.DeletedCoupon | null): value is Stripe.Coupon {
+  return Boolean(value && !("deleted" in value && value.deleted));
+}
+
+function getPromotionCouponId(promotionCode: Stripe.PromotionCode) {
+  const raw = promotionCode as Stripe.PromotionCode & { coupon?: string | Stripe.Coupon };
+  return typeof raw.coupon === "string" ? raw.coupon : raw.coupon?.id;
+}
+
+function couponMatchesPromoDiscount(coupon: Stripe.Coupon, promo: PromoRow) {
+  const couponType = getCouponDiscountType(coupon);
+  const discountTypeMatch = couponType === promo.discount_type;
+  const currencyMatch = promo.discount_type === "fixed_amount"
+    ? coupon.currency?.toLowerCase() === getPromoCurrency(promo)
+    : true;
+  const discountMatch = promo.discount_type === "fixed_amount"
+    ? coupon.amount_off === promo.discount_value && currencyMatch
+    : coupon.percent_off === promo.discount_value;
+
+  return {
+    discountMatch: Boolean(discountMatch),
+    discountTypeMatch,
+    currencyMatch,
+  };
+}
+
 export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: string) {
   const promo = await getPromoById(db, promoCodeId);
   const snapshot = await fetchStripePromotionSnapshot(promo);
@@ -570,7 +661,10 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
   const existsInStripe = Boolean(coupon && !couponDeleted && promotionCode);
   const couponValid = Boolean(coupon && !couponDeleted);
   const promotionCodeValid = Boolean(promotionCode);
-  const discountMatch = Boolean(coupon && !couponDeleted && coupon.percent_off === promo.discount_value);
+  const discountValidation = coupon && !couponDeleted
+    ? couponMatchesPromoDiscount(coupon, promo)
+    : { discountMatch: false, discountTypeMatch: false, currencyMatch: false };
+  const { discountMatch, discountTypeMatch, currencyMatch } = discountValidation;
   const activeMatch = Boolean(promotionCode && promotionCode.active === promo.active);
   const expiryMatch = Boolean(promotionCode && compareExpiry(promo.expires_at, promotionCode.expires_at));
   const usageMatch = Boolean(promotionCode && compareUsageLimit(promo.usage_limit, promotionCode.max_redemptions));
@@ -579,7 +673,9 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
   if (!existsInStripe) issues.push("Promo code resources could not be found in Stripe.");
   if (!couponValid) issues.push("Stripe coupon is missing or invalid.");
   if (!promotionCodeValid) issues.push("Stripe promotion code is missing or invalid.");
-  if (couponValid && !discountMatch) issues.push("Discount percentage does not match Stripe.");
+  if (couponValid && !discountTypeMatch) issues.push("Discount type does not match Stripe.");
+  if (couponValid && !currencyMatch) issues.push("Discount currency does not match Stripe.");
+  if (couponValid && !discountMatch) issues.push("Discount value does not match Stripe.");
   if (promotionCodeValid && !activeMatch) issues.push("Active status does not match Stripe.");
   if (promotionCodeValid && !expiryMatch) issues.push("Expiration date does not match Stripe.");
   if (promotionCodeValid && !usageMatch) issues.push("Usage limit does not match Stripe.");
@@ -589,6 +685,8 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
     couponValid,
     promotionCodeValid,
     discountMatch,
+    discountTypeMatch,
+    currencyMatch,
     activeMatch,
     expiryMatch,
     usageMatch,
@@ -614,7 +712,9 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
 
 async function createStripeResources(input: {
   code: string;
+  discountType: PromoDiscountType;
   discountValue: number;
+  discountCurrency: string | null;
   active: boolean;
   expiresAt: Date | null;
   usageLimit: number | null;
@@ -623,13 +723,23 @@ async function createStripeResources(input: {
   campaign: string | null;
 }) {
   const stripe = getStripe();
+  const metadata = {
+    promoCode: input.code,
+    promo_code: input.code,
+    platform: "prime_mentor",
+    campaign: input.campaign ?? "",
+  };
   const coupon = await stripe.coupons.create({
+    ...(input.discountType === "fixed_amount"
+      ? {
+          amount_off: input.discountValue,
+          currency: input.discountCurrency ?? DEFAULT_PROMO_CURRENCY,
+        }
+      : {
+          percent_off: input.discountValue,
+        }),
     duration: input.appliesToBilling === "recurring" ? "forever" : "once",
-    percent_off: input.discountValue,
-    metadata: {
-      promoCode: input.code,
-      campaign: input.campaign ?? "",
-    },
+    metadata,
   });
 
   const promotionCode = await stripe.promotionCodes.create(buildStripePromotionCodeCreateParams({
@@ -646,6 +756,106 @@ async function createStripeResources(input: {
     stripeCouponId: coupon.id,
     stripePromotionCodeId: promotionCode.id,
   };
+}
+
+async function syncPromotionMetadataAndActive(
+  promotionCode: Stripe.PromotionCode,
+  input: {
+    active: boolean;
+    code: string;
+    campaign: string | null;
+  },
+) {
+  if (promotionCode.active === input.active
+    && promotionCode.metadata?.platform === "prime_mentor"
+    && promotionCode.metadata?.promo_code === input.code) {
+    return;
+  }
+  await getStripe().promotionCodes.update(promotionCode.id, {
+    active: input.active,
+    metadata: {
+      ...promotionCode.metadata,
+      promoCode: input.code,
+      promo_code: input.code,
+      platform: "prime_mentor",
+      campaign: input.campaign ?? "",
+    },
+  });
+}
+
+async function findPromotionMatchingPromo(promo: PromoRow): Promise<{ coupon: Stripe.Coupon; promotionCode: Stripe.PromotionCode } | null> {
+  const stripe = getStripe();
+  const normalizedCode = normalizePromoCode(promo.code);
+  const candidates: Stripe.PromotionCode[] = [];
+
+  const byCode = await stripe.promotionCodes.list({ code: normalizedCode, limit: 100 });
+  candidates.push(...byCode.data);
+
+  const searchable = await stripe.promotionCodes.list({ limit: 100 });
+  const byMetadata = searchable.data.filter((promotionCode) =>
+    promotionCode.metadata?.platform === "prime_mentor"
+    && normalizePromoCode(promotionCode.metadata?.promo_code ?? "") === normalizedCode);
+  for (const candidate of byMetadata) {
+    if (!candidates.some((entry) => entry.id === candidate.id)) {
+      candidates.push(candidate);
+    }
+  }
+
+  for (const promotionCode of candidates) {
+    const couponId = getPromotionCouponId(promotionCode);
+    if (!couponId) continue;
+    const coupon = await stripe.coupons.retrieve(couponId);
+    if (!isStripeCoupon(coupon)) continue;
+    if (couponMatchesPromoDiscount(coupon, promo).discountMatch) {
+      return { coupon, promotionCode };
+    }
+  }
+
+  return null;
+}
+
+async function repairStripeResourcesFromDb(promo: PromoRow) {
+  const snapshot = await fetchStripePromotionSnapshot(promo);
+  if (isStripeCoupon(snapshot.coupon) && snapshot.promotionCode && couponMatchesPromoDiscount(snapshot.coupon, promo).discountMatch) {
+    await syncPromotionMetadataAndActive(snapshot.promotionCode, {
+      active: promo.active,
+      code: promo.code,
+      campaign: promo.campaign,
+    });
+    return {
+      stripeCouponId: snapshot.coupon.id,
+      stripePromotionCodeId: snapshot.promotionCode.id,
+      repaired: true,
+    };
+  }
+
+  const match = await findPromotionMatchingPromo(promo);
+  if (match) {
+    await syncPromotionMetadataAndActive(match.promotionCode, {
+      active: promo.active,
+      code: promo.code,
+      campaign: promo.campaign,
+    });
+    return {
+      stripeCouponId: match.coupon.id,
+      stripePromotionCodeId: match.promotionCode.id,
+      repaired: true,
+    };
+  }
+
+  const created = await createStripeResources({
+    code: promo.code,
+    discountType: promo.discount_type,
+    discountValue: promo.discount_value,
+    discountCurrency: getPromoCurrency(promo),
+    active: promo.active,
+    expiresAt: promo.expires_at,
+    usageLimit: promo.usage_limit,
+    appliesToBilling: promo.applies_to_billing,
+    firstTimeOnly: promo.first_time_only,
+    campaign: promo.campaign,
+  });
+  return { ...created, repaired: false };
 }
 
 async function recordPromoChange(
@@ -672,12 +882,20 @@ export function sanitizeCreateInput(input: PromoMutationInput) {
   if (!code) {
     throw createHttpError(400, "code is required");
   }
+  const discountType = input.discountType ?? "percentage";
+  if (discountType !== "percentage" && discountType !== "fixed_amount") {
+    throw createHttpError(400, "discountType must be percentage or fixed_amount");
+  }
   const appliesTo = normalizePromoTargets(input.appliesTo);
   const appliesToBilling = input.appliesToBilling ?? null;
   validateBillingScope(appliesToBilling, appliesTo);
   return {
     code,
-    discountValue: normalizeDiscountValue(input.discountValue),
+    discountType,
+    discountValue: discountType === "fixed_amount"
+      ? normalizeFixedAmountCents(input.discountValue)
+      : normalizeDiscountValue(input.discountValue),
+    discountCurrency: discountType === "fixed_amount" ? normalizeDiscountCurrency(input.discountCurrency) : null,
     active: input.active !== false,
     expiresAt: normalizeExpiresAt(input.expiresAt),
     usageLimit: normalizeUsageLimit(input.usageLimit),
@@ -701,8 +919,9 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
     .insert(promoCodes)
     .values({
       code: normalized.code,
-      discount_type: "percentage",
+      discount_type: normalized.discountType,
       discount_value: normalized.discountValue,
+      discount_currency: normalized.discountCurrency,
       active: normalized.active,
       expires_at: normalized.expiresAt,
       usage_limit: normalized.usageLimit,
@@ -722,7 +941,12 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
     promoCodeId: created.id,
     fieldChanged: "created",
     oldValue: null,
-    newValue: { code: created.code, discountValue: created.discount_value },
+    newValue: {
+      code: created.code,
+      discountType: created.discount_type,
+      discountValue: created.discount_value,
+      discountCurrency: created.discount_currency,
+    },
     changedBy: actorUserId,
   });
 
@@ -795,7 +1019,7 @@ export async function getPromoCodeDetail(db: Database, promoCodeId: string): Pro
 
   const usageCount = usageRows.length;
   const revenueImpactedCents = usageRows.reduce(
-    (sum, row) => sum + computeEstimatedDiscountCents(row.paymentAmountCents, promo.discount_value),
+    (sum, row) => sum + computePromoDiscountCents(row.paymentAmountCents, promo.discount_type, promo.discount_value),
     0,
   );
   const averageOrderValueCents = usageCount > 0
@@ -808,6 +1032,9 @@ export async function getPromoCodeDetail(db: Database, promoCodeId: string): Pro
     code: promo.code,
     discountType: promo.discount_type,
     discountValue: promo.discount_value,
+    percentOff: promo.discount_type === "percentage" ? promo.discount_value : null,
+    amountOffCents: promo.discount_type === "fixed_amount" ? promo.discount_value : null,
+    currency: getPromoCurrency(promo),
     active: promo.active,
     expiresAt: toIso(promo.expires_at),
     usageLimit: promo.usage_limit,
@@ -887,6 +1114,10 @@ export async function validatePromoCodeForCheckout(db: Database, input: PromoVal
   if (promo.first_time_only && await userHasPriorPaidPurchase(db, input.userId)) {
     return { valid: false, message: "This promo code is only valid for first-time purchases", estimatedDiscount: null, finalEstimate: null, estimatedDiscountCents: null, finalEstimateCents: null, currency: context.currency };
   }
+  const promoCurrency = getPromoCurrency(promo);
+  if (!promoCurrencyMatchesCheckout(promoCurrency, context.currency)) {
+    return { valid: false, message: `This promo code is only valid for ${(promoCurrency ?? DEFAULT_PROMO_CURRENCY).toUpperCase()} purchases`, estimatedDiscount: null, finalEstimate: null, estimatedDiscountCents: null, finalEstimateCents: null, currency: context.currency };
+  }
 
   let stripeSnapshot: StripePromotionSnapshot;
   try {
@@ -905,7 +1136,7 @@ export async function validatePromoCodeForCheckout(db: Database, input: PromoVal
     return { valid: false, message: "This promo code is no longer valid", estimatedDiscount: null, finalEstimate: null, estimatedDiscountCents: null, finalEstimateCents: null, currency: context.currency };
   }
 
-  const estimatedDiscountCents = computeEstimatedDiscountCents(context.amountCents, promo.discount_value);
+  const estimatedDiscountCents = computePromoDiscountCents(context.amountCents, promo.discount_type, promo.discount_value);
   const finalEstimateCents = Math.max(0, context.amountCents - estimatedDiscountCents);
   return {
     valid: true,
@@ -941,7 +1172,9 @@ export async function applyPromoFixSync(
       active: promotionCode.active,
       expires_at: promotionCode.expires_at ? new Date(promotionCode.expires_at * 1000) : null,
       usage_limit: promotionCode.max_redemptions ?? null,
-      discount_value: coupon.percent_off ?? promo.discount_value,
+      discount_type: getCouponDiscountType(coupon) ?? promo.discount_type,
+      discount_value: coupon.percent_off ?? coupon.amount_off ?? promo.discount_value,
+      discount_currency: coupon.amount_off ? coupon.currency?.toLowerCase() ?? DEFAULT_PROMO_CURRENCY : null,
       sync_status: "needs_sync" as PromoSyncStatus,
       updated_at: new Date(),
     };
@@ -953,7 +1186,9 @@ export async function applyPromoFixSync(
         active: promo.active,
         expiresAt: promo.expires_at,
         usageLimit: promo.usage_limit,
+        discountType: promo.discount_type,
         discountValue: promo.discount_value,
+        discountCurrency: promo.discount_currency,
       },
       newValue: patch,
       changedBy: actorUserId,
@@ -962,16 +1197,7 @@ export async function applyPromoFixSync(
     return getPromoCodeDetail(db, promoCodeId);
   }
 
-  const stripeIds = await createStripeResources({
-    code: promo.code,
-    discountValue: promo.discount_value,
-    active: promo.active,
-    expiresAt: promo.expires_at,
-    usageLimit: promo.usage_limit,
-    appliesToBilling: promo.applies_to_billing,
-    firstTimeOnly: promo.first_time_only,
-    campaign: promo.campaign,
-  });
+  const stripeIds = await repairStripeResourcesFromDb(promo);
   await db.update(promoCodes).set({
     stripe_coupon_id: stripeIds.stripeCouponId,
     stripe_promotion_code_id: stripeIds.stripePromotionCodeId,
@@ -991,6 +1217,111 @@ export async function applyPromoFixSync(
   });
   await verifyPromoCodeWithStripe(db, promoCodeId);
   return getPromoCodeDetail(db, promoCodeId);
+}
+
+export async function testPromoCodeAgainstPrice(db: Database, input: {
+  code: string;
+  priceId: string;
+}): Promise<PromoCodeTestCheckoutResponse> {
+  const promo = await getPromoByCode(db, input.code);
+  const promoCode = normalizePromoCode(input.code);
+  if (!promo) {
+    return {
+      pass: false,
+      promoCode,
+      priceAmount: null,
+      discountAmount: null,
+      finalAmount: null,
+      currency: null,
+      message: "Promo code not found",
+    };
+  }
+
+  const stripe = getStripe();
+  const price = await stripe.prices.retrieve(input.priceId);
+  const priceAmount = price.unit_amount;
+  const currency = price.currency?.toLowerCase() ?? null;
+  if (typeof priceAmount !== "number" || !currency) {
+    return {
+      pass: false,
+      promoCode: promo.code,
+      priceAmount: null,
+      discountAmount: null,
+      finalAmount: null,
+      currency,
+      message: "Stripe price does not expose a fixed unit amount",
+    };
+  }
+
+  const promoCurrency = getPromoCurrency(promo);
+  if (!promoCurrencyMatchesCheckout(promoCurrency, currency)) {
+    return {
+      pass: false,
+      promoCode: promo.code,
+      priceAmount,
+      discountAmount: null,
+      finalAmount: priceAmount,
+      currency,
+      message: `Promo currency ${(promoCurrency ?? DEFAULT_PROMO_CURRENCY).toUpperCase()} does not match price currency ${currency.toUpperCase()}`,
+    };
+  }
+
+  const snapshot = await fetchStripePromotionSnapshot(promo);
+  if (!snapshot.promotionCode || !isStripeCoupon(snapshot.coupon)) {
+    return {
+      pass: false,
+      promoCode: promo.code,
+      priceAmount,
+      discountAmount: null,
+      finalAmount: priceAmount,
+      currency,
+      message: "Promo code rejected by Stripe: coupon or promotion code is missing",
+    };
+  }
+  if (!snapshot.promotionCode.active) {
+    return {
+      pass: false,
+      promoCode: promo.code,
+      priceAmount,
+      discountAmount: null,
+      finalAmount: priceAmount,
+      currency,
+      message: "Promo code rejected by Stripe: promotion code is inactive",
+    };
+  }
+
+  const discountValidation = couponMatchesPromoDiscount(snapshot.coupon, promo);
+  if (!discountValidation.discountMatch) {
+    return {
+      pass: false,
+      promoCode: promo.code,
+      priceAmount,
+      discountAmount: null,
+      finalAmount: priceAmount,
+      currency,
+      message: "Promo code rejected by Stripe: local discount definition does not match Stripe",
+    };
+  }
+
+  const discountAmount = computePromoDiscountCents(priceAmount, promo.discount_type, promo.discount_value);
+  const finalAmount = Math.max(0, priceAmount - discountAmount);
+  const formattedDiscountAmount = new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(discountAmount / 100);
+  const message = promo.discount_type === "fixed_amount"
+    ? `${formattedDiscountAmount} ${currency.toUpperCase()} discount applied successfully`
+    : `${promo.discount_value}% discount applied successfully`;
+
+  return {
+    pass: true,
+    promoCode: promo.code,
+    priceAmount,
+    discountAmount,
+    finalAmount,
+    currency,
+    message,
+  };
 }
 
 export async function recordPromoUsage(

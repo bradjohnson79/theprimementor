@@ -6,7 +6,9 @@ import {
   buildTargetFromReportTier,
   buildTargetsFromSessionType,
   computeEstimatedDiscountCents,
+  computePromoDiscountCents,
   deriveSyncStatus,
+  promoCurrencyMatchesCheckout,
   sanitizeCreateInput,
   validateBillingScope,
 } from "./promoCodeService.js";
@@ -23,6 +25,18 @@ test("buildTargetFromReportTier maps deep dive reports", () => {
 test("computeEstimatedDiscountCents returns rounded preview amounts", () => {
   assert.equal(computeEstimatedDiscountCents(14999, 20), 3000);
   assert.equal(computeEstimatedDiscountCents(19900, 15), 2985);
+});
+
+test("computePromoDiscountCents handles percentage and fixed amount discounts", () => {
+  assert.equal(computePromoDiscountCents(14999, "percentage", 20), 3000);
+  assert.equal(computePromoDiscountCents(14999, "fixed_amount", 2500), 2500);
+  assert.equal(computePromoDiscountCents(2000, "fixed_amount", 2500), 2000);
+});
+
+test("promoCurrencyMatchesCheckout enforces fixed amount currency safety", () => {
+  assert.equal(promoCurrencyMatchesCheckout("cad", "CAD"), true);
+  assert.equal(promoCurrencyMatchesCheckout(null, "USD"), true);
+  assert.equal(promoCurrencyMatchesCheckout("cad", "usd"), false);
 });
 
 test("buildStripePromotionCodeCreateParams uses Stripe promotion object", () => {
@@ -43,6 +57,8 @@ test("buildStripePromotionCodeCreateParams uses Stripe promotion object", () => 
   assert.equal("coupon" in params, false);
   assert.equal(params.expires_at, 1777636800);
   assert.deepEqual(params.restrictions, { first_time_transaction: true });
+  assert.equal(params.metadata.platform, "prime_mentor");
+  assert.equal(params.metadata.promo_code, "SESSION15");
 });
 
 test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
@@ -51,6 +67,8 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     couponValid: true,
     promotionCodeValid: true,
     discountMatch: true,
+    discountTypeMatch: true,
+    currencyMatch: true,
     activeMatch: true,
     expiryMatch: true,
     usageMatch: true,
@@ -62,6 +80,8 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     couponValid: true,
     promotionCodeValid: true,
     discountMatch: false,
+    discountTypeMatch: true,
+    currencyMatch: true,
     activeMatch: true,
     expiryMatch: true,
     usageMatch: true,
@@ -73,6 +93,8 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     couponValid: false,
     promotionCodeValid: false,
     discountMatch: false,
+    discountTypeMatch: false,
+    currencyMatch: false,
     activeMatch: false,
     expiryMatch: false,
     usageMatch: false,
@@ -109,4 +131,26 @@ test("sanitizeCreateInput normalizes promo fields for persistence", () => {
   assert.equal(sanitized.minAmountCents, 1000);
   assert.equal(sanitized.firstTimeOnly, true);
   assert.equal(sanitized.campaign, "launch");
+});
+
+test("sanitizeCreateInput supports fixed amount cents and CAD currency", () => {
+  const sanitized = sanitizeCreateInput({
+    code: " save25 ",
+    discountType: "fixed_amount",
+    discountValue: 2500,
+    discountCurrency: "CAD",
+    active: true,
+    expiresAt: null,
+    usageLimit: null,
+    appliesTo: null,
+    appliesToBilling: null,
+    minAmountCents: null,
+    firstTimeOnly: false,
+    campaign: null,
+  });
+
+  assert.equal(sanitized.code, "SAVE25");
+  assert.equal(sanitized.discountType, "fixed_amount");
+  assert.equal(sanitized.discountValue, 2500);
+  assert.equal(sanitized.discountCurrency, "cad");
 });

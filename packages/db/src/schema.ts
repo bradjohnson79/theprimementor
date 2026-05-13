@@ -202,6 +202,7 @@ export const seoChangeSourceEnum = pgEnum("seo_change_source", [
 
 export const promoDiscountTypeEnum = pgEnum("promo_discount_type", [
   "percentage",
+  "fixed_amount",
 ]);
 
 export const promoSyncStatusEnum = pgEnum("promo_sync_status", [
@@ -294,6 +295,8 @@ export interface PromoValidationSnapshot {
   couponValid: boolean;
   promotionCodeValid: boolean;
   discountMatch: boolean;
+  discountTypeMatch?: boolean;
+  currencyMatch?: boolean;
   activeMatch: boolean;
   expiryMatch: boolean;
   usageMatch: boolean;
@@ -913,6 +916,7 @@ export const promoCodes = pgTable("promo_codes", {
   code: text("code").notNull(),
   discount_type: promoDiscountTypeEnum("discount_type").default("percentage").notNull(),
   discount_value: integer("discount_value").notNull(),
+  discount_currency: text("discount_currency"),
   active: boolean("active").default(true).notNull(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
   usage_limit: integer("usage_limit"),
