@@ -94,7 +94,7 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
 
   return (
     <div className="relative z-20 max-w-[39rem] text-left">
-      <div className="relative min-h-[26.5rem] sm:min-h-[25rem] lg:min-h-[24.25rem]">
+      <div className="relative min-h-[30rem] sm:min-h-[29rem] lg:min-h-[28rem] xl:min-h-[27.5rem]">
         {HERO_TEXT_SLIDES.map((slide, index) => {
           const isActive = activeSlideIndex === index;
           const isPrevious = previousSlideIndex === index;
