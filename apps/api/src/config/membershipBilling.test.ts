@@ -111,7 +111,7 @@ test("resolveMembershipPriceId prefers live membership prices with a live Stripe
     },
     () => {
       const resolved = resolveMembershipPriceId("seeker", "monthly");
-      assert.equal(resolved.priceId, "price_1TIL1WAd5V3LaCqjim2Zs3x8");
+      assert.equal(resolved.priceId, "price_1TXlZRAd5V3LaCqjgkQB4A5v");
     },
   );
 });
@@ -140,7 +140,7 @@ test("resolveMembershipPriceId prefers live annual membership prices for both ti
       STRIPE_LIVE_PRICE_INITIATE_ANNUAL: undefined,
     },
     () => {
-      assert.equal(resolveMembershipPriceId("seeker", "annual").priceId, "price_1TILCKAd5V3LaCqj9HDFNWum");
+      assert.equal(resolveMembershipPriceId("seeker", "annual").priceId, "price_1TXlZyAd5V3LaCqj46fthJnC");
       assert.equal(resolveMembershipPriceId("initiate", "annual").priceId, "price_1TILESAd5V3LaCqjLX4fWEd3");
     },
   );

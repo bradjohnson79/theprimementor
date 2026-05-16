@@ -37,6 +37,7 @@ import { validatePromoCodeForCheckout } from "./promoCodeService.js";
 
 type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type CheckoutTier = "seeker" | "initiate";
+type CheckoutDiscountConfig = Pick<Stripe.Checkout.SessionCreateParams, "allow_promotion_codes" | "discounts">;
 
 let stripeInstance: Stripe | null = null;
 
@@ -47,6 +48,21 @@ function getStripe(): Stripe {
     stripeInstance = new Stripe(key);
   }
   return stripeInstance;
+}
+
+function buildCheckoutDiscountConfig(
+  promo: { stripePromotionCodeId?: string | null } | null,
+): CheckoutDiscountConfig {
+  const stripePromotionCodeId = promo?.stripePromotionCodeId?.trim();
+  if (stripePromotionCodeId) {
+    return {
+      discounts: [{ promotion_code: stripePromotionCodeId }],
+    };
+  }
+
+  return {
+    allow_promotion_codes: true,
+  };
 }
 
 export interface CreateCheckoutSessionInput {
@@ -426,7 +442,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     mode: "payment",
     client_reference_id: bookingId,
     line_items: [{ price: priceId, quantity: 1 }],
-    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
@@ -562,7 +578,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     mode: "payment",
     client_reference_id: trainingOrderId,
     line_items: [{ price: priceId, quantity: 1 }],
-    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentor-training?checkout=canceled&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
@@ -709,7 +725,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
       },
       quantity: 1,
     }],
-    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
@@ -853,7 +869,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     mode: "payment",
     client_reference_id: reportId,
     line_items: [{ price: priceId, quantity: 1 }],
-    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
@@ -994,7 +1010,7 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     mode: "subscription",
     client_reference_id: membershipId,
     line_items: [{ price: priceId, quantity: 1 }],
-    discounts: promo ? [{ promotion_code: promo.stripePromotionCodeId }] : undefined,
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     subscription_data: { metadata },
     success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,

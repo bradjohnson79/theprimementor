@@ -759,6 +759,7 @@ export async function createRegenerationCheckoutSession(
     mode: "subscription",
     client_reference_id: createdOrUpdated.id,
     line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
     metadata,
     subscription_data: { metadata },
     success_url: `${frontendUrl}/sessions/regeneration/success?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,

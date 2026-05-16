@@ -36,8 +36,8 @@ const LIVE_MEMBERSHIP_PRICE_FALLBACKS: Record<
   { monthly: string; annual: string }
 > = {
   seeker: {
-    monthly: "price_1TIL1WAd5V3LaCqjim2Zs3x8",
-    annual: "price_1TILCKAd5V3LaCqj9HDFNWum",
+    monthly: "price_1TXlZRAd5V3LaCqjgkQB4A5v",
+    annual: "price_1TXlZyAd5V3LaCqj46fthJnC",
   },
   initiate: {
     monthly: "price_1TIL55Ad5V3LaCqjXkESzqeH",

@@ -39,8 +39,8 @@ const PRICE_MAP_ENV: Record<string, PriceMapEntry> = {
 };
 
 const LIVE_MEMBERSHIP_PRICE_FALLBACKS: Array<[string, PriceMapEntry]> = [
-  ["price_1TIL1WAd5V3LaCqjim2Zs3x8", { tier: "seeker", billingInterval: "monthly" }],
-  ["price_1TILCKAd5V3LaCqj9HDFNWum", { tier: "seeker", billingInterval: "annual" }],
+  ["price_1TXlZRAd5V3LaCqjgkQB4A5v", { tier: "seeker", billingInterval: "monthly" }],
+  ["price_1TXlZyAd5V3LaCqj46fthJnC", { tier: "seeker", billingInterval: "annual" }],
   ["price_1TIL55Ad5V3LaCqjXkESzqeH", { tier: "initiate", billingInterval: "monthly" }],
   ["price_1TILESAd5V3LaCqjLX4fWEd3", { tier: "initiate", billingInterval: "annual" }],
 ];
