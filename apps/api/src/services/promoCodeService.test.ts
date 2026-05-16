@@ -82,6 +82,7 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     discountMatch: true,
     discountTypeMatch: true,
     currencyMatch: true,
+    durationMatch: true,
     activeMatch: true,
     expiryMatch: true,
     usageMatch: true,
@@ -95,6 +96,7 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     discountMatch: false,
     discountTypeMatch: true,
     currencyMatch: true,
+    durationMatch: true,
     activeMatch: true,
     expiryMatch: true,
     usageMatch: true,
@@ -108,6 +110,7 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
     discountMatch: false,
     discountTypeMatch: false,
     currencyMatch: false,
+    durationMatch: false,
     activeMatch: false,
     expiryMatch: false,
     usageMatch: false,
@@ -130,6 +133,7 @@ test("sanitizeCreateInput normalizes promo fields for persistence", () => {
     active: true,
     expiresAt: null,
     usageLimit: 25,
+    durationMonths: 2,
     appliesTo: [PROMO_TARGETS.SUB_SEEKER, PROMO_TARGETS.SUB_SEEKER],
     appliesToBilling: "recurring",
     minAmountCents: 1000,
@@ -139,11 +143,31 @@ test("sanitizeCreateInput normalizes promo fields for persistence", () => {
 
   assert.equal(sanitized.code, "WELCOME20");
   assert.equal(sanitized.discountValue, 20);
+  assert.equal(sanitized.durationMonths, 2);
   assert.deepEqual(sanitized.appliesTo, [PROMO_TARGETS.SUB_SEEKER]);
   assert.equal(sanitized.appliesToBilling, "recurring");
   assert.equal(sanitized.minAmountCents, 1000);
   assert.equal(sanitized.firstTimeOnly, true);
   assert.equal(sanitized.campaign, "launch");
+});
+
+test("sanitizeCreateInput requires recurring billing for duration months", () => {
+  assert.throws(
+    () => sanitizeCreateInput({
+      code: "monthly",
+      discountValue: 10,
+      durationMonths: 2,
+      active: true,
+      expiresAt: null,
+      usageLimit: null,
+      appliesTo: [PROMO_TARGETS.SUB_SEEKER],
+      appliesToBilling: "one_time",
+      minAmountCents: null,
+      firstTimeOnly: false,
+      campaign: null,
+    }),
+    /durationMonths requires recurring billing scope/i,
+  );
 });
 
 test("sanitizeCreateInput supports fixed amount cents and CAD currency", () => {
@@ -152,6 +176,7 @@ test("sanitizeCreateInput supports fixed amount cents and CAD currency", () => {
     discountType: "fixed_amount",
     discountValue: 2500,
     discountCurrency: "CAD",
+    durationMonths: null,
     active: true,
     expiresAt: null,
     usageLimit: null,

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 
@@ -23,63 +24,143 @@ const SECONDARY_CTA_CLASS_NAME = [
   "hover:border-white/30 hover:bg-black/45 hover:text-white hover:shadow-[0_0_24px_rgba(255,255,255,0.12)]",
 ].join(" ");
 
-const MEMBERSHIP_BENEFITS = [
-  "Full Access to Divin8 Chat (200 prompts/month)",
-  "20% Off Monthly Mentoring Circle Webinars",
-  "Exclusive Discounts on Upcoming Prime Mentor E-Courses",
+const ROTATION_INTERVAL_MS = 15_000;
+const ROTATION_TRANSITION_MS = 700;
+
+const HERO_TEXT_SLIDES = [
+  {
+    eyebrow: "THE PRIME MENTOR MEMBERSHIP",
+    headline: ["Unlock Your Premium", "Path to Guidance,", "Insight & Growth"],
+    body:
+      "Get full access to Divin8 Chat, member savings, webinar discounts, and exclusive course pricing — designed to help you move forward with greater clarity and direction.",
+    benefits: [
+      "Full Access to Divin8 Chat (200 prompts/month)",
+      "20% Off Monthly Mentoring Circle Webinars",
+      "Exclusive Discounts on Upcoming Prime Mentor E-Courses",
+    ],
+  },
+  {
+    eyebrow: "PRIVATE SESSIONS & REPORTS",
+    headline: ["Gain Clarity Through", "Private Sessions &", "Advanced Reports"],
+    body:
+      "Book a one-on-one Q&A or Mentoring Session, or explore personalized reports designed to bring insight, direction, and practical understanding to your path.",
+    benefits: [
+      "Q&A & Mentoring Sessions",
+      "Divin8 Synthesis Reports",
+      "Personalized Guidance & Direction",
+    ],
+  },
 ];
 
 export default function HeroContent({ onExploreReports }: HeroContentProps) {
   const prefersReducedMotion = useReducedMotion();
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [previousSlideIndex, setPreviousSlideIndex] = useState<number | null>(null);
+  const transitionTimeoutRef = useRef<number | null>(null);
   const transition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.65, ease: "easeOut" as const };
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setActiveSlideIndex((current) => {
+        setPreviousSlideIndex(current);
+        return (current + 1) % HERO_TEXT_SLIDES.length;
+      });
+    }, ROTATION_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (previousSlideIndex == null) {
+      return;
+    }
+
+    if (transitionTimeoutRef.current != null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+
+    transitionTimeoutRef.current = window.setTimeout(() => {
+      setPreviousSlideIndex(null);
+    }, ROTATION_TRANSITION_MS);
+
+    return () => {
+      if (transitionTimeoutRef.current != null) {
+        window.clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, [previousSlideIndex]);
+
   return (
     <div className="relative z-20 max-w-[39rem] text-left">
-      <motion.p
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={transition}
-        className="text-[0.74rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/85"
-      >
-        The Prime Mentor Membership
-      </motion.p>
+      <div className="relative min-h-[26.5rem] sm:min-h-[25rem] lg:min-h-[24.25rem]">
+        {HERO_TEXT_SLIDES.map((slide, index) => {
+          const isActive = activeSlideIndex === index;
+          const isPrevious = previousSlideIndex === index;
+          return (
+            <div
+              key={slide.eyebrow}
+              aria-hidden={!isActive}
+              className={[
+                "absolute inset-x-0 top-0 transition-[opacity,transform] ease-out",
+                prefersReducedMotion ? "duration-0" : "duration-700",
+                isActive
+                  ? "pointer-events-auto translate-x-0 opacity-100"
+                  : `pointer-events-none opacity-0 ${isPrevious ? "-translate-x-3" : "translate-x-3"}`,
+              ].join(" ")}
+            >
+              <motion.p
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={transition}
+                className="text-[0.74rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/85"
+              >
+                {slide.eyebrow}
+              </motion.p>
 
-      <motion.h1
-        id="hero-heading"
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.08 }}
-        className="hero-headline mt-5 text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl lg:text-[4.05rem] lg:leading-[0.96]"
-      >
-        Unlock Your Premium Path to Guidance, Insight & Growth
-      </motion.h1>
+              <motion.h1
+                id={isActive ? "hero-heading" : undefined}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.08 }}
+                className="hero-headline mt-5 text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl lg:text-[4.05rem] lg:leading-[0.96]"
+              >
+                {slide.headline.map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
+              </motion.h1>
 
-      <motion.p
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.18 }}
-        className="mt-5 max-w-[31rem] text-sm leading-7 text-white/88 sm:text-base [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
-      >
-        Get full access to Divin8 Chat, member savings, webinar discounts, and exclusive course pricing — designed to help you move forward with greater clarity and direction.
-      </motion.p>
+              <motion.p
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.18 }}
+                className="mt-5 max-w-[31rem] text-sm leading-7 text-white/88 sm:text-base [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
+              >
+                {slide.body}
+              </motion.p>
 
-      <motion.ul
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.24 }}
-        className="mt-5 max-w-[34rem] space-y-2 text-sm text-white/82"
-      >
-        {MEMBERSHIP_BENEFITS.map((benefit) => (
-          <li key={benefit} className="flex items-start gap-2.5 leading-snug">
-            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-200/10 text-xs font-semibold text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]">
-              ✓
-            </span>
-            <span>{benefit}</span>
-          </li>
-        ))}
-      </motion.ul>
+              <motion.ul
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.24 }}
+                className="mt-5 max-w-[34rem] space-y-2 text-sm text-white/82"
+              >
+                {slide.benefits.map((benefit) => (
+                  <li key={benefit} className="flex items-start gap-2.5 leading-snug">
+                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-200/10 text-xs font-semibold text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]">
+                      ✓
+                    </span>
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </motion.ul>
+            </div>
+          );
+        })}
+      </div>
 
       <motion.div
         initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
@@ -110,6 +191,20 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
       >
         Only $14.99/month or $144/year
       </motion.p>
+
+      <div className="mt-4 flex items-center gap-2" aria-hidden="true">
+        {HERO_TEXT_SLIDES.map((slide, index) => (
+          <span
+            key={slide.eyebrow}
+            className={[
+              "h-1.5 rounded-full transition-all duration-500",
+              activeSlideIndex === index
+                ? "w-6 bg-cyan-200/80 shadow-[0_0_12px_rgba(165,243,252,0.34)]"
+                : "w-1.5 bg-white/24",
+            ].join(" ")}
+          />
+        ))}
+      </div>
     </div>
   );
 }

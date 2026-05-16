@@ -22,6 +22,7 @@ interface CreatePromoBody {
   discountType?: "percentage" | "fixed_amount";
   discountValue?: number;
   discountCurrency?: string | null;
+  durationMonths?: number | null;
   active?: boolean;
   expiresAt?: string | null;
   usageLimit?: number | null;
@@ -81,6 +82,7 @@ export async function promoCodesRoutes(app: FastifyInstance) {
       discountType: body.discountType ?? "percentage",
       discountValue: body.discountValue,
       discountCurrency: body.discountCurrency ?? null,
+      durationMonths: body.durationMonths ?? null,
       active: body.active ?? true,
       expiresAt: body.expiresAt ?? null,
       usageLimit: body.usageLimit ?? null,

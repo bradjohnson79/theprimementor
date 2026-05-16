@@ -523,6 +523,7 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "discount_type",
     "discount_value",
     "discount_currency",
+    "discount_duration_months",
     "active",
     "expires_at",
     "usage_limit",

@@ -299,6 +299,7 @@ export interface PromoValidationSnapshot {
   discountMatch: boolean;
   discountTypeMatch?: boolean;
   currencyMatch?: boolean;
+  durationMatch?: boolean;
   activeMatch: boolean;
   expiryMatch: boolean;
   usageMatch: boolean;
@@ -919,6 +920,7 @@ export const promoCodes = pgTable("promo_codes", {
   discount_type: promoDiscountTypeEnum("discount_type").default("percentage").notNull(),
   discount_value: integer("discount_value").notNull(),
   discount_currency: text("discount_currency"),
+  discount_duration_months: integer("discount_duration_months"),
   active: boolean("active").default(true).notNull(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
   usage_limit: integer("usage_limit"),

@@ -23,6 +23,7 @@ interface PromoCodeSummary {
   percentOff: number | null;
   amountOffCents: number | null;
   currency: string | null;
+  durationMonths: number | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -59,6 +60,7 @@ interface PromoFormState {
   discountType: PromoDiscountType;
   discountValue: string;
   discountCurrency: string;
+  durationMonths: string;
   active: boolean;
   permanent: boolean;
   expiresAt: string;
@@ -91,6 +93,7 @@ function createInitialFormState(): PromoFormState {
     discountType: "percentage",
     discountValue: "",
     discountCurrency: "cad",
+    durationMonths: "",
     active: true,
     permanent: true,
     expiresAt: "",
@@ -133,6 +136,7 @@ function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
       ? String((promo.amountOffCents ?? promo.discountValue) / 100)
       : String(promo.percentOff ?? promo.discountValue),
     discountCurrency: promo.currency ?? "cad",
+    durationMonths: promo.durationMonths == null ? "" : String(promo.durationMonths),
     active: promo.active,
     permanent: !promo.expiresAt,
     expiresAt: toDatetimeLocal(promo.expiresAt),
@@ -260,6 +264,7 @@ export default function PromoCodes() {
         discountType: form.discountType,
         discountValue,
         discountCurrency: form.discountType === "fixed_amount" ? form.discountCurrency : null,
+        durationMonths: form.durationMonths ? Number(form.durationMonths) : null,
         active: form.active,
         expiresAt: form.permanent ? null : (form.expiresAt ? new Date(form.expiresAt).toISOString() : null),
         usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
@@ -493,6 +498,18 @@ export default function PromoCodes() {
               <option value="recurring" className="bg-slate-950">Recurring</option>
             </select>
           </label>
+          <label className="text-sm text-white/70">
+            <span className="mb-2 block">Discount Duration (months)</span>
+            <input
+              type="number"
+              min={1}
+              max={36}
+              value={form.durationMonths}
+              onChange={(event) => setForm((current) => ({ ...current, durationMonths: event.target.value }))}
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+              placeholder="Recurring only; blank = forever"
+            />
+          </label>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-4 text-sm text-white/70">
@@ -687,6 +704,11 @@ export default function PromoCodes() {
                         {formatPromoDiscount(promo)} · {promo.expiresAt ? formatDateTime(promo.expiresAt) : "Permanent"} · Used {promo.timesUsed}
                         {promo.usageLimit != null ? ` / ${promo.usageLimit}` : ""}
                       </p>
+                      {promo.durationMonths != null ? (
+                        <p className="text-sm text-white/55">
+                          Discount duration: {promo.durationMonths} {promo.durationMonths === 1 ? "month" : "months"}
+                        </p>
+                      ) : null}
                       <p className="text-sm text-white/55">
                         {promo.appliesTo?.length
                           ? promo.appliesTo.map((target) => PROMO_TARGET_LABELS[target]).join(", ")

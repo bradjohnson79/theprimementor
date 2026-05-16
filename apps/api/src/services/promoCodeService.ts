@@ -64,6 +64,7 @@ interface PromoMutationInput {
   discountType?: PromoDiscountType;
   discountValue: number;
   discountCurrency?: string | null;
+  durationMonths?: number | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -76,6 +77,7 @@ interface PromoMutationInput {
 
 interface PromoUpdateInput {
   active?: boolean;
+  durationMonths?: number | null;
   expiresAt?: string | null;
   usageLimit?: number | null;
   appliesTo?: PromoTarget[] | null;
@@ -98,6 +100,7 @@ interface StripeValidationResult {
   discountMatch: boolean;
   discountTypeMatch: boolean;
   currencyMatch: boolean;
+  durationMatch: boolean;
   activeMatch: boolean;
   expiryMatch: boolean;
   usageMatch: boolean;
@@ -123,6 +126,7 @@ export interface PromoCodeListItem {
   percentOff: number | null;
   amountOffCents: number | null;
   currency: string | null;
+  durationMonths: number | null;
   active: boolean;
   expiresAt: string | null;
   usageLimit: number | null;
@@ -248,6 +252,14 @@ function normalizeMinAmountCents(value: number | null | undefined) {
   if (value == null) return null;
   if (!Number.isInteger(value) || value <= 0) {
     throw createHttpError(400, "minAmountCents must be a positive integer");
+  }
+  return value;
+}
+
+function normalizeDurationMonths(value: number | null | undefined) {
+  if (value == null) return null;
+  if (!Number.isInteger(value) || value <= 0 || value > 36) {
+    throw createHttpError(400, "durationMonths must be a positive integer between 1 and 36");
   }
   return value;
 }
@@ -668,6 +680,15 @@ function compareUsageLimit(dbValue: number | null, stripeValue: number | null | 
   return (dbValue ?? null) === (stripeValue ?? null);
 }
 
+function compareCouponDuration(promo: PromoRow, coupon: Stripe.Coupon) {
+  if (promo.discount_duration_months != null) {
+    return coupon.duration === "repeating" && coupon.duration_in_months === promo.discount_duration_months;
+  }
+
+  const expectedDuration = promo.applies_to_billing === "recurring" ? "forever" : "once";
+  return coupon.duration === expectedDuration && (coupon.duration_in_months ?? null) === null;
+}
+
 function getCouponDiscountType(coupon: Stripe.Coupon): PromoDiscountType | null {
   if (typeof coupon.percent_off === "number") return "percentage";
   if (typeof coupon.amount_off === "number") return "fixed_amount";
@@ -698,11 +719,13 @@ function couponMatchesPromoDiscount(coupon: Stripe.Coupon, promo: PromoRow) {
   const discountMatch = promo.discount_type === "fixed_amount"
     ? coupon.amount_off === promo.discount_value && currencyMatch
     : coupon.percent_off === promo.discount_value;
+  const durationMatch = compareCouponDuration(promo, coupon);
 
   return {
     discountMatch: Boolean(discountMatch),
     discountTypeMatch,
     currencyMatch,
+    durationMatch,
   };
 }
 
@@ -718,8 +741,8 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
   const promotionCodeValid = Boolean(promotionCode);
   const discountValidation = coupon && !couponDeleted
     ? couponMatchesPromoDiscount(coupon, promo)
-    : { discountMatch: false, discountTypeMatch: false, currencyMatch: false };
-  const { discountMatch, discountTypeMatch, currencyMatch } = discountValidation;
+    : { discountMatch: false, discountTypeMatch: false, currencyMatch: false, durationMatch: false };
+  const { discountMatch, discountTypeMatch, currencyMatch, durationMatch } = discountValidation;
   const activeMatch = Boolean(promotionCode && promotionCode.active === promo.active);
   const expiryMatch = Boolean(promotionCode && compareExpiry(promo.expires_at, promotionCode.expires_at));
   const usageMatch = Boolean(promotionCode && compareUsageLimit(promo.usage_limit, promotionCode.max_redemptions));
@@ -731,6 +754,7 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
   if (couponValid && !discountTypeMatch) issues.push("Discount type does not match Stripe.");
   if (couponValid && !currencyMatch) issues.push("Discount currency does not match Stripe.");
   if (couponValid && !discountMatch) issues.push("Discount value does not match Stripe.");
+  if (couponValid && !durationMatch) issues.push("Discount duration does not match Stripe.");
   if (promotionCodeValid && !activeMatch) issues.push("Active status does not match Stripe.");
   if (promotionCodeValid && !expiryMatch) issues.push("Expiration date does not match Stripe.");
   if (promotionCodeValid && !usageMatch) issues.push("Usage limit does not match Stripe.");
@@ -742,6 +766,7 @@ export async function verifyPromoCodeWithStripe(db: Database, promoCodeId: strin
     discountMatch,
     discountTypeMatch,
     currencyMatch,
+    durationMatch,
     activeMatch,
     expiryMatch,
     usageMatch,
@@ -774,6 +799,7 @@ async function createStripeResources(input: {
   expiresAt: Date | null;
   usageLimit: number | null;
   appliesToBilling: PromoBillingScope | null;
+  durationMonths: number | null;
   firstTimeOnly: boolean;
   campaign: string | null;
 }) {
@@ -784,6 +810,9 @@ async function createStripeResources(input: {
     platform: "prime_mentor",
     campaign: input.campaign ?? "",
   };
+  const durationParams = input.durationMonths != null
+    ? { duration: "repeating" as const, duration_in_months: input.durationMonths }
+    : { duration: input.appliesToBilling === "recurring" ? "forever" as const : "once" as const };
   const coupon = await stripe.coupons.create({
     ...(input.discountType === "fixed_amount"
       ? {
@@ -793,7 +822,7 @@ async function createStripeResources(input: {
       : {
           percent_off: input.discountValue,
         }),
-    duration: input.appliesToBilling === "recurring" ? "forever" : "once",
+    ...durationParams,
     metadata,
   });
 
@@ -861,7 +890,8 @@ async function findPromotionMatchingPromo(promo: PromoRow): Promise<{ coupon: St
     if (!couponId) continue;
     const coupon = await stripe.coupons.retrieve(couponId);
     if (!isStripeCoupon(coupon)) continue;
-    if (couponMatchesPromoDiscount(coupon, promo).discountMatch) {
+    const match = couponMatchesPromoDiscount(coupon, promo);
+    if (match.discountMatch && match.durationMatch) {
       return { coupon, promotionCode };
     }
   }
@@ -871,17 +901,20 @@ async function findPromotionMatchingPromo(promo: PromoRow): Promise<{ coupon: St
 
 async function repairStripeResourcesFromDb(promo: PromoRow) {
   const snapshot = await fetchStripePromotionSnapshot(promo);
-  if (isStripeCoupon(snapshot.coupon) && snapshot.promotionCode && couponMatchesPromoDiscount(snapshot.coupon, promo).discountMatch) {
-    await syncPromotionMetadataAndActive(snapshot.promotionCode, {
-      active: promo.active,
-      code: promo.code,
-      campaign: promo.campaign,
-    });
-    return {
-      stripeCouponId: snapshot.coupon.id,
-      stripePromotionCodeId: snapshot.promotionCode.id,
-      repaired: true,
-    };
+  if (isStripeCoupon(snapshot.coupon) && snapshot.promotionCode) {
+    const match = couponMatchesPromoDiscount(snapshot.coupon, promo);
+    if (match.discountMatch && match.durationMatch) {
+      await syncPromotionMetadataAndActive(snapshot.promotionCode, {
+        active: promo.active,
+        code: promo.code,
+        campaign: promo.campaign,
+      });
+      return {
+        stripeCouponId: snapshot.coupon.id,
+        stripePromotionCodeId: snapshot.promotionCode.id,
+        repaired: true,
+      };
+    }
   }
 
   const match = await findPromotionMatchingPromo(promo);
@@ -907,6 +940,7 @@ async function repairStripeResourcesFromDb(promo: PromoRow) {
     expiresAt: promo.expires_at,
     usageLimit: promo.usage_limit,
     appliesToBilling: promo.applies_to_billing,
+    durationMonths: promo.discount_duration_months,
     firstTimeOnly: promo.first_time_only,
     campaign: promo.campaign,
   });
@@ -944,6 +978,10 @@ export function sanitizeCreateInput(input: PromoMutationInput) {
   const appliesTo = normalizePromoTargets(input.appliesTo);
   const appliesToBilling = input.appliesToBilling ?? null;
   validateBillingScope(appliesToBilling, appliesTo);
+  const durationMonths = normalizeDurationMonths(input.durationMonths);
+  if (durationMonths != null && appliesToBilling !== "recurring") {
+    throw createHttpError(400, "durationMonths requires recurring billing scope");
+  }
   return {
     code,
     discountType,
@@ -951,6 +989,7 @@ export function sanitizeCreateInput(input: PromoMutationInput) {
       ? normalizeFixedAmountCents(input.discountValue)
       : normalizeDiscountValue(input.discountValue),
     discountCurrency: discountType === "fixed_amount" ? normalizeDiscountCurrency(input.discountCurrency) : null,
+    durationMonths,
     active: input.active !== false,
     expiresAt: normalizeExpiresAt(input.expiresAt),
     usageLimit: normalizeUsageLimit(input.usageLimit),
@@ -977,6 +1016,7 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
       discount_type: normalized.discountType,
       discount_value: normalized.discountValue,
       discount_currency: normalized.discountCurrency,
+      discount_duration_months: normalized.durationMonths,
       active: normalized.active,
       expires_at: normalized.expiresAt,
       usage_limit: normalized.usageLimit,
@@ -1001,6 +1041,7 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
       discountType: created.discount_type,
       discountValue: created.discount_value,
       discountCurrency: created.discount_currency,
+      durationMonths: created.discount_duration_months,
     },
     changedBy: actorUserId,
   });
@@ -1012,6 +1053,7 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
 function sanitizeUpdateInput(input: PromoUpdateInput) {
   const patch: Record<string, unknown> = {};
   if (typeof input.active === "boolean") patch.active = input.active;
+  if ("durationMonths" in input) patch.discount_duration_months = normalizeDurationMonths(input.durationMonths ?? null);
   if ("expiresAt" in input) patch.expires_at = normalizeExpiresAt(input.expiresAt ?? null);
   if ("usageLimit" in input) patch.usage_limit = normalizeUsageLimit(input.usageLimit ?? null);
   if ("appliesTo" in input) patch.applies_to = normalizePromoTargets(input.appliesTo ?? null);
@@ -1027,6 +1069,12 @@ function sanitizeUpdateInput(input: PromoUpdateInput) {
     ("applies_to_billing" in patch ? patch.applies_to_billing : null) as PromoBillingScope | null,
     ("applies_to" in patch ? patch.applies_to : null) as PromoTarget[] | null,
   );
+  if ("discount_duration_months" in patch && patch.discount_duration_months != null) {
+    const billingScope = ("applies_to_billing" in patch ? patch.applies_to_billing : null) as PromoBillingScope | null;
+    if (billingScope !== "recurring") {
+      throw createHttpError(400, "durationMonths requires recurring billing scope");
+    }
+  }
   return patch;
 }
 
@@ -1090,6 +1138,7 @@ export async function getPromoCodeDetail(db: Database, promoCodeId: string): Pro
     percentOff: promo.discount_type === "percentage" ? promo.discount_value : null,
     amountOffCents: promo.discount_type === "fixed_amount" ? promo.discount_value : null,
     currency: getPromoCurrency(promo),
+    durationMonths: promo.discount_duration_months,
     active: promo.active,
     expiresAt: toIso(promo.expires_at),
     usageLimit: promo.usage_limit,
@@ -1230,6 +1279,7 @@ export async function applyPromoFixSync(
       discount_type: getCouponDiscountType(coupon) ?? promo.discount_type,
       discount_value: coupon.percent_off ?? coupon.amount_off ?? promo.discount_value,
       discount_currency: coupon.amount_off ? coupon.currency?.toLowerCase() ?? DEFAULT_PROMO_CURRENCY : null,
+      discount_duration_months: coupon.duration === "repeating" ? coupon.duration_in_months ?? null : null,
       sync_status: "needs_sync" as PromoSyncStatus,
       updated_at: new Date(),
     };
@@ -1244,6 +1294,7 @@ export async function applyPromoFixSync(
         discountType: promo.discount_type,
         discountValue: promo.discount_value,
         discountCurrency: promo.discount_currency,
+        durationMonths: promo.discount_duration_months,
       },
       newValue: patch,
       changedBy: actorUserId,
