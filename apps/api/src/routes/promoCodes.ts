@@ -40,6 +40,7 @@ interface ValidatePromoBody {
   code?: string;
   type?: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
   bookingId?: string;
+  bookingTypeId?: string;
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;
@@ -143,6 +144,7 @@ export async function promoCodesRoutes(app: FastifyInstance) {
       code: body.code,
       type: body.type,
       bookingId: body.bookingId,
+      bookingTypeId: body.bookingTypeId,
       reportId: body.reportId,
       membershipId: body.membershipId,
       trainingOrderId: body.trainingOrderId,

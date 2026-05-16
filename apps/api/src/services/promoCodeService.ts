@@ -43,6 +43,7 @@ interface PromoContextInput {
   userId: string;
   type?: CheckoutType;
   bookingId?: string;
+  bookingTypeId?: string;
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;
@@ -384,6 +385,27 @@ export function buildTargetsFromSessionType(sessionType: string): PromoTarget[] 
   }
 }
 
+export function buildTargetsFromBookingSession(
+  sessionType: string,
+  bookingTypeId: string | null,
+  durationMinutes: number | null,
+): PromoTarget[] {
+  const targets = buildTargetsFromSessionType(sessionType);
+  if (sessionType !== "mentoring") {
+    return targets;
+  }
+
+  if (bookingTypeId === "mentoring-session-45" || durationMinutes === 45) {
+    return [...targets, PROMO_TARGETS.MENTORING_SESSION_45];
+  }
+
+  if (bookingTypeId === "wisdom-mentoring-90" || durationMinutes === 90) {
+    return [...targets, PROMO_TARGETS.MENTORING_SESSION_90];
+  }
+
+  return targets;
+}
+
 export function buildTargetFromReportTier(tier: ReportTierId): PromoTarget {
   switch (tier) {
     case "intro":
@@ -419,6 +441,8 @@ async function resolvePromoCheckoutContext(db: Database, input: PromoContextInpu
         .select({
           userId: bookings.user_id,
           sessionType: bookings.session_type,
+          bookingTypeId: bookings.booking_type_id,
+          durationMinutes: bookingTypes.duration_minutes,
           amountCents: bookingTypes.price_cents,
           currency: bookingTypes.currency,
         })
@@ -433,7 +457,38 @@ async function resolvePromoCheckoutContext(db: Database, input: PromoContextInpu
         type,
         amountCents: row.amountCents,
         currency: row.currency,
-        targets: buildTargetsFromSessionType(row.sessionType),
+        targets: buildTargetsFromBookingSession(row.sessionType, row.bookingTypeId, row.durationMinutes),
+        billingScope: "one_time",
+        userId: input.userId,
+      };
+    }
+
+    if (input.bookingTypeId?.trim()) {
+      const [row] = await db
+        .select({
+          id: bookingTypes.id,
+          sessionType: bookingTypes.session_type,
+          durationMinutes: bookingTypes.duration_minutes,
+          priceCents: bookingTypes.price_cents,
+          currency: bookingTypes.currency,
+        })
+        .from(bookingTypes)
+        .where(and(
+          eq(bookingTypes.id, input.bookingTypeId.trim()),
+          eq(bookingTypes.is_active, true),
+        ))
+        .limit(1);
+      if (!row) {
+        throw createHttpError(404, "Booking type not found");
+      }
+      if (input.sessionType?.trim() && row.sessionType !== input.sessionType.trim()) {
+        throw createHttpError(400, "Booking type does not match session type");
+      }
+      return {
+        type,
+        amountCents: row.priceCents,
+        currency: row.currency,
+        targets: buildTargetsFromBookingSession(row.sessionType, row.id, row.durationMinutes),
         billingScope: "one_time",
         userId: input.userId,
       };

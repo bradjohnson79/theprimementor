@@ -4,6 +4,7 @@ import { PROMO_TARGETS } from "@wisdom/utils";
 import {
   buildStripePromotionCodeCreateParams,
   buildTargetFromReportTier,
+  buildTargetsFromBookingSession,
   buildTargetsFromSessionType,
   computeEstimatedDiscountCents,
   computePromoDiscountCents,
@@ -16,6 +17,18 @@ import {
 test("buildTargetsFromSessionType maps supported session types", () => {
   assert.deepEqual(buildTargetsFromSessionType("qa_session"), [PROMO_TARGETS.QA_SESSION]);
   assert.deepEqual(buildTargetsFromSessionType("focus"), [PROMO_TARGETS.FOCUS_SESSION]);
+  assert.deepEqual(buildTargetsFromSessionType("mentoring"), [PROMO_TARGETS.MENTORING_SESSION]);
+});
+
+test("buildTargetsFromBookingSession includes mentoring duration targets", () => {
+  assert.deepEqual(buildTargetsFromBookingSession("mentoring", "mentoring-session-45", 45), [
+    PROMO_TARGETS.MENTORING_SESSION,
+    PROMO_TARGETS.MENTORING_SESSION_45,
+  ]);
+  assert.deepEqual(buildTargetsFromBookingSession("mentoring", "wisdom-mentoring-90", 90), [
+    PROMO_TARGETS.MENTORING_SESSION,
+    PROMO_TARGETS.MENTORING_SESSION_90,
+  ]);
 });
 
 test("buildTargetFromReportTier maps deep dive reports", () => {

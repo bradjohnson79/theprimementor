@@ -1454,6 +1454,7 @@ export default function Bookings() {
                   void promo.apply({
                     type: "session",
                     sessionType: selectedSessionType,
+                    bookingTypeId: selectedBookingType?.id,
                   });
                 }}
                 onRemove={promo.clear}

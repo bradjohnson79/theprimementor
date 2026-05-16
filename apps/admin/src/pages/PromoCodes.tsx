@@ -3,6 +3,7 @@ import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
 import {
   PROMO_TARGET_LABELS,
+  PROMO_TARGETS,
   PROMO_TARGET_VALUES,
   type PromoBillingScope,
   type PromoTarget,
@@ -78,6 +79,11 @@ interface PromoTestResult {
   currency: string | null;
   message: string;
 }
+
+const LEGACY_PROMO_TARGETS = new Set<PromoTarget>([
+  PROMO_TARGETS.FOCUS_SESSION,
+  PROMO_TARGETS.MENTORING_SESSION,
+]);
 
 function createInitialFormState(): PromoFormState {
   return {
@@ -531,27 +537,29 @@ export default function PromoCodes() {
         <div className="mt-6">
           <p className="text-sm font-medium text-white">Applies To</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {PROMO_TARGET_VALUES.map((target) => {
-              const active = form.appliesTo.includes(target);
-              return (
-                <label
-                  key={target}
-                  className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
-                    active
-                      ? "border-accent-cyan/60 bg-accent-cyan/10 text-white"
-                      : "border-white/10 bg-white/5 text-white/75 hover:border-white/20"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={() => toggleTarget(target)}
-                    className="h-4 w-4 rounded border-white/20 bg-transparent"
-                  />
-                  <span>{PROMO_TARGET_LABELS[target]}</span>
-                </label>
-              );
-            })}
+            {PROMO_TARGET_VALUES
+              .filter((target) => !LEGACY_PROMO_TARGETS.has(target) || form.appliesTo.includes(target))
+              .map((target) => {
+                const active = form.appliesTo.includes(target);
+                return (
+                  <label
+                    key={target}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                      active
+                        ? "border-accent-cyan/60 bg-accent-cyan/10 text-white"
+                        : "border-white/10 bg-white/5 text-white/75 hover:border-white/20"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleTarget(target)}
+                      className="h-4 w-4 rounded border-white/20 bg-transparent"
+                    />
+                    <span>{PROMO_TARGET_LABELS[target]}</span>
+                  </label>
+                );
+              })}
           </div>
           <p className="mt-2 text-xs text-white/45">Leave all unchecked to allow the promo across every supported checkout type.</p>
         </div>

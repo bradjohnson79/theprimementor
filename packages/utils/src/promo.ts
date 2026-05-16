@@ -2,6 +2,8 @@ export const PROMO_TARGETS = {
   QA_SESSION: "qa_session",
   FOCUS_SESSION: "focus",
   MENTORING_SESSION: "mentoring",
+  MENTORING_SESSION_45: "mentoring:45",
+  MENTORING_SESSION_90: "mentoring:90",
   REGEN_SESSION: "regeneration",
   REPORT_INTRO: "report:intro",
   REPORT_DEEP_DIVE: "report:deep_dive",
@@ -20,9 +22,11 @@ export const PROMO_TARGET_VALUES: PromoTarget[] = Object.values(PROMO_TARGETS);
 
 export const PROMO_TARGET_LABELS: Record<PromoTarget, string> = {
   [PROMO_TARGETS.QA_SESSION]: "Q&A Session",
-  [PROMO_TARGETS.FOCUS_SESSION]: "Focus Session",
-  [PROMO_TARGETS.MENTORING_SESSION]: "Mentoring Session",
-  [PROMO_TARGETS.REGEN_SESSION]: "Regeneration Session",
+  [PROMO_TARGETS.FOCUS_SESSION]: "Focus Session (Legacy)",
+  [PROMO_TARGETS.MENTORING_SESSION]: "Mentoring Sessions (45 & 90 min)",
+  [PROMO_TARGETS.MENTORING_SESSION_45]: "45 min Mentoring Session",
+  [PROMO_TARGETS.MENTORING_SESSION_90]: "90 min Mentoring Session",
+  [PROMO_TARGETS.REGEN_SESSION]: "Regeneration Monthly Package",
   [PROMO_TARGETS.REPORT_INTRO]: "Introductory Report",
   [PROMO_TARGETS.REPORT_DEEP_DIVE]: "Deep Dive Report",
   [PROMO_TARGETS.REPORT_INITIATE]: "Initiate Report",

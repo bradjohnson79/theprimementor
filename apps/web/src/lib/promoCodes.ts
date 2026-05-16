@@ -4,6 +4,7 @@ import { api } from "./api";
 export interface PromoValidationContext {
   type: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
   bookingId?: string;
+  bookingTypeId?: string;
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;

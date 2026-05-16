@@ -1,9 +1,9 @@
 export type SessionCheckoutType = "focus" | "mentoring" | "regeneration" | "qa_session";
 
 const SESSION_PRODUCT_NAMES: Record<SessionCheckoutType, string[]> = {
-  focus: ["Focus Session"],
+  focus: ["Focus Session (Legacy)"],
   mentoring: ["Mentoring Session"],
-  regeneration: ["Regeneration Session", "Offline Regeneration Session"],
+  regeneration: ["Regeneration Monthly Package", "Regeneration Session", "Offline Regeneration Session"],
   qa_session: ["Q&A Session"],
 };
 

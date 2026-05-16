@@ -25,6 +25,8 @@ type PromoTarget =
   | "qa_session"
   | "focus"
   | "mentoring"
+  | "mentoring:45"
+  | "mentoring:90"
   | "regeneration"
   | "report:intro"
   | "report:deep_dive"
