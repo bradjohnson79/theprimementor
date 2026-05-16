@@ -82,6 +82,7 @@ export default function App() {
           <Route path="/reports" element={<ReportsLanding />} />
           <Route path="/error" element={<WebsiteErrorPage />} />
           <Route path="/membership-signup" element={<MembershipSignup />} />
+          <Route path="/subscriptions" element={<Navigate to="/subscriptions/seeker" replace />} />
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />

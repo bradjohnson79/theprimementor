@@ -159,14 +159,14 @@ export default function Dashboard() {
   const memberTier = tierState;
   const usage = dbUser?.member?.usage;
   const capabilities = dbUser?.member?.capabilities;
-  const seekerPromptLimit = usage?.limit ?? 150;
-  const seekerPromptsRemaining = Math.max(seekerPromptLimit - (usage?.used ?? 0), 0);
+  const premiumPromptLimit = usage?.limit ?? 200;
+  const premiumPromptsRemaining = Math.max(premiumPromptLimit - (usage?.used ?? 0), 0);
   const greetingName = getDashboardGreetingName(clerkUser);
   const isTierLoading = memberTier === "loading";
   const isFree = memberTier === "free";
   const hasUnlimitedChat = capabilities?.unlimitedChat === true;
-  const upgradeTarget = isFree ? "/subscriptions/seeker" : memberTier === "seeker" ? "/subscriptions/initiate" : null;
-  const upgradeLabel = isFree ? "Upgrade" : "Upgrade to Initiate";
+  const upgradeTarget = isFree ? "/subscriptions/seeker" : null;
+  const upgradeLabel = "Join Premium";
   const regeneration = dbUser?.regeneration;
   const regenerationActive = regeneration?.hasActiveAccess === true;
   const regenerationStatusLabel = regeneration?.accessState === "admin_override"
@@ -448,7 +448,7 @@ export default function Dashboard() {
                   <path d="M2 12h12L13 5l-3 3-2-4-2 4-3-3-1 7z" fill="currentColor" />
                   <rect x="2" y="12" width="12" height="2" rx="0.5" fill="currentColor" />
                 </svg>
-                Upgrade
+                Join Premium
               </span>
             </Link>
           ) : (
@@ -537,14 +537,14 @@ export default function Dashboard() {
             <section className="dashboard-panel cosmic-motion">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Divin8</h2>
               <p className="mt-3 text-lg font-semibold text-white">
-                {isFree ? "Free Tier" : memberTier === "initiate" ? "Initiate" : "Seeker"}
+                {isFree ? "Free Tier" : memberTier === "initiate" ? "Initiate" : "Premium"}
               </p>
               <p className="mt-1 text-sm text-white/60">
                 {isFree
                   ? "Upgrade to unlock the full Divin8 chat experience."
                   : hasUnlimitedChat
                     ? "Unlimited prompts available."
-                    : `${seekerPromptsRemaining} of ${seekerPromptLimit} prompts remaining`}
+                    : `${premiumPromptsRemaining} of ${premiumPromptLimit} prompts remaining`}
               </p>
               <div className="mt-4 flex gap-2">
                 {!isFree ? (

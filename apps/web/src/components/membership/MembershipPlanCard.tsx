@@ -1,13 +1,24 @@
 import type { MembershipSignupPlan } from "../../config/membershipSignupPlans";
+import { getMembershipPlanPriceLabel } from "../../config/membershipSignupPlans";
+import type { BillingInterval } from "@wisdom/utils";
 
 interface MembershipPlanCardProps {
   plan: MembershipSignupPlan;
   onSelect: (plan: MembershipSignupPlan) => void;
   busyTier: string | null;
   selected: boolean;
+  billingInterval: BillingInterval;
+  onBillingIntervalChange: (billingInterval: BillingInterval) => void;
 }
 
-export default function MembershipPlanCard({ plan, onSelect, busyTier, selected }: MembershipPlanCardProps) {
+export default function MembershipPlanCard({
+  plan,
+  onSelect,
+  busyTier,
+  selected,
+  billingInterval,
+  onBillingIntervalChange,
+}: MembershipPlanCardProps) {
   const isBusy = busyTier === plan.tier;
   const isPremium = plan.recommended;
 
@@ -34,7 +45,25 @@ export default function MembershipPlanCard({ plan, onSelect, busyTier, selected 
       <div className="space-y-1">
         <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">{plan.name}</h2>
         <p className="text-sm font-medium text-cyan-200/85">{plan.tagline}</p>
-        <p className="pt-1 text-sm tabular-nums text-white/75">{plan.priceLabel}</p>
+        <p className="pt-1 text-sm tabular-nums text-white/75">{getMembershipPlanPriceLabel(plan, billingInterval)}</p>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1 text-xs">
+        {(["monthly", "annual"] as const).map((interval) => (
+          <button
+            key={interval}
+            type="button"
+            onClick={() => onBillingIntervalChange(interval)}
+            className={[
+              "rounded-lg px-3 py-2 font-medium capitalize transition",
+              billingInterval === interval
+                ? "bg-cyan-300 text-slate-950"
+                : "text-white/65 hover:bg-white/8 hover:text-white",
+            ].join(" ")}
+          >
+            {interval}
+          </button>
+        ))}
       </div>
 
       <p className="mt-5 flex-1 text-sm leading-relaxed text-white/62">{plan.description}</p>

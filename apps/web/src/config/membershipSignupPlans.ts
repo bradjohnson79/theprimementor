@@ -1,4 +1,4 @@
-import type { Divin8Tier } from "@wisdom/utils";
+import type { BillingInterval, Divin8Tier } from "@wisdom/utils";
 import { MEMBER_PRICING } from "@wisdom/utils";
 
 export type MembershipSignupTierKey = Extract<Divin8Tier, "seeker" | "initiate">;
@@ -14,24 +14,32 @@ export interface MembershipSignupPlan {
   recommended: boolean;
   /** Monthly price label from shared pricing */
   priceLabel: string;
+  annualPriceLabel: string;
+}
+
+export function getMembershipPlanPriceLabel(plan: MembershipSignupPlan, billingInterval: BillingInterval) {
+  return billingInterval === "annual" ? plan.annualPriceLabel : plan.priceLabel;
 }
 
 export const MEMBERSHIP_SIGNUP_PLANS: MembershipSignupPlan[] = [
   {
     tier: "seeker",
-    name: "Seeker Plan",
-    tagline: "Foundation & Exploration",
+    name: "Premium Membership",
+    tagline: "Guidance, Insight & Growth",
     description:
-      "The Seeker Plan is designed for those beginning their journey into deeper self-awareness and energetic understanding. It provides essential access to the Divin8 system and foundational teachings, allowing you to explore your blueprint, ask meaningful questions, and begin integrating new levels of clarity into your life at a steady pace.",
+      "Premium Membership gives you steady access to Divin8 Chat, member-only savings, webinar discounts, and upcoming Prime Mentor course pricing so you can keep moving with clarity and direction.",
     features: [
       "Easy Access to All Services",
-      "150 Prompt Limit to the Divin8 Chat",
+      "200 Prompts per Month in Divin8 Chat",
+      "20% Off Monthly Mentoring Circle Webinars",
+      "Exclusive Discounts on Upcoming Prime Mentor E-Courses",
       "Access to the Trauma Transcendence Technique E-course",
       "Access to the Beginner & Intermediate Levels of the Prime Law E-course (Coming soon)",
     ],
-    ctaLabel: "Start as a Seeker",
-    recommended: false,
+    ctaLabel: "Join Premium",
+    recommended: true,
     priceLabel: MEMBER_PRICING.seeker.monthly.label,
+    annualPriceLabel: MEMBER_PRICING.seeker.annual.label,
   },
   {
     tier: "initiate",
@@ -50,5 +58,6 @@ export const MEMBERSHIP_SIGNUP_PLANS: MembershipSignupPlan[] = [
     ctaLabel: "Become an Initiate",
     recommended: true,
     priceLabel: MEMBER_PRICING.initiate.monthly.label,
+    annualPriceLabel: MEMBER_PRICING.initiate.annual.label,
   },
 ];

@@ -15,7 +15,7 @@ export interface MembershipBillingPlan {
 const MEMBERSHIP_BILLING_PLANS: Record<MembershipTierKey, MembershipBillingPlan> = {
   seeker: {
     tier: "seeker",
-    displayName: "Seeker Membership",
+    displayName: "Premium Membership",
     monthlyEnvKey: "STRIPE_PRICE_SEEKER_MONTHLY",
     annualEnvKey: "STRIPE_PRICE_SEEKER_ANNUAL",
     monthlyLiveEnvKey: "STRIPE_LIVE_PRICE_SEEKER_MONTHLY",

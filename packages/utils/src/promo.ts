@@ -26,7 +26,7 @@ export const PROMO_TARGET_LABELS: Record<PromoTarget, string> = {
   [PROMO_TARGETS.REPORT_INTRO]: "Introductory Report",
   [PROMO_TARGETS.REPORT_DEEP_DIVE]: "Deep Dive Report",
   [PROMO_TARGETS.REPORT_INITIATE]: "Initiate Report",
-  [PROMO_TARGETS.SUB_SEEKER]: "Seeker Membership",
+  [PROMO_TARGETS.SUB_SEEKER]: "Premium Membership",
   [PROMO_TARGETS.SUB_INITIATE]: "Initiate Membership",
   [PROMO_TARGETS.MENTOR_TRAINING_ENTRY]: "Mentor Training Entry Package",
   [PROMO_TARGETS.MENTOR_TRAINING_SEEKER]: "Mentor Training Seeker Package",

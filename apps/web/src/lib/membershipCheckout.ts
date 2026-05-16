@@ -1,5 +1,6 @@
 import { api } from "./api";
 import type { MembershipSignupTierKey } from "../config/membershipSignupPlans";
+import type { BillingInterval } from "@wisdom/utils";
 
 export interface CreateCheckoutSessionResponse {
   sessionId?: string;
@@ -20,13 +21,15 @@ export async function startMembershipCheckoutSession(
   options: {
     getToken: () => Promise<string | null>;
     clerkUserId: string | undefined;
+    billingInterval?: BillingInterval;
     promoCode?: string | null;
   },
 ): Promise<void> {
+  const billingInterval = options.billingInterval ?? "monthly";
   const token = await options.getToken();
   const purchase = (await api.post(
     "/member/subscriptions",
-    { tier, billingInterval: "monthly" },
+    { tier, billingInterval },
     token,
   )) as CreateMembershipPurchaseResponse;
   const membershipId = typeof purchase?.membershipId === "string" ? purchase.membershipId.trim() : "";

@@ -29,7 +29,7 @@ export default function Divin8Chat() {
   const { resolvedTheme, settings } = useAdminSettings();
   const { t } = useI18n();
   const isLightTheme = resolvedTheme === "light";
-  const seekerPromptLimit = 150;
+  const seekerPromptLimit = 200;
 
   const [tier, setTier] = useState<Divin8ChatTier>("seeker");
   const [activeTool, setActiveTool] = useState<"guide" | "timeline" | "debug" | null>(null);

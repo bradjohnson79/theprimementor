@@ -102,8 +102,7 @@ const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
     title: "Subscriptions",
     items: [
-      { label: "Seeker", href: "/subscriptions/seeker" },
-      { label: "Initiate", href: "/subscriptions/initiate" },
+      { label: "Premium Membership", href: "/subscriptions/seeker" },
     ],
   },
   {

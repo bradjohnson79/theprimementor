@@ -2,6 +2,7 @@ import { useAuth } from "@clerk/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import type { BillingInterval } from "@wisdom/utils";
 import MembershipPlanCard from "../components/membership/MembershipPlanCard";
 import MentorTrainingTeaserCard from "../components/membership/MentorTrainingTeaserCard";
 import {
@@ -36,6 +37,7 @@ export default function MembershipSignup() {
   const [searchParams] = useSearchParams();
   const prefersReducedMotion = useReducedMotion();
   const [busyTier, setBusyTier] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [mentorTrainingEligibility, setMentorTrainingEligibility] = useState<MentorTrainingEligibilityData | null>(null);
@@ -49,7 +51,7 @@ export default function MembershipSignup() {
 
   useEffect(() => {
     promo.reset();
-  }, [promo.reset, selectedTier]);
+  }, [billingInterval, promo.reset, selectedTier]);
 
   useEffect(() => {
     const checkoutState = searchParams.get("checkout");
@@ -84,7 +86,9 @@ export default function MembershipSignup() {
           return;
         }
         refetch();
-        const tierLabel = typeof response.data?.tier === "string"
+        const tierLabel = response.data?.tier === "seeker"
+          ? "Premium"
+          : typeof response.data?.tier === "string"
           ? `${response.data.tier.charAt(0).toUpperCase()}${response.data.tier.slice(1)}`
           : "Membership";
         const tierKey = typeof response.data?.tier === "string" ? response.data.tier : selectedTier ?? "unknown";
@@ -158,6 +162,11 @@ export default function MembershipSignup() {
     }
     return "locked";
   }, [mentorTrainingEligibility?.isEligible, tierState]);
+  const visiblePlans = useMemo(
+    () => MEMBERSHIP_SIGNUP_PLANS.filter((plan) => selectedTier === "initiate" ? plan.tier === "initiate" : plan.tier === "seeker"),
+    [selectedTier],
+  );
+  const showMentorTrainingTeaser = selectedTier === "initiate" || tierState === "initiate";
 
   const handleSelectPlan = useCallback(
     async (plan: MembershipSignupPlan) => {
@@ -183,6 +192,7 @@ export default function MembershipSignup() {
         await startMembershipCheckoutSession(plan.tier, {
           getToken,
           clerkUserId: userId ?? undefined,
+          billingInterval,
           promoCode: promo.validation?.code ?? null,
         });
       } catch (e) {
@@ -191,7 +201,7 @@ export default function MembershipSignup() {
         setBusyTier(null);
       }
     },
-    [getToken, isLoaded, isSignedIn, navigate, userId],
+    [billingInterval, getToken, isLoaded, isSignedIn, navigate, promo.validation?.code, userId],
   );
 
   return (
@@ -205,11 +215,10 @@ export default function MembershipSignup() {
           >
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Membership</p>
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">
-              Choose Your Path Within Prime Mentor
+              Join The Prime Mentor Premium Membership
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/62 sm:text-lg">
-              Step into guided transformation with access to Divin8, advanced teachings, and a growing library of
-              initiatory systems. Select the level that aligns with your current path.
+              Unlock Divin8 Chat, member savings, webinar discounts, and exclusive course pricing with one streamlined membership.
             </p>
           </motion.div>
         </div>
@@ -256,7 +265,7 @@ export default function MembershipSignup() {
                   void promo.apply({
                     type: "subscription",
                     membershipTier: selectedTier,
-                    billingInterval: "monthly",
+                    billingInterval,
                   });
                 }}
                 onRemove={promo.clear}
@@ -271,23 +280,27 @@ export default function MembershipSignup() {
             </div>
           ) : null}
 
-          <div className="grid items-stretch gap-8 lg:grid-cols-2 lg:gap-10">
-            {MEMBERSHIP_SIGNUP_PLANS.map((plan) => (
+          <div className="mx-auto grid max-w-2xl items-stretch gap-8 lg:gap-10">
+            {visiblePlans.map((plan) => (
               <MembershipPlanCard
                 key={plan.tier}
                 plan={plan}
                 onSelect={handleSelectPlan}
                 busyTier={busyTier}
                 selected={selectedTier === plan.tier}
+                billingInterval={billingInterval}
+                onBillingIntervalChange={setBillingInterval}
               />
             ))}
           </div>
-          <div className="mt-10">
-            <MentorTrainingTeaserCard
-              state={mentorTrainingState}
-              isLoading={mentorTrainingLoading && tierState === "initiate"}
-            />
-          </div>
+          {showMentorTrainingTeaser ? (
+            <div className="mt-10">
+              <MentorTrainingTeaserCard
+                state={mentorTrainingState}
+                isLoading={mentorTrainingLoading && tierState === "initiate"}
+              />
+            </div>
+          ) : null}
           <p className="mx-auto mt-8 max-w-3xl text-center text-xs leading-relaxed text-white/78 sm:mt-10 sm:text-sm">
             You are under no obligation and can cancel your membership at anytime.
           </p>
@@ -297,8 +310,7 @@ export default function MembershipSignup() {
       <section className="border-t border-white/8 px-6 py-12 sm:py-14">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm leading-relaxed text-white/58 sm:text-base">
-            Both plans include full access to the Prime Mentor ecosystem—your choice determines the depth, frequency, and
-            level of mastery you wish to embody.
+            Premium Membership is the main access path for ongoing Divin8 guidance, member savings, and upcoming Prime Mentor course support.
           </p>
         </div>
       </section>
@@ -307,7 +319,7 @@ export default function MembershipSignup() {
         <div className="mx-auto max-w-xl text-center">
           <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Not Sure Where to Start?</h2>
           <p className="mt-4 text-sm leading-relaxed text-white/58 sm:text-base">
-            Begin as a Seeker and upgrade anytime as your journey deepens. The path is designed to evolve with you.
+            Start with Premium Membership and use Divin8 Chat to clarify your next best step.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link

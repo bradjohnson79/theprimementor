@@ -15,7 +15,7 @@ export interface TierCapabilities {
 export const TIER_CONFIG = {
   seeker: {
     easyAccessToServices: true,
-    promptLimit: 150,
+    promptLimit: 200,
     unlimitedChat: false,
     includesMentorCircle: false,
     traumaTranscendenceCourse: true,

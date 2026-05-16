@@ -13,7 +13,7 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
     quote:
       "Divin8 helped me see patterns I was too close to name. The language is precise without being cold; I finally had a map I could use when life felt noisy.",
     name: "Ronald P.",
-    role: "Seeker member",
+    role: "Premium member",
   },
   {
     id: "3",

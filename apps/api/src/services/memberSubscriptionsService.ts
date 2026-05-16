@@ -146,7 +146,7 @@ export async function listMemberRecurringSubscriptions(
         accessEndsOn: normalizedStatus === "cancelling" ? dateToIso(row.currentPeriodEnd) : null,
         cancelAtPeriodEnd: row.cancelAtPeriodEnd,
         cancelable: normalizedStatus === "active" || normalizedStatus === "past_due",
-        detail: row.tier === "initiate" ? "Initiate tier" : "Seeker tier",
+        detail: row.tier === "initiate" ? "Initiate tier" : "Premium tier",
         createdAt: row.createdAt,
       };
     })

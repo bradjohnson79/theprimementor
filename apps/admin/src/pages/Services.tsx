@@ -145,13 +145,13 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
     },
     {
       id: "seeker-subscription",
-      title: "Seeker Subscription",
+      title: "Premium Membership",
       price: `${MEMBER_PRICING.seeker.monthly.label} · ${MEMBER_PRICING.seeker.annual.label}`,
       tag: "Most Popular",
       description:
-        "Balanced recurring access for members who want consistent Divin8 support without unlocking the full Initiate layer.",
+        "Core recurring membership for members who want consistent Divin8 support, member savings, webinar discounts, and course pricing.",
       features: [
-        "150 prompts per month",
+        "200 prompts per month",
         "Divin8 Chat access",
         `Annual plan ${annualSavingsLabel("seeker").toLowerCase()}`,
       ],

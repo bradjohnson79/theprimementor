@@ -6,7 +6,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 function toDisplayTier(tier: "free" | "seeker" | "initiate") {
   if (tier === "free") return "Free Tier";
   if (tier === "initiate") return "Initiate";
-  return "Seeker";
+  return "Premium";
 }
 
 type MemberRecurringSubscription = {
@@ -92,7 +92,7 @@ export default function Settings() {
       return "Unlimited prompts available.";
     }
     const used = user?.member?.usage.used ?? 0;
-    const limit = user?.member?.usage.limit ?? 150;
+    const limit = user?.member?.usage.limit ?? 200;
     const remaining = Math.max(limit - used, 0);
     return `${remaining} of ${limit} prompts remaining`;
   }, [memberTier, user?.member?.capabilities.unlimitedChat, user?.member?.usage.limit, user?.member?.usage.used]);

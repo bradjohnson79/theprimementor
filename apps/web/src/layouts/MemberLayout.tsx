@@ -45,7 +45,7 @@ export default function MemberLayout() {
     ? "Free"
     : tierState === "initiate"
       ? "Initiate"
-      : "Seeker";
+      : "Premium";
   const dashboardTierBadgeClassName = tierState === "free"
     ? "border-emerald-400/30 bg-emerald-400/12 text-emerald-200"
     : tierState === "initiate"
