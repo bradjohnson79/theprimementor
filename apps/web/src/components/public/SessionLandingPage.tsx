@@ -265,6 +265,62 @@ function AdvancedSupportServices({
   );
 }
 
+function OptionalManifestationEnhancement({
+  theme,
+}: {
+  theme: LandingTheme;
+}) {
+  if (theme !== "regeneration") {
+    return null;
+  }
+
+  return (
+    <section className="relative border-b border-white/8 py-14">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="overflow-hidden rounded-[1.5rem] border border-cyan-200/16 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025))] p-6 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:p-8">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-center">
+            <div>
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">
+                Optional Intention Holding Enhancement
+              </p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem]">
+                30-Day Manifestation Enhancement
+              </h2>
+              <div className="mt-5 max-w-3xl space-y-4 text-sm leading-7 text-white/66 sm:text-base">
+                <p>
+                  Enhance your 30-day regeneration cycle with optional manifestation support.
+                </p>
+                <p>
+                  This enhancement is designed to help hold, support, and amplify intended outcomes throughout your regeneration process by maintaining focused intention within your energetic field.
+                </p>
+                <p>
+                  This optional enhancement remains active for the full duration of your Regeneration Monthly Package.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+              <p className="text-sm font-semibold text-cyan-100">+$29 CAD for 30 days</p>
+              <ul className="mt-5 space-y-3">
+                {[
+                  "Maintain focused intention throughout your cycle",
+                  "Support intended outcomes without internal doubt interference",
+                  "Additional 30-day energetic support for your selected intentions",
+                ].map((benefit) => (
+                  <li key={benefit} className="flex gap-3 text-sm leading-6 text-white/72">
+                    <span className="mt-1 text-cyan-100">+</span>
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function SessionLandingPage({
   content,
 }: {
@@ -327,6 +383,8 @@ export default function SessionLandingPage({
           </div>
         </div>
       </section>
+
+      <OptionalManifestationEnhancement theme={content.theme} />
 
       <AdvancedSupportServices theme={content.theme} />
 

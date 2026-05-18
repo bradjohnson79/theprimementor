@@ -22,6 +22,11 @@ import { logger } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import { getSectionsFromStoredReport } from "./reportFormat.js";
 import type { SubscriptionActorType } from "./adminSubscriptionLifecycleService.js";
+import {
+  REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_NAME,
+} from "../config/regenerationBilling.js";
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -44,6 +49,16 @@ type AdminOrderAvailability = Record<AdminOrderAvailabilityDay, string[]>;
 type AdminOrderHealthFocusArea = {
   name: string;
   severity: number;
+};
+type AdminOrderManifestationEnhancement = {
+  version: number;
+  selected: boolean;
+  status: "active" | "not_selected";
+  name: string;
+  duration_days: number;
+  price_cents: number;
+  currency: string;
+  intentions: string | null;
 };
 
 export interface AdminOrderOutput {
@@ -172,6 +187,9 @@ export interface AdminOrder {
       topics: string[];
       goals: string[];
       health_focus_areas: AdminOrderHealthFocusArea[];
+      manifestation_enhancement_selected: boolean | null;
+      manifestation_goals: string | null;
+      manifestation_enhancement: AdminOrderManifestationEnhancement | null;
       other: string | null;
       notes: string | null;
     };
@@ -505,6 +523,9 @@ function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
     topics: [],
     goals: [],
     health_focus_areas: [],
+    manifestation_enhancement_selected: null,
+    manifestation_goals: null,
+    manifestation_enhancement: null,
     other: null,
     notes: null,
   };
@@ -1448,6 +1469,22 @@ function parseReportPurchaseIntake(value: unknown) {
   };
 }
 
+function parseBookingManifestationEnhancement(value: unknown): AdminOrderManifestationEnhancement | null {
+  if (!isRecord(value)) return null;
+  const selected = getBoolean(value.selected) === true;
+  const intentions = selected ? getString(value.intentions) : null;
+  return {
+    version: getNumber(value.version) ?? 1,
+    selected,
+    status: selected ? "active" : "not_selected",
+    name: REGENERATION_MANIFESTATION_ENHANCEMENT_NAME,
+    duration_days: REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS,
+    price_cents: getNumber(value.priceCents) ?? REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
+    currency: getString(value.currency) ?? "CAD",
+    intentions,
+  };
+}
+
 function parseBookingIntake(value: unknown) {
   if (!isRecord(value)) return null;
   const normalizedTopics = getString(value.topics)
@@ -1460,6 +1497,7 @@ function parseBookingIntake(value: unknown) {
     topics: normalizedTopics,
     goals: getStringArray(value.goals),
     healthFocusAreas: parseBookingHealthFocusAreas(value.healthFocusAreas),
+    manifestationEnhancement: parseBookingManifestationEnhancement(value.manifestationEnhancement),
     other: getString(value.other),
     notes: getString(value.notes),
   };
@@ -1784,6 +1822,9 @@ function createSessionCandidate(
   const topics = intakeSnapshot?.intake?.topics ?? intake?.topics ?? [];
   const goals = intakeSnapshot?.intake?.goals ?? intake?.goals ?? [];
   const healthFocusAreas = intakeSnapshot?.intake?.healthFocusAreas ?? intake?.healthFocusAreas ?? [];
+  const manifestationEnhancement = intakeSnapshot?.intake?.manifestationEnhancement
+    ?? intake?.manifestationEnhancement
+    ?? null;
   const other = intakeSnapshot?.intake?.other ?? intake?.other ?? null;
   const availability = intakeSnapshot?.availability ?? parseBookingAvailability(row.availability);
   const birthLocation = resolveLocation(
@@ -1840,6 +1881,9 @@ function createSessionCandidate(
         topics,
         goals,
         health_focus_areas: healthFocusAreas,
+        manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
+        manifestation_goals: manifestationEnhancement?.intentions ?? null,
+        manifestation_enhancement: manifestationEnhancement,
         other,
         notes: intakeSnapshot?.notes ?? intake?.notes ?? row.notes,
       },
@@ -2256,6 +2300,8 @@ function createPersistedAdminOrder(
   const sessionType = getString(orderMetadata?.sessionType) ?? getString(orderMetadata?.session_type);
   const scheduledAt = getString(orderMetadata?.scheduledAt) ?? getString(orderMetadata?.scheduled_at);
   const meetingLink = getString(orderMetadata?.meetingLink) ?? getString(orderMetadata?.meeting_link);
+  const manifestationEnhancement = parseBookingManifestationEnhancement(orderMetadata?.manifestationEnhancement);
+  const emptyIntake = createEmptyIntakeMetadata();
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -2291,7 +2337,12 @@ function createPersistedAdminOrder(
       birth_date: null,
       birth_time: null,
       birth_location: null,
-      intake: createEmptyIntakeMetadata(),
+      intake: {
+        ...emptyIntake,
+        manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
+        manifestation_goals: manifestationEnhancement?.intentions ?? null,
+        manifestation_enhancement: manifestationEnhancement,
+      },
       availability: null,
       report_type: null,
       report_type_id: null,

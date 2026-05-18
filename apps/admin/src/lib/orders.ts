@@ -18,6 +18,16 @@ export type AdminOrderHealthFocusArea = {
   name: string;
   severity: number;
 };
+export type AdminOrderManifestationEnhancement = {
+  version: number;
+  selected: boolean;
+  status: "active" | "not_selected";
+  name: string;
+  duration_days: number;
+  price_cents: number;
+  currency: string;
+  intentions: string | null;
+};
 
 export interface AdminOrderOutput {
   summary: string;
@@ -145,6 +155,9 @@ export interface AdminOrder {
       topics: string[];
       goals: string[];
       health_focus_areas: AdminOrderHealthFocusArea[];
+      manifestation_enhancement_selected: boolean | null;
+      manifestation_goals: string | null;
+      manifestation_enhancement: AdminOrderManifestationEnhancement | null;
       other: string | null;
       notes: string | null;
     };

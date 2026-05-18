@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeHealthFocusAreas } from "./bookingService.js";
+import { normalizeHealthFocusAreas, normalizeManifestationEnhancement } from "./bookingService.js";
 
 test("normalizeHealthFocusAreas keeps only named rows and preserves severity", () => {
   const areas = normalizeHealthFocusAreas([
@@ -41,4 +41,38 @@ test("normalizeHealthFocusAreas caps persisted rows at five entries", () => {
 
   assert.equal(areas.length, 5);
   assert.equal(areas[4]?.name, "Area 5");
+});
+
+test("normalizeManifestationEnhancement stores selected enhancement with versioned pricing", () => {
+  const enhancement = normalizeManifestationEnhancement({
+    version: 1,
+    selected: true,
+    intentions: "Relationship harmony\nFinancial stability",
+    priceCents: 1234,
+    currency: "USD",
+  });
+
+  assert.deepEqual(enhancement, {
+    version: 1,
+    selected: true,
+    intentions: "Relationship harmony\nFinancial stability",
+    priceCents: 2900,
+    currency: "CAD",
+  });
+});
+
+test("normalizeManifestationEnhancement defaults to not selected", () => {
+  assert.deepEqual(normalizeManifestationEnhancement(undefined), {
+    version: 1,
+    selected: false,
+    priceCents: 2900,
+    currency: "CAD",
+  });
+});
+
+test("normalizeManifestationEnhancement requires intentions when selected", () => {
+  assert.throws(
+    () => normalizeManifestationEnhancement({ selected: true, intentions: " " }),
+    /manifestationEnhancement\.intentions is required when selected/i,
+  );
 });

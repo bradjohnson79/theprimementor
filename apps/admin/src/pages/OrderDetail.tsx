@@ -770,6 +770,10 @@ export default function OrderDetail() {
   const selectedSubscriptionRequirement = subscriptionAction && subscription
     ? subscription.action_requirements[subscriptionAction]
     : null;
+  const isRegenerationOrder = (order.type === "session" && order.metadata.session_type === "regeneration")
+    || order.subscription?.kind === "regeneration"
+    || order.metadata.order_variant === "regeneration_monthly_package";
+  const manifestationEnhancement = order.metadata.intake.manifestation_enhancement;
 
   return (
     <motion.div
@@ -1234,6 +1238,47 @@ export default function OrderDetail() {
           </dl>
         </Card>
       </div>
+
+      {isRegenerationOrder ? (
+        <Card>
+          <h3 className="text-lg font-semibold text-white">Enhancement Summary</h3>
+          <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-4">
+            <p className="text-sm font-semibold text-cyan-100">
+              {manifestationEnhancement?.name ?? "30-Day Manifestation Enhancement"}
+            </p>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+              <div>
+                <dt className="text-xs text-white/40">Status</dt>
+                <dd className="mt-1 text-white/85">
+                  {manifestationEnhancement?.selected ? "Active" : "Not selected"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Duration</dt>
+                <dd className="mt-1 text-white/85">
+                  {manifestationEnhancement?.selected
+                    ? `${manifestationEnhancement.duration_days} Days`
+                    : "30 Days"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Price</dt>
+                <dd className="mt-1 text-white/85">
+                  {manifestationEnhancement?.selected
+                    ? `+$${(manifestationEnhancement.price_cents / 100).toFixed(0)} ${manifestationEnhancement.currency}`
+                    : "—"}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-5">
+              <p className="text-xs uppercase tracking-[0.2em] text-white/40">Intentions</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/78">
+                {renderValue(manifestationEnhancement?.intentions ?? order.metadata.intake.manifestation_goals)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {order.type === "session" ? (
         <Card>

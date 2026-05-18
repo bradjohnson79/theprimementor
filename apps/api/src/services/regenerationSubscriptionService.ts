@@ -12,6 +12,11 @@ import {
 } from "@wisdom/db";
 import { createHttpError } from "./booking/errors.js";
 import {
+  REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_KEY,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_NAME,
+  REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID,
   REGENERATION_PLAN_NAME,
   REGENERATION_PRODUCT_KEY,
   getRegenerationStripePriceId,
@@ -432,6 +437,27 @@ async function getLatestPendingPayment(db: Database, regenerationSubscriptionId:
   return payment ?? null;
 }
 
+function resolveManifestationEnhancementFromBooking(input: {
+  intake: unknown;
+  intakeSnapshot: unknown;
+}) {
+  const snapshot = parseObject(input.intakeSnapshot);
+  const snapshotIntake = parseObject(snapshot?.intake);
+  const rawIntake = parseObject(input.intake);
+  const enhancement = parseObject(snapshotIntake?.manifestationEnhancement)
+    ?? parseObject(rawIntake?.manifestationEnhancement);
+  const selected = enhancement?.selected === true;
+  const intentions = selected ? getString(enhancement?.intentions) : null;
+
+  return {
+    version: 1 as const,
+    selected,
+    intentions,
+    priceCents: REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
+    currency: "CAD" as const,
+  };
+}
+
 async function getRegenerationBookingContext(
   db: Database,
   input: {
@@ -449,6 +475,8 @@ async function getRegenerationBookingContext(
       userId: bookings.user_id,
       sessionType: bookings.session_type,
       status: bookings.status,
+      intake: bookings.intake,
+      intakeSnapshot: bookings.intake_snapshot,
     })
     .from(bookings)
     .where(eq(bookings.id, input.bookingId))
@@ -466,7 +494,10 @@ async function getRegenerationBookingContext(
     throw createHttpError(400, "This regeneration intake is no longer in a payable state.");
   }
 
-  return booking;
+  return {
+    ...booking,
+    manifestationEnhancement: resolveManifestationEnhancementFromBooking(booking),
+  };
 }
 
 async function ensureLocalUserExists(db: Database, userId: string) {
@@ -499,6 +530,7 @@ function buildOrderMetadata(input: {
   accessState: RegenerationAccessState;
   paymentStatus: "completed" | "failed";
 }) {
+  const projectionMetadata = parseObject(input.projection.metadata);
   return {
     plan_name: REGENERATION_PLAN_NAME,
     billing_cycle: "monthly",
@@ -513,6 +545,8 @@ function buildOrderMetadata(input: {
     invoice_label: REGENERATION_PLAN_NAME,
     stripeInvoiceId: input.invoiceId,
     paymentStatus: input.paymentStatus,
+    manifestationEnhancement: parseObject(projectionMetadata?.manifestationEnhancement),
+    manifestationEnhancementPriceId: getString(projectionMetadata?.manifestationEnhancementPriceId),
   };
 }
 
@@ -652,6 +686,22 @@ export function isRegenerationSubscriptionMetadata(metadata: Record<string, stri
   return type === "regeneration_subscription" || productKey === REGENERATION_PRODUCT_KEY;
 }
 
+export function buildRegenerationCheckoutLineItems(
+  basePriceId: string,
+  includeManifestationEnhancement: boolean,
+): Stripe.Checkout.SessionCreateParams.LineItem[] {
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    { price: basePriceId, quantity: 1 },
+  ];
+  if (includeManifestationEnhancement) {
+    lineItems.push({
+      price: REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID,
+      quantity: 1,
+    });
+  }
+  return lineItems;
+}
+
 export async function getRegenerationSubscriptionSummary(db: Database, userId: string) {
   return serializeProjection(await getProjectionByUserId(db, userId));
 }
@@ -689,6 +739,15 @@ export async function createRegenerationCheckoutSession(
   const priceId = getRegenerationStripePriceId();
   const frontendUrl = getFrontendUrl();
   const lastCheckoutStartedAt = new Date();
+  const manifestationEnhancement = booking?.manifestationEnhancement ?? {
+    version: 1 as const,
+    selected: false,
+    intentions: null,
+    priceCents: REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
+    currency: "CAD" as const,
+  };
+  const hasManifestationEnhancement = manifestationEnhancement.selected === true;
+  const checkoutAmountCents = 9900 + (hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS : 0);
   const createdOrUpdated = await upsertProjection(db, {
     userId: input.userId,
     stripeCustomerId,
@@ -714,6 +773,7 @@ export async function createRegenerationCheckoutSession(
       planName: REGENERATION_PLAN_NAME,
       checkoutSource: "regeneration_monthly_intake",
       bookingId: booking?.id ?? null,
+      manifestationEnhancement,
     },
   });
 
@@ -728,7 +788,7 @@ export async function createRegenerationCheckoutSession(
       entityType: "regeneration_subscription",
       entityId: createdOrUpdated.id,
       bookingId: booking?.id ?? null,
-      amountCents: 9900,
+      amountCents: checkoutAmountCents,
       currency: "CAD",
       status: "pending",
       metadata: {
@@ -736,9 +796,12 @@ export async function createRegenerationCheckoutSession(
         planName: REGENERATION_PLAN_NAME,
         productKey: REGENERATION_PRODUCT_KEY,
         bookingId: booking?.id ?? null,
+        manifestationEnhancement,
       },
     });
   }
+
+  const lineItems = buildRegenerationCheckoutLineItems(priceId, hasManifestationEnhancement);
 
   const metadata = {
     userId: input.userId,
@@ -752,13 +815,19 @@ export async function createRegenerationCheckoutSession(
     productKey: REGENERATION_PRODUCT_KEY,
     planName: REGENERATION_PLAN_NAME,
     checkoutSource: "/sessions/regeneration/book",
+    manifestationEnhancementSelected: hasManifestationEnhancement ? "true" : "false",
+    manifestationEnhancementVersion: String(manifestationEnhancement.version),
+    manifestationEnhancementPriceId: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID : "",
+    manifestationEnhancementKey: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_KEY : "",
+    manifestationEnhancementName: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_NAME : "",
+    manifestationEnhancementDurationDays: hasManifestationEnhancement ? String(REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS) : "",
   };
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     mode: "subscription",
     client_reference_id: createdOrUpdated.id,
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: lineItems,
     allow_promotion_codes: true,
     metadata,
     subscription_data: { metadata },
@@ -793,6 +862,8 @@ export async function createRegenerationCheckoutSession(
       planName: REGENERATION_PLAN_NAME,
       productKey: REGENERATION_PRODUCT_KEY,
       bookingId: booking?.id ?? null,
+      manifestationEnhancement,
+      manifestationEnhancementPriceId: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID : null,
     },
   });
 
@@ -802,6 +873,7 @@ export async function createRegenerationCheckoutSession(
       .update(payments)
       .set({
         booking_id: booking?.id ?? refreshedPayment.bookingId ?? null,
+        amount_cents: checkoutAmountCents,
         metadata: {
           ...(parseObject(refreshedPayment.metadata) ?? {}),
           stripeCheckoutSessionId: session.id,
@@ -811,6 +883,8 @@ export async function createRegenerationCheckoutSession(
           planName: REGENERATION_PLAN_NAME,
           productKey: REGENERATION_PRODUCT_KEY,
           bookingId: booking?.id ?? null,
+          manifestationEnhancement,
+          manifestationEnhancementPriceId: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID : null,
         },
         updated_at: new Date(),
       })

@@ -456,7 +456,9 @@ function SessionCard({
   imageFit,
   imageClassName,
 }: SessionCardData) {
-  const bookingHref = `${href}/book`;
+  const bookingHref = sessionKey === "regeneration"
+    ? `${href}/book?manifestationEnhancement=suggested`
+    : `${href}/book`;
   const primaryCtaLabel = sessionKey === "regeneration" ? "Begin Cycle" : "Book Session";
 
   return (
@@ -482,6 +484,13 @@ function SessionCard({
         </div>
 
         <p className="flex-1 whitespace-pre-line text-sm leading-relaxed text-white/60">{description}</p>
+
+        {sessionKey === "regeneration" ? (
+          <div className="rounded-xl border border-cyan-200/15 bg-cyan-300/8 px-3 py-2.5 text-xs leading-5 text-cyan-50/78">
+            <span className="font-semibold uppercase tracking-[0.16em] text-cyan-100/70">Optional</span>
+            <span className="ml-2">+ Add 30-Day Manifestation Enhancement (+$29)</span>
+          </div>
+        ) : null}
 
         <div className="mt-auto flex flex-col gap-2 sm:flex-row">
           <Link

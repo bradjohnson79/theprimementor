@@ -20,6 +20,14 @@ export interface BookingHealthFocusArea {
   severity: number;
 }
 
+export interface BookingManifestationEnhancement {
+  version: 1;
+  selected: boolean;
+  intentions?: string;
+  priceCents: number;
+  currency: "CAD";
+}
+
 export const FOCUS_TOPICS = [
   "Personal conflicts",
   "Physical ailments",
@@ -50,6 +58,7 @@ export interface BookingIntakePayload {
   topics?: string[] | string;
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];
+  manifestationEnhancement?: BookingManifestationEnhancement;
   other?: string;
   notes?: string;
 }

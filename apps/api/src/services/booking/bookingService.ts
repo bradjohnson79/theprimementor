@@ -30,6 +30,7 @@ import {
   MENTORING_GOALS,
   createEmptyBookingAvailability,
   type BookingHealthFocusArea,
+  type BookingManifestationEnhancement,
   isBookingSessionType,
   type BookingAvailability,
   type BookingAvailabilityDay,
@@ -409,6 +410,35 @@ export function normalizeHealthFocusAreas(
   return normalized;
 }
 
+export function normalizeManifestationEnhancement(value: unknown): BookingManifestationEnhancement {
+  if (value == null) {
+    return {
+      version: 1,
+      selected: false,
+      priceCents: 2900,
+      currency: "CAD",
+    };
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw createHttpError(400, "manifestationEnhancement must be an object");
+  }
+
+  const raw = value as Record<string, unknown>;
+  const selected = raw.selected === true;
+  const intentions = selected ? normalizeText(raw.intentions) : null;
+  if (selected && !intentions) {
+    throw createHttpError(400, "manifestationEnhancement.intentions is required when selected");
+  }
+
+  return {
+    version: 1,
+    selected,
+    ...(intentions ? { intentions } : {}),
+    priceCents: 2900,
+    currency: "CAD",
+  };
+}
+
 function normalizeBookingAvailability(
   value: unknown,
   options: { requireSelection: boolean },
@@ -482,10 +512,14 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   const other = normalizeText(raw.other);
   const notes = normalizeText(raw.notes);
   const healthFocusAreas = normalizeHealthFocusAreas(raw.healthFocusAreas, { requireAtLeastOne: false });
+  const manifestationEnhancement = type === "regeneration"
+    ? normalizeManifestationEnhancement(raw.manifestationEnhancement)
+    : null;
 
   if (topics && (typeof topics === "string" ? Boolean(topics) : topics.length > 0)) intake.topics = topics;
   if (goals.length > 0) intake.goals = goals;
   if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
+  if (manifestationEnhancement) intake.manifestationEnhancement = manifestationEnhancement;
   if (other) intake.other = other;
   if (notes) intake.notes = notes;
 
@@ -696,6 +730,7 @@ function buildNormalizedIntake(
     if (healthFocusAreas.length > 0) {
       normalized.healthFocusAreas = healthFocusAreas;
     }
+    normalized.manifestationEnhancement = normalizeManifestationEnhancement(intake.manifestationEnhancement);
   }
 
   return {
