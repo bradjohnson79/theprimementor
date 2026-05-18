@@ -33,10 +33,6 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
         "The deeper value comes from continuity. Rather than treating regeneration like a one-time intervention, the monthly package creates room for ongoing support, observation, and refinement over the full cycle.",
         "This helps the process feel grounded, trackable, and easier to integrate into daily life.",
       ],
-      statementLines: [
-        "You are selling a process, not a session.",
-        "You are entering ongoing support, not one-time delivery.",
-      ],
       density: "default",
     },
     {
