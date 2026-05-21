@@ -1,10 +1,15 @@
 import { useAuth } from "@clerk/react";
 import { useEffect, useMemo, useState } from "react";
+import AnalyticsAccordion from "../components/analytics/AnalyticsAccordion";
+import AnalyticsEmptyState from "../components/analytics/AnalyticsEmptyState";
+import AnalyticsMetricList, { type AnalyticsMetricListItem } from "../components/analytics/AnalyticsMetricList";
+import { analyticsHelperText, getConversionRouteLabel, utmEmptyState, utmExample } from "../components/analytics/analyticsCopy";
 import { useAdminSettings } from "../context/AdminSettingsContext";
 import { api } from "../lib/api";
 
 type AnalyticsRange = "24h" | "7d" | "30d";
 type AnalyticsStatus = "ok" | "degraded";
+type InsightSectionStatus = "ok" | "degraded" | "unsupported";
 type TrendDirection = "up" | "down" | "neutral";
 
 interface TrendMetric {
@@ -144,12 +149,76 @@ interface OverviewResponse {
   };
 }
 
+interface InsightMetricRow {
+  label: string;
+  visitors: number;
+  pageviews: number;
+  visits: number;
+  bounceRate: number;
+  share: number;
+}
+
+interface InsightSubsection {
+  status: InsightSectionStatus;
+  warning?: string;
+  metricType: string;
+  items: InsightMetricRow[];
+}
+
+interface CampaignInsightRow extends InsightMetricRow {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  sourceType: "utm" | "channel";
+}
+
+interface ConversionPathInsightRow extends InsightMetricRow {
+  path: string;
+  routeLabel: string;
+  note: string;
+  frictionNote: string | null;
+}
+
+interface InsightsResponse {
+  range: AnalyticsRange;
+  status: AnalyticsStatus;
+  warning?: string;
+  supportedMetricTypes?: string[];
+  entryPages: InsightSubsection;
+  exitPages: InsightSubsection;
+  devices: InsightSubsection;
+  browsers: InsightSubsection;
+  geography: {
+    countries: InsightMetricRow[];
+    regions: InsightMetricRow[];
+    status: InsightSectionStatus;
+    warning?: string;
+  };
+  campaigns: {
+    items: CampaignInsightRow[];
+    status: InsightSectionStatus;
+    warning?: string;
+    hasUtmData: boolean;
+  };
+  conversionPaths: {
+    items: ConversionPathInsightRow[];
+    status: InsightSectionStatus;
+    warning?: string;
+  };
+  recommendations: {
+    items: string[];
+    status: "ok";
+  };
+}
+
 interface AnalyticsDashboardState {
   summary: SummaryResponse;
   pageviews: PageviewsResponse;
   events: EventsResponse;
   referrers: ReferrersResponse;
   overview: OverviewResponse;
+  insights: InsightsResponse | null;
+  insightsWarning: string | null;
 }
 
 const RANGE_OPTIONS: Array<{ id: AnalyticsRange; label: string }> = [
@@ -264,6 +333,39 @@ function TrendPill({ metric, isLightTheme }: { metric: TrendMetric; isLightTheme
   );
 }
 
+function LoadingRows({ count = 5 }: { count?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, index) => (
+        <div key={`analytics-loading-${index}`} className="h-14 animate-pulse rounded-2xl bg-white/5" />
+      ))}
+    </div>
+  );
+}
+
+function metricDetail(row: { pageviews?: number; visitors?: number; visits?: number }, includeVisits = false) {
+  return [
+    row.pageviews !== undefined ? `${formatNumber(row.pageviews)} pageviews` : null,
+    row.visitors !== undefined ? `${formatNumber(row.visitors)} visitors` : null,
+    includeVisits && row.visits !== undefined ? `${formatNumber(row.visits)} visits` : null,
+  ].filter(Boolean).join(" · ");
+}
+
+function insightItems(rows: InsightMetricRow[], options: {
+  title?: (row: InsightMetricRow) => string;
+  detail?: (row: InsightMetricRow) => string;
+  metric?: (row: InsightMetricRow) => string;
+  note?: (row: InsightMetricRow) => string | null;
+} = {}): AnalyticsMetricListItem[] {
+  return rows.map((row) => ({
+    id: row.label,
+    title: options.title?.(row) ?? row.label,
+    detail: options.detail?.(row) ?? metricDetail(row, true),
+    metric: options.metric?.(row) ?? `${row.share}% share`,
+    note: options.note?.(row) ?? null,
+  }));
+}
+
 export default function Analytics() {
   const { getToken } = useAuth();
   const { resolvedTheme } = useAdminSettings();
@@ -282,12 +384,20 @@ export default function Analytics() {
       try {
         const token = await getToken();
         const query = `?range=${encodeURIComponent(range)}`;
-        const [summary, pageviews, events, referrers, overview] = await Promise.all([
+        const insightsRequest = api
+          .get(`/admin/analytics/insights${query}`, token)
+          .then((response) => ({ data: (response as { data: InsightsResponse }).data, warning: null as string | null }))
+          .catch((insightsError: unknown) => ({
+            data: null,
+            warning: insightsError instanceof Error ? insightsError.message : "Analytics insights are temporarily unavailable.",
+          }));
+        const [summary, pageviews, events, referrers, overview, insights] = await Promise.all([
           api.get(`/admin/analytics/summary${query}`, token) as Promise<{ data: SummaryResponse }>,
           api.get(`/admin/analytics/pageviews${query}`, token) as Promise<{ data: PageviewsResponse }>,
           api.get(`/admin/analytics/events${query}`, token) as Promise<{ data: EventsResponse }>,
           api.get(`/admin/analytics/referrers${query}`, token) as Promise<{ data: ReferrersResponse }>,
           api.get(`/admin/analytics/overview${query}`, token) as Promise<{ data: OverviewResponse }>,
+          insightsRequest,
         ]);
 
         if (!cancelled) {
@@ -297,6 +407,8 @@ export default function Analytics() {
             events: events.data,
             referrers: referrers.data,
             overview: overview.data,
+            insights: insights.data,
+            insightsWarning: insights.warning,
           });
         }
       } catch (loadError) {
@@ -510,82 +622,231 @@ export default function Analytics() {
         )}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
-        <SectionCard title="Top Pages" eyebrow="Traffic Detail" isLightTheme={isLightTheme}>
-          {loading || !data ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={`pages-loading-${index}`} className="h-14 animate-pulse rounded-2xl bg-white/5" />
-              ))}
-            </div>
-          ) : data.pageviews.topPages.length === 0 ? (
-            <p className={classNames("text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
-              No pageview data available yet.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {data.pageviews.topPages.map((page) => (
-                <div
-                  key={page.path}
-                  className={classNames(
-                    "rounded-2xl border px-4 py-3",
-                    isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5",
-                  )}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className={classNames("font-medium", isLightTheme ? "text-slate-900" : "text-white")}>{page.path || "/"}</p>
-                      <p className={classNames("mt-1 text-xs", isLightTheme ? "text-slate-500" : "text-white/50")}>
-                        {formatNumber(page.pageviews)} pageviews · {formatNumber(page.visitors)} visitors
-                      </p>
-                    </div>
-                    <span className={classNames("text-xs font-medium", isLightTheme ? "text-slate-600" : "text-white/70")}>
-                      {page.bounceRate}% bounce rate
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
+      <div className="space-y-4">
+        {data?.insightsWarning ? (
+          <div
+            className={classNames(
+              "rounded-2xl border px-4 py-3 text-sm",
+              isLightTheme ? "border-amber-200 bg-amber-50 text-amber-800" : "border-amber-400/25 bg-amber-400/10 text-amber-100",
+            )}
+          >
+            {data.insightsWarning}
+          </div>
+        ) : null}
 
-        <SectionCard title="Referrers" eyebrow="Traffic Detail" isLightTheme={isLightTheme}>
+        <AnalyticsAccordion title="Top Pages" defaultOpen isLightTheme={isLightTheme}>
           {loading || !data ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={`referrers-loading-${index}`} className="h-14 animate-pulse rounded-2xl bg-white/5" />
-              ))}
-            </div>
+            <LoadingRows />
+          ) : data.pageviews.topPages.length === 0 ? (
+            <AnalyticsEmptyState message="No pageview data available yet." isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.pageviews.topPages.map((page) => ({
+                id: page.path || "/",
+                title: page.path || "/",
+                detail: `${formatNumber(page.pageviews)} pageviews · ${formatNumber(page.visitors)} visitors`,
+                metric: `${page.bounceRate}% bounce rate`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion title="Referrers" isLightTheme={isLightTheme}>
+          {loading || !data ? (
+            <LoadingRows />
           ) : data.referrers.items.length === 0 ? (
-            <p className={classNames("text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
-              No referrer data available yet.
-            </p>
+            <AnalyticsEmptyState message="No referrer data available yet." isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.referrers.items.map((row) => ({
+                id: row.referrer,
+                title: row.referrer,
+                detail: `${formatNumber(row.visitors)} visitors · ${formatNumber(row.pageviews)} pageviews`,
+                metric: `${row.share}% share`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Entry Pages"
+          helperText={analyticsHelperText.entryPages}
+          warning={data?.insights?.entryPages.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.entryPages.items.length === 0 ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={insightItems(data.insights.entryPages.items, {
+                detail: (row) => `${formatNumber(row.visits)} entrances · ${formatNumber(row.visitors)} visitors`,
+                metric: (row) => `${row.bounceRate}% bounce rate`,
+                note: (row) => getConversionRouteLabel(row.label) ? `Conversion-related route: ${getConversionRouteLabel(row.label)}` : null,
+              })}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Exit Pages"
+          helperText={analyticsHelperText.exitPages}
+          warning={data?.insights?.exitPages.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.exitPages.items.length === 0 ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={insightItems(data.insights.exitPages.items, {
+                detail: (row) => `${formatNumber(row.visits)} exits · ${formatNumber(row.pageviews)} pageviews`,
+                metric: (row) => `${row.share}% share`,
+              })}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Devices"
+          helperText={analyticsHelperText.devices}
+          warning={data?.insights?.devices.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.devices.items.length === 0 ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.devices.items)} />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Browsers"
+          helperText={analyticsHelperText.browsers}
+          warning={data?.insights?.browsers.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.browsers.items.length === 0 ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.browsers.items)} />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Countries & Regions"
+          helperText={analyticsHelperText.geography}
+          warning={data?.insights?.geography.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || (data.insights.geography.countries.length === 0 && data.insights.geography.regions.length === 0) ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.geography.countries)} />
+              <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.geography.regions)} />
+            </div>
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Campaigns & UTM Tracking"
+          helperText={analyticsHelperText.campaigns}
+          warning={data?.insights?.campaigns.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.campaigns.items.length === 0 || !data.insights.campaigns.hasUtmData ? (
+            <AnalyticsEmptyState message={utmEmptyState} isLightTheme={isLightTheme}>
+              <span
+                className={classNames(
+                  "inline-flex rounded-full border px-3 py-1 text-xs",
+                  isLightTheme ? "border-slate-200 bg-white text-slate-700" : "border-white/10 bg-white/5 text-white/70",
+                )}
+              >
+                {utmExample}
+              </span>
+            </AnalyticsEmptyState>
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.insights.campaigns.items.map((row) => ({
+                id: row.label,
+                title: row.utmCampaign ?? row.label,
+                detail: [
+                  row.utmSource ? `source: ${row.utmSource}` : null,
+                  row.utmMedium ? `medium: ${row.utmMedium}` : null,
+                  `${formatNumber(row.visitors)} visitors`,
+                  `${formatNumber(row.pageviews)} pageviews`,
+                ].filter(Boolean).join(" · "),
+                metric: `${row.share}% share`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Conversion Path Insights"
+          helperText={analyticsHelperText.conversionPaths}
+          warning={data?.insights?.conversionPaths.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights || data.insights.conversionPaths.items.length === 0 ? (
+            <AnalyticsEmptyState isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.insights.conversionPaths.items.map((row) => ({
+                id: row.path,
+                title: `${row.path} · ${row.routeLabel}`,
+                detail: row.note,
+                metric: `${row.bounceRate}% bounce rate`,
+                note: row.frictionNote,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Strategic Recommendations"
+          helperText={analyticsHelperText.recommendations}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows count={3} />
+          ) : !data.insights || data.insights.recommendations.items.length === 0 ? (
+            <AnalyticsEmptyState message="No recommendations for this period yet." isLightTheme={isLightTheme} />
           ) : (
             <div className="space-y-3">
-              {data.referrers.items.map((row) => (
+              {data.insights.recommendations.items.map((item) => (
                 <div
-                  key={row.referrer}
+                  key={item}
                   className={classNames(
-                    "rounded-2xl border px-4 py-3",
-                    isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5",
+                    "rounded-2xl border px-4 py-3 text-sm leading-6",
+                    isLightTheme ? "border-slate-200 bg-slate-50 text-slate-700" : "border-white/10 bg-white/5 text-white/65",
                   )}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className={classNames("font-medium", isLightTheme ? "text-slate-900" : "text-white")}>{row.referrer}</p>
-                      <p className={classNames("mt-1 text-xs", isLightTheme ? "text-slate-500" : "text-white/50")}>
-                        {formatNumber(row.visitors)} visitors · {formatNumber(row.pageviews)} pageviews
-                      </p>
-                    </div>
-                    <span className={classNames("text-xs font-medium", isLightTheme ? "text-slate-600" : "text-white/70")}>
-                      {row.share}% share
-                    </span>
-                  </div>
+                  {item}
                 </div>
               ))}
             </div>
           )}
-        </SectionCard>
+        </AnalyticsAccordion>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">

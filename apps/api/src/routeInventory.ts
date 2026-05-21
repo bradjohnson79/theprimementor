@@ -147,6 +147,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "GET", url: "/api/admin/analytics/events", auth: "admin", validation: "manual", handlerFile: "routes/analytics.ts", serviceRefs: ["services/analyticsService.ts"] },
   { method: "GET", url: "/api/admin/analytics/referrers", auth: "admin", validation: "manual", handlerFile: "routes/analytics.ts", serviceRefs: ["services/analyticsService.ts"] },
   { method: "GET", url: "/api/admin/analytics/overview", auth: "admin", validation: "manual", handlerFile: "routes/analytics.ts", serviceRefs: ["services/analyticsService.ts"] },
+  { method: "GET", url: "/api/admin/analytics/insights", auth: "admin", validation: "manual", handlerFile: "routes/analytics.ts", serviceRefs: ["services/analyticsService.ts"] },
   { method: "POST", url: "/api/internal/mentoring-circle/reminders", auth: "internal", validation: "manual", handlerFile: "routes/mentoring-circle.ts", serviceRefs: ["services/mentoringCircleService.ts", "services/notifications/notificationService.ts"] },
   { method: "GET", url: "/api/admin/seo", auth: "admin", validation: "manual", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoService.ts"] },
   { method: "POST", url: "/api/admin/seo", auth: "admin", validation: "service", handlerFile: "routes/seo.ts", serviceRefs: ["services/seoService.ts"] },

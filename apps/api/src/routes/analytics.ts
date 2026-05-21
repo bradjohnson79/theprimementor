@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import {
   getAdminAnalyticsEvents,
+  getAdminAnalyticsInsights,
   getAdminAnalyticsOverview,
   getAdminAnalyticsPageviews,
   getAdminAnalyticsReferrers,
@@ -126,6 +127,31 @@ export async function analyticsRoutes(app: FastifyInstance) {
         });
       } catch (error) {
         return sendApiError(reply, 500, error instanceof Error ? error.message : "Failed to load analytics overview");
+      }
+    },
+  );
+
+  app.get<{ Querystring: { range?: string } }>(
+    "/admin/analytics/insights",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const actor = requireAdmin(request);
+      const range = readRange(request.query?.range);
+
+      try {
+        return ok({
+          data: await getAdminAnalyticsInsights(
+            db,
+            { actorRole: actor.role, actorUserId: actor.id },
+            range,
+            {
+              warn: (payload, message) => app.log.warn(payload, message),
+            },
+          ),
+        });
+      } catch (error) {
+        return sendApiError(reply, 500, error instanceof Error ? error.message : "Failed to load analytics insights");
       }
     },
   );

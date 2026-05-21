@@ -17,11 +17,11 @@ interface AnalyticsActor {
   actorUserId?: string | null;
 }
 
-interface AnalyticsLogger {
+export interface AnalyticsLogger {
   warn: (payload: Record<string, unknown>, message: string) => void;
 }
 
-interface AnalyticsRangeWindow {
+export interface AnalyticsRangeWindow {
   range: AnalyticsRange;
   startAt: number;
   endAt: number;
@@ -50,6 +50,7 @@ interface UmamiMetricRow {
   x?: string;
   y?: number;
   name?: string;
+  country?: string;
   pageviews?: number;
   visitors?: number;
   visits?: number;
@@ -89,6 +90,17 @@ interface UmamiEventListResponse {
 }
 
 type TrendDirection = "up" | "down" | "neutral";
+type InsightsSubsectionStatus = "ok" | "degraded" | "unsupported";
+type UmamiExpandedMetricType =
+  | "path"
+  | "entry"
+  | "exit"
+  | "device"
+  | "browser"
+  | "country"
+  | "region"
+  | "channel"
+  | "query";
 
 interface TrendMetric {
   current: number;
@@ -96,6 +108,36 @@ interface TrendMetric {
   delta: number;
   deltaLabel: string;
   direction: TrendDirection;
+}
+
+export interface AnalyticsMetricRow {
+  label: string;
+  visitors: number;
+  pageviews: number;
+  visits: number;
+  bounceRate: number;
+  share: number;
+}
+
+export interface AnalyticsInsightSubsection {
+  status: InsightsSubsectionStatus;
+  warning?: string;
+  metricType: UmamiExpandedMetricType;
+  items: AnalyticsMetricRow[];
+}
+
+export interface AnalyticsCampaignRow extends AnalyticsMetricRow {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  sourceType: "utm" | "channel";
+}
+
+export interface AnalyticsConversionPathRow extends AnalyticsMetricRow {
+  path: string;
+  routeLabel: string;
+  note: string;
+  frictionNote: string | null;
 }
 
 interface CachedEntry<T> {
@@ -112,6 +154,17 @@ const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 const DEFAULT_UMAMI_WEBSITE_ID = "db9c7631-014a-4dc3-b9c2-967afed009f7";
 const DEFAULT_UMAMI_DASHBOARD_URL = "https://cloud.umami.is";
 const DEFAULT_UMAMI_API_URL = "https://api.umami.is/v1";
+const CONVERSION_ROUTE_LABELS = [
+  { prefix: "/sessions/regeneration", label: "Regeneration Monthly Package interest" },
+  { prefix: "/subscriptions/initiate", label: "Initiate subscription interest" },
+  { prefix: "/subscriptions/seeker", label: "Seeker subscription interest" },
+  { prefix: "/reports", label: "Divin8 Reports interest" },
+  { prefix: "/sessions", label: "Private session interest" },
+  { prefix: "/sign-up", label: "Account creation step" },
+  { prefix: "/sign-in", label: "Returning user login" },
+  { prefix: "/checkout", label: "Purchase/checkout step" },
+  { prefix: "/dashboard", label: "Member area" },
+];
 
 function assertAdminAccess(actor: AnalyticsActor) {
   if (actor.actorRole !== "admin") {
@@ -249,6 +302,119 @@ function buildDegradedMeta(reason: string) {
   };
 }
 
+function calculateBounceRate(row: UmamiMetricRow) {
+  const visits = numberValue(row.visits);
+  if (visits <= 0) {
+    return 0;
+  }
+  return Math.round((numberValue(row.bounces) / visits) * 100);
+}
+
+function normalizeMetricLabel(row: UmamiMetricRow) {
+  return stringValue(row.name ?? row.x);
+}
+
+export function normalizeExpandedRows(rows: UmamiMetricRow[] | null | undefined): AnalyticsMetricRow[] {
+  const safeRows = rows ?? [];
+  const totalVisitors = safeRows.reduce((sum, row) => sum + numberValue(row.visitors), 0);
+
+  return safeRows
+    .map((row) => ({
+      label: normalizeMetricLabel(row),
+      visitors: numberValue(row.visitors),
+      pageviews: numberValue(row.pageviews),
+      visits: numberValue(row.visits),
+      bounceRate: calculateBounceRate(row),
+      share: totalVisitors > 0 ? Math.round((numberValue(row.visitors) / totalVisitors) * 100) : 0,
+    }))
+    .filter((row) => row.label);
+}
+
+function getRouteLabel(path: string) {
+  const normalized = path === "/" ? path : path.replace(/\/+$/, "");
+  return CONVERSION_ROUTE_LABELS.find((route) =>
+    normalized === route.prefix || normalized.startsWith(`${route.prefix}/`),
+  )?.label ?? null;
+}
+
+export function buildConversionPathInsights(rows: AnalyticsMetricRow[]): AnalyticsConversionPathRow[] {
+  return rows
+    .map((row) => {
+      const routeLabel = getRouteLabel(row.label);
+      if (!routeLabel) {
+        return null;
+      }
+
+      return {
+        ...row,
+        path: row.label,
+        routeLabel,
+        note: `${row.label} (${routeLabel}) received ${row.pageviews} pageviews and ${row.visitors} visitors with a ${row.bounceRate}% bounce rate.`,
+        frictionNote: row.visitors >= 5 && row.bounceRate >= 50
+          ? "Worth reviewing CTA clarity, trust signals, offer strength, and next-step visibility if this route remains important."
+          : null,
+      } satisfies AnalyticsConversionPathRow;
+    })
+    .filter((row): row is AnalyticsConversionPathRow => Boolean(row));
+}
+
+function findMetric(rows: AnalyticsMetricRow[], path: string) {
+  return rows.find((row) => row.label === path || row.label.startsWith(`${path}/`));
+}
+
+export function buildStrategicRecommendations(input: {
+  conversionPaths: AnalyticsConversionPathRow[];
+  devices: AnalyticsMetricRow[];
+  channels: AnalyticsMetricRow[];
+  overview: Awaited<ReturnType<typeof getAdminAnalyticsOverview>>;
+}) {
+  const recommendations: string[] = [];
+  const reports = findMetric(input.conversionPaths, "/reports");
+  const regeneration = findMetric(input.conversionPaths, "/sessions/regeneration");
+  const directChannel = input.channels.find((row) => /direct/i.test(row.label));
+  const organicOrVideo = input.channels.find((row) => /\b(organic|search|social|video|youtube)\b/i.test(row.label));
+  const mobile = input.devices.find((row) => /mobile/i.test(row.label));
+  const ordersTrend = input.overview.businessMetrics.orders.trend;
+
+  if (reports && reports.visitors >= 5 && reports.bounceRate >= 50) {
+    recommendations.push(
+      "Reports are receiving attention, but the bounce rate may indicate some visitors need a clearer next step. Consider improving the headline, adding a short \"which report is right for me?\" section, and placing a stronger CTA above the fold.",
+    );
+  }
+
+  if (regeneration && regeneration.visitors >= 5 && ordersTrend.direction !== "up") {
+    recommendations.push(
+      "Regeneration traffic is present, but stronger trust signals may help. Consider clearer package explanation, testimonials, and a softer entry CTA if related orders are not rising in the current period.",
+    );
+  }
+
+  if (organicOrVideo && organicOrVideo.share >= 20) {
+    recommendations.push(
+      "Search, social, or video channels are meaningful in this period. Worth continuing SEO pages, video descriptions, and clear calls to action back into Reports, Sessions, and Subscriptions.",
+    );
+  }
+
+  if (directChannel && directChannel.share >= 35) {
+    recommendations.push(
+      "Direct traffic may indicate brand recall or returning visitor behavior. Make sure Reports, Sessions, and Subscriptions are easy to find quickly from the homepage and admin-promoted links.",
+    );
+  }
+
+  if (mobile && mobile.share >= 55) {
+    recommendations.push(
+      "Mobile traffic is significant. Consider prioritizing mobile page speed, CTA visibility, shorter page sections, and a simplified checkout flow.",
+    );
+  }
+
+  if (recommendations.length === 0 && input.conversionPaths.length > 0) {
+    recommendations.push(
+      "Conversion-intent pages are receiving measurable traffic. Continue watching bounce rate and order/session trends before making strong conclusions.",
+    );
+  }
+
+  return recommendations.slice(0, 6);
+}
+
 function buildUmamiRequestUrl(pathname: string, params: Record<string, string | number | undefined>) {
   const baseUrl = getUmamiApiUrl();
   if (!baseUrl) {
@@ -328,6 +494,121 @@ function normalizeSeries(values: Array<{ x?: string; y?: number }> | undefined) 
     timestamp: stringValue(entry.x),
     value: numberValue(entry.y),
   }));
+}
+
+async function fetchUmamiExpandedMetrics(input: {
+  window: AnalyticsRangeWindow;
+  metricType: UmamiExpandedMetricType;
+  limit: number;
+  logger: AnalyticsLogger;
+  operation: string;
+}) {
+  return fetchUmamiJson<UmamiMetricRow[]>({
+    pathname: "metrics/expanded",
+    params: {
+      startAt: input.window.startAt,
+      endAt: input.window.endAt,
+      type: input.metricType,
+      limit: input.limit,
+    },
+    logger: input.logger,
+    operation: input.operation,
+  });
+}
+
+export async function loadInsightsSubsection(input: {
+  window: AnalyticsRangeWindow;
+  metricType: UmamiExpandedMetricType;
+  limit: number;
+  logger: AnalyticsLogger;
+  operation: string;
+  emptyWarning: string;
+}): Promise<AnalyticsInsightSubsection> {
+  try {
+    const rows = await fetchUmamiExpandedMetrics(input);
+    if (!rows) {
+      input.logger.warn(
+        { operation: input.operation, metricType: input.metricType, status: "degraded" },
+        "analytics_insights_subsection_degraded",
+      );
+      return {
+        status: "degraded",
+        warning: input.emptyWarning,
+        metricType: input.metricType,
+        items: [],
+      };
+    }
+
+    return {
+      status: "ok",
+      metricType: input.metricType,
+      items: normalizeExpandedRows(rows),
+    };
+  } catch (error) {
+    input.logger.warn(
+      {
+        operation: input.operation,
+        metricType: input.metricType,
+        status: "degraded",
+        error: error instanceof Error ? error.message : "unknown_error",
+      },
+      "analytics_insights_subsection_degraded",
+    );
+    return {
+      status: "degraded",
+      warning: input.emptyWarning,
+      metricType: input.metricType,
+      items: [],
+    };
+  }
+}
+
+function parseUtmQuery(label: string) {
+  const queryText = label.startsWith("?") ? label.slice(1) : label;
+  const params = new URLSearchParams(queryText);
+  const utmSource = params.get("utm_source");
+  const utmMedium = params.get("utm_medium");
+  const utmCampaign = params.get("utm_campaign");
+
+  if (!utmSource && !utmMedium && !utmCampaign) {
+    return null;
+  }
+
+  return { utmSource, utmMedium, utmCampaign };
+}
+
+function buildCampaignRows(channelRows: AnalyticsMetricRow[], queryRows: AnalyticsMetricRow[]) {
+  const utmRows = queryRows
+    .map((row) => {
+      const utm = parseUtmQuery(row.label);
+      if (!utm) {
+        return null;
+      }
+      return {
+        ...row,
+        ...utm,
+        sourceType: "utm" as const,
+      };
+    })
+    .filter((row) => Boolean(row)) as AnalyticsCampaignRow[];
+
+  if (utmRows.length > 0) {
+    return {
+      hasUtmData: true,
+      items: utmRows,
+    };
+  }
+
+  return {
+    hasUtmData: false,
+    items: channelRows.map((row) => ({
+      ...row,
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      sourceType: "channel" as const,
+    })),
+  };
 }
 
 function toMoney(valueInCents: number) {
@@ -637,6 +918,166 @@ export async function getAdminAnalyticsReferrers(
         visits: numberValue(row.visits),
         share: totalVisitors > 0 ? Math.round((numberValue(row.visitors) / totalVisitors) * 100) : 0,
       })),
+    };
+  });
+}
+
+function aggregateInsightStatus(sections: Array<{ status: InsightsSubsectionStatus }>) {
+  return sections.some((section) => section.status !== "ok") ? "degraded" as const : "ok" as const;
+}
+
+export async function getAdminAnalyticsInsights(
+  db: Database,
+  actor: AnalyticsActor,
+  range: AnalyticsRange,
+  logger: AnalyticsLogger,
+) {
+  assertAdminAccess(actor);
+  const window = buildRangeWindow(range);
+
+  return getCachedOrLoad(`analytics:insights:${range}`, async () => {
+    const [
+      entryPages,
+      exitPages,
+      devices,
+      browsers,
+      countries,
+      regions,
+      channels,
+      queries,
+      conversionPathsRaw,
+      overview,
+    ] = await Promise.all([
+      loadInsightsSubsection({
+        window,
+        metricType: "entry",
+        limit: 12,
+        logger,
+        operation: "insights_entry_pages",
+        emptyWarning: "Entry page data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "exit",
+        limit: 12,
+        logger,
+        operation: "insights_exit_pages",
+        emptyWarning: "Exit page data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "device",
+        limit: 8,
+        logger,
+        operation: "insights_devices",
+        emptyWarning: "Device data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "browser",
+        limit: 10,
+        logger,
+        operation: "insights_browsers",
+        emptyWarning: "Browser data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "country",
+        limit: 10,
+        logger,
+        operation: "insights_countries",
+        emptyWarning: "Country data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "region",
+        limit: 10,
+        logger,
+        operation: "insights_regions",
+        emptyWarning: "Region data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "channel",
+        limit: 10,
+        logger,
+        operation: "insights_channels",
+        emptyWarning: "Campaign channel data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "query",
+        limit: 30,
+        logger,
+        operation: "insights_queries",
+        emptyWarning: "Campaign query data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "path",
+        limit: 50,
+        logger,
+        operation: "insights_conversion_paths",
+        emptyWarning: "Conversion path data is temporarily unavailable for this period.",
+      }),
+      getAdminAnalyticsOverview(db, actor, range),
+    ]);
+
+    const geographyStatus = aggregateInsightStatus([countries, regions]);
+    const campaignRows = buildCampaignRows(channels.items, queries.items);
+    const campaignStatus = aggregateInsightStatus([channels, queries]);
+    const conversionPathItems = buildConversionPathInsights(conversionPathsRaw.items);
+    const recommendations = buildStrategicRecommendations({
+      conversionPaths: conversionPathItems,
+      devices: devices.items,
+      channels: channels.items,
+      overview,
+    });
+    const sections = [
+      entryPages,
+      exitPages,
+      devices,
+      browsers,
+      countries,
+      regions,
+      channels,
+      queries,
+      conversionPathsRaw,
+    ];
+    const status = aggregateInsightStatus(sections);
+
+    return {
+      range,
+      status,
+      ...(status === "degraded" ? { warning: "Some analytics insight sections are temporarily unavailable." } : {}),
+      supportedMetricTypes: sections
+        .filter((section) => section.status === "ok")
+        .map((section) => section.metricType),
+      entryPages,
+      exitPages,
+      devices,
+      browsers,
+      geography: {
+        countries: countries.items,
+        regions: regions.items,
+        status: geographyStatus,
+        ...(geographyStatus !== "ok" ? { warning: countries.warning ?? regions.warning ?? "Geographic data is temporarily unavailable." } : {}),
+      },
+      campaigns: {
+        items: campaignRows.items,
+        status: campaignStatus,
+        ...(campaignStatus !== "ok" ? { warning: channels.warning ?? queries.warning ?? "Campaign tracking data is temporarily unavailable." } : {}),
+        hasUtmData: campaignRows.hasUtmData,
+      },
+      conversionPaths: {
+        items: conversionPathItems,
+        status: conversionPathsRaw.status,
+        ...(conversionPathsRaw.warning ? { warning: conversionPathsRaw.warning } : {}),
+      },
+      recommendations: {
+        items: recommendations,
+        status: "ok" as const,
+      },
     };
   });
 }
