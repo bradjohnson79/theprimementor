@@ -69,7 +69,14 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "AetherX", href: "https://aetherx.app", external: true },
     ],
   },
-  { label: "About", href: "/#about" },
+  {
+    label: "About",
+    href: "/about",
+    items: [
+      { label: "About Brad Johnson", href: "/about" },
+      { label: "Media Kit", href: "/media" },
+    ],
+  },
   { label: "Contact", href: "/#contact" },
 ];
 
@@ -97,6 +104,8 @@ export default function RootLayout() {
   const [mobileDropdown, setMobileDropdown] = useState<string | null>(null);
   const isMarketingSurface =
     location.pathname === "/"
+    || location.pathname === "/about"
+    || location.pathname === "/media"
     || location.pathname === "/reports"
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")

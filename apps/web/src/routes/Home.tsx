@@ -185,12 +185,24 @@ const LINK_ITEMS = [
 
 const ABOUT_ITEMS = [
   {
-    title: "Integrated Disciplines",
-    description: "Built on decades of study across Vedic astrology, numerology, Human Design, Chinese astrology, Kabbalah, and runic systems.",
+    title: "Researcher",
+    description:
+      "A lifelong student and investigator of consciousness, spirituality, manifestation, ancient systems, metaphysics, intuition, dream states, and transformation.",
   },
   {
-    title: "Practical Guidance",
-    description: "Every session, report, and feature is designed to convert insight into grounded direction, timing, and next steps.",
+    title: "Practitioner",
+    description:
+      "An experienced practitioner of ancient spiritual disciplines, consciousness cultivation systems, yoga, qigong, Taoist practices, meditation, energetic methods, and metaphysical systems.",
+  },
+  {
+    title: "Educator",
+    description:
+      "A teacher focused on practical spirituality, empowerment, and transformation through direct experience.",
+  },
+  {
+    title: "Speaker",
+    description:
+      "An international public speaker and podcast guest sharing insight on consciousness, manifestation, regeneration, spirituality, and human evolution.",
   },
 ];
 
@@ -923,11 +935,11 @@ export default function Home() {
       </LandingSection>
 
       <LandingSection id="about">
-        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
           <SectionMediaPanel
             eyebrow="About"
-            title="The Prime Mentor"
-            description="Ancient systems synthesized into one coherent and actionable framework."
+            title="Brad Johnson"
+            description="International Metaphysical Expert, Consciousness Researcher, Speaker & Founder of The Prime Mentor"
             imageSrc={thePrimeMentorLogoGold}
             imageAlt="The Prime Mentor Brad Johnson gold logo"
             imageFrameClassName="flex items-center justify-center"
@@ -941,10 +953,35 @@ export default function Home() {
 
           <SectionContentBlock
             label="About"
-            title="Precise Mentoring with Full Circle Knowledge"
-            description="The Prime Mentor works with calculation, precision and practicality. The methods used by its founder, Brad Johnson, offer a profound complete system that aids you in helping you to not only discover vital life themes, but how to develop your mind into profound states that have been kept from modern spiritual integration."
+            title="International Metaphysical Expert, Consciousness Researcher, Speaker & Founder of The Prime Mentor"
+            description="Brad Johnson is an international metaphysical expert, consciousness researcher, speaker, and founder of The Prime Mentor with over 18 years of experience exploring consciousness, manifestation, ancient spiritual systems, transformation, intuitive intelligence, and practical metaphysics."
           >
+            <div className="mb-5 space-y-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-7 text-white/64">
+              <p>
+                Brad&apos;s work bridges spirituality, lived experience, consciousness research, and transformational education in a grounded, practical, and empowering way.
+              </p>
+              <p>
+                His mission is to help individuals better understand themselves, their consciousness, and their ability to create meaningful transformation through awareness, embodiment, regeneration, and aligned living.
+              </p>
+              <p className="font-semibold text-cyan-100/90">
+                Transformation happens when wisdom becomes lived experience.
+              </p>
+            </div>
             <CompactCardGrid items={ABOUT_ITEMS} columns={2} />
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/about"
+                className="inline-flex items-center justify-center rounded-full bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white"
+              >
+                Read Brad&apos;s Story
+              </Link>
+              <Link
+                to="/media"
+                className="inline-flex items-center justify-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Explore Media Kit
+              </Link>
+            </div>
           </SectionContentBlock>
         </div>
       </LandingSection>

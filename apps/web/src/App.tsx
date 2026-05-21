@@ -8,6 +8,8 @@ import Home from "./routes/Home";
 import SignInPage from "./routes/SignInPage";
 import SignUpPage from "./routes/SignUpPage";
 import ContactPublic from "./routes/ContactPublic";
+import About from "./routes/About";
+import Media from "./routes/Media";
 import Privacy from "./routes/Privacy";
 import Terms from "./routes/Terms";
 import NotFoundPage from "./routes/NotFoundPage";
@@ -77,6 +79,8 @@ export default function App() {
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
           <Route path="/contact" element={<ContactPublic />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/media" element={<Media />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/reports" element={<ReportsLanding />} />
