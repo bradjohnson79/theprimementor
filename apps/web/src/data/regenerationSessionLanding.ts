@@ -7,20 +7,21 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
   pageTitle: "regeneration_monthly_package",
   hero: {
     eyebrow: "Regeneration Monthly Package",
-    title: "A 30-day guided regeneration process with direct priority support.",
+    title:
+      "Instant Vibrational Regeneration, Timeline Shifting, Manifestation Safeguarding - Introducing the Regeneration Monthly Package!",
     subtitle:
-      "The Regeneration Monthly Package is a remote energy facilitation service designed to support your system over a full 30-day cycle.",
+      "The Prime Mentor, Brad Johnson, offers a unique service not found anywhere else. A service that works to regenerate the vibrational alignments of your very being to leave behind burden and enter full regenerated embodiment.",
     supportingLine:
-      "$99 / month recurring. Cancel anytime. This is not a one-time session. It is continuous monthly work focused on deeper integration, stabilization, and measurable internal change over time.",
+      "The Regeneration Monthly Package involves a single scan session recorded onto MP3 providing you with a guided regeneration process and a custom exercise to solidify your regenerated state.",
     cta: {
-      label: "Begin Your Regeneration Cycle",
+      label: "Order Your Regeneration Monthly Package",
       href: REGENERATION_BOOKING_PATH,
     },
     callout: {
       eyebrow: "What You Are Starting",
-      title: "You are no longer buying a session. You are entering a guided monthly process.",
+      title: "The Regeneration Monthly Package is a Guided Monthly Process with 30-day Priority Email Support",
       description:
-        "Throughout the cycle, regeneration work is conducted offline while priority support stays available so you can report your experiences, receive guidance, and stay aligned as the process unfolds.",
+        "You can interact with the Prime Mentor, Brad Johnson for 30 days as you experience the regenerative effects, timeline shifting, and manifestation safeguarding staying aligned as the regenerative process unfolds.",
     },
   },
   sections: [

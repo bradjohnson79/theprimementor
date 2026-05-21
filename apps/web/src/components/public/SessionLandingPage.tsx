@@ -284,14 +284,14 @@ function OptionalManifestationEnhancement({
                 Optional Intention Holding Enhancement
               </p>
               <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem]">
-                30-Day Manifestation Enhancement
+                30-Day Manifestation Safeguarding
               </h2>
               <div className="mt-5 max-w-3xl space-y-4 text-sm leading-7 text-white/66 sm:text-base">
                 <p>
-                  Enhance your 30-day regeneration cycle with optional manifestation support.
+                  Add this option to your Regeneration Monthly Package and enhance your service further.
                 </p>
                 <p>
-                  This enhancement is designed to help hold, support, and amplify intended outcomes throughout your regeneration process by maintaining focused intention within your energetic field.
+                  This add-on is designed to safeguard your intended manifestation making it immune to self-sabotage and doubt (a common side effect in manifestion practices) maintaining and enhancing your manifestation within your energetic field.
                 </p>
                 <p>
                   This optional enhancement remains active for the full duration of your Regeneration Monthly Package.
@@ -303,9 +303,9 @@ function OptionalManifestationEnhancement({
               <p className="text-sm font-semibold text-cyan-100">+$29 CAD for 30 days</p>
               <ul className="mt-5 space-y-3">
                 {[
-                  "Maintain focused intention throughout your cycle",
+                  "Safeguarding your manifested intention throughout your regeneration cycle",
                   "Support intended outcomes without internal doubt interference",
-                  "Additional 30-day energetic support for your selected intentions",
+                  "30-day safeguarding support for your selected manifestation",
                 ].map((benefit) => (
                   <li key={benefit} className="flex gap-3 text-sm leading-6 text-white/72">
                     <span className="mt-1 text-cyan-100">+</span>
@@ -353,7 +353,11 @@ export default function SessionLandingPage({
               <p className="mt-5 max-w-2xl text-sm leading-7 text-white/58 sm:text-base">
                 {content.hero.supportingLine}
               </p>
-              {(content.theme === "regeneration" || content.theme === "qa") ? (
+              {content.theme === "regeneration" ? (
+                <p className="mt-3 text-sm opacity-80">
+                  $99 / month recurring. Cancel anytime. Additional Manifestation Safeguarding service can be added-on to your order where your intended manifestations are immune from self-sabotage and doubt for 30 days.
+                </p>
+              ) : content.theme === "qa" ? (
                 <p className="mt-3 text-sm opacity-80">
                   Includes advanced support options such as Timeline Rewriting and Manifestation Holding for deeper transformation and directed outcomes.
                 </p>
