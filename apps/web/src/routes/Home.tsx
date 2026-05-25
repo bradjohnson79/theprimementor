@@ -224,7 +224,7 @@ function LandingSection({ id, children }: LandingSectionProps) {
       id={id}
       initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
+      viewport={{ once: true, amount: "some" }}
       transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.55, ease: "easeOut" }}
       className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16"
     >
