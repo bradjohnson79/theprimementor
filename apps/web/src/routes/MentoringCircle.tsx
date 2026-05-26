@@ -332,30 +332,34 @@ export default function MentoringCircle() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">Beta Mind vs Prime Mind</h3>
+                <h3 className="text-base font-medium text-white">Prime Law Teachings</h3>
                 <p className="mt-3 text-sm text-white/70">
-                  The difference between living in the Beta Mind vs the Prime Mind and what true manifestation is.
+                  Explore practical teachings through the Prime Law with a focus on integration, clarity, and inner alignment.
                 </p>
               </section>
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">Blueprint Exploration</h3>
+                <h3 className="text-base font-medium text-white">REP: Rest Energy Practice</h3>
                 <ul className="mt-3 space-y-2 text-sm text-white/70">
-                  <li>Energetic and behavioral patterns revealed live with attendees</li>
-                  <li>Where alignment or distortion is shaping results right now</li>
+                  <li>Learn the new alternative to Trauma Transcendence Technique</li>
+                  <li>Use the practice to clear physical and energetic areas</li>
                 </ul>
               </section>
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">Live Demonstration</h3>
+                <h3 className="text-base font-medium text-white">Divin8 Chart Review</h3>
                 <ul className="mt-3 space-y-2 text-sm text-white/70">
-                  <li>Real-time application of manifestation principles</li>
-                  <li>How inner alignment changes outcomes without force</li>
+                  <li>Volunteer chart reviews by permission</li>
+                  <li>Life path questions, goals, giveaway, and Q&A</li>
                 </ul>
               </section>
             </div>
 
             <p className="mt-6 text-sm text-white/70">
-              This is our first Prime Mentor webinar. Reserve your place now to unlock your Zoom access after payment
-              is confirmed, then return here anytime to copy or join the event.
+              The Mentoring Circle webinar provides various teachings through the Prime Law. For this upcoming Mentoring
+              Circle, we will explore REP - Rest Energy Practice, a new alternative to the Trauma Transcendence Technique,
+              and use this practice to clear a variety of areas from ourselves on both a physical and energetic level.
+              We will also explore volunteers who submit their Divin8 Charts by permission for review. Through attendee
+              review, Brad explores your chart and helps answer questions on your life path and achieving desired goals.
+              We will have a giveaway for a free mentoring session and a Q&A period near the end of the webinar.
             </p>
 
             {error ? (

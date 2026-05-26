@@ -129,7 +129,7 @@ const EVENT_ITEMS = [
   {
     title: "Mentoring Circle Monthly",
     description:
-      "Register for our Mentoring Circle Webinar for the opportunity to have your blueprint explored and receive deeper teachings through Prime Mentoring.",
+      "Join the upcoming Mentoring Circle webinar for Prime Law teachings, REP - Rest Energy Practice, volunteer Divin8 Chart reviews, a free mentoring session giveaway, and Q&A.",
     cta: { label: "Register", href: "/events/mentoring-circle", external: false },
     ctaNote: SERVICE_PURCHASE_NOTE,
   },
@@ -210,6 +210,8 @@ const PRIME_MENTOR_FACEBOOK_URL = "https://www.facebook.com/primementorfacebook"
 const PRIME_MENTOR_YOUTUBE_URL = "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA";
 const PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL = "https://www.youtube.com/embed/Gs_LDlzSwEw?rel=0&modestbranding=1";
 const TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC = "/images/Trauma-Transcendence-Technique-banner.png";
+const MENTORING_CIRCLE_PROMO_BANNER_SRC = "/images/mentoring-circle-banner-may30.png";
+const MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS = Date.parse("2026-05-30T16:30:00.000Z");
 
 interface LandingSectionProps {
   id: string;
@@ -651,6 +653,53 @@ function InlineBackToTop() {
   );
 }
 
+function MentoringCirclePromoBanner() {
+  const [isVisible, setIsVisible] = useState(() => Date.now() < MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const delay = MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS - Date.now();
+    if (delay <= 0) {
+      setIsVisible(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setIsVisible(false), Math.min(delay, 2_147_483_647));
+    return () => window.clearTimeout(timeout);
+  }, [isVisible]);
+
+  if (!isVisible) return null;
+
+  return (
+    <section className="relative border-t border-white/8 px-4 py-10 sm:px-6 sm:py-12">
+      <div className="mx-auto max-w-6xl overflow-hidden rounded-[1.75rem] border border-amber-200/25 bg-white/[0.045] p-3 shadow-[0_26px_90px_rgba(0,0,0,0.34),0_0_44px_rgba(251,191,36,0.10)] backdrop-blur-xl sm:p-4">
+        <img
+          src={MENTORING_CIRCLE_PROMO_BANNER_SRC}
+          alt="The Mentoring Circle live this Saturday at 9:30 AM Pacific, exploring REP, Prime Law teachings, Divin8 chart reviews, Q&A, and a mentoring session giveaway."
+          className="block w-full rounded-[1.25rem] border border-white/10 object-cover"
+          loading="eager"
+          decoding="async"
+        />
+        <div className="flex flex-col items-center gap-3 px-2 py-5 text-center sm:flex-row sm:justify-between sm:px-4">
+          <p className="text-sm leading-6 text-white/68">
+            Reserve your spot for this Saturday&apos;s Mentoring Circle webinar.
+          </p>
+          <Link
+            to="/events/mentoring-circle"
+            onClick={() => trackCtaClick("register_mentoring_circle", "home_promo_banner", {
+              href: "/events/mentoring-circle",
+              title: "Mentoring Circle May 30",
+            })}
+            className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_24px_rgba(251,191,36,0.22)] transition hover:scale-[1.01] hover:brightness-105 sm:w-auto"
+          >
+            Register for the Mentoring Circle
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
@@ -677,6 +726,7 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+      <MentoringCirclePromoBanner />
 
       <section id="sessions" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
         <div className="relative mx-auto max-w-6xl px-6">
@@ -820,7 +870,7 @@ export default function Home() {
             title="Live Field"
             description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
             imageSrc={mentoringCircleImage}
-            imageAlt="The Mentoring Circle, last Sunday of each month — The Prime Mentor, Brad Johnson"
+            imageAlt="The Mentoring Circle — The Prime Mentor, Brad Johnson"
             imageHd169Frame
             className="min-h-[19rem]"
           />
@@ -828,7 +878,7 @@ export default function Home() {
           <SectionContentBlock
             label="Events"
             title="Monthly Webinar & Live Weekly Podcast"
-            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for our monthly Mentoring Circle held on the last Sunday of every month."
+            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for the upcoming Mentoring Circle on Saturday, May 30 at 9:30 AM Pacific Daylight Time."
           >
             <CompactCardGrid
               items={EVENT_ITEMS.map((item) => item.cta ? {

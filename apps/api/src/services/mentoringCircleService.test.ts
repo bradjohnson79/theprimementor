@@ -21,7 +21,9 @@ test("mentoring circle resolves the default event definition", () => {
 test("mentoring circle sales switch to may after april sales window opens", () => {
   const activeEvent = getActiveMentoringCirclePurchaseEvent(new Date("2026-04-26T12:05:00-07:00"));
 
-  assert.equal(activeEvent?.eventId, "2026-05-31");
+  assert.equal(activeEvent?.eventId, "2026-05-30");
+  assert.equal(activeEvent?.eventStartAt, "2026-05-30T09:30:00-07:00");
+  assert.equal(activeEvent?.zoomLink, "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g");
 });
 
 test("mentoring circle rejects unknown event ids", () => {

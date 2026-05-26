@@ -95,18 +95,18 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     legacyEventKeys: ["mentoring-circle-april-26-2026"],
   },
   {
-    eventId: "2026-05-31",
-    eventKey: "2026-05-31",
+    eventId: "2026-05-30",
+    eventKey: "2026-05-30",
     eventTitle: "Mentoring Circle: The Prime Law",
-    eventStartAt: "2026-05-31T09:00:00-07:00",
+    eventStartAt: "2026-05-30T09:30:00-07:00",
     salesOpenAt: "2026-04-26T12:00:00-07:00",
     timezone: MENTORING_CIRCLE_TIMEZONE,
     durationMinutes: 90,
     priceCents: 2500,
     currency: "CAD",
     posterPath: "/images/mentoring-circle-april-26.png",
-    zoomLink: process.env.MENTORING_CIRCLE_ZOOM_LINK_MAY?.trim()
-      || "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g",
+    zoomLink: "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g",
+    legacyEventKeys: ["2026-05-31"],
   },
 ].sort((left, right) => new Date(left.eventStartAt).getTime() - new Date(right.eventStartAt).getTime());
 
