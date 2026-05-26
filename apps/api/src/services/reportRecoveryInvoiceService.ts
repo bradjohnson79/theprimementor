@@ -1,7 +1,12 @@
 import Stripe from "stripe";
 import { eq } from "drizzle-orm";
 import { payments, reports, users, type Database } from "@wisdom/db";
-import { isReportTierId, type ReportTierId } from "@wisdom/utils";
+import {
+  REPORT_PRODUCTS,
+  isPremiumReportProduct,
+  resolveReportProductKey,
+  type ReportProductKey,
+} from "@wisdom/utils";
 import {
   MEMBERSHIP_CHECKOUT_APP,
   MEMBERSHIP_CHECKOUT_SCHEMA_VERSION,
@@ -31,9 +36,10 @@ function buildReportInvoiceMetadata(input: {
   userEmail: string;
   clerkId: string;
   reportId: string;
-  tier: ReportTierId;
+  reportType: ReportProductKey;
 }): Record<string, string> {
-  return {
+  const product = REPORT_PRODUCTS[input.reportType];
+  const metadata: Record<string, string> = {
     userId: input.userId.trim(),
     userEmail: input.userEmail.trim(),
     clerkId: input.clerkId.trim(),
@@ -41,11 +47,44 @@ function buildReportInvoiceMetadata(input: {
     entityType: "report",
     entityId: input.reportId.trim(),
     reportId: input.reportId.trim(),
-    reportTier: input.tier,
+    reportType: input.reportType,
     environment: getMembershipCheckoutEnvironment(),
     app: MEMBERSHIP_CHECKOUT_APP,
     version: MEMBERSHIP_CHECKOUT_SCHEMA_VERSION,
     recoverySource: "admin_invoice",
+  };
+
+  if (isPremiumReportProduct(product)) {
+    metadata.reportTier = product.tier;
+  }
+
+  return metadata;
+}
+
+export function resolveRecoveryInvoiceReportType(value: unknown): ReportProductKey {
+  const reportType = resolveReportProductKey(value);
+  if (!reportType) {
+    throw createHttpError(400, "Invalid report type.");
+  }
+  return reportType;
+}
+
+function mergeRecoveryInvoicePaymentMetadata(
+  existingMeta: Record<string, unknown>,
+  input: {
+    stripeInvoiceId: string;
+    hostedInvoiceUrl: string | null;
+    reportType: ReportProductKey;
+  },
+) {
+  const product = REPORT_PRODUCTS[input.reportType];
+  return {
+    ...existingMeta,
+    stripeRecoveryInvoiceId: input.stripeInvoiceId,
+    stripeRecoveryInvoiceSentAt: new Date().toISOString(),
+    stripeRecoveryInvoiceHostedUrl: input.hostedInvoiceUrl,
+    reportType: input.reportType,
+    tier: isPremiumReportProduct(product) ? product.tier : input.reportType,
   };
 }
 
@@ -84,10 +123,7 @@ export async function sendAdminReportRecoveryInvoice(
     throw createHttpError(400, "Report is not awaiting payment.");
   }
 
-  const tier = row.report.interpretation_tier;
-  if (!isReportTierId(tier)) {
-    throw createHttpError(400, "Invalid report tier.");
-  }
+  const reportType = resolveRecoveryInvoiceReportType(row.report.interpretation_tier);
 
   const payment = await getReusablePaymentForEntity(db, {
     entityType: "report",
@@ -115,7 +151,7 @@ export async function sendAdminReportRecoveryInvoice(
     userEmail,
     clerkId,
     reportId,
-    tier,
+    reportType,
   });
 
   const customerId = await ensureStripeCustomerId(db, {
@@ -147,7 +183,7 @@ export async function sendAdminReportRecoveryInvoice(
     }
   }
 
-  const priceId = getReportStripePriceId(tier);
+  const priceId = getReportStripePriceId(reportType);
 
   const draft = await stripe.invoices.create({
     customer: customerId,
@@ -167,12 +203,11 @@ export async function sendAdminReportRecoveryInvoice(
   const finalized = await stripe.invoices.finalizeInvoice(draft.id);
   await stripe.invoices.sendInvoice(finalized.id);
 
-  const mergedPaymentMeta = {
-    ...existingMeta,
-    stripeRecoveryInvoiceId: finalized.id,
-    stripeRecoveryInvoiceSentAt: new Date().toISOString(),
-    stripeRecoveryInvoiceHostedUrl: finalized.hosted_invoice_url ?? null,
-  };
+  const mergedPaymentMeta = mergeRecoveryInvoicePaymentMetadata(existingMeta, {
+    stripeInvoiceId: finalized.id,
+    hostedInvoiceUrl: finalized.hosted_invoice_url ?? null,
+    reportType,
+  });
 
   await db
     .update(payments)
