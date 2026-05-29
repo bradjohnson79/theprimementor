@@ -694,6 +694,10 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "conversation_memories_conversation_type_content_uidx" ON "conversation_memories" USING btree ("conversation_id", "type", "content");`,
 ] as const;
 
+const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
+  "users.phone": [`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;`],
+};
+
 const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
   `INSERT INTO "booking_types" (
@@ -735,8 +739,14 @@ export function canRepairKnownSchemaGaps(missingEntries: string[]) {
   return missingEntries.some((entry) => REPAIRABLE_PREFIXES.some((prefix) => entry.startsWith(prefix)));
 }
 
-export async function repairKnownSchemaGaps(db: Database) {
-  for (const statement of KNOWN_SCHEMA_REPAIR_STATEMENTS) {
+export async function repairKnownSchemaGaps(db: Database, missingEntries?: string[]) {
+  const canUseTargetedRepair =
+    missingEntries?.length && missingEntries.every((entry) => TARGETED_SCHEMA_REPAIR_STATEMENTS[entry]?.length);
+  const statements = canUseTargetedRepair
+    ? missingEntries.flatMap((entry) => TARGETED_SCHEMA_REPAIR_STATEMENTS[entry])
+    : KNOWN_SCHEMA_REPAIR_STATEMENTS;
+
+  for (const statement of statements) {
     await db.execute(sql.raw(statement));
   }
 }

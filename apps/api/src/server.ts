@@ -746,7 +746,7 @@ export async function buildApp() {
         missingColumns: missingEntries,
       });
       try {
-        await repairKnownSchemaGaps(db);
+        await repairKnownSchemaGaps(db, missingEntries);
         logger.info("database_schema_repair_succeeded", {
           repairedColumns: missingEntries,
         });
