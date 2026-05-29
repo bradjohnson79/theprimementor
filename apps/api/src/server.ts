@@ -22,6 +22,8 @@ import { paymentsRoutes } from "./routes/payments.js";
 import { regenerationRoutes } from "./routes/regeneration.js";
 import { imageRoutes } from "./routes/images.js";
 import { divin8Routes } from "./routes/divin8.js";
+import { divin8KnowledgeRoutes } from "./routes/divin8Knowledge.js";
+import { timezoneRoutes } from "./routes/timezone.js";
 import { placesRoutes } from "./routes/places.js";
 import { contactRoutes } from "./routes/contact.js";
 import { zoomRoutes } from "./routes/zoom.js";
@@ -59,6 +61,7 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "id",
     "clerk_id",
     "email",
+    "phone",
     "role",
     "created_at",
     "updated_at",
@@ -814,6 +817,8 @@ export async function buildApp() {
   await app.register(regenerationRoutes, { prefix: "/api" });
   await app.register(imageRoutes, { prefix: "/api" });
   await app.register(divin8Routes, { prefix: "/api" });
+  await app.register(divin8KnowledgeRoutes, { prefix: "/api" });
+  await app.register(timezoneRoutes, { prefix: "/api" });
   await app.register(placesRoutes, { prefix: "/api" });
   await app.register(contactRoutes, { prefix: "/api" });
   await app.register(zoomRoutes, { prefix: "/api" });

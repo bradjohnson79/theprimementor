@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { to: "/blueprint", label: "Divin8 Engine", icon: "✦" },
   { to: "/admin/divin8-chat", label: "Divin8 Chat", icon: "✺", matchPrefix: "/admin/divin8-chat" },
   { to: "/admin/divin8-chat/prompt", label: "Prompt", icon: "↳", indent: true },
+  { to: "/admin/divin8-chat/knowledge-base", label: "Knowledge Base", icon: "↳", indent: true },
   { to: "/admin/settings", label: "Settings", icon: "⚙" },
   { to: "/admin/settings/notifications", label: "Notifications", icon: "↳", indent: true, matchPrefix: "/admin/settings/notifications" },
   { to: "/admin/analytics", label: "Analytics", icon: "↳", indent: true, matchPrefix: "/admin/analytics" },
@@ -72,6 +73,8 @@ function navLabelKey(label: string) {
       return "nav.seo";
     case "Promo Codes":
       return "nav.promoCodes";
+    case "Knowledge Base":
+      return "nav.knowledgeBase";
     default:
       return `nav.${label.toLowerCase()}`;
   }

@@ -79,6 +79,10 @@ export default function Settings() {
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<MemberRecurringSubscription | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const memberTier = tierState;
 
   const usageLabel = useMemo(() => {
@@ -130,6 +134,12 @@ export default function Settings() {
     };
   }, [getToken]);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setPhone(user?.phone ?? "");
+    }
+  }, [isLoading, user?.phone]);
+
   const activeSubscriptions = useMemo(
     () => subscriptions.filter((subscription) => subscription.status !== "canceled"),
     [subscriptions],
@@ -165,6 +175,22 @@ export default function Settings() {
     }
   }
 
+  async function handleSavePhone() {
+    setIsSavingPhone(true);
+    setProfileMessage(null);
+    setProfileError(null);
+    try {
+      const token = await getToken();
+      await api.patch("/me/profile", { phone }, token);
+      setProfileMessage("Phone number updated.");
+      refetch();
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Phone number could not be updated.");
+    } finally {
+      setIsSavingPhone(false);
+    }
+  }
+
   return (
     <div className="px-8 py-8">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -190,7 +216,37 @@ export default function Settings() {
               Email
               <input className={inputClassName} value={isLoading ? "Loading..." : (user?.email ?? "")} readOnly />
             </label>
+            <label className="text-sm text-white/70 md:col-span-2">
+              Phone Number
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className={`${inputClassName} mt-0`}
+                  value={isLoading ? "Loading..." : phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Add your phone number"
+                  disabled={isLoading || isSavingPhone}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSavePhone()}
+                  disabled={isLoading || isSavingPhone || phone.trim() === (user?.phone ?? "")}
+                  className="rounded-xl bg-accent-cyan px-4 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-400/40 disabled:text-white/50"
+                >
+                  {isSavingPhone ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </label>
           </div>
+          {profileMessage ? (
+            <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {profileMessage}
+            </div>
+          ) : null}
+          {profileError ? (
+            <div className="mt-4 rounded-xl border border-rose-400/25 bg-rose-950/30 px-4 py-3 text-sm text-rose-100">
+              {profileError}
+            </div>
+          ) : null}
         </section>
 
         <section className="glass-card rounded-2xl p-6">

@@ -58,3 +58,11 @@ export function divin8UnavailableError() {
     503,
   );
 }
+
+export function divin8LlmModelError() {
+  return new Divin8SystemError(
+    "DIVIN8_LLM_MODEL_ERROR",
+    `The Divin8 language model (${DIVIN8_CHAT_MODEL}) is temporarily unavailable.`,
+    503,
+  );
+}

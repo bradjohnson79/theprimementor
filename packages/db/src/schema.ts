@@ -310,6 +310,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   clerk_id: text("clerk_id").unique().notNull(),
   email: text("email").notNull(),
+  phone: text("phone"),
   role: text("role").default("client").notNull(),
   ...timestamps,
 });
@@ -1077,6 +1078,161 @@ export const conversationMemories = pgTable("conversation_memories", {
   userTypeCreatedIdx: index("conversation_memories_user_type_created_idx").on(table.user_id, table.type, table.created_at),
   conversationTypeContentUnique: uniqueIndex("conversation_memories_conversation_type_content_uidx")
     .on(table.conversation_id, table.type, table.content),
+}));
+
+export const divin8KnowledgeSources = pgTable("divin8_knowledge_sources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  authority_level: text("authority_level").notNull(),
+  status: text("status").default("uploading").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  current_version_id: uuid("current_version_id"),
+  current_version_label: text("current_version_label"),
+  original_filename: text("original_filename").notNull(),
+  mime_type: text("mime_type").notNull(),
+  file_size: integer("file_size").default(0).notNull(),
+  source_path: text("source_path"),
+  content_hash: text("content_hash"),
+  last_processed_at: timestamp("last_processed_at", { withTimezone: true }),
+  deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
+  ...timestamps,
+}, (table) => ({
+  statusUpdatedIdx: index("divin8_knowledge_sources_status_updated_idx").on(table.status, table.updated_at),
+  categoryAuthorityIdx: index("divin8_knowledge_sources_category_authority_idx").on(table.category, table.authority_level),
+  enabledUpdatedIdx: index("divin8_knowledge_sources_enabled_updated_idx").on(table.enabled, table.updated_at),
+}));
+
+export const divin8KnowledgeSourceVersions = pgTable("divin8_knowledge_source_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source_id: uuid("source_id")
+    .references(() => divin8KnowledgeSources.id, { onDelete: "cascade" })
+    .notNull(),
+  version_number: integer("version_number").notNull(),
+  version_label: text("version_label").notNull(),
+  status: text("status").default("uploading").notNull(),
+  source_path: text("source_path"),
+  original_filename: text("original_filename").notNull(),
+  mime_type: text("mime_type").notNull(),
+  file_size: integer("file_size").default(0).notNull(),
+  content_hash: text("content_hash"),
+  extracted_text_hash: text("extracted_text_hash"),
+  failure_reason: text("failure_reason"),
+  processed_at: timestamp("processed_at", { withTimezone: true }),
+  created_by: text("created_by"),
+  ...timestamps,
+}, (table) => ({
+  sourceVersionUnique: uniqueIndex("divin8_knowledge_source_versions_source_version_uidx")
+    .on(table.source_id, table.version_number),
+  sourceStatusIdx: index("divin8_knowledge_source_versions_source_status_idx").on(table.source_id, table.status),
+  processedIdx: index("divin8_knowledge_source_versions_processed_idx").on(table.processed_at),
+}));
+
+export const divin8KnowledgeExtractedTexts = pgTable("divin8_knowledge_extracted_texts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source_id: uuid("source_id")
+    .references(() => divin8KnowledgeSources.id, { onDelete: "cascade" })
+    .notNull(),
+  version_id: uuid("version_id")
+    .references(() => divin8KnowledgeSourceVersions.id, { onDelete: "cascade" })
+    .notNull(),
+  extracted_text: text("extracted_text").notNull(),
+  text_hash: text("text_hash").notNull(),
+  ...timestamps,
+}, (table) => ({
+  versionUnique: uniqueIndex("divin8_knowledge_extracted_texts_version_uidx").on(table.version_id),
+  sourceIdx: index("divin8_knowledge_extracted_texts_source_idx").on(table.source_id),
+}));
+
+export const divin8KnowledgeChunks = pgTable("divin8_knowledge_chunks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source_id: uuid("source_id")
+    .references(() => divin8KnowledgeSources.id, { onDelete: "cascade" })
+    .notNull(),
+  version_id: uuid("version_id")
+    .references(() => divin8KnowledgeSourceVersions.id, { onDelete: "cascade" })
+    .notNull(),
+  category: text("category").notNull(),
+  authority_level: text("authority_level").notNull(),
+  chunk_index: integer("chunk_index").notNull(),
+  title: text("title"),
+  content: text("content").notNull(),
+  keywords: jsonb("keywords"),
+  concepts: jsonb("concepts"),
+  metadata: jsonb("metadata"),
+  enabled: boolean("enabled").default(true).notNull(),
+  ...timestamps,
+}, (table) => ({
+  sourceVersionIdx: index("divin8_knowledge_chunks_source_version_idx").on(table.source_id, table.version_id),
+  categoryAuthorityIdx: index("divin8_knowledge_chunks_category_authority_idx").on(table.category, table.authority_level),
+  enabledUpdatedIdx: index("divin8_knowledge_chunks_enabled_updated_idx").on(table.enabled, table.updated_at),
+}));
+
+export const divin8CanonicalConcepts = pgTable("divin8_canonical_concepts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source_id: uuid("source_id").references(() => divin8KnowledgeSources.id, { onDelete: "set null" }),
+  version_id: uuid("version_id").references(() => divin8KnowledgeSourceVersions.id, { onDelete: "set null" }),
+  chunk_id: uuid("chunk_id").references(() => divin8KnowledgeChunks.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  concept_key: text("concept_key").notNull(),
+  display_name: text("display_name").notNull(),
+  canonical_meanings: jsonb("canonical_meanings"),
+  forbidden_interpretations: jsonb("forbidden_interpretations"),
+  preferred_terms: jsonb("preferred_terms"),
+  replacement_rules: jsonb("replacement_rules"),
+  authority_level: text("authority_level").notNull(),
+  priority: integer("priority").default(0).notNull(),
+  source_kind: text("source_kind").default("extracted").notNull(),
+  active: boolean("active").default(true).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
+  ...timestamps,
+}, (table) => ({
+  categoryConceptIdx: index("divin8_canonical_concepts_category_concept_idx").on(table.category, table.concept_key),
+  activePriorityIdx: index("divin8_canonical_concepts_active_priority_idx").on(table.active, table.priority),
+  sourceIdx: index("divin8_canonical_concepts_source_idx").on(table.source_id),
+}));
+
+export const divin8KnowledgeOverrides = pgTable("divin8_knowledge_overrides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source_id: uuid("source_id").references(() => divin8KnowledgeSources.id, { onDelete: "set null" }),
+  version_id: uuid("version_id").references(() => divin8KnowledgeSourceVersions.id, { onDelete: "set null" }),
+  concept_id: uuid("concept_id").references(() => divin8CanonicalConcepts.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  rule_key: text("rule_key").notNull(),
+  always_use: text("always_use"),
+  never_use: jsonb("never_use"),
+  replacements: jsonb("replacements"),
+  authority_level: text("authority_level").default("hard_override").notNull(),
+  priority: integer("priority").default(100).notNull(),
+  active: boolean("active").default(true).notNull(),
+  source_kind: text("source_kind").default("manual").notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
+  ...timestamps,
+}, (table) => ({
+  categoryRuleIdx: index("divin8_knowledge_overrides_category_rule_idx").on(table.category, table.rule_key),
+  activePriorityIdx: index("divin8_knowledge_overrides_active_priority_idx").on(table.active, table.priority),
+  conceptIdx: index("divin8_knowledge_overrides_concept_idx").on(table.concept_id),
+}));
+
+export const divin8KnowledgeAuditLogs = pgTable("divin8_knowledge_audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  admin_user_id: text("admin_user_id").notNull(),
+  action_type: text("action_type").notNull(),
+  source_id: uuid("source_id").references(() => divin8KnowledgeSources.id, { onDelete: "set null" }),
+  version_id: uuid("version_id").references(() => divin8KnowledgeSourceVersions.id, { onDelete: "set null" }),
+  concept_id: uuid("concept_id").references(() => divin8CanonicalConcepts.id, { onDelete: "set null" }),
+  override_id: uuid("override_id").references(() => divin8KnowledgeOverrides.id, { onDelete: "set null" }),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  adminCreatedIdx: index("divin8_knowledge_audit_logs_admin_created_idx").on(table.admin_user_id, table.created_at),
+  actionCreatedIdx: index("divin8_knowledge_audit_logs_action_created_idx").on(table.action_type, table.created_at),
+  sourceCreatedIdx: index("divin8_knowledge_audit_logs_source_created_idx").on(table.source_id, table.created_at),
 }));
 
 export const reportTierOutputs = pgTable(

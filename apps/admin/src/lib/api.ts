@@ -50,6 +50,17 @@ export const api = {
     return handleResponse(res);
   },
 
+  postForm: async (path: string, body: FormData, token?: string | null) => {
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(resolveApiUrl(path), {
+      method: "POST",
+      headers,
+      body,
+    });
+    return handleResponse(res);
+  },
+
   patch: async (path: string, body?: unknown, token?: string | null) => {
     const hasBody = body !== undefined && body !== null;
     const headers: Record<string, string> = {};
@@ -76,10 +87,15 @@ export const api = {
     return handleResponse(res);
   },
 
-  delete: async (path: string, token?: string | null) => {
+  delete: async (path: string, token?: string | null, body?: unknown) => {
     const headers: Record<string, string> = {};
+    if (body !== undefined && body !== null) headers["Content-Type"] = "application/json";
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(resolveApiUrl(path), { method: "DELETE", headers });
+    const res = await fetch(resolveApiUrl(path), {
+      method: "DELETE",
+      headers,
+      body: body !== undefined && body !== null ? JSON.stringify(body) : undefined,
+    });
     return handleResponse(res);
   },
 

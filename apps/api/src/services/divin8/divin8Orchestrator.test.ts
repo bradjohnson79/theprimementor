@@ -8,9 +8,11 @@ import {
 import {
   buildStructuredPayload,
   buildConversationSummary,
+  buildDivin8TechnicalIssueMessage,
   decideNextAction,
   hydrateConversationMemory,
   mergeConversationMemory,
+  shouldRethrowDivin8PipelineError,
   type Divin8ConversationMemory,
   type Divin8ExtractionResult,
 } from "./divin8Orchestrator.js";
@@ -563,4 +565,36 @@ test("deprecated chat path throws a loud 410 error", async () => {
       return true;
     },
   );
+});
+
+test("pipeline rethrows user-correctable HTTP errors instead of safe fallback", () => {
+  const unknownProfile = new Error("Unknown profile tag: @Missing") as Error & { statusCode?: number };
+  unknownProfile.statusCode = 404;
+  const unavailable = new Error("Divin8 is temporarily unavailable.") as Error & { statusCode?: number };
+  unavailable.statusCode = 503;
+
+  assert.equal(shouldRethrowDivin8PipelineError(unknownProfile), true);
+  assert.equal(shouldRethrowDivin8PipelineError(unavailable), false);
+  assert.equal(shouldRethrowDivin8PipelineError(new Error("Unexpected failure")), false);
+});
+
+test("technical fallback explains LLM model issues and support path", () => {
+  const llmError = new Error("The Divin8 language model is temporarily unavailable.") as Error & { code?: string };
+  llmError.code = "DIVIN8_LLM_MODEL_ERROR";
+
+  const message = buildDivin8TechnicalIssueMessage(llmError);
+
+  assert.match(message, /language model/i);
+  assert.match(message, /LLM reply/i);
+  assert.match(message, /contact support/i);
+});
+
+test("technical fallback includes specific non-LLM issue code", () => {
+  const engineError = new Error("Swiss ephemeris failed") as Error & { code?: string };
+  engineError.code = "DIVIN8_ENGINE_CALCULATION_FAILED";
+
+  const message = buildDivin8TechnicalIssueMessage(engineError);
+
+  assert.match(message, /engine calculation failed/i);
+  assert.match(message, /contact support/i);
 });

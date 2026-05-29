@@ -7,6 +7,7 @@ import { getUserTier, type UserTierState } from "../lib/memberTier";
 interface DbUser {
   id: string;
   email: string;
+  phone: string | null;
   role: string;
   created_at: string;
   member?: {

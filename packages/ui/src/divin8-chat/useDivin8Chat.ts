@@ -400,13 +400,27 @@ export function classifySendError(error: unknown) {
     || /Failed to fetch|Load failed|NetworkError|network request failed/i.test(message)
   ) {
     return {
-      message: "Connection issue. Check your internet.",
+      message: "Connection issue. Check your internet, then try again. If it continues, please contact support.",
+      isLimitReached: false,
+    };
+  }
+
+  if (code === "DIVIN8_LLM_MODEL_ERROR" || code === "DIVIN8_UNAVAILABLE" || status === 503) {
+    return {
+      message: "The Divin8 language model is temporarily unavailable. Please try again in a moment. If it continues, please contact support.",
+      isLimitReached: false,
+    };
+  }
+
+  if (status && status >= 500) {
+    return {
+      message: "A technical issue interrupted the chat. Please try again in a moment. If it continues, please contact support.",
       isLimitReached: false,
     };
   }
 
   return {
-    message: "Something went wrong. Please try again.",
+    message: message || "Something went wrong. Please try again. If it continues, please contact support.",
     isLimitReached: false,
   };
 }

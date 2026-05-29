@@ -9,6 +9,7 @@ import {
   normalizeLanguage,
   type LanguageCode,
   type Divin8TimelineRequest,
+  type Divin8KnowledgeCategory,
   type ResolvedSystemKey,
 } from "@wisdom/utils";
 import type { SystemName } from "../blueprint/types.js";
@@ -24,7 +25,7 @@ import {
 import {
   DIVIN8_CHAT_MODEL,
   DIVIN8_CHAT_REASONING_EFFORT,
-  divin8UnavailableError,
+  divin8LlmModelError,
 } from "./brainPolicy.js";
 import { extractBirthData, extractDivin8RequestAnalysis, type ExtractedBirthData } from "./extractBirthData.js";
 import { normalizeBirthData } from "./normalizeBirthData.js";
@@ -53,8 +54,6 @@ import {
   buildDivin8Decision,
   buildSearchExecutionPlan,
   defaultOrchestrationState,
-  getMissingMinimumAstroKeys,
-  humanizeMinimumKey,
   type Divin8Decision,
   type Divin8QueryType,
   type ReadingState,
@@ -69,6 +68,7 @@ import {
   type DistilledDivin8MemoryCandidate,
   type Divin8PersistentMemory,
 } from "./memoryService.js";
+import { retrieveCanonicalKnowledge } from "./knowledge/retrieval/knowledgeRetrievalService.js";
 import {
   buildCurrentTimeContext,
   type Divin8CurrentTimeContext,
@@ -99,6 +99,32 @@ const COMPARISON_REGEX = /\b(compare|comparison|both|combined|synthesis|together
 const CORRECTION_REGEX = /\b(correct(?:ion)?|actually|instead|update|not\s+at|i meant)\b/i;
 const FORECAST_REGEX = /\b(forecast|outlook|ahead|next month|this month|coming month|april|may|june|july|august|september|october|november|december|january|february|march|202\d)\b/i;
 const TIMEZONE_REGEX = /(?:(?:UTC|GMT)\s*[+-]\s*\d{1,4}(?::?\d{2})?|(?:UTC|GMT)\b|\b[A-Z]{2,5}\/[A-Za-z_]+\b|\b(?:PST|PDT|MST|MDT|CST|CDT|EST|EDT|AST|ADT|NST|NDT|AKST|AKDT|HST|HAST|HADT|GMT|BST|CET|CEST|EET|EEST|IST|JST|KST|CST|AEST|AEDT|ACST|ACDT|AWST|NZST|NZDT|WET|WEST|SGT|HKT|PHT|ICT|WIB|WITA|WIT|PKT|NPT|BDT|MMT)\b)/i;
+const TECHNICAL_SUPPORT_SENTENCE =
+  "If this seems technical or keeps happening, please contact support so we can review the thread.";
+const LLM_MODEL_ISSUE_SENTENCE =
+  `I’m having trouble reaching the Divin8 language model (${DIVIN8_CHAT_MODEL}) right now, so I can’t generate a reliable LLM reply.`;
+
+function knowledgeCategoriesForSystems(systems: string[]): Divin8KnowledgeCategory[] {
+  const categories = new Set<Divin8KnowledgeCategory>();
+  for (const system of systems.map((value) => value.toLowerCase())) {
+    if (system.includes("numerology")) {
+      categories.add("numerology");
+      categories.add("numerology_prime_canon");
+    }
+    if (system.includes("chinese") || system.includes("bazi")) {
+      categories.add("chinese_bazi");
+      categories.add("chinese_bazi_vietnamese_branch");
+    }
+    if (system.includes("vedic")) categories.add("vedic_astrology");
+    if (system.includes("western") || system.includes("astrology")) categories.add("western_astrology");
+    if (system.includes("tarot")) categories.add("tarot");
+    if (system.includes("iching") || system.includes("i ching")) categories.add("iching");
+    if (system.includes("rune")) categories.add("runes");
+  }
+  categories.add("doctrine");
+  categories.add("general");
+  return [...categories];
+}
 
 const TIMEZONE_ABBREVIATION_MAP: Record<string, number> = {
   PST: -480, PDT: -420, MST: -420, MDT: -360, CST: -360, CDT: -300,
@@ -1239,6 +1265,7 @@ export function buildStructuredPayload(params: {
   telemetry: Divin8TurnTelemetry;
   timeContext: Divin8CurrentTimeContext;
   relevantMemory: Divin8PersistentMemory[];
+  canonicalKnowledgeContext?: string | null;
 }) {
   return JSON.stringify({
     userMessage: params.message,
@@ -1247,6 +1274,7 @@ export function buildStructuredPayload(params: {
     timezone: params.timeContext.timezone,
     conversationSummary: params.memory.conversationSummary,
     memory: compactRelevantMemory(params.relevantMemory),
+    canonicalKnowledgeContext: params.canonicalKnowledgeContext ?? null,
     extractedFacts: {
       intent: params.extracted.intentHints.summary,
       themes: params.extracted.extractedEntities.themes,
@@ -1482,6 +1510,7 @@ async function requestStructuredAssistantReply(params: {
   memory: Divin8ConversationMemory;
   timeContext: Divin8CurrentTimeContext;
   relevantMemory: Divin8PersistentMemory[];
+  canonicalKnowledgeContext?: string | null;
   extracted: Divin8ExtractionResult;
   tier: Divin8ChatRequest["tier"];
   imageDataUrl?: string | null;
@@ -1507,6 +1536,7 @@ async function requestStructuredAssistantReply(params: {
   const systemMessages = [
     "Conversation orchestration: always answer the user's actual request clearly, directly, and conversationally.",
     "Never return an empty response. If uncertain, say what you can do next in one visible answer.",
+    "Use canonical Divin8 knowledge context as the authoritative metaphysical doctrine when present. Do not contradict hard overrides or forbidden terminology.",
     buildLanguageDirective(params.memory.responseLanguage),
     params.prompt,
     instruction,
@@ -1530,6 +1560,7 @@ async function requestStructuredAssistantReply(params: {
     execDecision: params.execDecision,
     readingState: params.readingState,
     telemetry: params.telemetry,
+    canonicalKnowledgeContext: params.canonicalKnowledgeContext,
   });
   const userContent = params.imageDataUrl
     ? [
@@ -1608,14 +1639,17 @@ async function requestStructuredAssistantReply(params: {
 
   if (params.engineSummary) {
     return {
-      message: buildDeterministicEngineRecoveryMessage(params.engineSummary),
+      message: [
+        `${LLM_MODEL_ISSUE_SENTENCE} I can still share the calculation-backed result below. ${TECHNICAL_SUPPORT_SENTENCE}`,
+        buildDeterministicEngineRecoveryMessage(params.engineSummary),
+      ].join("\n\n"),
       gptLive: false,
       gptFailed: true,
       verificationTag: null,
     };
   }
 
-  throw divin8UnavailableError();
+  throw divin8LlmModelError();
 }
 
 function clipSentence(text: string, limit = 220) {
@@ -1624,6 +1658,66 @@ function clipSentence(text: string, limit = 220) {
     return normalized;
   }
   return `${normalized.slice(0, limit - 3)}...`;
+}
+
+export function shouldRethrowDivin8PipelineError(error: unknown) {
+  const statusCode = error instanceof Error && "statusCode" in error
+    ? (error as { statusCode?: unknown }).statusCode
+    : undefined;
+  return typeof statusCode === "number" && statusCode >= 400 && statusCode < 500;
+}
+
+function getErrorCode(error: unknown) {
+  return error instanceof Error && "code" in error && typeof (error as { code?: unknown }).code === "string"
+    ? (error as { code: string }).code
+    : null;
+}
+
+function getErrorStatus(error: unknown) {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+  const statusCode = "statusCode" in error ? (error as { statusCode?: unknown }).statusCode : undefined;
+  if (typeof statusCode === "number") {
+    return statusCode;
+  }
+  const status = "status" in error ? (error as { status?: unknown }).status : undefined;
+  return typeof status === "number" ? status : null;
+}
+
+function humanizeErrorCode(code: string) {
+  return code
+    .toLowerCase()
+    .replace(/^divin8_/, "")
+    .replace(/_/g, " ");
+}
+
+function isLlmModelIssue(error: unknown) {
+  const code = getErrorCode(error);
+  if (code === "DIVIN8_LLM_MODEL_ERROR" || code === "DIVIN8_UNAVAILABLE") {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /openai|chat completion|language model|llm|model/i.test(message);
+}
+
+export function buildDivin8TechnicalIssueMessage(error: unknown) {
+  if (isLlmModelIssue(error)) {
+    return `${LLM_MODEL_ISSUE_SENTENCE} Please try again in a moment. ${TECHNICAL_SUPPORT_SENTENCE}`;
+  }
+
+  const code = getErrorCode(error);
+  if (code) {
+    return `I hit a technical issue (${humanizeErrorCode(code)}) while processing that request. Please try again in a moment. ${TECHNICAL_SUPPORT_SENTENCE}`;
+  }
+
+  const status = getErrorStatus(error);
+  if (status && status >= 500) {
+    return `I hit a server-side technical issue while processing that request. Please try again in a moment. ${TECHNICAL_SUPPORT_SENTENCE}`;
+  }
+
+  return `I hit a technical issue while processing that request. Please try again in a moment. ${TECHNICAL_SUPPORT_SENTENCE}`;
 }
 
 export function buildConversationSummary(params: {
@@ -1881,7 +1975,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       });
     }
     if (!process.env.OPENAI_API_KEY) {
-      throw divin8UnavailableError();
+      throw divin8LlmModelError();
     }
 
     const promptConfig = await getActiveDivin8Prompt();
@@ -2148,7 +2242,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       } else if (systemsDegraded.length > 0) {
         pipelineStatus = "engine_failed";
         engineRun = "FAIL";
-        directResponseMessage = "I hit a calculation issue in part of the requested system mix, so I’m staying grounded and synthesizing the stable signal instead of forcing a broken engine response.";
+        directResponseMessage = `I hit a calculation issue in part of the requested system mix, so I’m staying grounded and synthesizing the stable signal instead of forcing a broken engine response. ${TECHNICAL_SUPPORT_SENTENCE}`;
       }
     }
   } else if (routeDecision.requiresEngine && deterministicSystems.length > 0) {
@@ -2162,6 +2256,32 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       ? "interpreting"
       : routingPlan.conversationState;
 
+  let canonicalKnowledgeContext: string | null = null;
+  try {
+    const knowledge = await retrieveCanonicalKnowledge(params.app.db, {
+      query: [
+        params.message,
+        extracted.intentHints.summary,
+        ...routingPlan.requestedSystems,
+        ...routingPlan.interpretiveSystems,
+      ].join(" "),
+      categories: knowledgeCategoriesForSystems([
+        ...routingPlan.requestedSystems,
+        ...routingPlan.interpretiveSystems,
+        ...routingPlan.systemsToRun,
+      ]),
+      mode: params.timeline ? "timeline" : "chat",
+    });
+    canonicalKnowledgeContext = knowledge.finalContext;
+  } catch (knowledgeError) {
+    params.app.log.warn({
+      msg: "DIVIN8_KNOWLEDGE_RETRIEVAL_FAILED",
+      threadId: params.threadId,
+      userId: params.userId,
+      error: knowledgeError,
+    });
+  }
+
   const readingState = exec.orchestration.readingState;
   const visibleMessageBase = directResponseMessage
     ? { message: directResponseMessage, gptLive: false, gptFailed: false, verificationTag: null as string | null }
@@ -2172,6 +2292,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
         memory: storedMemory,
         timeContext,
         relevantMemory,
+        canonicalKnowledgeContext,
         extracted,
         tier: params.tier,
         imageDataUrl: imageContext?.dataUrl ?? null,
@@ -2290,6 +2411,17 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     }),
   };
   } catch (error) {
+    if (shouldRethrowDivin8PipelineError(error)) {
+      params.app.log.warn({
+        msg: "DIVIN8_PIPELINE_USER_ERROR",
+        threadId: params.threadId,
+        userId: params.userId,
+        systems: params.systems ?? [],
+        error,
+      });
+      throw error;
+    }
+
     params.app.log.error({
       msg: "DIVIN8_PIPELINE_FAILURE",
       threadId: params.threadId,
@@ -2298,8 +2430,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       error,
     });
 
-    const safeMessage =
-      "I hit a system issue while integrating that request, so I’m holding the line rather than forcing a broken answer. Rephrase the system mix or try one thread first, and I’ll continue cleanly from there.";
+    const safeMessage = buildDivin8TechnicalIssueMessage(error);
 
     return {
       chat: {

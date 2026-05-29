@@ -2,6 +2,7 @@ import type { Database } from "@wisdom/db";
 import { sql } from "drizzle-orm";
 
 const REPAIRABLE_PREFIXES = [
+  "users.",
   "profiles.",
   "conversation_memories.",
   "orders.",
@@ -22,6 +23,7 @@ const REPAIRABLE_PREFIXES = [
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;`,
   `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_id" text;`,
   `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_url" text;`,
   `ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "stripe_invoice_status" text;`,

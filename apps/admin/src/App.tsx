@@ -19,6 +19,7 @@ import Seo from "./pages/Seo";
 import PromoCodes from "./pages/PromoCodes";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
+import Divin8KnowledgeBase from "./pages/Divin8KnowledgeBase";
 import NotificationsSettings from "./routes/settings/Notifications";
 import { useUserSync } from "./hooks/useUserSync";
 
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="admin/seo" element={<Seo />} />
             <Route path="admin/promo-codes" element={<PromoCodes />} />
             <Route path="admin/divin8-chat/prompt" element={<Divin8Prompt />} />
+            <Route path="admin/divin8-chat/knowledge-base" element={<Divin8KnowledgeBase />} />
             <Route path="blueprint" element={<Blueprint />} />
           </Route>
         </Route>
