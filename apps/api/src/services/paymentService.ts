@@ -34,6 +34,10 @@ import {
   getMentoringCircleEventOrThrow,
 } from "./mentoringCircleService.js";
 import { validatePromoCodeForCheckout } from "./promoCodeService.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "./stripe/stripeProductNamingService.js";
 
 type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
 type CheckoutTier = "seeker" | "initiate";
@@ -405,7 +409,13 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     bookingId,
     userId: input.userId,
   });
-  const metadata = buildCheckoutMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "session",
+    sessionType: booking.sessionType,
+    durationMinutes: booking.durationMinutes,
+    fallbackName: booking.bookingTypeName,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
     ...input,
     bookingId,
     type: "session",
@@ -418,6 +428,8 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -444,6 +456,10 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     line_items: [{ price: priceId, quantity: 1 }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
+    payment_intent_data: {
+      description: naming.description,
+      metadata,
+    },
     success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
     customer: stripeCustomerId,
@@ -456,7 +472,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     stripeCheckoutUrl: session.url,
     stripePriceId: priceId,
     stripeProductId: null,
-    stripeProductName: booking.bookingTypeName,
+    stripeProductName: naming.productName,
     sessionType: booking.sessionType,
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
@@ -472,7 +488,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     sessionType: booking.sessionType,
     priceId,
     productId: null,
-    productName: booking.bookingTypeName,
+    productName: naming.productName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -546,7 +562,11 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     trainingOrderId,
     userId: input.userId,
   });
-  const metadata = buildCheckoutMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "mentor_training",
+    packageType: trainingOrder.packageType,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
     ...input,
     type: "mentor_training",
     entityId: trainingOrderId,
@@ -555,6 +575,8 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -580,6 +602,10 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     line_items: [{ price: priceId, quantity: 1 }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
+    payment_intent_data: {
+      description: naming.description,
+      metadata,
+    },
     success_url: `${frontendUrl}/mentor-training?checkout=success&trainingOrderId=${encodeURIComponent(trainingOrderId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentor-training?checkout=canceled&trainingOrderId=${encodeURIComponent(trainingOrderId)}`,
     customer: stripeCustomerId,
@@ -592,7 +618,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     stripeCheckoutUrl: session.url,
     stripePriceId: priceId,
     stripeProductId: null,
-    stripeProductName: packageDefinition.title,
+    stripeProductName: naming.productName,
     packageType: trainingOrder.packageType,
     trainingOrderId,
     promoCode: promo?.code,
@@ -609,7 +635,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     sessionId: session.id,
     priceId,
     productId: null,
-    productName: packageDefinition.title,
+    productName: naming.productName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -682,7 +708,12 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     eventId: event.eventId,
     userId: input.userId,
   });
-  const metadata = buildCheckoutMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "event",
+    eventType: "mentoring_circle",
+    eventName: event.eventTitle,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
     ...input,
     type: "mentoring_circle",
     entityId: booking.id,
@@ -692,6 +723,8 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -718,8 +751,9 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
       price_data: {
         currency: event.currency.toLowerCase(),
         product_data: {
-          name: event.eventTitle,
-          description: `${event.eventTitle} live event access`,
+          name: naming.productName,
+          description: naming.description,
+          metadata,
         },
         unit_amount: event.priceCents,
       },
@@ -727,6 +761,10 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
+    payment_intent_data: {
+      description: naming.description,
+      metadata,
+    },
     success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
     customer: stripeCustomerId,
@@ -739,7 +777,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     stripeCheckoutUrl: session.url,
     stripePriceId: null,
     stripeProductId: null,
-    stripeProductName: event.eventTitle,
+    stripeProductName: naming.productName,
     eventId: event.eventId,
     eventKey: event.eventKey,
     bookingId: booking.id,
@@ -755,7 +793,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     bookingId: booking.id,
     paymentId: payment.id,
     sessionId: session.id,
-    productName: event.eventTitle,
+    productName: naming.productName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -835,7 +873,11 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     reportId,
     userId: input.userId,
   });
-  const metadata = buildCheckoutMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "report",
+    reportType,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
     ...input,
     type: "report",
     entityId: reportId,
@@ -845,6 +887,8 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -871,6 +915,10 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     line_items: [{ price: priceId, quantity: 1 }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
+    payment_intent_data: {
+      description: naming.description,
+      metadata,
+    },
     success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
     customer: stripeCustomerId,
@@ -883,7 +931,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     stripeCheckoutUrl: session.url,
     stripePriceId: priceId,
     stripeProductId: null,
-    stripeProductName: product.displayName,
+    stripeProductName: naming.productName,
     reportId,
     reportType,
     tier: isPremiumReportProduct(product) ? product.tier : reportType,
@@ -901,7 +949,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
     reportType,
     priceId,
     productId: null,
-    productName: product.displayName,
+    productName: naming.productName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -982,7 +1030,13 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     membershipId,
     userId: input.userId,
   });
-  const metadata = buildCheckoutMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "subscription",
+    subscriptionType: "membership",
+    tier: membership.tier,
+    billingInterval,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
     ...input,
     type: "subscription",
     entityId: membershipId,
@@ -992,6 +1046,8 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     promoCode: promo?.code,
     promoCodeId: promo?.promoCodeId,
     stripePromotionCodeId: promo?.stripePromotionCodeId,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -1012,7 +1068,10 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
     line_items: [{ price: priceId, quantity: 1 }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
-    subscription_data: { metadata },
+    subscription_data: {
+      metadata,
+      description: naming.description,
+    },
     success_url: `${frontendUrl}${returnPath}?checkout=success&membershipId=${encodeURIComponent(membershipId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&membershipId=${encodeURIComponent(membershipId)}`,
     customer: stripeCustomerId,

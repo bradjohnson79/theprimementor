@@ -795,7 +795,11 @@ export default function OrderDetail() {
               <OrderStatusBadge status={order.status} />
               <ExecutionBadge state={order.execution.state} />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div>
+                <p className="text-xs text-white/40">Product</p>
+                <p className="mt-1 text-white/85">{renderValue(order.product_name)}</p>
+              </div>
               <div>
                 <p className="text-xs text-white/40">Order Type</p>
                 <p className="mt-1 text-white/85">{getOrderTypeLabel(order.type)}</p>
@@ -1588,6 +1592,10 @@ export default function OrderDetail() {
         <Card>
           <h3 className="text-lg font-semibold text-white">Payment Information</h3>
           <dl className="mt-4 space-y-3">
+            <div>
+              <dt className="text-xs text-white/40">Product Name</dt>
+              <dd className="text-white/85">{renderValue(order.product_name)}</dd>
+            </div>
             <div>
               <dt className="text-xs text-white/40">Stripe Payment Intent ID</dt>
               <dd className="break-all text-white/85">{renderValue(order.stripe_payment_id)}</dd>

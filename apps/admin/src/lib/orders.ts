@@ -124,6 +124,7 @@ export interface AdminOrder {
   status: OrderStatus;
   amount: number;
   currency: string;
+  product_name: string;
   stripe_payment_id: string | null;
   payment_status: string | null;
   payment_id: string | null;
@@ -141,6 +142,7 @@ export interface AdminOrder {
   metadata: {
     source_status: string | null;
     source_created_at: string;
+    product_name?: string | null;
     birth_date: string | null;
     birth_time: string | null;
     birth_location: string | null;
@@ -351,6 +353,12 @@ function withSuffix(label: string | null, suffix: string) {
 }
 
 export function getOrderServiceLabel(order: AdminOrder) {
+  if (order.product_name?.trim()) {
+    return order.product_name;
+  }
+  if (order.metadata.product_name?.trim()) {
+    return order.metadata.product_name;
+  }
   switch (order.type) {
     case "session":
       return withSuffix(order.metadata.session_type, "Session")

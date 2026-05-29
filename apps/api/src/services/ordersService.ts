@@ -27,6 +27,7 @@ import {
   REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS,
   REGENERATION_MANIFESTATION_ENHANCEMENT_NAME,
 } from "../config/regenerationBilling.js";
+import { resolveStripeProductNaming } from "./stripe/stripeProductNamingService.js";
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -156,6 +157,7 @@ export interface AdminOrder {
   status: AdminOrderStatus;
   amount: number;
   currency: string;
+  product_name: string;
   stripe_payment_id: string | null;
   payment_status: string | null;
   payment_id: string | null;
@@ -173,6 +175,7 @@ export interface AdminOrder {
   metadata: {
     source_status: string | null;
     source_created_at: string;
+    product_name?: string | null;
     birth_date: string | null;
     birth_time: string | null;
     birth_location: string | null;
@@ -202,6 +205,8 @@ export interface AdminOrder {
     selected_systems: string[];
     delivery_status: string | null;
     session_type: string | null;
+    session_type_id?: string | null;
+    session_duration_minutes?: number | null;
     scheduled_at: string | null;
     meeting_link: string | null;
     plan_name: string | null;
@@ -302,6 +307,7 @@ interface BookingSourceRow {
   notes: string | null;
   createdAt: Date;
   bookingTypeName: string;
+  bookingDurationMinutes: number;
   bookingPriceCents: number;
   bookingCurrency: string;
 }
@@ -1122,6 +1128,58 @@ function matchPaymentForOrder(
   return { payment: null, strategy: null };
 }
 
+function resolveAdminOrderProductName(candidate: OrderCandidate, payment: PaymentCandidate | null) {
+  const paymentMetadata = parseObject(payment?.metadata);
+  const paymentProductName = getString(paymentMetadata.product_name) ?? getString(paymentMetadata.stripeProductName);
+  if (paymentProductName) return paymentProductName;
+  const candidateProductName = getString(candidate.metadata.product_name);
+  if (candidateProductName) return candidateProductName;
+
+  if (candidate.type === "session") {
+    return resolveStripeProductNaming({
+      type: candidate.metadata.event_name ? "event" : "session",
+      eventType: candidate.metadata.event_name ? "mentoring_circle" : undefined,
+      eventName: candidate.metadata.event_name,
+      sessionType: getString(candidate.metadata.session_type_id) ?? getString(candidate.metadata.session_type),
+      durationMinutes: getNumber(candidate.metadata.session_duration_minutes),
+      fallbackName: candidate.metadata.session_type,
+    } as Parameters<typeof resolveStripeProductNaming>[0]).productName;
+  }
+
+  if (candidate.type === "report") {
+    return resolveStripeProductNaming({
+      type: "report",
+      reportType: candidate.metadata.report_type_id,
+    }).productName;
+  }
+
+  if (candidate.type === "subscription") {
+    return resolveStripeProductNaming({
+      type: "subscription",
+      subscriptionType: candidate.metadata.plan_name === "Regeneration Monthly Package" ? "regeneration" : "membership",
+      tier: candidate.membershipTier,
+      billingInterval: candidate.metadata.billing_cycle,
+    }).productName;
+  }
+
+  if (candidate.type === "webinar") {
+    return resolveStripeProductNaming({
+      type: "event",
+      eventType: "webinar",
+      eventName: candidate.metadata.event_name,
+    }).productName;
+  }
+
+  if (candidate.type === "mentor_training") {
+    return resolveStripeProductNaming({
+      type: "mentor_training",
+      packageType: candidate.metadata.training_package_id,
+    }).productName;
+  }
+
+  return getString(candidate.metadata.invoice_label) ?? "Unknown Product";
+}
+
 function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | null, paymentMatchStrategy: string | null): AdminOrder {
   const paymentStatus = normalizePaymentStatus(payment?.status ?? null);
   const sourceStatus = normalizeSourceStatus(
@@ -1130,6 +1188,7 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     candidate.type === "report" ? candidate.metadata.delivery_status : null,
   );
   const createdAt = payment?.createdAt ?? candidate.sourceCreatedAt;
+  const productName = resolveAdminOrderProductName(candidate, payment);
 
   return {
     id: candidate.id,
@@ -1142,6 +1201,7 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     status: finalizeOrderStatus(sourceStatus, paymentStatus, Boolean(payment)),
     amount: payment ? payment.amountCents / 100 : 0,
     currency: payment?.currency ?? "",
+    product_name: productName,
     stripe_payment_id: payment?.providerPaymentIntentId ?? null,
     payment_status: payment?.status ?? null,
     payment_id: payment?.id ?? null,
@@ -1158,6 +1218,7 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     subscription: null,
     metadata: {
       ...candidate.metadata,
+      product_name: productName,
       payment_match_strategy: paymentMatchStrategy,
       ...extractRecoveryInvoiceMetadata(payment?.metadata ?? null),
     },
@@ -1683,6 +1744,7 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         notes: bookings.notes,
         createdAt: bookings.created_at,
         bookingTypeName: bookingTypes.name,
+        bookingDurationMinutes: bookingTypes.duration_minutes,
         bookingPriceCents: bookingTypes.price_cents,
         bookingCurrency: bookingTypes.currency,
       })
@@ -1895,6 +1957,8 @@ function createSessionCandidate(
       selected_systems: [],
       delivery_status: null,
       session_type: formatSessionTypeLabel(row.sessionType, row.bookingTypeName),
+      session_type_id: row.sessionType,
+      session_duration_minutes: row.bookingDurationMinutes,
       scheduled_at: toIso(row.startTimeUtc),
       meeting_link: row.joinUrl ?? row.startUrl,
       plan_name: null,
@@ -2302,6 +2366,10 @@ function createPersistedAdminOrder(
   const meetingLink = getString(orderMetadata?.meetingLink) ?? getString(orderMetadata?.meeting_link);
   const manifestationEnhancement = parseBookingManifestationEnhancement(orderMetadata?.manifestationEnhancement);
   const emptyIntake = createEmptyIntakeMetadata();
+  const productName = getString(orderMetadata?.product_name)
+    ?? getString(invoiceMetadata?.product_name)
+    ?? row.label
+    ?? "Unknown Product";
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -2318,6 +2386,7 @@ function createPersistedAdminOrder(
     status: normalizePersistedOrderStatus(row.status),
     amount: row.amount / 100,
     currency: row.currency,
+    product_name: productName,
     stripe_payment_id: row.stripePaymentIntentId ?? invoice?.stripePaymentIntentId ?? null,
     payment_status: row.status,
     payment_id: row.paymentReference,
@@ -2334,6 +2403,7 @@ function createPersistedAdminOrder(
     metadata: {
       source_status: row.status,
       source_created_at: createdAt.toISOString(),
+      product_name: productName,
       birth_date: null,
       birth_time: null,
       birth_location: null,

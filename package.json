@@ -12,6 +12,8 @@
     "db:migrate": "pnpm --filter @wisdom/db migrate",
     "db:studio": "pnpm --filter @wisdom/db studio",
     "db:seed-admin": "pnpm --filter @wisdom/db seed-admin --",
+    "stripe:backfill": "pnpm --filter @wisdom/api stripe:backfill --",
+    "stripe:backfill:dry-run": "pnpm --filter @wisdom/api stripe:backfill:dry-run",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

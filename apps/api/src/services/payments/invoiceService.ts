@@ -8,6 +8,10 @@ import {
 } from "@wisdom/db";
 import { desc, eq, or } from "drizzle-orm";
 import { createHttpError } from "../booking/errors.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "../stripe/stripeProductNamingService.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
 import { ensureStripeCustomerId as ensureUsableStripeCustomerId } from "./stripeCustomerService.js";
 
@@ -192,16 +196,23 @@ async function createStripePaymentLinkForInvoice(input: {
   billingMode: InvoiceBillingMode;
 }) {
   const stripe = getStripe();
+  const naming = resolveStripeProductNaming({
+    type: "manual_invoice",
+    productType: input.productType,
+    customLabel: input.label,
+  });
+  const metadata = mergeStripeMetadata(naming.metadata, {
+    invoice_id: input.invoiceId,
+    client_id: input.client.clientId,
+    user_id: input.client.userId,
+    stripe_customer_id: input.stripeCustomerId,
+    product_type: input.productType,
+    billing_mode: input.billingMode,
+  });
   const product = await stripe.products.create({
-    name: input.label,
-    metadata: {
-      invoice_id: input.invoiceId,
-      client_id: input.client.clientId,
-      user_id: input.client.userId,
-      stripe_customer_id: input.stripeCustomerId,
-      product_type: input.productType,
-      billing_mode: input.billingMode,
-    },
+    name: naming.productName,
+    description: naming.description,
+    metadata,
   });
 
   const price = await stripe.prices.create({
@@ -211,27 +222,14 @@ async function createStripePaymentLinkForInvoice(input: {
     ...(input.billingMode === "subscription"
       ? { recurring: { interval: "month" as const } }
       : {}),
-    metadata: {
-      invoice_id: input.invoiceId,
-      client_id: input.client.clientId,
-      user_id: input.client.userId,
-      stripe_customer_id: input.stripeCustomerId,
-      product_type: input.productType,
-      billing_mode: input.billingMode,
-    },
+    metadata,
   });
 
   const paymentLink = await stripe.paymentLinks.create({
     line_items: [{ price: price.id, quantity: 1 }],
-    metadata: {
-      invoice_id: input.invoiceId,
-      client_id: input.client.clientId,
-      user_id: input.client.userId,
-      stripe_customer_id: input.stripeCustomerId,
-      product_type: input.productType,
+    metadata: mergeStripeMetadata(metadata, {
       label: input.label,
-      billing_mode: input.billingMode,
-    },
+    }),
     ...(input.billingMode === "subscription" ? { customer_creation: "always" as const } : {}),
   });
 
@@ -246,6 +244,11 @@ export async function createAdminInvoicePaymentLink(
   validateInvoiceInput(input);
   const client = await getInvoiceClient(db, input.clientId);
   const label = buildInvoiceLabel(input.productType, input.customLabel);
+  const naming = resolveStripeProductNaming({
+    type: "manual_invoice",
+    productType: input.productType,
+    customLabel: label,
+  });
   const billingMode = resolveBillingMode(input.productType);
   const currency = (input.currency ?? "CAD").toUpperCase();
   const amountCents = Math.round(input.amount * 100);
@@ -266,6 +269,7 @@ export async function createAdminInvoicePaymentLink(
       expires_at: expiresAt,
       metadata: {
         createdBy: "admin",
+        product_name: naming.productName,
       },
     })
     .returning();
@@ -291,6 +295,7 @@ export async function createAdminInvoicePaymentLink(
       metadata: {
         createdBy: "admin",
         stripeCustomerId,
+        product_name: naming.productName,
         defaultRecurringInterval: billingMode === "subscription" ? "month" : null,
       },
       updated_at: new Date(),
@@ -366,6 +371,11 @@ export async function regenerateAdminInvoicePaymentLink(
   const metadata = (existing.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata))
     ? existing.metadata as Record<string, unknown>
     : {};
+  const naming = resolveStripeProductNaming({
+    type: "manual_invoice",
+    productType: existing.product_type,
+    customLabel: existing.label,
+  });
   const retryCount = typeof metadata.retryCount === "number" ? metadata.retryCount + 1 : 1;
   const [updated] = await db
     .update(invoices)
@@ -384,6 +394,7 @@ export async function regenerateAdminInvoicePaymentLink(
         ...metadata,
         retryCount,
         stripeCustomerId,
+        product_name: naming.productName,
       },
       updated_at: new Date(),
     })

@@ -153,7 +153,7 @@ export default function SupportWidget() {
   }, []);
 
   return (
-    <div ref={rootRef} className={`${rootBaseClassName} ${align === "left" ? "left-6" : "right-6"}`}>
+    <div ref={rootRef} className={`${rootBaseClassName} ${align === "left" ? "left-8" : "right-6"}`}>
       <SupportChat
         isOpen={open}
         messages={messages}

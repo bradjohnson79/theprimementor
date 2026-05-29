@@ -24,6 +24,10 @@ import {
 import { getFrontendUrl } from "../config/membershipBilling.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity, markPaymentPaidFromWebhook } from "./payments/paymentsService.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "./stripe/stripeProductNamingService.js";
 
 type RegenerationProjectionStatus =
   | "inactive"
@@ -803,7 +807,17 @@ export async function createRegenerationCheckoutSession(
 
   const lineItems = buildRegenerationCheckoutLineItems(priceId, hasManifestationEnhancement);
 
-  const metadata = {
+  const naming = resolveStripeProductNaming({
+    type: "subscription",
+    subscriptionType: "regeneration",
+  });
+  const addonNaming = hasManifestationEnhancement
+    ? resolveStripeProductNaming({
+      type: "addon",
+      addonType: "regeneration_manifestation_enhancement",
+    })
+    : null;
+  const metadata = mergeStripeMetadata({
     userId: input.userId,
     userEmail: user.email,
     clerkId: input.clerkId,
@@ -821,7 +835,10 @@ export async function createRegenerationCheckoutSession(
     manifestationEnhancementKey: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_KEY : "",
     manifestationEnhancementName: hasManifestationEnhancement ? REGENERATION_MANIFESTATION_ENHANCEMENT_NAME : "",
     manifestationEnhancementDurationDays: hasManifestationEnhancement ? String(REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS) : "",
-  };
+  }, naming.metadata, {
+    customer_email: user.email,
+    addon_product_name: addonNaming?.productName,
+  });
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
@@ -830,7 +847,10 @@ export async function createRegenerationCheckoutSession(
     line_items: lineItems,
     allow_promotion_codes: true,
     metadata,
-    subscription_data: { metadata },
+    subscription_data: {
+      metadata,
+      description: naming.description,
+    },
     success_url: `${frontendUrl}/sessions/regeneration/success?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/sessions/regeneration/book?checkout=canceled${booking ? `&bookingId=${encodeURIComponent(booking.id)}` : ""}`,
     customer: stripeCustomerId,
@@ -881,6 +901,7 @@ export async function createRegenerationCheckoutSession(
           stripeCheckoutUrl: session.url,
           stripePriceId: priceId,
           planName: REGENERATION_PLAN_NAME,
+          productName: naming.productName,
           productKey: REGENERATION_PRODUCT_KEY,
           bookingId: booking?.id ?? null,
           manifestationEnhancement,

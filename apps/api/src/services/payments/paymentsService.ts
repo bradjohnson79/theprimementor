@@ -2,6 +2,10 @@ import { and, desc, eq, notInArray } from "drizzle-orm";
 import { bookingTypes, bookings, mentorTrainingOrders, payments, reports, subscriptions, users, type Database } from "@wisdom/db";
 import { getPaymentProvider } from "./providerFactory.js";
 import { createHttpError } from "./errors.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "../stripe/stripeProductNamingService.js";
 
 type PaymentDbLike = Database | {
   select: Database["select"];
@@ -173,6 +177,9 @@ async function getBookingForPaymentCreation(db: Database, bookingId: string) {
       userId: bookings.user_id,
       bookingStatus: bookings.status,
       bookingTypeId: bookingTypes.id,
+      bookingTypeName: bookingTypes.name,
+      sessionType: bookings.session_type,
+      durationMinutes: bookingTypes.duration_minutes,
       amountCents: bookingTypes.price_cents,
       currency: bookingTypes.currency,
     })
@@ -435,6 +442,12 @@ export async function listPaymentsForAdmin(db: Database): Promise<PaymentSummary
 
 export async function createPaymentForBooking(db: Database, input: CreatePaymentForBookingInput): Promise<PaymentSummary> {
   const booking = await getBookingForPaymentCreation(db, input.bookingId);
+  const naming = resolveStripeProductNaming({
+    type: "session",
+    sessionType: booking.sessionType,
+    durationMinutes: booking.durationMinutes,
+    fallbackName: booking.bookingTypeName,
+  });
 
   if (input.actorRole !== "admin" && booking.userId !== input.actorUserId) {
     throw createHttpError(404, "Booking not found");
@@ -450,7 +463,9 @@ export async function createPaymentForBooking(db: Database, input: CreatePayment
           amountCents: booking.amountCents,
           currency: booking.currency,
           status: "pending",
-          metadata: normalizeMetadata({ source: "payments_route" }, input.metadata),
+          metadata: normalizeMetadata({ source: "payments_route" }, naming.metadata, {
+            description: naming.description,
+          }, input.metadata),
         })
       ).id;
 
@@ -465,7 +480,11 @@ export async function createPaymentForBooking(db: Database, input: CreatePayment
       paymentId: current.id,
       amountCents: current.amountCents,
       currency: current.currency,
-      metadata: isPaymentMetadata(current.metadata) ? current.metadata : null,
+      metadata: mergeStripeMetadata(
+        isPaymentMetadata(current.metadata) ? current.metadata as Record<string, unknown> : null,
+        naming.metadata,
+        { description: naming.description },
+      ),
     });
 
     await db

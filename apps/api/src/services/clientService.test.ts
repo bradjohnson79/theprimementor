@@ -23,6 +23,7 @@ function makeOrder(input: {
     status: input.status,
     amount: input.amount,
     currency: "CAD",
+    product_name: "Test Session",
     stripe_payment_id: null,
     payment_status: null,
     payment_id: null,
@@ -49,6 +50,7 @@ function makeOrder(input: {
     metadata: {
       source_status: null,
       source_created_at: input.createdAt,
+      product_name: "Test Session",
       birth_date: null,
       birth_time: null,
       birth_location: null,

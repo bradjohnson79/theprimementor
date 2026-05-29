@@ -17,6 +17,10 @@ import { createHttpError } from "./booking/errors.js";
 import { parseOrderId } from "./ordersService.js";
 import { getReusablePaymentForEntity } from "./payments/paymentsService.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "./stripe/stripeProductNamingService.js";
 
 let stripeSingleton: Stripe | null = null;
 
@@ -75,6 +79,7 @@ function mergeRecoveryInvoicePaymentMetadata(
     stripeInvoiceId: string;
     hostedInvoiceUrl: string | null;
     reportType: ReportProductKey;
+    productName: string;
   },
 ) {
   const product = REPORT_PRODUCTS[input.reportType];
@@ -84,6 +89,7 @@ function mergeRecoveryInvoicePaymentMetadata(
     stripeRecoveryInvoiceSentAt: new Date().toISOString(),
     stripeRecoveryInvoiceHostedUrl: input.hostedInvoiceUrl,
     reportType: input.reportType,
+    product_name: input.productName,
     tier: isPremiumReportProduct(product) ? product.tier : input.reportType,
   };
 }
@@ -146,12 +152,18 @@ export async function sendAdminReportRecoveryInvoice(
     throw createHttpError(400, "Report is missing a user association.");
   }
   const clerkId = row.clerkId?.trim() ?? "";
-  const metadata = buildReportInvoiceMetadata({
+  const naming = resolveStripeProductNaming({
+    type: "report",
+    reportType,
+  });
+  const metadata = mergeStripeMetadata(buildReportInvoiceMetadata({
     userId,
     userEmail,
     clerkId,
     reportId,
     reportType,
+  }), naming.metadata, {
+    customer_email: userEmail,
   });
 
   const customerId = await ensureStripeCustomerId(db, {
@@ -189,6 +201,7 @@ export async function sendAdminReportRecoveryInvoice(
     customer: customerId,
     collection_method: "send_invoice",
     days_until_due: 7,
+    description: naming.description,
     metadata,
     auto_advance: false,
   });
@@ -198,6 +211,8 @@ export async function sendAdminReportRecoveryInvoice(
     invoice: draft.id,
     pricing: { price: priceId },
     quantity: 1,
+    description: naming.productName,
+    metadata,
   });
 
   const finalized = await stripe.invoices.finalizeInvoice(draft.id);
@@ -207,6 +222,7 @@ export async function sendAdminReportRecoveryInvoice(
     stripeInvoiceId: finalized.id,
     hostedInvoiceUrl: finalized.hosted_invoice_url ?? null,
     reportType,
+    productName: naming.productName,
   });
 
   await db

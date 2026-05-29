@@ -26,12 +26,21 @@ function stringifyMetadata(metadata?: Record<string, unknown> | null): Record<st
   return Object.fromEntries(Object.entries(metadata).map(([key, value]) => [key, String(value)]));
 }
 
+function getMetadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export class StripePaymentProvider implements PaymentProvider {
   async createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentProviderResult> {
     const stripe = getStripe();
+    const description = getMetadataString(input.metadata, "description")
+      ?? getMetadataString(input.metadata, "product_name")
+      ?? undefined;
     const intent = await stripe.paymentIntents.create({
       amount: input.amountCents,
       currency: input.currency.toLowerCase(),
+      description,
       metadata: stringifyMetadata({
         paymentId: input.paymentId,
         ...(input.metadata ?? {}),

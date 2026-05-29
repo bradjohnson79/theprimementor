@@ -11,6 +11,10 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
 import { getAdminOrderById, parseOrderId } from "./ordersService.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
+import {
+  mergeStripeMetadata,
+  resolveStripeProductNaming,
+} from "./stripe/stripeProductNamingService.js";
 
 let stripeSingleton: Stripe | null = null;
 
@@ -37,16 +41,13 @@ function logInvoice(level: "info" | "warn" | "error", message: string, context: 
   logger.info(message, context);
 }
 
-const INVOICE_ORIGINS = [
-  "admin_manual_recovery",
-  "automated_retry",
-  "abandoned_checkout",
-  "payment_failure_recovery",
-  "client_requested",
-  "subscription_reactivation",
-] as const;
-
-type InvoiceOrigin = typeof INVOICE_ORIGINS[number];
+type InvoiceOrigin =
+  | "admin_manual_recovery"
+  | "automated_retry"
+  | "abandoned_checkout"
+  | "payment_failure_recovery"
+  | "client_requested"
+  | "subscription_reactivation";
 type InvoiceActorType = "admin" | "system" | "webhook" | "stripe";
 
 const ADMIN_MANUAL_INVOICE_ORIGIN: InvoiceOrigin = "admin_manual_recovery";
@@ -249,6 +250,7 @@ export async function createAdminOrderInvoice(
         bookingEmail: bookings.email,
         intakeSnapshot: bookings.intake_snapshot,
         bookingTypeName: bookingTypes.name,
+        durationMinutes: bookingTypes.duration_minutes,
         priceCents: bookingTypes.price_cents,
         currency: bookingTypes.currency,
         userEmail: users.email,
@@ -285,6 +287,7 @@ export async function createAdminOrderInvoice(
       adminOrderId: input.orderId,
       sessionType: order.metadata.session_type,
       session_type: order.metadata.session_type,
+      session_duration_minutes: booking.durationMinutes,
       invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
       price_snapshot_cents: price.amountCents,
       price_snapshot_currency: price.currency,
@@ -351,7 +354,14 @@ export async function createAdminOrderInvoice(
 
   const stripe = getStripe();
   const currency = row.currency.trim().toLowerCase();
-  const description = row.label.trim() || "Session";
+  const sessionDuration = getNumber(metadata.session_duration_minutes);
+  const naming = resolveStripeProductNaming({
+    type: "session",
+    sessionType: getString(metadata.sessionType) ?? getString(metadata.session_type),
+    durationMinutes: sessionDuration,
+    fallbackName: row.label,
+  });
+  const description = naming.description;
 
   try {
     const customerId = await ensureStripeCustomerId(db, {
@@ -365,12 +375,12 @@ export async function createAdminOrderInvoice(
       },
     });
 
-    const stripeMetadata = {
+    const stripeMetadata = mergeStripeMetadata(naming.metadata, {
       adminOrderId: input.orderId,
       persistedOrderId: row.id,
       type: order.type,
       invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
-    };
+    });
 
     const draftInvoice = await stripe.invoices.create({
       customer: customerId,
@@ -410,6 +420,7 @@ export async function createAdminOrderInvoice(
     });
     const nextMetadata = appendInvoiceTimelineEvents({
       ...metadata,
+      product_name: naming.productName,
       stripe_invoice_id: stripeInvoiceId,
       stripe_invoice_status: stripeInvoiceStatus,
     }, invoiceTimelineEvents);
