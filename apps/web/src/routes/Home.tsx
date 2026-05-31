@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import {
   PREMIUM_REPORT_PRODUCT_KEYS,
   REPORT_PRODUCTS,
+  divin8ReportProductListPrice,
   type ReportProductKey,
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
@@ -54,7 +55,7 @@ const REGENERATION_CARD: SessionCardData = {
   priceLabel: "$99.00 CAD",
   durationLabel: "Offline",
   description:
-    "The Regeneration Monthly Package is a remote energy facilitation service designed to support your system over a full 30-day cycle.\n\n$99 / month recurring. Cancel anytime. This is not a one-time session. It is continuous monthly work focused on deeper integration, stabilization, and measurable internal change over time.\n\nIncludes advanced support options such as Timeline Rewriting and Manifestation Holding for deeper transformation and directed outcomes.",
+    "The Regeneration Monthly Package offers a subscription service to resolve physical ailments and emotional conflicts within 30 days through our priority email support.\n\n$99 / month recurring. Cancel anytime. Receive personal aid that has never been offered anywhere before. 30 days of regeneration to repair the physical and subtle bodies + the optional service to safeguard manifestations from personal sabotage & have your current timeline rewritten to refine your state.\n\nResolve any injury, clear any emotional conflict, and release any limiting condition with custom exercises and Brad's personal regeneration work helping you every step of the way.",
   href: REGENERATION_LANDING_PATH,
   imageSrc: regenerationMonthlyPackageImage,
   imageFit: "contain",
@@ -63,6 +64,7 @@ const REGENERATION_CARD: SessionCardData = {
 interface ReportCardData {
   title: string;
   meta?: string;
+  priceLabel: string;
   description: string;
   imageSrc: string;
   href: string;
@@ -100,6 +102,7 @@ const CASUAL_REPORT_CARDS: ReportCardData[] = [
     imageSrc: "/images/Divin8 3 Questions Report.png",
     href: "/dashboard/reports/three-questions",
     ctaLabel: "Ask Your 3 Questions",
+    priceLabel: divin8ReportProductListPrice("three_questions"),
     badge: "Quick Insight",
     variant: "casual",
   },
@@ -110,6 +113,7 @@ const CASUAL_REPORT_CARDS: ReportCardData[] = [
     imageSrc: "/images/Divin8 Partner Compatibility Report.png",
     href: "/dashboard/reports/compatibility",
     ctaLabel: "Check Compatibility",
+    priceLabel: divin8ReportProductListPrice("compatibility"),
     badge: "Quick Insight",
     variant: "casual",
   },
@@ -120,6 +124,7 @@ const CASUAL_REPORT_CARDS: ReportCardData[] = [
     imageSrc: "/images/Divin8 12 Month Annual Report.png",
     href: "/dashboard/reports/annual-12-month",
     ctaLabel: "View Your Year Ahead",
+    priceLabel: divin8ReportProductListPrice("annual_12_month"),
     badge: "Quick Insight",
     variant: "casual",
   },
@@ -534,7 +539,7 @@ function SessionCard({
   );
 }
 
-function ReportCard({ title, meta, description, imageSrc, href, ctaLabel, badge, variant = "premium" }: ReportCardData) {
+function ReportCard({ title, meta, priceLabel, description, imageSrc, href, ctaLabel, badge, variant = "premium" }: ReportCardData) {
   const variantClasses = variant === "casual"
     ? "border-cyan-200/18 shadow-[0_18px_48px_rgba(34,211,238,0.08)] hover:border-cyan-200/28 hover:shadow-[0_22px_56px_rgba(34,211,238,0.13)]"
     : "border-amber-200/16 shadow-[0_18px_48px_rgba(251,191,36,0.08)] hover:border-amber-200/28 hover:shadow-[0_22px_56px_rgba(251,191,36,0.14)]";
@@ -558,7 +563,12 @@ function ReportCard({ title, meta, description, imageSrc, href, ctaLabel, badge,
             </span>
           ) : null}
           <h3 className="text-base font-semibold leading-snug tracking-tight text-white">{title}</h3>
-          {meta ? <p className="text-xs font-medium tabular-nums text-cyan-100/85">{meta}</p> : null}
+          <div className="flex flex-wrap items-center gap-2 text-xs font-medium tabular-nums">
+            {meta ? <span className="text-cyan-100/85">{meta}</span> : null}
+            <span className={variant === "casual" ? "text-cyan-100" : "text-amber-100"}>
+              {priceLabel}
+            </span>
+          </div>
         </div>
         <p className="flex-1 text-sm leading-relaxed text-white/60 whitespace-pre-line">{description}</p>
       </div>
@@ -705,6 +715,7 @@ export default function Home() {
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
     title: REPORT_PRODUCTS[key].displayName,
     meta: "Premium Report",
+    priceLabel: divin8ReportProductListPrice(key),
     description: REPORT_PRODUCTS[key].shortDescription,
     imageSrc: REPORT_CARD_IMAGES[key],
     href: REPORT_PRODUCTS[key].orderPath,
@@ -726,6 +737,23 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+
+      <section id="regeneration" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
+        <div className="relative mx-auto max-w-6xl px-6">
+          <div className="space-y-8 text-left">
+            <div className="space-y-3">
+              <p className="text-xs uppercase tracking-widest text-white/40">Regeneration</p>
+              <h2 className="max-w-3xl text-3xl font-semibold text-white">Our Most Popular Service</h2>
+              <p className="max-w-3xl text-base leading-8 text-white/66">
+                Resolve any Injury or Conflict in less than 30 days with Brad's Regenerative Work and Guidance
+              </p>
+            </div>
+
+            <SessionCard {...REGENERATION_CARD} />
+          </div>
+        </div>
+      </section>
+
       <MentoringCirclePromoBanner />
 
       <section id="sessions" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
@@ -744,7 +772,6 @@ export default function Home() {
 
             <div className="space-y-6">
               <GuidedPrivateSessionsCard />
-              <SessionCard {...REGENERATION_CARD} />
             </div>
             <InlineBackToTop />
           </div>

@@ -8,7 +8,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
   hero: {
     eyebrow: "Regeneration Monthly Package",
     title:
-      "Instant Vibrational Regeneration, Timeline Shifting, Manifestation Safeguarding - Introducing the Regeneration Monthly Package!",
+      "Our most popular service! Resolve injuries, clear emotional conflict and release heavy conditioning as Brad works with you for 30 days with the Regeneration Monthly Package!",
     subtitle:
       "The Prime Mentor, Brad Johnson, offers a unique service not found anywhere else. A service that works to regenerate the vibrational alignments of your very being to leave behind burden and enter full regenerated embodiment.",
     supportingLine:

@@ -1,4 +1,5 @@
 import type { ReportTierId } from "./reportTiers.js";
+import type { ReportProductKey } from "./reportProducts.js";
 
 /** Canonical Divin8 report list prices (CAD cents). Single source for UI + backend display logic. */
 export const DIVIN8_REPORT_PRICING_CENTS = {
@@ -13,6 +14,15 @@ export const DIVIN8_REPORT_PRICE_CENTS_BY_TIER: Record<ReportTierId, number> = {
   initiate: DIVIN8_REPORT_PRICING_CENTS.INITIATE,
 };
 
+export const DIVIN8_REPORT_PRICE_CENTS_BY_PRODUCT: Record<ReportProductKey, number> = {
+  three_questions: 3900,
+  compatibility: 5900,
+  annual_12_month: 11900,
+  intro: DIVIN8_REPORT_PRICING_CENTS.INTRODUCTORY,
+  deep_dive: DIVIN8_REPORT_PRICING_CENTS.DEEP_DIVE,
+  initiate: DIVIN8_REPORT_PRICING_CENTS.INITIATE,
+};
+
 /** Display format: `$69 CAD`, `$129 CAD`, `$199 CAD` */
 export function formatDivin8ReportPriceCad(cents: number): string {
   const dollars = cents / 100;
@@ -21,4 +31,8 @@ export function formatDivin8ReportPriceCad(cents: number): string {
 
 export function divin8ReportTierListPrice(tier: ReportTierId): string {
   return formatDivin8ReportPriceCad(DIVIN8_REPORT_PRICE_CENTS_BY_TIER[tier]);
+}
+
+export function divin8ReportProductListPrice(productKey: ReportProductKey): string {
+  return formatDivin8ReportPriceCad(DIVIN8_REPORT_PRICE_CENTS_BY_PRODUCT[productKey]);
 }

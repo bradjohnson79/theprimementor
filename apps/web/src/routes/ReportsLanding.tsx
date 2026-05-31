@@ -4,6 +4,7 @@ import {
   CASUAL_REPORT_PRODUCT_KEYS,
   PREMIUM_REPORT_PRODUCT_KEYS,
   REPORT_PRODUCTS,
+  divin8ReportProductListPrice,
   type ReportProductKey,
 } from "@wisdom/utils";
 
@@ -71,10 +72,12 @@ function Section({ id, eyebrow, title, children }: { id: string; eyebrow?: strin
 
 function ReportCard({ reportKey }: { reportKey: ReportProductKey }) {
   const product = REPORT_PRODUCTS[reportKey];
+  const priceLabel = divin8ReportProductListPrice(reportKey);
   return (
     <article className="glass-card flex h-full flex-col rounded-3xl p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{product.type === "casual" ? "Casual Report" : "Premium Report"}</p>
       <h3 className="mt-3 text-xl font-semibold text-white">{product.displayName}</h3>
+      <p className="mt-2 text-sm font-semibold tabular-nums text-amber-100">{priceLabel}</p>
       <p className="mt-3 flex-1 text-sm leading-7 text-white/68">{product.shortDescription}</p>
       <div className="mt-5">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/40">Best for</p>
