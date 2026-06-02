@@ -65,7 +65,7 @@ interface CreateBookingResponse {
 
 const SESSION_CARD_PRICE_OVERRIDES: Partial<Record<SessionType, number>> = {
   regeneration: 9900,
-  qa_session: 14900,
+  qa_session: 13900,
 };
 
 interface IntakeFormState {
