@@ -716,7 +716,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     'Q&A Session',
     'qa_session',
     30,
-    14999,
+    13900,
     'CAD',
     10,
     10,

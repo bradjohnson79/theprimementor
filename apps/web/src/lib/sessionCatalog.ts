@@ -29,9 +29,9 @@ export const GUIDED_SESSION_OPTIONS: GuidedSessionOption[] = [
     description:
       "An open, low-friction session for questions, clarity, and direct perspective when you want to lead the conversation.",
     durations: [
-      { bookingTypeId: "qa-session-30", minutes: 30, priceCents: 14900, currency: "CAD" },
-      { bookingTypeId: "qa-session-45", minutes: 45, priceCents: 19900, currency: "CAD" },
-      { bookingTypeId: "qa-session-60", minutes: 60, priceCents: 24900, currency: "CAD" },
+      { bookingTypeId: "qa-session-30", minutes: 30, priceCents: 13900, currency: "CAD" },
+      { bookingTypeId: "qa-session-45", minutes: 45, priceCents: 18900, currency: "CAD" },
+      { bookingTypeId: "qa-session-60", minutes: 60, priceCents: 23900, currency: "CAD" },
     ],
   },
   {
