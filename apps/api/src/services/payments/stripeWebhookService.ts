@@ -11,7 +11,7 @@ import {
 } from "@wisdom/db";
 import type { BillingInterval, Divin8Tier } from "@wisdom/utils";
 import { toUtcIsoString } from "@wisdom/utils";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import {
   deriveTierFromPriceId,
   syncEntitlementFromStoredSubscription,
@@ -48,6 +48,7 @@ import {
   handleRegenerationCheckoutSessionCompleted,
   handleRegenerationInvoicePaid,
   handleRegenerationInvoicePaymentFailed,
+  handleRegenerationPaymentIntentSucceeded,
   handleRegenerationSubscriptionDeleted,
   handleRegenerationSubscriptionUpdated,
 } from "../regenerationSubscriptionService.js";
@@ -64,6 +65,19 @@ type WebhookLogger = {
   warn: (payload: unknown, message?: string) => void;
   error: (payload: unknown, message?: string) => void;
 };
+
+let stripeInstance: Stripe | null = null;
+
+function getStripeClient() {
+  if (!stripeInstance) {
+    const key = process.env.STRIPE_SECRET_KEY?.trim();
+    if (!key) {
+      throw new Error("STRIPE_SECRET_KEY not set");
+    }
+    stripeInstance = new Stripe(key);
+  }
+  return stripeInstance;
+}
 
 type StripePaymentType =
   | "webinar"
@@ -1961,6 +1975,70 @@ async function handleInvoiceStatus(
   });
 }
 
+function paymentIntentInvoiceId(paymentIntent: Stripe.PaymentIntent) {
+  return stripeRef((paymentIntent as Stripe.PaymentIntent & { invoice?: unknown }).invoice);
+}
+
+async function chargeInvoiceId(stripe: Stripe, charge: unknown) {
+  if (!charge) return null;
+  if (typeof charge === "string") {
+    const retrieved = await stripe.charges.retrieve(charge);
+    return stripeRef((retrieved as Stripe.Charge & { invoice?: unknown }).invoice);
+  }
+  return stripeRef((charge as Stripe.Charge & { invoice?: unknown }).invoice);
+}
+
+async function findSubscriptionInvoiceForPaymentIntent(paymentIntent: Stripe.PaymentIntent) {
+  const stripe = getStripeClient();
+  const invoiceId = paymentIntentInvoiceId(paymentIntent)
+    ?? await chargeInvoiceId(stripe, (paymentIntent as Stripe.PaymentIntent & { latest_charge?: unknown }).latest_charge);
+  if (invoiceId) {
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    return stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription) ? invoice : null;
+  }
+
+  const customerId = stripeRef(paymentIntent.customer);
+  if (!customerId) return null;
+  const descriptionInvoiceNumber = paymentIntent.description?.match(/^Invoice\s+(.+)$/i)?.[1] ?? null;
+  const created = typeof paymentIntent.created === "number" ? paymentIntent.created : Math.floor(Date.now() / 1000);
+  const invoices = await stripe.invoices.list({
+    customer: customerId,
+    created: { gte: created - 24 * 60 * 60 },
+    limit: 20,
+  });
+
+  return invoices.data.find((invoice) => {
+    const subscriptionId = stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription);
+    if (!subscriptionId) return false;
+    if (descriptionInvoiceNumber && invoice.number === descriptionInvoiceNumber) return true;
+    const paidAt = invoice.status_transitions?.paid_at;
+    const paidNearPaymentIntent = typeof paidAt === "number" && Math.abs(paidAt - created) <= 10 * 60;
+    return invoice.status === "paid"
+      && invoice.amount_paid === paymentIntent.amount
+      && invoice.currency === paymentIntent.currency
+      && paidNearPaymentIntent;
+  }) ?? null;
+}
+
+async function handleSubscriptionInvoicePaymentIntentSucceeded(
+  db: DbExecutor,
+  paymentIntent: Stripe.PaymentIntent,
+  logger: WebhookLogger,
+) {
+  const invoice = await findSubscriptionInvoiceForPaymentIntent(paymentIntent);
+  if (!invoice) {
+    logger.info({ paymentIntentId: paymentIntent.id }, "subscription_payment_intent_invoice_fallback_skipped");
+    return;
+  }
+
+  await handleInvoiceStatus(db, invoice, "active", logger);
+  logger.info({
+    paymentIntentId: paymentIntent.id,
+    invoiceId: invoice.id,
+    stripeSubscriptionId: stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription),
+  }, "subscription_payment_intent_invoice_fallback_processed");
+}
+
 async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: WebhookLogger) {
   switch (event.type) {
     case "checkout.session.completed":
@@ -1988,6 +2066,12 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
         logger,
         event.id,
       );
+      return;
+    case "payment_intent.succeeded":
+      if (await handleRegenerationPaymentIntentSucceeded(db as Database, event.data.object as Stripe.PaymentIntent, logger)) {
+        return;
+      }
+      await handleSubscriptionInvoicePaymentIntentSucceeded(db, event.data.object as Stripe.PaymentIntent, logger);
       return;
     case "charge.failed":
       await handleManagedInvoiceChargeFailed(

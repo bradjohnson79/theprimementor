@@ -40,6 +40,8 @@ const PRICE_MAP_ENV: Record<string, PriceMapEntry> = {
 
 const LIVE_MEMBERSHIP_PRICE_FALLBACKS: Array<[string, PriceMapEntry]> = [
   ["price_1TXlZRAd5V3LaCqjgkQB4A5v", { tier: "seeker", billingInterval: "monthly" }],
+  // Legacy live Premium monthly price retained by existing subscribers.
+  ["price_1TXljJAd5V3LaCqjtT1GHbO2", { tier: "seeker", billingInterval: "monthly" }],
   ["price_1TXlZyAd5V3LaCqj46fthJnC", { tier: "seeker", billingInterval: "annual" }],
   ["price_1TIL55Ad5V3LaCqjXkESzqeH", { tier: "initiate", billingInterval: "monthly" }],
   ["price_1TILESAd5V3LaCqjLX4fWEd3", { tier: "initiate", billingInterval: "annual" }],

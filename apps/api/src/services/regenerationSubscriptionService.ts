@@ -46,6 +46,20 @@ type ServiceLogger = {
   error?: (payload: unknown, message?: string) => void;
 };
 
+type StripeClientLike = Pick<Stripe, "charges" | "invoices" | "subscriptions">;
+
+export type RegenerationInvoiceOrderAction = "created" | "updated" | "skipped";
+
+export interface RegenerationInvoiceProcessingResult {
+  handled: boolean;
+  orderAction: RegenerationInvoiceOrderAction;
+  invoiceId: string | null;
+  stripeSubscriptionId: string | null;
+  regenerationSubscriptionId: string | null;
+  userId: string | null;
+  reason?: string;
+}
+
 interface RegenerationProjectionRow {
   id: string;
   userId: string;
@@ -141,6 +155,22 @@ function stripeRef(value: unknown): string | null {
     return value.id;
   }
   return null;
+}
+
+function getInvoiceStripeSubscriptionId(invoice: Stripe.Invoice) {
+  return stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription)
+    ?? stripeRef((invoice as Stripe.Invoice & { parent?: { subscription_details?: { subscription?: unknown } } }).parent?.subscription_details?.subscription);
+}
+
+function getInvoicePaymentIntentId(invoice: Stripe.Invoice) {
+  return stripeRef((invoice as Stripe.Invoice & { payment_intent?: unknown }).payment_intent)
+    ?? stripeRef((invoice as Stripe.Invoice & { payments?: { data?: Array<{ payment?: { payment_intent?: unknown } | unknown; payment_intent?: unknown }> } }).payments?.data?.[0]?.payment_intent)
+    ?? stripeRef((invoice as Stripe.Invoice & { payments?: { data?: Array<{ payment?: { payment_intent?: unknown } | unknown; payment_intent?: unknown }> } }).payments?.data?.[0]?.payment);
+}
+
+function getInvoiceSubscriptionMetadata(invoice: Stripe.Invoice): Stripe.Metadata | null {
+  const metadata = (invoice as Stripe.Invoice & { parent?: { subscription_details?: { metadata?: Stripe.Metadata } } }).parent?.subscription_details?.metadata;
+  return metadata ?? null;
 }
 
 function unixToDate(value: number | null | undefined) {
@@ -563,9 +593,9 @@ async function upsertOrderFromInvoice(
     subscriptionStatus: RegenerationProjectionStatus;
     accessState: RegenerationAccessState;
   },
-) {
+): Promise<RegenerationInvoiceOrderAction> {
   const paymentReference = input.invoice.id;
-  const paymentIntentId = stripeRef((input.invoice as Stripe.Invoice & { payment_intent?: unknown }).payment_intent);
+  const paymentIntentId = getInvoicePaymentIntentId(input.invoice);
   const existing = await db
     .select({ id: orders.id })
     .from(orders)
@@ -593,11 +623,14 @@ async function upsertOrderFromInvoice(
         status: input.status,
         stripe_payment_intent_id: paymentIntentId,
         stripe_subscription_id: input.projection.stripeSubscriptionId,
+        stripe_invoice_id: input.invoice.id,
+        stripe_invoice_url: input.invoice.hosted_invoice_url ?? null,
+        stripe_invoice_status: input.invoice.status ?? null,
         metadata,
         updated_at: new Date(),
       })
       .where(eq(orders.id, existing[0].id));
-    return;
+    return "updated";
   }
 
   await db.insert(orders).values({
@@ -611,8 +644,29 @@ async function upsertOrderFromInvoice(
     payment_reference: paymentReference,
     stripe_payment_intent_id: paymentIntentId,
     stripe_subscription_id: input.projection.stripeSubscriptionId,
+    stripe_invoice_id: input.invoice.id,
+    stripe_invoice_url: input.invoice.hosted_invoice_url ?? null,
+    stripe_invoice_status: input.invoice.status ?? null,
     metadata,
+  }).onConflictDoUpdate({
+    target: orders.payment_reference,
+    set: {
+      subscription_id: input.projection.id,
+      type: orderType,
+      label: REGENERATION_PLAN_NAME,
+      amount: input.invoice.amount_paid || input.invoice.amount_due || 9900,
+      currency: (input.invoice.currency ?? "cad").toUpperCase(),
+      status: input.status,
+      stripe_payment_intent_id: paymentIntentId,
+      stripe_subscription_id: input.projection.stripeSubscriptionId,
+      stripe_invoice_id: input.invoice.id,
+      stripe_invoice_url: input.invoice.hosted_invoice_url ?? null,
+      stripe_invoice_status: input.invoice.status ?? null,
+      metadata,
+      updated_at: new Date(),
+    },
   });
+  return "created";
 }
 
 async function ensureStripeCustomerMapping(db: Database, userId: string, stripeCustomerId: string) {
@@ -986,10 +1040,323 @@ export async function reconcileRegenerationSubscriptionFromStripeId(
   db: Database,
   stripeSubscriptionId: string,
   logger?: ServiceLogger,
+  stripe: StripeClientLike = getStripe(),
 ) {
-  const stripe = getStripe();
   const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
   return reconcileRegenerationSubscriptionFromStripeObject(db, subscription, logger);
+}
+
+async function isRegenerationInvoice(
+  db: Database,
+  invoice: Stripe.Invoice,
+): Promise<boolean> {
+  if (isRegenerationSubscriptionMetadata(getInvoiceSubscriptionMetadata(invoice))) {
+    return true;
+  }
+  const stripeSubscriptionId = getInvoiceStripeSubscriptionId(invoice);
+  if (!stripeSubscriptionId) {
+    return false;
+  }
+  return Boolean(await getProjectionByStripeSubscriptionId(db, stripeSubscriptionId));
+}
+
+function logInvoiceProcessingResult(
+  logger: ServiceLogger | undefined,
+  message: string,
+  result: RegenerationInvoiceProcessingResult,
+) {
+  log(logger, "info", {
+    invoiceId: result.invoiceId,
+    stripeSubscriptionId: result.stripeSubscriptionId,
+    regenerationSubscriptionId: result.regenerationSubscriptionId,
+    userId: result.userId,
+    orderAction: result.orderAction,
+    reason: result.reason ?? null,
+  }, message);
+}
+
+export async function processRegenerationInvoicePaid(
+  db: Database,
+  invoice: Stripe.Invoice,
+  logger?: ServiceLogger,
+  stripe: StripeClientLike = getStripe(),
+): Promise<RegenerationInvoiceProcessingResult> {
+  const stripeSubscriptionId = getInvoiceStripeSubscriptionId(invoice);
+  if (!stripeSubscriptionId) {
+    return {
+      handled: false,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId: null,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "missing_subscription",
+    };
+  }
+
+  if (!await isRegenerationInvoice(db, invoice)) {
+    return {
+      handled: false,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "not_regeneration_subscription",
+    };
+  }
+
+  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, stripeSubscriptionId, logger, stripe);
+  if (!updated) {
+    return {
+      handled: true,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "projection_not_found",
+    };
+  }
+
+  const projection = computeProjectionFromStripe({
+    stripeStatus: "active",
+    cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
+    currentPeriodEnd: updated.currentPeriodEnd,
+    canceledAt: updated.canceledAt,
+    isAdminOverride: updated.isAdminOverride,
+    overrideExpiresAt: updated.overrideExpiresAt,
+  });
+  const orderAction = await upsertOrderFromInvoice(db, {
+    projection: updated,
+    invoice,
+    status: "completed",
+    subscriptionStatus: projection.status,
+    accessState: projection.accessState,
+  });
+  const result = {
+    handled: true,
+    orderAction,
+    invoiceId: invoice.id,
+    stripeSubscriptionId,
+    regenerationSubscriptionId: updated.id,
+    userId: updated.userId,
+  };
+  logInvoiceProcessingResult(logger, "regeneration_invoice_paid_order_synced", result);
+  return result;
+}
+
+export async function processRegenerationInvoiceFailed(
+  db: Database,
+  invoice: Stripe.Invoice,
+  logger?: ServiceLogger,
+  stripe: StripeClientLike = getStripe(),
+): Promise<RegenerationInvoiceProcessingResult> {
+  const stripeSubscriptionId = getInvoiceStripeSubscriptionId(invoice);
+  if (!stripeSubscriptionId) {
+    return {
+      handled: false,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId: null,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "missing_subscription",
+    };
+  }
+
+  if (!await isRegenerationInvoice(db, invoice)) {
+    return {
+      handled: false,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "not_regeneration_subscription",
+    };
+  }
+
+  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, stripeSubscriptionId, logger, stripe);
+  if (!updated) {
+    return {
+      handled: true,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId,
+      regenerationSubscriptionId: null,
+      userId: null,
+      reason: "projection_not_found",
+    };
+  }
+
+  await upsertProjection(db, {
+    userId: updated.userId,
+    stripeCustomerId: updated.stripeCustomerId,
+    stripeSubscriptionId: updated.stripeSubscriptionId,
+    stripePriceId: updated.stripePriceId,
+    stripeCheckoutSessionId: updated.stripeCheckoutSessionId,
+    status: normalizeProjectionStatus(updated.status),
+    accessState: normalizeAccessState(updated.accessState),
+    currentPeriodStart: updated.currentPeriodStart,
+    currentPeriodEnd: updated.currentPeriodEnd,
+    cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
+    canceledAt: updated.canceledAt,
+    endedAt: updated.endedAt,
+    prioritySupport: updated.prioritySupport,
+    isAdminOverride: updated.isAdminOverride,
+    overrideExpiresAt: updated.overrideExpiresAt,
+    lastPaymentFailedAt: new Date(),
+    lastCheckoutStartedAt: updated.lastCheckoutStartedAt,
+    lastReconciledAt: new Date(),
+    metadata: {
+      ...(parseObject(updated.metadata) ?? {}),
+      lastFailedInvoiceId: invoice.id,
+    },
+  });
+  const refreshed = await getProjectionByUserId(db, updated.userId);
+  if (!refreshed) {
+    return {
+      handled: true,
+      orderAction: "skipped",
+      invoiceId: invoice.id,
+      stripeSubscriptionId,
+      regenerationSubscriptionId: updated.id,
+      userId: updated.userId,
+      reason: "projection_refresh_failed",
+    };
+  }
+
+  const orderAction = await upsertOrderFromInvoice(db, {
+    projection: refreshed,
+    invoice,
+    status: "failed",
+    subscriptionStatus: normalizeProjectionStatus(refreshed.status),
+    accessState: normalizeAccessState(refreshed.accessState),
+  });
+  const result = {
+    handled: true,
+    orderAction,
+    invoiceId: invoice.id,
+    stripeSubscriptionId,
+    regenerationSubscriptionId: refreshed.id,
+    userId: refreshed.userId,
+  };
+  logInvoiceProcessingResult(logger, "regeneration_invoice_failed_order_synced", result);
+  return result;
+}
+
+function paymentIntentInvoiceId(paymentIntent: Stripe.PaymentIntent) {
+  return stripeRef((paymentIntent as Stripe.PaymentIntent & { invoice?: unknown }).invoice);
+}
+
+async function chargeInvoiceId(stripe: StripeClientLike, charge: unknown) {
+  if (!charge) return null;
+  if (typeof charge === "string") {
+    const retrieved = await stripe.charges.retrieve(charge);
+    return stripeRef((retrieved as Stripe.Charge & { invoice?: unknown }).invoice);
+  }
+  return stripeRef((charge as Stripe.Charge & { invoice?: unknown }).invoice);
+}
+
+async function findInvoiceForPaymentIntent(
+  stripe: StripeClientLike,
+  paymentIntent: Stripe.PaymentIntent,
+) {
+  const directInvoiceId = paymentIntentInvoiceId(paymentIntent)
+    ?? await chargeInvoiceId(stripe, (paymentIntent as Stripe.PaymentIntent & { latest_charge?: unknown }).latest_charge);
+  if (directInvoiceId) {
+    return stripe.invoices.retrieve(directInvoiceId, { expand: ["subscription"] });
+  }
+
+  const customerId = stripeRef(paymentIntent.customer);
+  if (!customerId) return null;
+
+  const descriptionInvoiceNumber = paymentIntent.description?.match(/^Invoice\s+(.+)$/i)?.[1] ?? null;
+  const created = typeof paymentIntent.created === "number" ? paymentIntent.created : Math.floor(Date.now() / 1000);
+  const invoices = await stripe.invoices.list({
+    customer: customerId,
+    created: { gte: created - 24 * 60 * 60 },
+    limit: 20,
+  } as Stripe.InvoiceListParams);
+
+  return invoices.data.find((invoice) => {
+    if (descriptionInvoiceNumber && invoice.number === descriptionInvoiceNumber) {
+      return true;
+    }
+    const invoicePaymentIntentId = getInvoicePaymentIntentId(invoice);
+    if (invoicePaymentIntentId && invoicePaymentIntentId === paymentIntent.id) {
+      return true;
+    }
+    const paidAt = invoice.status_transitions?.paid_at;
+    const paidNearPaymentIntent = typeof paidAt === "number" && Math.abs(paidAt - created) <= 10 * 60;
+    return invoice.status === "paid"
+      && invoice.amount_paid === paymentIntent.amount
+      && invoice.currency === paymentIntent.currency
+      && paidNearPaymentIntent
+      && Boolean(getInvoiceStripeSubscriptionId(invoice));
+  }) ?? null;
+}
+
+export async function handleRegenerationPaymentIntentSucceeded(
+  db: Database,
+  paymentIntent: Stripe.PaymentIntent,
+  logger?: ServiceLogger,
+  stripe: StripeClientLike = getStripe(),
+) {
+  const invoice = await findInvoiceForPaymentIntent(stripe, paymentIntent);
+  if (!invoice) {
+    return false;
+  }
+
+  const result = await processRegenerationInvoicePaid(db, invoice, logger, stripe);
+  if (!result.handled) {
+    log(logger, "info", {
+      paymentIntentId: paymentIntent.id,
+      invoiceId: invoice.id,
+      reason: result.reason ?? null,
+    }, "regeneration_payment_intent_invoice_fallback_skipped");
+    return false;
+  }
+
+  log(logger, "info", {
+    paymentIntentId: paymentIntent.id,
+    invoiceId: result.invoiceId,
+    stripeSubscriptionId: result.stripeSubscriptionId,
+    regenerationSubscriptionId: result.regenerationSubscriptionId,
+    userId: result.userId,
+    orderAction: result.orderAction,
+  }, "regeneration_payment_intent_invoice_fallback_processed");
+  return true;
+}
+
+export async function backfillRegenerationPaidInvoices(
+  db: Database,
+  stripeSubscriptionId: string,
+  logger?: ServiceLogger,
+  stripe: StripeClientLike = getStripe(),
+) {
+  const invoices = await stripe.invoices.list({
+    subscription: stripeSubscriptionId,
+    limit: 24,
+  } as Stripe.InvoiceListParams);
+  const results: RegenerationInvoiceProcessingResult[] = [];
+
+  for (const invoice of invoices.data) {
+    if (invoice.status !== "paid") {
+      continue;
+    }
+    results.push(await processRegenerationInvoicePaid(db, invoice, logger, stripe));
+  }
+
+  log(logger, "info", {
+    stripeSubscriptionId,
+    processedInvoices: results.length,
+    created: results.filter((result) => result.orderAction === "created").length,
+    updated: results.filter((result) => result.orderAction === "updated").length,
+    skipped: results.filter((result) => result.orderAction === "skipped").length,
+  }, "regeneration_invoice_backfill_completed");
+  return results;
 }
 
 export async function confirmRegenerationCheckoutSession(
@@ -1109,30 +1476,7 @@ export async function handleRegenerationInvoicePaid(
   invoice: Stripe.Invoice,
   logger?: ServiceLogger,
 ) {
-  const stripeSubscriptionId = stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription);
-  if (!stripeSubscriptionId) {
-    return false;
-  }
-  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, stripeSubscriptionId, logger);
-  if (!updated) {
-    return true;
-  }
-  const projection = computeProjectionFromStripe({
-    stripeStatus: "active",
-    cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
-    currentPeriodEnd: updated.currentPeriodEnd,
-    canceledAt: updated.canceledAt,
-    isAdminOverride: updated.isAdminOverride,
-    overrideExpiresAt: updated.overrideExpiresAt,
-  });
-  await upsertOrderFromInvoice(db, {
-    projection: updated,
-    invoice,
-    status: "completed",
-    subscriptionStatus: projection.status,
-    accessState: projection.accessState,
-  });
-  return true;
+  return (await processRegenerationInvoicePaid(db, invoice, logger)).handled;
 }
 
 export async function handleRegenerationInvoicePaymentFailed(
@@ -1140,50 +1484,7 @@ export async function handleRegenerationInvoicePaymentFailed(
   invoice: Stripe.Invoice,
   logger?: ServiceLogger,
 ) {
-  const stripeSubscriptionId = stripeRef((invoice as Stripe.Invoice & { subscription?: unknown }).subscription);
-  if (!stripeSubscriptionId) {
-    return false;
-  }
-  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, stripeSubscriptionId, logger);
-  if (!updated) {
-    return true;
-  }
-  await upsertProjection(db, {
-    userId: updated.userId,
-    stripeCustomerId: updated.stripeCustomerId,
-    stripeSubscriptionId: updated.stripeSubscriptionId,
-    stripePriceId: updated.stripePriceId,
-    stripeCheckoutSessionId: updated.stripeCheckoutSessionId,
-    status: normalizeProjectionStatus(updated.status),
-    accessState: normalizeAccessState(updated.accessState),
-    currentPeriodStart: updated.currentPeriodStart,
-    currentPeriodEnd: updated.currentPeriodEnd,
-    cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
-    canceledAt: updated.canceledAt,
-    endedAt: updated.endedAt,
-    prioritySupport: updated.prioritySupport,
-    isAdminOverride: updated.isAdminOverride,
-    overrideExpiresAt: updated.overrideExpiresAt,
-    lastPaymentFailedAt: new Date(),
-    lastCheckoutStartedAt: updated.lastCheckoutStartedAt,
-    lastReconciledAt: new Date(),
-    metadata: {
-      ...(parseObject(updated.metadata) ?? {}),
-      lastFailedInvoiceId: invoice.id,
-    },
-  });
-  const refreshed = await getProjectionByUserId(db, updated.userId);
-  if (!refreshed) {
-    return true;
-  }
-  await upsertOrderFromInvoice(db, {
-    projection: refreshed,
-    invoice,
-    status: "failed",
-    subscriptionStatus: normalizeProjectionStatus(refreshed.status),
-    accessState: normalizeAccessState(refreshed.accessState),
-  });
-  return true;
+  return (await processRegenerationInvoiceFailed(db, invoice, logger)).handled;
 }
 
 export async function handleRegenerationSubscriptionUpdated(
@@ -1280,8 +1581,12 @@ export async function reconcileRegenerationSubscriptionForUser(
   if (!existing?.stripeSubscriptionId) {
     throw createHttpError(404, "No Stripe regeneration subscription is linked to this user yet");
   }
-  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, existing.stripeSubscriptionId, logger);
-  return serializeProjection(updated);
+  const stripe = getStripe();
+  const updated = await reconcileRegenerationSubscriptionFromStripeId(db, existing.stripeSubscriptionId, logger, stripe);
+  if (updated?.stripeSubscriptionId) {
+    await backfillRegenerationPaidInvoices(db, updated.stripeSubscriptionId, logger, stripe);
+  }
+  return serializeProjection(await getProjectionByUserId(db, userId));
 }
 
 export async function listRegenerationCheckIns(db: Database, userId: string) {

@@ -57,6 +57,20 @@ stripe listen --forward-to localhost:3001/api/stripe/webhook
 
 Copy the emitted signing secret into `STRIPE_WEBHOOK_SECRET`.
 
+For live and QA Stripe webhook endpoints, keep these events enabled:
+
+- `checkout.session.completed`
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `charge.refunded`
+- `payment_intent.canceled`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+Regeneration Monthly Package renewal Orders depend on `invoice.paid`. `checkout.session.completed` only records the initial checkout/projection state; it does not create subscription renewal rows in Admin Orders. Keep `invoice.payment_failed` enabled as well so failed renewals are visible in Orders.
+
 ## 5. Run QA
 
 1. Sign in through the local web app with the Clerk demo account.
