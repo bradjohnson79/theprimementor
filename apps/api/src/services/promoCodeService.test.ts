@@ -3,6 +3,7 @@ import test from "node:test";
 import { PROMO_TARGETS } from "@wisdom/utils";
 import {
   buildStripePromotionCodeCreateParams,
+  buildTargetFromReportProduct,
   buildTargetFromReportTier,
   buildTargetsFromBookingSession,
   buildTargetsFromSessionType,
@@ -33,6 +34,12 @@ test("buildTargetsFromBookingSession includes mentoring duration targets", () =>
 
 test("buildTargetFromReportTier maps deep dive reports", () => {
   assert.equal(buildTargetFromReportTier("deep_dive"), PROMO_TARGETS.REPORT_DEEP_DIVE);
+});
+
+test("buildTargetFromReportProduct maps casual report products", () => {
+  assert.equal(buildTargetFromReportProduct("three_questions"), PROMO_TARGETS.REPORT_THREE_QUESTIONS);
+  assert.equal(buildTargetFromReportProduct("compatibility"), PROMO_TARGETS.REPORT_COMPATIBILITY);
+  assert.equal(buildTargetFromReportProduct("annual_12_month"), PROMO_TARGETS.REPORT_ANNUAL_12_MONTH);
 });
 
 test("computeEstimatedDiscountCents returns rounded preview amounts", () => {

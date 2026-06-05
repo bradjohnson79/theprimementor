@@ -12,7 +12,7 @@ import {
   type Database,
 } from "@wisdom/db";
 import {
-  DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
+  DIVIN8_REPORT_PRICE_CENTS_BY_PRODUCT,
   MEMBER_PRICING,
   MENTOR_TRAINING_PACKAGES,
   PROMO_TARGETS,
@@ -21,6 +21,7 @@ import {
   type MentorTrainingPackageType,
   type PromoBillingScope,
   type PromoTarget,
+  type ReportProductKey,
   type ReportTierId,
 } from "@wisdom/utils";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -419,13 +420,41 @@ export function buildTargetsFromBookingSession(
 }
 
 export function buildTargetFromReportTier(tier: ReportTierId): PromoTarget {
-  switch (tier) {
+  return buildTargetFromReportProduct(tier);
+}
+
+export function buildTargetFromReportProduct(reportType: ReportProductKey): PromoTarget {
+  switch (reportType) {
+    case "three_questions":
+      return PROMO_TARGETS.REPORT_THREE_QUESTIONS;
+    case "compatibility":
+      return PROMO_TARGETS.REPORT_COMPATIBILITY;
+    case "annual_12_month":
+      return PROMO_TARGETS.REPORT_ANNUAL_12_MONTH;
     case "intro":
       return PROMO_TARGETS.REPORT_INTRO;
     case "deep_dive":
       return PROMO_TARGETS.REPORT_DEEP_DIVE;
     case "initiate":
       return PROMO_TARGETS.REPORT_INITIATE;
+  }
+}
+
+function getReportAmountCents(reportType: ReportProductKey) {
+  return DIVIN8_REPORT_PRICE_CENTS_BY_PRODUCT[reportType];
+}
+
+function normalizeReportProductKey(value: string): ReportProductKey | null {
+  switch (value) {
+    case "three_questions":
+    case "compatibility":
+    case "annual_12_month":
+    case "intro":
+    case "deep_dive":
+    case "initiate":
+      return value;
+    default:
+      return null;
   }
 }
 
@@ -534,14 +563,14 @@ async function resolvePromoCheckoutContext(db: Database, input: PromoContextInpu
   }
 
   if (type === "report") {
-    const tier = input.reportTier ?? await (async () => {
+    const reportType = input.reportTier ?? await (async () => {
       if (!input.reportId?.trim()) {
         throw createHttpError(400, "reportId or reportTier is required");
       }
       const [row] = await db
         .select({
           userId: reports.user_id,
-          tier: reports.interpretation_tier,
+          reportType: reports.interpretation_tier,
         })
         .from(reports)
         .where(eq(reports.id, input.reportId.trim()))
@@ -549,16 +578,17 @@ async function resolvePromoCheckoutContext(db: Database, input: PromoContextInpu
       if (!row || row.userId !== input.userId) {
         throw createHttpError(404, "Report not found");
       }
-      if (row.tier !== "intro" && row.tier !== "deep_dive" && row.tier !== "initiate") {
-        throw createHttpError(400, "Invalid report tier");
+      const normalizedReportType = normalizeReportProductKey(row.reportType);
+      if (!normalizedReportType) {
+        throw createHttpError(400, "Invalid report type");
       }
-      return row.tier as ReportTierId;
+      return normalizedReportType;
     })();
     return {
       type,
-      amountCents: DIVIN8_REPORT_PRICE_CENTS_BY_TIER[tier],
+      amountCents: getReportAmountCents(reportType),
       currency: "CAD",
-      targets: [buildTargetFromReportTier(tier)],
+      targets: [buildTargetFromReportProduct(reportType)],
       billingScope: "one_time",
       userId: input.userId,
     };
