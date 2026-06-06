@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject, type UIEvent } from "react";
+import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject, type UIEvent } from "react";
 import { extractDivin8ProfileTags, extractDivin8TimelineTags } from "@wisdom/utils";
-import type { Divin8Profile, Divin8TimelineDraft } from "./types";
+import type { Divin8ImageAttachment, Divin8Profile, Divin8TimelineDraft } from "./types";
+import CategorySelectorButton from "./CategorySelectorButton";
+import ChatAutocompleteMenu from "./ChatAutocompleteMenu";
+import { useDivin8Autocomplete } from "./useDivin8Autocomplete";
 import { classNames, darkChatStyles } from "./utils";
 
 type SpeechRecognitionStatus = "idle" | "listening" | "error" | "disabled";
@@ -11,7 +14,8 @@ interface ChatComposerProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   profiles: Divin8Profile[];
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onRemoveImage: () => void;
+  onRemoveImage: (index?: number) => void;
+  imageAttachments: Divin8ImageAttachment[];
   imageName: string | null;
   imagePreviewUrl: string | null;
   imageError: string | null;
@@ -21,6 +25,7 @@ interface ChatComposerProps {
   speechButtonTitle: string;
   onToggleSpeech: () => void;
   onOpenTimeline: () => void;
+  onOpenCategories: () => void;
   isUploadingImage: boolean;
   isLightTheme: boolean;
   blockMessage: string | null;
@@ -38,6 +43,7 @@ export default function ChatComposer({
   profiles,
   onImageChange,
   onRemoveImage,
+  imageAttachments,
   imageName,
   imagePreviewUrl,
   imageError,
@@ -47,6 +53,7 @@ export default function ChatComposer({
   speechButtonTitle,
   onToggleSpeech,
   onOpenTimeline,
+  onOpenCategories,
   isUploadingImage,
   isLightTheme,
   blockMessage,
@@ -57,7 +64,6 @@ export default function ChatComposer({
   placeholder = "Share what you want guidance on...",
 }: ChatComposerProps) {
   const localInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
 
   function setRefs(element: HTMLTextAreaElement | null) {
     localInputRef.current = element;
@@ -84,103 +90,42 @@ export default function ChatComposer({
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [inputText]);
 
-  const activeTagMatch = useMemo(() => {
-    const textarea = localInputRef.current;
-    const selectionStart = textarea?.selectionStart ?? inputText.length;
-    const beforeCursor = inputText.slice(0, selectionStart);
-    const match = beforeCursor.match(/(^|\s)(@[A-Za-z0-9]*)$/);
-    if (!match) {
-      return null;
-    }
-    return {
-      query: match[2],
-      start: selectionStart - match[2].length,
-      end: selectionStart,
-    };
-  }, [inputText]);
-
-  const profileSuggestions = useMemo(() => {
-    if (!activeTagMatch || !activeTagMatch.query.startsWith("@")) {
-      return [];
-    }
-    const normalized = activeTagMatch.query.slice(1).toLowerCase();
-    const matches = profiles.filter((profile) => (
-      !normalized
-      || profile.tag.slice(1).toLowerCase().startsWith(normalized)
-      || profile.fullName.toLowerCase().includes(normalized)
-    ));
-    return matches.slice(0, 6);
-  }, [activeTagMatch, profiles]);
-
-  useEffect(() => {
-    setActiveSuggestionIndex(0);
-  }, [activeTagMatch?.query]);
-
-  function applyProfileSuggestion(tag: string) {
-    const textarea = localInputRef.current;
-    if (!textarea || !activeTagMatch) {
-      return;
-    }
-    const tokenEnd = (() => {
-      let index = activeTagMatch.end;
-      while (index < inputText.length && /[A-Za-z0-9]/.test(inputText[index] ?? "")) {
-        index += 1;
-      }
-      return index;
-    })();
-    const suffix = inputText.slice(tokenEnd).startsWith(" ") ? "" : " ";
-    const nextValue = `${inputText.slice(0, activeTagMatch.start)}${tag}${suffix}${inputText.slice(tokenEnd)}`;
-    const nextCaret = activeTagMatch.start + tag.length + suffix.length;
-    onInputChange(nextValue);
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(nextCaret, nextCaret);
-    });
-  }
+  const autocomplete = useDivin8Autocomplete({
+    inputText,
+    profiles,
+    textareaRef: localInputRef,
+    onInputChange,
+  });
 
   function handleTextareaScroll(_event: UIEvent<HTMLTextAreaElement>) {}
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (profileSuggestions.length > 0) {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setActiveSuggestionIndex((current) => (current + 1) % profileSuggestions.length);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setActiveSuggestionIndex((current) => (current - 1 + profileSuggestions.length) % profileSuggestions.length);
-        return;
-      }
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        applyProfileSuggestion(profileSuggestions[activeSuggestionIndex]?.tag ?? profileSuggestions[0]!.tag);
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setActiveSuggestionIndex(0);
-        return;
-      }
+    if (autocomplete.handleAutocompleteKeyDown(event)) {
+      return;
     }
 
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
     event.preventDefault();
-    if (disabled || (!inputText.trim() && !imagePreviewUrl)) {
+    if (disabled || (!inputText.trim() && imageAttachments.length === 0 && !imagePreviewUrl)) {
       return;
     }
     event.currentTarget.form?.requestSubmit();
   }
 
-  const canSend = !disabled && (inputText.trim().length > 0 || !!imagePreviewUrl);
+  const previewAttachments = imageAttachments.length > 0
+    ? imageAttachments
+    : imagePreviewUrl
+      ? [{ imageRef: "", imageName: imageName ?? "Uploaded image", imagePreviewUrl }]
+      : [];
+  const canSend = !disabled && (inputText.trim().length > 0 || previewAttachments.length > 0);
   const detectedTags = extractDivin8ProfileTags(inputText);
   const detectedTimelineTags = extractDivin8TimelineTags(inputText);
 
   return (
     <form onSubmit={onSubmit} className="space-y-2" aria-label="Divin8 chat composer">
-      {imagePreviewUrl ? (
+      {previewAttachments.length > 0 ? (
         <div
           className={classNames(
             "flex items-center gap-3 rounded-xl border px-3 py-2",
@@ -188,23 +133,31 @@ export default function ChatComposer({
           )}
           style={!isLightTheme ? darkChatStyles.bubbleSoft : undefined}
         >
-          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
-            <img src={imagePreviewUrl} alt="Selected upload" className="h-full w-full object-cover" />
+          <div className="flex shrink-0 gap-2">
+            {previewAttachments.map((attachment, index) => (
+              <div key={`${attachment.imagePreviewUrl}-${index}`} className="group relative h-12 w-12 overflow-hidden rounded-lg">
+                <img src={attachment.imagePreviewUrl} alt={`Selected upload ${index + 1}`} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(index)}
+                  aria-label={`Remove image ${index + 1}`}
+                  className={classNames(
+                    "absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full transition-colors",
+                    isLightTheme ? "bg-white/90 text-slate-600 hover:text-slate-950" : "bg-slate-950/75 text-white/70 hover:text-white",
+                  )}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
-          <p className="min-w-0 flex-1 truncate text-xs font-medium">{imageName || "Uploaded image"}</p>
-          <button
-            type="button"
-            onClick={onRemoveImage}
-            aria-label="Remove image"
-            className={classNames(
-              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors",
-              isLightTheme ? "text-slate-500 hover:bg-slate-200 hover:text-slate-900" : "text-white/50 hover:bg-white/10 hover:text-white",
-            )}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5" aria-label="Remove image" role="img">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <p className="min-w-0 flex-1 truncate text-xs font-medium">
+            {previewAttachments.length === 1
+              ? previewAttachments[0]?.imageName || "Uploaded image"
+              : `${previewAttachments.length} images ready`}
+          </p>
         </div>
       ) : null}
 
@@ -229,38 +182,13 @@ export default function ChatComposer({
           )}
         />
 
-        {profileSuggestions.length > 0 ? (
-          <div
-            className={classNames(
-              "mx-2 mb-1 rounded-2xl border p-1",
-              isLightTheme ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950/95",
-            )}
-          >
-            {profileSuggestions.map((profile, index) => (
-              <button
-                key={profile.id}
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  applyProfileSuggestion(profile.tag);
-                }}
-                className={classNames(
-                  "block w-full rounded-xl px-3 py-2 text-left transition-colors",
-                  index === activeSuggestionIndex
-                    ? isLightTheme
-                      ? "bg-slate-100"
-                      : "bg-white/10"
-                    : "",
-                )}
-              >
-                <div className="text-sm font-medium text-accent-cyan">{profile.tag}</div>
-                <div className={classNames("text-xs", isLightTheme ? "text-slate-500" : "text-white/50")}>
-                  {profile.fullName}
-                </div>
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <ChatAutocompleteMenu
+          trigger={autocomplete.trigger}
+          suggestions={autocomplete.suggestions}
+          activeIndex={autocomplete.activeSuggestionIndex}
+          isLightTheme={isLightTheme}
+          onSelect={autocomplete.applySuggestion}
+        />
 
         <div className="flex items-center gap-1 px-2 pb-2 pt-1">
           <label
@@ -293,6 +221,7 @@ export default function ChatComposer({
             </svg>
             <input
               type="file"
+              multiple
               accept="image/jpeg,image/jpg,image/png,image/webp"
               onChange={onImageChange}
               disabled={disabled || isUploadingImage}
@@ -300,6 +229,12 @@ export default function ChatComposer({
               style={{ display: "none" }}
             />
           </label>
+
+          <CategorySelectorButton
+            disabled={disabled}
+            isLightTheme={isLightTheme}
+            onClick={onOpenCategories}
+          />
 
           <div className="flex-1" />
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type UIEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type UIEvent } from "react";
 import type {
   Divin8ProfileCreateRequest,
   Divin8ProfileResponse,
@@ -16,12 +16,15 @@ import {
   DIVIN8_LIMITS,
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
   MAX_DIVIN8_TIMELINES_PER_MESSAGE,
+  insertDivin8CategoryTags,
   extractDivin8ProfileTags,
+  parseDivin8CategoryTags,
   extractDivin8TimelineTags,
 } from "@wisdom/utils";
 import type {
   Divin8ChatMessage,
   Divin8ChatMeta,
+  Divin8ImageAttachment,
   Divin8Profile,
   Divin8ChatTier,
   Divin8ConversationThread,
@@ -84,6 +87,7 @@ export interface UseDivin8ChatReturn {
   deletingProfileId: string | null;
   isProfileModalOpen: boolean;
   isTimelineModalOpen: boolean;
+  isCategoryModalOpen: boolean;
   profileError: string | null;
   timelineError: string | null;
   profileLimitMessage: string | null;
@@ -103,6 +107,9 @@ export interface UseDivin8ChatReturn {
   handleOpenTimelineModal: () => void;
   handleCloseTimelineModal: () => void;
   handleGenerateTimeline: (timeline: Divin8TimelineRequest) => void;
+  handleOpenCategoryModal: () => void;
+  handleCloseCategoryModal: () => void;
+  handleAddCategories: (tags: string[]) => void;
   handleCreateProfile: (input: Divin8ProfileCreateRequest) => Promise<void>;
   handleDeleteProfile: (profileId: string) => Promise<void>;
   insertProfileTag: (tag: string) => void;
@@ -119,6 +126,8 @@ export interface UseDivin8ChatReturn {
   blockMessage: string | null;
 
   clearImageSelection: () => void;
+  imageAttachments: Divin8ImageAttachment[];
+  setImageAttachments: Dispatch<SetStateAction<Divin8ImageAttachment[]>>;
   imageRef: string | null;
   setImageRef: (ref: string | null) => void;
   imageName: string | null;
@@ -461,6 +470,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [timelineDraftsByThread, setTimelineDraftsByThread] = useState<Record<string, Divin8TimelineRequest | null>>({});
@@ -468,6 +478,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [imageRef, setImageRef] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageAttachments, setImageAttachmentsState] = useState<Divin8ImageAttachment[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -527,13 +538,24 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   }, []);
 
   // -- Image helpers --
+  const setImageAttachments = useCallback((next: SetStateAction<Divin8ImageAttachment[]>) => {
+    setImageAttachmentsState((current) => {
+      const resolved = typeof next === "function" ? next(current) : next;
+      setImageRef(resolved[0]?.imageRef ?? null);
+      setImageName(resolved[0]?.imageName ?? null);
+      setImagePreviewUrl(resolved[0]?.imagePreviewUrl ?? null);
+      return resolved;
+    });
+  }, []);
+
   const clearImageSelection = useCallback(() => {
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    imageAttachments.forEach((attachment) => URL.revokeObjectURL(attachment.imagePreviewUrl));
     setImageRef(null);
     setImageName(null);
     setImagePreviewUrl(null);
+    setImageAttachmentsState([]);
     setImageError(null);
-  }, [imagePreviewUrl]);
+  }, [imageAttachments]);
 
   // -- Sync refs --
   useEffect(() => { activeThreadIdRef.current = activeThreadId; }, [activeThreadId]);
@@ -847,6 +869,24 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     window.requestAnimationFrame(() => composerInputRef.current?.focus());
   }, [draftsByThread, setInputText, tier, timelineDraftsByThread]);
 
+  const handleOpenCategoryModal = useCallback(() => {
+    setIsCategoryModalOpen(true);
+  }, []);
+
+  const handleCloseCategoryModal = useCallback(() => {
+    setIsCategoryModalOpen(false);
+  }, []);
+
+  const handleAddCategories = useCallback((tags: string[]) => {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+    setInputText(insertDivin8CategoryTags(draftsByThread[threadId] ?? "", tags));
+    setIsCategoryModalOpen(false);
+    window.requestAnimationFrame(() => composerInputRef.current?.focus());
+  }, [draftsByThread, setInputText]);
+
   const handleCreateProfile = useCallback(async (input: Divin8ProfileCreateRequest) => {
     setIsSavingProfile(true);
     try {
@@ -915,6 +955,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         const next = createMessage("user", payload.text, {
           id: messageId,
           imagePreviewUrl: payload.imagePreviewUrl,
+          imagePreviewUrls: payload.imagePreviewUrls,
           deliveryState: "sending",
           retryPayload: payload,
         });
@@ -929,7 +970,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           {
             message: payload.text,
             image_ref: payload.imageRef,
+            image_refs: payload.imageRefs,
             profile_tags: payload.profileTags,
+            systems: payload.systems,
             timeline: payload.timeline,
             tier: payload.tier,
             language: payload.language,
@@ -1040,7 +1083,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isGenerating || isBlocked || profileLimitMessage || timelineLimitMessage || !activeThreadId || (!inputText.trim() && !imageRef)) {
+    const selectedImages = imageAttachments.length > 0
+      ? imageAttachments
+      : imageRef && imagePreviewUrl
+        ? [{ imageRef, imageName: imageName ?? "Uploaded image", imagePreviewUrl }]
+        : [];
+    if (isGenerating || isBlocked || profileLimitMessage || timelineLimitMessage || !activeThreadId || (!inputText.trim() && selectedImages.length === 0)) {
       return;
     }
     if (tier !== "initiate" && activeTimeline) {
@@ -1056,10 +1104,14 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const messageId = createMessage("user", nextText).id;
     const payload: Divin8RetryPayload = {
       text: nextText,
-      imageRef,
-      imageName,
-      imagePreviewUrl,
+      imageRef: selectedImages[0]?.imageRef ?? null,
+      imageName: selectedImages[0]?.imageName ?? null,
+      imagePreviewUrl: selectedImages[0]?.imagePreviewUrl ?? null,
+      imageRefs: selectedImages.map((attachment) => attachment.imageRef),
+      imageNames: selectedImages.map((attachment) => attachment.imageName),
+      imagePreviewUrls: selectedImages.map((attachment) => attachment.imagePreviewUrl),
       profileTags: extractDivin8ProfileTags(nextText),
+      systems: parseDivin8CategoryTags(nextText).labels,
       timeline: activeTimeline,
       tier,
       language,
@@ -1068,7 +1120,11 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     shouldAutoFollowRef.current = true;
     setInputText("");
     setTimelineDraftsByThread((current) => ({ ...current, [activeThreadId]: null }));
-    clearImageSelection();
+    setImageRef(null);
+    setImageName(null);
+    setImagePreviewUrl(null);
+    setImageAttachmentsState([]);
+    setImageError(null);
     void sendMessageInternal(activeThreadId, messageId, payload);
   }
 
@@ -1162,6 +1218,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     deletingProfileId,
     isProfileModalOpen,
     isTimelineModalOpen,
+    isCategoryModalOpen,
     profileError,
     timelineError,
     profileLimitMessage,
@@ -1188,6 +1245,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     handleOpenTimelineModal,
     handleCloseTimelineModal,
     handleGenerateTimeline,
+    handleOpenCategoryModal,
+    handleCloseCategoryModal,
+    handleAddCategories,
     handleCreateProfile,
     handleDeleteProfile,
     insertProfileTag,
@@ -1201,6 +1261,8 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     isExporting,
     blockMessage,
     clearImageSelection,
+    imageAttachments,
+    setImageAttachments,
     imageRef,
     setImageRef,
     imageName,

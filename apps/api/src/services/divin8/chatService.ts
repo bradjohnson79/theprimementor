@@ -5,6 +5,7 @@ import {
   MAX_DIVIN8_TIMELINES_PER_MESSAGE,
   extractDivin8TimelineTags,
   normalizeLanguage,
+  parseDivin8CategoryTags,
   validateDivin8TimelineRequest,
   type LanguageCode,
   type Divin8TimelineRequest,
@@ -12,10 +13,12 @@ import {
 import { normalizeDivin8System } from "./systemRouting.js";
 
 export type Divin8ChatTier = "seeker" | "initiate";
+const MAX_DIVIN8_IMAGES_PER_MESSAGE = 2;
 
 export interface Divin8ChatRequest {
   message: string;
   image_ref?: string;
+  image_refs?: string[];
   profile_tags?: string[];
   systems?: string[];
   timeline?: Divin8TimelineRequest;
@@ -27,6 +30,7 @@ export interface Divin8ChatRequest {
 export interface Divin8MemberMessageRequest {
   message: string;
   image_ref?: string;
+  image_refs?: string[];
   profile_tags?: string[];
   systems?: string[];
   timeline?: Divin8TimelineRequest;
@@ -160,6 +164,35 @@ function normalizeSystemsInput(rawSystems: unknown) {
   )];
 }
 
+function normalizeImageRefs(input: Record<string, unknown>) {
+  const imageRef = input.image_ref;
+  const rawImageRefs = input.image_refs;
+
+  if (imageRef !== undefined && imageRef !== null && typeof imageRef !== "string") {
+    throw new Error("image_ref must be a string when provided.");
+  }
+  if (rawImageRefs !== undefined && rawImageRefs !== null && !Array.isArray(rawImageRefs)) {
+    throw new Error("image_refs must be an array when provided.");
+  }
+
+  const imageRefs = Array.isArray(rawImageRefs)
+    ? rawImageRefs
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.trim())
+    : [];
+  const normalized = [
+    ...imageRefs,
+    ...(typeof imageRef === "string" && imageRef.trim() ? [imageRef.trim()] : []),
+  ];
+  const deduped = [...new Set(normalized)];
+
+  if (deduped.length > MAX_DIVIN8_IMAGES_PER_MESSAGE) {
+    throw new Error(`A maximum of ${MAX_DIVIN8_IMAGES_PER_MESSAGE} images may be sent per reading.`);
+  }
+
+  return deduped;
+}
+
 export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   if (!body || typeof body !== "object") {
     throw new Error("Request body is required.");
@@ -168,11 +201,15 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   const input = body as Record<string, unknown>;
   const message = typeof input.message === "string" ? input.message.trim() : "";
   const tier = input.tier;
-  const imageRef = input.image_ref;
+  const imageRefs = normalizeImageRefs(input);
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
-  const systems = normalizeSystemsInput(input.systems);
+  const categoryParse = parseDivin8CategoryTags(message);
+  const systems = normalizeSystemsInput([
+    ...(Array.isArray(input.systems) ? input.systems : typeof input.systems === "string" ? [input.systems] : []),
+    ...categoryParse.labels,
+  ]);
   const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
@@ -183,10 +220,6 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
 
   if (tier !== "seeker" && tier !== "initiate") {
     throw new Error("tier must be seeker or initiate.");
-  }
-
-  if (imageRef !== undefined && imageRef !== null && typeof imageRef !== "string") {
-    throw new Error("image_ref must be a string when provided.");
   }
 
   if (profileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {
@@ -200,7 +233,8 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   return {
     message,
     tier,
-    image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
+    image_ref: imageRefs[0],
+    image_refs: imageRefs.length > 0 ? imageRefs : undefined,
     profile_tags: profileTags,
     systems,
     timeline,
@@ -216,11 +250,15 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
 
   const input = body as Record<string, unknown>;
   const message = typeof input.message === "string" ? input.message.trim() : "";
-  const imageRef = input.image_ref;
+  const imageRefs = normalizeImageRefs(input);
   const profileTags = Array.isArray(input.profile_tags)
     ? input.profile_tags.filter((value): value is string => typeof value === "string" && value.trim().startsWith("@")).map((value) => value.trim())
     : [];
-  const systems = normalizeSystemsInput(input.systems);
+  const categoryParse = parseDivin8CategoryTags(message);
+  const systems = normalizeSystemsInput([
+    ...(Array.isArray(input.systems) ? input.systems : typeof input.systems === "string" ? [input.systems] : []),
+    ...categoryParse.labels,
+  ]);
   const timeline = validateTimelineInput(message, input.timeline);
   const language = normalizeLanguage(input.language);
   const debugAudit = input.debugAudit === true;
@@ -230,17 +268,14 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
     throw new Error("message is required.");
   }
 
-  if (imageRef !== undefined && imageRef !== null && typeof imageRef !== "string") {
-    throw new Error("image_ref must be a string when provided.");
-  }
-
   if (profileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {
     throw new Error(`A maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles may be sent per reading.`);
   }
 
   return {
     message,
-    image_ref: typeof imageRef === "string" && imageRef.trim() ? imageRef.trim() : undefined,
+    image_ref: imageRefs[0],
+    image_refs: imageRefs.length > 0 ? imageRefs : undefined,
     profile_tags: profileTags,
     systems,
     timeline,

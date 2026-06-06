@@ -141,17 +141,29 @@ const MessageRow = memo(function MessageRow({
               </div>
             )}
 
-            {message.imagePreviewUrl ? (
-              <div
-                className={classNames(
-                  "relative mt-2.5 aspect-[4/3] w-44 overflow-hidden rounded-xl border",
-                  isLightTheme ? "border-slate-200 bg-slate-100" : "",
-                )}
-                style={!isLightTheme ? darkChatStyles.bubbleSoft : undefined}
-              >
-                <img src={message.imagePreviewUrl} alt="Chat upload preview" className="h-full w-full object-cover" />
-              </div>
-            ) : null}
+            {(() => {
+              const previews = message.imagePreviewUrls?.length
+                ? message.imagePreviewUrls
+                : message.imagePreviewUrl
+                  ? [message.imagePreviewUrl]
+                  : [];
+              return previews.length > 0 ? (
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {previews.map((previewUrl, index) => (
+                    <div
+                      key={`${message.id}-image-${index}`}
+                      className={classNames(
+                        "relative aspect-[4/3] w-32 overflow-hidden rounded-xl border sm:w-44",
+                        isLightTheme ? "border-slate-200 bg-slate-100" : "",
+                      )}
+                      style={!isLightTheme ? darkChatStyles.bubbleSoft : undefined}
+                    >
+                      <img src={previewUrl} alt={`Chat upload preview ${index + 1}`} className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
 
             {!isUser && (message.engineUsed || message.systemsUsed?.length) ? (
               <div

@@ -7,6 +7,8 @@ import {
   languageLabel,
   logger,
   normalizeLanguage,
+  parseDivin8CategoryTags,
+  type Divin8Category,
   type LanguageCode,
   type Divin8TimelineRequest,
   type Divin8KnowledgeCategory,
@@ -103,6 +105,39 @@ const TECHNICAL_SUPPORT_SENTENCE =
   "If this seems technical or keeps happening, please contact support so we can review the thread.";
 const LLM_MODEL_ISSUE_SENTENCE =
   `I’m having trouble reaching the Divin8 language model (${DIVIN8_CHAT_MODEL}) right now, so I can’t generate a reliable LLM reply.`;
+
+function hasUploadedImage(imageRef?: string | null, imageRefs?: string[] | null) {
+  return Boolean(imageRef?.trim()) || (imageRefs?.filter((ref) => ref.trim().length > 0).length ?? 0) > 0;
+}
+
+function buildCategoryContextBlock(labels: string[]) {
+  if (labels.length === 0) {
+    return "";
+  }
+
+  return [
+    "The user has requested the following Divin8 reading categories:",
+    ...labels.map((label) => `- ${label}`),
+    "Align the response with these requested systems where compatible.",
+    "Do not force incompatible systems together. Divin8 should synthesize compatible categories naturally.",
+  ].join("\n");
+}
+
+function buildImageRequiredCategoryMessage(category: Divin8Category) {
+  if (!category.requiresImage) {
+    return "I can do that reading, but I’ll need the required image upload first.";
+  }
+
+  if (category.imageRequirement === "palm") {
+    return "I can do the #Palmistry reading, but I’ll need a clear image of your palm first. Please upload a well-lit palm photo, then I’ll continue.";
+  }
+
+  if (category.tag === "#FaceReading") {
+    return "I can do the #FaceReading reading, but I’ll need a clear selfie image first.";
+  }
+
+  return "I can do the #EnergyBodyReading reading, but I’ll need a clear selfie image first.";
+}
 
 function knowledgeCategoriesForSystems(systems: string[]): Divin8KnowledgeCategory[] {
   const categories = new Set<Divin8KnowledgeCategory>();
@@ -380,6 +415,7 @@ export interface ProcessDivin8MessageParams {
   tier: Divin8ChatRequest["tier"];
   language?: LanguageCode;
   imageRef?: string;
+  imageRefs?: string[];
   profileTags?: string[];
   systems?: string[];
   timeline?: Divin8TimelineRequest;
@@ -727,6 +763,12 @@ async function loadImageContext(imageRef: string | undefined) {
     imageRef,
     dataUrl: bufferToDataUrl(buffer, mimeTypeForAssetId(imageRef)),
   };
+}
+
+async function loadImageContexts(imageRefs: string[] | undefined) {
+  const refs = [...new Set((imageRefs ?? []).map((ref) => ref.trim()).filter(Boolean))].slice(0, 2);
+  const contexts = await Promise.all(refs.map((ref) => loadImageContext(ref)));
+  return contexts.filter((context): context is NonNullable<Awaited<ReturnType<typeof loadImageContext>>> => Boolean(context));
 }
 
 async function requestChatCompletion(params: {
@@ -1259,6 +1301,7 @@ export function buildStructuredPayload(params: {
   responseMode: "chat" | "engine";
   requestedSystems: string[];
   interpretiveSystems: string[];
+  readingCategoryLabels?: string[];
   mode: Divin8RoutingPlan["mode"];
   execDecision: Divin8Decision;
   readingState: ReadingState;
@@ -1281,6 +1324,7 @@ export function buildStructuredPayload(params: {
       timeWindow: params.extracted.extractedEntities.timeWindow,
       comparisonRequested: params.extracted.intentHints.wantsComparison,
       requestedSystems: params.requestedSystems,
+      readingCategories: params.readingCategoryLabels ?? [],
       detectedSystems: params.extracted.detectedSystems.map((system) => system.key),
     },
     knownProfile: serializeKnownProfile(params.memory),
@@ -1514,12 +1558,14 @@ async function requestStructuredAssistantReply(params: {
   extracted: Divin8ExtractionResult;
   tier: Divin8ChatRequest["tier"];
   imageDataUrl?: string | null;
+  imageDataUrls?: string[];
   engineSummary: NormalizedEngineInterpretationContext | null;
   profiles: Divin8PromptProfile[];
   profileReadings: Divin8ProfileReading[];
   webContext: Divin8WebContext | null;
   timelineHighlights: string[];
   responseMode: "chat" | "engine";
+  readingCategoryLabels: string[];
   execDecision: Divin8Decision;
   readingState: ReadingState;
   routingPlan: Divin8RoutingPlan;
@@ -1539,8 +1585,9 @@ async function requestStructuredAssistantReply(params: {
     "Use canonical Divin8 knowledge context as the authoritative metaphysical doctrine when present. Do not contradict hard overrides or forbidden terminology.",
     buildLanguageDirective(params.memory.responseLanguage),
     params.prompt,
+    buildCategoryContextBlock(params.readingCategoryLabels),
     instruction,
-  ];
+  ].filter(Boolean);
   const history = historyForCompletion(params.history, params.message);
   const payload = buildStructuredPayload({
     message: params.message,
@@ -1556,16 +1603,22 @@ async function requestStructuredAssistantReply(params: {
     responseMode: params.responseMode,
     requestedSystems: params.routingPlan.requestedSystems,
     interpretiveSystems: params.routingPlan.interpretiveSystems,
+    readingCategoryLabels: params.readingCategoryLabels,
     mode: params.routingPlan.mode,
     execDecision: params.execDecision,
     readingState: params.readingState,
     telemetry: params.telemetry,
     canonicalKnowledgeContext: params.canonicalKnowledgeContext,
   });
-  const userContent = params.imageDataUrl
+  const imageDataUrls = params.imageDataUrls?.length
+    ? params.imageDataUrls
+    : params.imageDataUrl
+      ? [params.imageDataUrl]
+      : [];
+  const userContent = imageDataUrls.length > 0
     ? [
         { type: "text" as const, text: payload },
-        { type: "image_url" as const, image_url: { url: params.imageDataUrl, detail: "low" as const } },
+        ...imageDataUrls.slice(0, 2).map((url) => ({ type: "image_url" as const, image_url: { url, detail: "low" as const } })),
       ]
     : payload;
   try {
@@ -1766,6 +1819,7 @@ async function processStructuredTimelineMode(params: {
   userId: string;
   message: string;
   imageRef?: string;
+  imageRefs?: string[];
   systems?: string[];
   extracted: Divin8ExtractionResult;
   memory: Divin8ConversationMemory;
@@ -1920,7 +1974,7 @@ async function processStructuredTimelineMode(params: {
     },
     storedState: buildStoredDivin8State(
       params.memory,
-      params.imageRef,
+      params.imageRefs?.[0] ?? params.imageRef,
       chatMeta as StoredPipelineMeta,
       defaultOrchestrationState(),
     ),
@@ -1940,6 +1994,8 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
   try {
     const memory = hydrateConversationMemory(params.storedState);
     const extracted = await extractDivin8Observations(params.message);
+    const categoryParse = parseDivin8CategoryTags(params.message);
+    const readingCategoryLabels = categoryParse.labels;
     const storedMemory = mergeConversationMemory(memory, extracted, params.language);
     const profileLookupUserId = params.profileOwnerId ?? params.userId;
     const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
@@ -1959,13 +2015,62 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       excludeConversationId: params.threadId,
       limit: 5,
     });
+    const hasCurrentImageUpload = hasUploadedImage(params.imageRef, params.imageRefs);
+    if (!hasCurrentImageUpload && categoryParse.requiresImageCategories.length > 0) {
+      const category = categoryParse.requiresImageCategories[0]!;
+      const message = buildImageRequiredCategoryMessage(category);
+      const chatMeta = {
+        gpt_live: false,
+        engine_triggered: false,
+        engine_called: false,
+        engine_success: false,
+        pipeline_status: "engine_not_called" as const,
+        route_type: "GENERAL" as const,
+        route_confidence: 1,
+        route_strict: true,
+        system_decision: "System: image-required category / Engine: skipped",
+        time_context: serializeTimeContext(timeContext),
+        stages: {
+          input_received: true,
+          routed: "GENERAL" as const,
+          engine_required: false,
+          engine_run: "SKIPPED" as const,
+          response_sent: true,
+        },
+      };
+
+      return {
+        chat: {
+          message,
+          engine_used: false,
+          systems_used: readingCategoryLabels,
+          meta: chatMeta,
+        },
+        storedState: buildStoredDivin8State(
+          storedMemory,
+          params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
+          chatMeta as StoredPipelineMeta,
+          defaultOrchestrationState(),
+        ),
+        timeline: await listTimelineEvents(params.app.db, params.threadId, params.userId, 12),
+        memoryCandidates: distillDivin8MemoryCandidates({
+          userMessage: params.message,
+          conversationSummary: storedMemory.conversationSummary,
+          profileTags: resolvedProfileContext.tags,
+          timeline: params.timeline,
+          systemsUsed: readingCategoryLabels,
+          engineUsed: false,
+        }),
+      };
+    }
     if (params.timeline) {
       return processStructuredTimelineMode({
         app: params.app,
         threadId: params.threadId,
         userId: params.userId,
         message: params.message,
-        imageRef: params.imageRef,
+        imageRef: params.imageRefs?.[0] ?? params.imageRef,
+        imageRefs: params.imageRefs,
         systems: params.systems,
         extracted,
         memory: storedMemory,
@@ -1987,10 +2092,15 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       memory: calculationMemory,
       detectedSystems: extracted.detectedSystems,
       extracted,
-      hasImage: Boolean(params.imageRef),
+      hasImage: hasUploadedImage(params.imageRef, params.imageRefs),
       explicitSystems: params.systems,
       profileCount: resolvedProfileContext.profiles.length,
     });
+    if (hasCurrentImageUpload && categoryParse.requiresImageCategories.length > 0) {
+      routingPlan.routingNotes.push(
+        `Use the uploaded image context for requested image-based categories: ${categoryParse.requiresImageCategories.map((category) => category.label).join(", ")}.`,
+      );
+    }
     params.app.log.info({
       msg: "DIVIN8_REQUEST",
       threadId: params.threadId,
@@ -2052,10 +2162,15 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
             memory: calculationMemory,
             detectedSystems: extracted.detectedSystems,
             extracted,
-            hasImage: Boolean(params.imageRef),
+            hasImage: hasUploadedImage(params.imageRef, params.imageRefs),
             explicitSystems: params.systems,
             profileCount: resolvedProfileContext.profiles.length,
           });
+          if (hasCurrentImageUpload && categoryParse.requiresImageCategories.length > 0) {
+            routingPlan.routingNotes.push(
+              `Use the uploaded image context for requested image-based categories: ${categoryParse.requiresImageCategories.map((category) => category.label).join(", ")}.`,
+            );
+          }
           routeDecision = routeDivin8Request({
             message: params.message,
             detectedSystems: extracted.detectedSystems,
@@ -2108,7 +2223,15 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     timeWindow: extracted.extractedEntities.timeWindow,
     limit: 6,
   });
-  const imageContext = await loadImageContext(params.imageRef ?? params.storedState?.imageRef);
+  const requestImageRefs = params.imageRefs?.length
+    ? params.imageRefs
+    : params.imageRef
+      ? [params.imageRef]
+      : params.storedState?.imageRef
+        ? [params.storedState.imageRef]
+        : [];
+  const imageContexts = await loadImageContexts(requestImageRefs);
+  const imageContext = imageContexts[0] ?? null;
   const audit: Divin8ChatAudit = {
     intent: extracted.intentHints.summary,
     needs_engine: routeDecision.requiresEngine,
@@ -2296,12 +2419,14 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
         extracted,
         tier: params.tier,
         imageDataUrl: imageContext?.dataUrl ?? null,
+        imageDataUrls: imageContexts.map((context) => context.dataUrl),
         engineSummary,
         profiles: promptProfiles,
         profileReadings,
         webContext,
         timelineHighlights,
         responseMode: engineSummary ? "engine" : "chat",
+        readingCategoryLabels,
         execDecision,
         readingState,
         routingPlan,
@@ -2396,7 +2521,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     },
     storedState: buildStoredDivin8State(
       storedMemory,
-      params.imageRef ?? params.storedState?.imageRef,
+      params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
       chatMeta as StoredPipelineMeta,
       exec.orchestration,
     ),
@@ -2458,7 +2583,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       },
       storedState: buildStoredDivin8State(
         hydrateConversationMemory(params.storedState),
-        params.imageRef ?? params.storedState?.imageRef,
+        params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
       ),
       timeline: [],
       memoryCandidates: [],

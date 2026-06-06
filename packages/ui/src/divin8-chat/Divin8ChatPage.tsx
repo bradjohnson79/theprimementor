@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import ChatComposer from "./ChatComposer";
 import ChatWindow from "./ChatWindow";
+import CategorySelectorModal from "./CategorySelectorModal";
 import ConversationList from "./ConversationList";
 import Divin8ChatShell from "./Divin8ChatShell";
 import Divin8ModalPortal from "./Divin8ModalPortal";
@@ -192,7 +193,18 @@ export default function Divin8ChatPage({
                 onSubmit={chat.handleSubmit}
                 profiles={chat.profiles}
                 onImageChange={imageUpload ? (e) => imageUpload.onImageChange(e, chat) : () => {}}
-                onRemoveImage={chat.clearImageSelection}
+                onRemoveImage={(index) => {
+                  if (typeof index !== "number") {
+                    chat.clearImageSelection();
+                    return;
+                  }
+                  chat.setImageAttachments((current) => {
+                    const removed = current[index];
+                    if (removed) URL.revokeObjectURL(removed.imagePreviewUrl);
+                    return current.filter((_, currentIndex) => currentIndex !== index);
+                  });
+                }}
+                imageAttachments={chat.imageAttachments}
                 imageName={chat.imageName}
                 imagePreviewUrl={chat.imagePreviewUrl}
                 imageError={chat.imageError || speech?.error || null}
@@ -209,6 +221,7 @@ export default function Divin8ChatPage({
                 speechButtonTitle={speech?.buttonTitle ?? "Speech unavailable"}
                 onToggleSpeech={speech?.toggle ?? (() => {})}
                 onOpenTimeline={chat.handleOpenTimelineModal}
+                onOpenCategories={chat.handleOpenCategoryModal}
                 isUploadingImage={chat.isUploadingImage}
                 isLightTheme={isLightTheme}
                 blockMessage={
@@ -318,6 +331,14 @@ export default function Divin8ChatPage({
         onClose={chat.handleCloseTimelineModal}
         onGenerate={chat.handleGenerateTimeline}
         errorMessage={chat.timelineError}
+      />
+
+      <CategorySelectorModal
+        open={chat.isCategoryModalOpen}
+        isLightTheme={isLightTheme}
+        inputText={chat.inputText}
+        onClose={chat.handleCloseCategoryModal}
+        onAddCategories={chat.handleAddCategories}
       />
 
       {toolModals?.(chat, mergedCapabilities)}

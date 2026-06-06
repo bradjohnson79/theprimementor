@@ -46,3 +46,15 @@ export const darkChatStyles = {
     backgroundColor: "rgba(255,255,255,0.05)",
   } satisfies CSSProperties,
 } as const;
+
+export function nativeSelectOptionStyle(isLightTheme: boolean): CSSProperties {
+  return isLightTheme
+    ? {
+        backgroundColor: "#ffffff",
+        color: "#0f172a",
+      }
+    : {
+        backgroundColor: "#0f172a",
+        color: "#f8fafc",
+      };
+}

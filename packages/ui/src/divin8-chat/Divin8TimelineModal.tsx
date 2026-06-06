@@ -7,7 +7,7 @@ import {
   type Divin8TimelineSystem,
 } from "@wisdom/utils";
 import Divin8ModalPortal from "./Divin8ModalPortal";
-import { classNames, darkChatStyles } from "./utils";
+import { classNames, darkChatStyles, nativeSelectOptionStyle } from "./utils";
 
 interface Divin8TimelineModalProps {
   open: boolean;
@@ -98,6 +98,7 @@ export default function Divin8TimelineModal({
       ? "border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-accent-cyan"
       : "border-white/10 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-accent-cyan",
   );
+  const selectOptionStyle = nativeSelectOptionStyle(isLightTheme);
 
   function handleGenerate() {
     if (!form.system) {
@@ -203,7 +204,7 @@ export default function Divin8TimelineModal({
                 className={fieldClassName}
               >
                 {MONTH_OPTIONS.map((month, index) => (
-                  <option key={month} value={String(index)}>
+                  <option key={month} value={String(index)} style={selectOptionStyle}>
                     {month}
                   </option>
                 ))}

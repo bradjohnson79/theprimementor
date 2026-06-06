@@ -9,7 +9,8 @@ export type Divin8InterpretiveSystem =
   | "kabbalah"
   | "humanDesign"
   | "physiognomy"
-  | "bodymap";
+  | "bodymap"
+  | "palmistry";
 export type Divin8NormalizedSystem = Divin8DeterministicSystem | Divin8InterpretiveSystem;
 export type Divin8SystemRoute = "ephemeris" | "interpretive";
 
@@ -38,13 +39,23 @@ const RAW_SYSTEM_MAP: Record<string, Divin8NormalizedSystem> = {
   runes: "rune",
   rune: "rune",
   kabbalah: "kabbalah",
+  kaballah: "kabbalah",
+  kabala: "kabbalah",
   "human design": "humanDesign",
+  "human systems": "humanDesign",
+  "human system": "humanDesign",
   "human_design": "humanDesign",
   "human-design": "humanDesign",
   humandesign: "humanDesign",
   physiognomy: "physiognomy",
+  "face reading": "physiognomy",
   bodymap: "bodymap",
   "body map": "bodymap",
+  "body map numerology": "bodymap",
+  "energy body reading": "bodymap",
+  "energy reading": "bodymap",
+  "aura reading": "bodymap",
+  palmistry: "palmistry",
 };
 
 const DETECTED_KEY_MAP: Record<ResolvedSystemKey, Divin8NormalizedSystem> = {
@@ -113,6 +124,7 @@ export function toBlueprintSystem(system: Divin8NormalizedSystem): SystemName | 
       return "physiognomy";
     case "bodymap":
       return "bodymap";
+    case "palmistry":
     case "tarot":
     default:
       return null;

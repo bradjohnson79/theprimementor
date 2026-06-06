@@ -41,20 +41,33 @@ export default function MemberDivin8Chat() {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const handleImageChange = useCallback(async (event: ChangeEvent<HTMLInputElement>, chat: UseDivin8ChatReturn) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+    const availableSlots = Math.max(0, 2 - chat.imageAttachments.length);
+    if (availableSlots === 0) {
+      chat.setImageError("You can attach up to 2 images per message.");
+      event.target.value = "";
+      return;
+    }
+    const selectedFiles = files.slice(0, availableSlots);
     chat.setImageError(null);
     chat.setIsUploadingImage(true);
     try {
-      if (chat.imagePreviewUrl) URL.revokeObjectURL(chat.imagePreviewUrl);
       const token = await getToken();
-      const uploaded = await uploadImageAsset(file, token);
-      chat.setImageRef(uploaded.imageAssetId);
-      chat.setImageName(uploaded.fileName);
-      chat.setImagePreviewUrl(uploaded.previewUrl);
+      const uploaded = await Promise.all(selectedFiles.map((file) => uploadImageAsset(file, token)));
+      chat.setImageAttachments((current) => [
+        ...current,
+        ...uploaded.map((asset) => ({
+          imageRef: asset.imageAssetId,
+          imageName: asset.fileName,
+          imagePreviewUrl: asset.previewUrl,
+        })),
+      ].slice(0, 2));
+      if (files.length > selectedFiles.length) {
+        chat.setImageError("Only the first 2 images were attached.");
+      }
     } catch (err) {
       chat.setImageError(err instanceof Error ? err.message : "Image upload failed.");
-      chat.clearImageSelection();
     } finally {
       chat.setIsUploadingImage(false);
       event.target.value = "";

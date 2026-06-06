@@ -1,4 +1,7 @@
 export { default as ChatComposer } from "./ChatComposer";
+export { default as CategorySelectorButton } from "./CategorySelectorButton";
+export { default as CategorySelectorModal } from "./CategorySelectorModal";
+export { default as ChatAutocompleteMenu } from "./ChatAutocompleteMenu";
 export { default as ChatWindow } from "./ChatWindow";
 export { default as ConversationList } from "./ConversationList";
 export { default as Divin8ChatPage } from "./Divin8ChatPage";
@@ -8,5 +11,6 @@ export { default as Divin8ChatShell } from "./Divin8ChatShell";
 export { default as MessageThread } from "./MessageThread";
 export * from "./capabilities";
 export * from "./types";
+export * from "./useDivin8Autocomplete";
 export * from "./useDivin8Chat";
 export * from "./utils";

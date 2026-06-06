@@ -14,11 +14,21 @@ export interface Divin8RetryPayload {
   imageRef: string | null;
   imageName: string | null;
   imagePreviewUrl: string | null;
+  imageRefs: string[];
+  imageNames: string[];
+  imagePreviewUrls: string[];
   profileTags: string[];
+  systems: string[];
   timeline: Divin8TimelineRequest | null;
   tier: Divin8ChatTier;
   language: string;
   requestId: string;
+}
+
+export interface Divin8ImageAttachment {
+  imageRef: string;
+  imageName: string;
+  imagePreviewUrl: string;
 }
 
 export interface Divin8ChatMeta {
@@ -61,6 +71,7 @@ export interface Divin8ChatMessage {
   systemsUsed?: string[];
   meta?: Divin8ChatMeta;
   imagePreviewUrl?: string | null;
+  imagePreviewUrls?: string[] | null;
   createdAt: string;
   deliveryState?: "sending" | "failed";
   deliveryError?: string | null;

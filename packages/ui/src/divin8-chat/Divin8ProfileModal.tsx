@@ -3,7 +3,7 @@ import type { Divin8ProfileCreateRequest } from "@wisdom/utils";
 import TimezoneSelect from "../timezone/TimezoneSelect";
 import Divin8ModalPortal from "./Divin8ModalPortal";
 import type { Divin8ChatApiAdapter } from "./useDivin8Chat";
-import { classNames, darkChatStyles } from "./utils";
+import { classNames, darkChatStyles, nativeSelectOptionStyle } from "./utils";
 
 interface PlaceSuggestion {
   placeId: string;
@@ -236,6 +236,7 @@ export default function Divin8ProfileModal({
       ? "border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-accent-cyan"
       : "border-white/10 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-accent-cyan",
   );
+  const selectOptionStyle = nativeSelectOptionStyle(isLightTheme);
 
   return (
     <Divin8ModalPortal open={open} onClose={onClose} closeOnBackdropClick>
@@ -341,9 +342,9 @@ export default function Divin8ProfileModal({
                   className={fieldClassName}
                   required
                 >
-                  <option value="">AM/PM</option>
-                  <option value="AM">AM</option>
-                  <option value="PM">PM</option>
+                  <option value="" style={selectOptionStyle}>AM/PM</option>
+                  <option value="AM" style={selectOptionStyle}>AM</option>
+                  <option value="PM" style={selectOptionStyle}>PM</option>
                 </select>
               </div>
               <span className={classNames("mt-2 block text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
@@ -357,6 +358,7 @@ export default function Divin8ProfileModal({
                 value={form.timezone}
                 onChange={(timezone) => setForm((current) => ({ ...current, timezone }))}
                 className={fieldClassName}
+                optionStyle={selectOptionStyle}
                 required
               />
             </label>
