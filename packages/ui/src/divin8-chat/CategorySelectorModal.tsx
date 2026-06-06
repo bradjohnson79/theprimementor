@@ -64,7 +64,7 @@ export default function CategorySelectorModal({
         aria-modal="true"
         aria-labelledby="divin8-categories-modal-title"
         className={classNames(
-          "flex max-h-[82vh] w-full max-w-xl flex-col rounded-[24px] border p-5 shadow-[0_28px_90px_rgba(8,15,30,0.42),0_0_40px_rgba(34,211,238,0.14)] transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
+          "flex max-h-[62vh] w-full max-w-md flex-col rounded-[22px] border p-4 shadow-[0_28px_90px_rgba(8,15,30,0.42),0_0_40px_rgba(34,211,238,0.14)] transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={{
@@ -72,13 +72,13 @@ export default function CategorySelectorModal({
           transform: "scale(1)",
         }}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex shrink-0 items-start justify-between gap-3">
           <div>
             <p className={classNames("text-xs uppercase tracking-[0.18em]", isLightTheme ? "text-slate-400" : "text-white/45")}>
               Reading Systems
             </p>
-            <h3 id="divin8-categories-modal-title" className="mt-1 text-xl font-semibold">Select Reading Categories</h3>
-            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/60")}>
+            <h3 id="divin8-categories-modal-title" className="mt-1 text-lg font-semibold">Select Reading Categories</h3>
+            <p className={classNames("mt-1 text-xs", isLightTheme ? "text-slate-500" : "text-white/60")}>
               Choose one or more metaphysical systems for Divin8 Chat to include in your reading.
             </p>
           </div>
@@ -98,10 +98,10 @@ export default function CategorySelectorModal({
           </button>
         </div>
 
-        <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-scroll pr-2" style={{ scrollbarGutter: "stable" }}>
           {DIVIN8_CATEGORY_GROUPS.map((group) => (
             <fieldset key={group.id}>
-              <legend className={classNames("mb-2 text-xs font-semibold uppercase tracking-[0.14em]", isLightTheme ? "text-slate-500" : "text-white/55")}>
+              <legend className={classNames("mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]", isLightTheme ? "text-slate-500" : "text-white/55")}>
                 {group.title}
               </legend>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -112,7 +112,7 @@ export default function CategorySelectorModal({
                     <label
                       key={category.tag}
                       className={classNames(
-                        "flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-2.5 text-sm transition-colors",
+                        "flex cursor-pointer items-start gap-2.5 rounded-xl border px-2.5 py-2 text-xs transition-colors",
                         checked
                           ? isLightTheme
                             ? "border-cyan-300 bg-cyan-50 text-slate-900"
@@ -124,7 +124,7 @@ export default function CategorySelectorModal({
                     >
                       <input
                         type="checkbox"
-                        className="mt-0.5 h-4 w-4"
+                        className="mt-0.5 h-3.5 w-3.5"
                         checked={checked}
                         onChange={() => toggleCategory(category)}
                       />
@@ -143,12 +143,12 @@ export default function CategorySelectorModal({
           ))}
         </div>
 
-        <div className="mt-5 flex shrink-0 justify-end gap-2">
+        <div className="mt-4 flex shrink-0 justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
             className={classNames(
-              "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
+              "rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors",
               isLightTheme ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "bg-white/10 text-white hover:bg-white/15",
             )}
           >
@@ -159,7 +159,7 @@ export default function CategorySelectorModal({
             onClick={handleAddCategories}
             disabled={selectedTags.size === 0}
             className={classNames(
-              "rounded-xl px-4 py-2 text-sm font-semibold transition",
+              "rounded-xl px-3.5 py-1.5 text-sm font-semibold transition",
               selectedTags.size === 0
                 ? isLightTheme
                   ? "cursor-not-allowed bg-slate-200 text-slate-400"
