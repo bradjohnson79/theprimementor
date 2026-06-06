@@ -194,6 +194,45 @@ test("resolveDivin8ProfilesForMessage returns ordered resolved profiles", async 
   assert.deepEqual(result.profiles.map((profile) => profile.tag), ["@JohnSmith", "@JaneDoe"]);
 });
 
+test("resolveDivin8ProfilesForMessage uses stored conversation tags for tagless follow-ups", async () => {
+  const db = createMockDb({
+    selectRows: [makeProfileRow({ tag: "@BradJohnson", full_name: "Brad Johnson" })],
+  });
+  const result = await resolveDivin8ProfilesForMessage(db, "user-1", "What does my chart say about travel?", {
+    conversationActiveTags: ["@BradJohnson"],
+  });
+
+  assert.deepEqual(result.tags, ["@BradJohnson"]);
+  assert.deepEqual(result.profiles.map((profile) => profile.tag), ["@BradJohnson"]);
+});
+
+test("resolveDivin8ProfilesForMessage preserves source-priority order while merging profiles", async () => {
+  const db = createMockDb({
+    selectRows: [
+      makeProfileRow({ id: "profile-1", full_name: "Brad Johnson", tag: "@BradJohnson" }),
+      makeProfileRow({ id: "profile-2", full_name: "Breanne Example", tag: "@Breanne" }),
+    ],
+  });
+  const result = await resolveDivin8ProfilesForMessage(db, "user-1", "Compare @BradJohnson with this new addition", {
+    conversationActiveTags: ["@BradJohnson"],
+    explicitTags: ["@Breanne"],
+  });
+
+  assert.deepEqual(result.tags, ["@BradJohnson", "@Breanne"]);
+  assert.deepEqual(result.profiles.map((profile) => profile.tag), ["@BradJohnson", "@Breanne"]);
+});
+
+test("resolveDivin8ProfilesForMessage rejects merged active profile sets over the limit", async () => {
+  const db = createMockDb({});
+  await assert.rejects(
+    () => resolveDivin8ProfilesForMessage(db, "user-1", "@Three", {
+      conversationActiveTags: ["@One"],
+      explicitTags: ["@Two"],
+    }),
+    /Maximum of 2 profiles allowed per reading/i,
+  );
+});
+
 test("resolveDivin8ProfilesForMessage fails when userId does not match profile owner", async () => {
   const db = createMockDb({ selectRows: [] });
   await assert.rejects(

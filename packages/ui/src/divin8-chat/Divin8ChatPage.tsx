@@ -192,6 +192,7 @@ export default function Divin8ChatPage({
                 onInputChange={chat.setInputText}
                 onSubmit={chat.handleSubmit}
                 profiles={chat.profiles}
+                conversationProfileTags={chat.conversationProfileTags}
                 onImageChange={imageUpload ? (e) => imageUpload.onImageChange(e, chat) : () => {}}
                 onRemoveImage={(index) => {
                   if (typeof index !== "number") {

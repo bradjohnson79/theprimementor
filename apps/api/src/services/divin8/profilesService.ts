@@ -3,8 +3,8 @@ import { profiles, type Database } from "@wisdom/db";
 import {
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
   extractDivin8ProfileTags,
+  mergeDivin8ActiveProfileTags,
   type Divin8ProfileCreateRequest,
-  type Divin8ProfileResponse,
 } from "@wisdom/utils";
 import { normalizeBirthTimeToStorage } from "../blueprint/schemas.js";
 import { createHttpError } from "../booking/errors.js";
@@ -150,9 +150,26 @@ export async function deleteDivin8Profile(db: Database, userId: string, profileI
   };
 }
 
-export async function resolveDivin8ProfilesForMessage(db: Database, userId: string, message: string, explicitTags?: string[]) {
+export interface Divin8ProfileResolutionOptions {
+  explicitTags?: string[];
+  conversationActiveTags?: string[];
+}
+
+export async function resolveDivin8ProfilesForMessage(
+  db: Database,
+  userId: string,
+  message: string,
+  optionsOrExplicitTags?: Divin8ProfileResolutionOptions | string[],
+) {
   const parsedTags = extractDivin8ProfileTags(message);
-  const mergedTags = [...new Set([...(explicitTags ?? []), ...parsedTags])];
+  const options = Array.isArray(optionsOrExplicitTags)
+    ? { explicitTags: optionsOrExplicitTags }
+    : optionsOrExplicitTags;
+  const mergedTags = mergeDivin8ActiveProfileTags(
+    options?.conversationActiveTags,
+    options?.explicitTags,
+    parsedTags,
+  );
 
   if (mergedTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {
     throw createHttpError(400, `Maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles allowed per reading.`);

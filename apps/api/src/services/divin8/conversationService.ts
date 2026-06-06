@@ -10,7 +10,6 @@ import type { FastifyInstance } from "fastify";
 import { DIVIN8_LIMITS } from "../../config/divin8Limits.js";
 import {
   MAX_HISTORY,
-  GPT_LIVE_TAG_REGEX,
   stripVerificationTags,
   type Divin8ChatRequest,
 } from "./chatService.js";
@@ -89,6 +88,7 @@ export interface Divin8ConversationSummary {
   message_count: number;
   created_at: string;
   updated_at: string | null;
+  active_profile_tags: string[];
   active_execution?: Divin8ActiveExecutionState | null;
 }
 
@@ -200,6 +200,7 @@ function threadSummaryFromRow(
     message_count: messageCount,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at ? row.updated_at.toISOString() : null,
+    active_profile_tags: storedState?.activeProfileTags ?? [],
     active_execution: mapActiveExecution(storedState),
   };
 }

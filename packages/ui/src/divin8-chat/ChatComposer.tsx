@@ -13,6 +13,7 @@ interface ChatComposerProps {
   onInputChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   profiles: Divin8Profile[];
+  conversationProfileTags: string[];
   onImageChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onRemoveImage: (index?: number) => void;
   imageAttachments: Divin8ImageAttachment[];
@@ -41,6 +42,7 @@ export default function ChatComposer({
   onInputChange,
   onSubmit,
   profiles,
+  conversationProfileTags,
   onImageChange,
   onRemoveImage,
   imageAttachments,
@@ -121,6 +123,8 @@ export default function ChatComposer({
       : [];
   const canSend = !disabled && (inputText.trim().length > 0 || previewAttachments.length > 0);
   const detectedTags = extractDivin8ProfileTags(inputText);
+  const activeProfileTagSet = new Set(conversationProfileTags);
+  const draftOnlyTags = detectedTags.filter((tag) => !activeProfileTagSet.has(tag));
   const detectedTimelineTags = extractDivin8TimelineTags(inputText);
 
   return (
@@ -351,17 +355,30 @@ export default function ChatComposer({
         </div>
       </div>
 
-      {detectedTags.length > 0 ? (
+      {conversationProfileTags.length > 0 || draftOnlyTags.length > 0 ? (
         <div className="flex flex-wrap gap-2 px-1">
-          {detectedTags.map((tag) => (
+          {conversationProfileTags.map((tag) => (
+            <span
+              key={tag}
+              className={classNames(
+                "rounded-full border px-2 py-1 text-[11px] font-medium",
+                isLightTheme ? "border-cyan-200 bg-cyan-50 text-cyan-700" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-200",
+              )}
+              title="Active profile remembered in this conversation"
+            >
+              Active: {tag}
+            </span>
+          ))}
+          {draftOnlyTags.map((tag) => (
             <span
               key={tag}
               className={classNames(
                 "rounded-full px-2 py-1 text-[11px] font-medium",
                 isLightTheme ? "bg-amber-100 text-amber-700" : "bg-amber-400/15 text-amber-200",
               )}
+              title="Profile tag in current draft"
             >
-              {tag}
+              Draft: {tag}
             </span>
           ))}
         </div>

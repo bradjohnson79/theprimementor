@@ -15,6 +15,7 @@ export interface Divin8ConversationSummaryResponse {
   message_count: number;
   created_at: string;
   updated_at: string | null;
+  active_profile_tags?: string[];
 }
 
 export interface Divin8TimelineEventResponse {

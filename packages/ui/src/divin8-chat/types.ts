@@ -86,6 +86,7 @@ export interface Divin8ConversationThread {
   messageCount: number;
   createdAt: string;
   updatedAt: string | null;
+  activeProfileTags: string[];
 }
 
 export interface Divin8Profile {

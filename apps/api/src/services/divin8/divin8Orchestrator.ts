@@ -123,6 +123,24 @@ function buildCategoryContextBlock(labels: string[]) {
   ].join("\n");
 }
 
+export function buildActiveProfileContextBlock(profiles: Divin8PromptProfile[]) {
+  if (profiles.length === 0) {
+    return "";
+  }
+
+  return [
+    "Active conversation profiles:",
+    ...profiles.map((profile) => (
+      `- ${profile.tag}: ${profile.name}, birth date ${profile.birthDate}, birth time ${profile.birthTime}, birth location ${profile.location}, timezone ${profile.timezone}`
+    )),
+    "These profiles were already introduced in this conversation. Use them naturally for follow-up questions.",
+    "Do not ask again for birth date, birth time, birth location, full name, or profile basics unless stored profile data is incomplete or the user's reference is ambiguous.",
+    profiles.length === 1
+      ? "Pronoun rule: me, my, I, and my chart refer to the single active profile."
+      : "Pronoun rule: we, us, and our refer to the active profiles together. For me, my, or I, prefer the authenticated user's matching profile if identifiable; otherwise ask a brief clarification.",
+  ].join("\n");
+}
+
 function buildImageCategoryAttachmentContext(labels: string[], imageCount: number) {
   if (imageCount === 0 || labels.length === 0) {
     return "";
@@ -351,6 +369,7 @@ function serializeTimeContext(timeContext: Divin8CurrentTimeContext) {
 
 export interface StoredDivin8SessionState {
   memory?: Divin8ConversationMemory;
+  activeProfileTags?: string[];
   profile?: {
     fullName?: string;
     birthDate?: string;
@@ -430,7 +449,7 @@ interface Divin8TurnTelemetry {
   queryType: Divin8QueryType;
 }
 
-interface Divin8PromptProfile {
+export interface Divin8PromptProfile {
   tag: string;
   name: string;
   birthDate: string;
@@ -688,9 +707,11 @@ export function buildStoredDivin8State(
   imageRef?: string,
   lastPipelineMeta?: StoredPipelineMeta,
   orchestration?: StoredOrchestrationState,
+  activeProfileTags?: string[],
 ): StoredDivin8SessionState {
   return {
     memory,
+    activeProfileTags: activeProfileTags ?? [],
     profile: {
       fullName: memory.knownProfile.fullName.value ?? undefined,
       birthDate: memory.knownProfile.birthDate.value ?? undefined,
@@ -1630,6 +1651,7 @@ async function requestStructuredAssistantReply(params: {
     "Use canonical Divin8 knowledge context as the authoritative metaphysical doctrine when present. Do not contradict hard overrides or forbidden terminology.",
     buildLanguageDirective(params.memory.responseLanguage),
     params.prompt,
+    buildActiveProfileContextBlock(params.profiles),
     buildCategoryContextBlock(params.readingCategoryLabels),
     buildImageCategoryAttachmentContext(params.readingCategoryLabels, params.imageDataUrls?.length ?? (params.imageDataUrl ? 1 : 0)),
     instruction,
@@ -2026,6 +2048,7 @@ async function processStructuredTimelineMode(params: {
       params.imageRefs?.[0] ?? params.imageRef,
       chatMeta as StoredPipelineMeta,
       defaultOrchestrationState(),
+      params.resolvedProfileContext.tags,
     ),
     timeline: await listTimelineEvents(params.app.db, params.threadId, params.userId, 12),
     memoryCandidates: distillDivin8MemoryCandidates({
@@ -2045,14 +2068,20 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
     const extracted = await extractDivin8Observations(params.message);
     const categoryParse = parseDivin8CategoryTags(params.message);
     const readingCategoryLabels = categoryParse.labels;
-    const storedMemory = mergeConversationMemory(memory, extracted, params.language);
+    let storedMemory = mergeConversationMemory(memory, extracted, params.language);
     const profileLookupUserId = params.profileOwnerId ?? params.userId;
     const resolvedProfileContext = await resolveDivin8ProfilesForMessage(
       params.app.db,
       profileLookupUserId,
       params.message,
-      params.profileTags,
+      {
+        conversationActiveTags: params.storedState?.activeProfileTags,
+        explicitTags: params.profileTags,
+      },
     );
+    if (resolvedProfileContext.profiles[0]) {
+      storedMemory = applyResolvedProfileToMemory(storedMemory, resolvedProfileContext.profiles[0]);
+    }
     const timeContext = resolveTurnTimeContext({
       memory: storedMemory,
       extracted,
@@ -2100,6 +2129,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
           params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
           chatMeta as StoredPipelineMeta,
           defaultOrchestrationState(),
+          resolvedProfileContext.tags,
         ),
         timeline: await listTimelineEvents(params.app.db, params.threadId, params.userId, 12),
         memoryCandidates: distillDivin8MemoryCandidates({
@@ -2574,6 +2604,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
       chatMeta as StoredPipelineMeta,
       exec.orchestration,
+      resolvedProfileContext.tags,
     ),
     timeline: nextTimeline,
     memoryCandidates: distillDivin8MemoryCandidates({
@@ -2634,6 +2665,9 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
       storedState: buildStoredDivin8State(
         hydrateConversationMemory(params.storedState),
         params.imageRefs?.[0] ?? params.imageRef ?? params.storedState?.imageRef,
+        undefined,
+        undefined,
+        params.storedState?.activeProfileTags,
       ),
       timeline: [],
       memoryCandidates: [],

@@ -6,6 +6,8 @@ import {
   DIVIN8_NON_NEGOTIABLE_SAFETY_LAYER,
 } from "./divin8SystemPrompt.js";
 import {
+  buildActiveProfileContextBlock,
+  buildStoredDivin8State,
   buildStructuredPayload,
   buildConversationSummary,
   buildDivin8TechnicalIssueMessage,
@@ -114,6 +116,38 @@ test("memory persistence keeps known birth data and does not ask again", async (
   assert.equal(followupMemory.knownProfile.birthLocation.value, "Vancouver, Canada");
   assert.deepEqual(routingPlan.missingFields, []);
   assert.equal(routingPlan.needsEngine, true);
+});
+
+test("active profile context block grounds follow-up pronouns without re-prompting", () => {
+  const context = buildActiveProfileContextBlock([
+    {
+      tag: "@BradJohnson",
+      name: "Brad Johnson",
+      birthDate: "1976-06-27",
+      birthTime: "12:34",
+      location: "Vancouver, British Columbia, Canada",
+      lat: 49.2827,
+      lng: -123.1207,
+      timezone: "America/Vancouver",
+    },
+  ]);
+
+  assert.match(context, /Active conversation profiles/);
+  assert.match(context, /@BradJohnson: Brad Johnson/);
+  assert.match(context, /Do not ask again for birth date/i);
+  assert.match(context, /me, my, I, and my chart refer to the single active profile/i);
+});
+
+test("stored Divin8 state persists active profile tags", () => {
+  const state = buildStoredDivin8State(
+    hydrateConversationMemory(),
+    undefined,
+    undefined,
+    undefined,
+    ["@BradJohnson", "@Breanne"],
+  );
+
+  assert.deepEqual(state.activeProfileTags, ["@BradJohnson", "@Breanne"]);
 });
 
 test("incremental updates prefer explicit later birth time", async () => {

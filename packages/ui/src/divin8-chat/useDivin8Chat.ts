@@ -18,6 +18,7 @@ import {
   MAX_DIVIN8_TIMELINES_PER_MESSAGE,
   insertDivin8CategoryTags,
   extractDivin8ProfileTags,
+  mergeDivin8ActiveProfileTags,
   parseDivin8CategoryTags,
   extractDivin8TimelineTags,
 } from "@wisdom/utils";
@@ -92,8 +93,11 @@ export interface UseDivin8ChatReturn {
   timelineError: string | null;
   profileLimitMessage: string | null;
   timelineLimitMessage: string | null;
+  conversationProfileTags: string[];
   activeTimeline: Divin8TimelineDraft | null;
   usageCount: number;
+  usageLimit: number | null;
+  usagePeriodEnd: string | null;
   threadError: string | null;
   sendError: string | null;
 
@@ -191,6 +195,7 @@ function mapThread(
     messageCount: thread.message_count,
     createdAt: thread.created_at,
     updatedAt: thread.updated_at,
+    activeProfileTags: thread.active_profile_tags ?? [],
   };
 }
 
@@ -450,6 +455,8 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [timelineEvents, setTimelineEvents] = useState<Divin8TimelineEvent[]>([]);
   const [draftsByThread, setDraftsByThread] = useState<Record<string, string>>({});
   const [usageCount, setUsageCount] = useState(0);
+  const [usageLimit, setUsageLimit] = useState<number | null>(DIVIN8_LIMITS.seeker);
+  const [usagePeriodEnd, setUsagePeriodEnd] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isCreatingThread, setIsCreatingThread] = useState(false);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
@@ -474,6 +481,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [profileError, setProfileError] = useState<string | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [timelineDraftsByThread, setTimelineDraftsByThread] = useState<Record<string, Divin8TimelineRequest | null>>({});
+  const [profileTagsByThread, setProfileTagsByThread] = useState<Record<string, string[]>>({});
 
   const [imageRef, setImageRef] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
@@ -504,10 +512,19 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const isGenerating = generatingThreadId === activeThreadId;
   const isExporting = exportingThreadId === activeThreadId ? exporting : null;
 
-  const maxUsage = tier === "seeker" ? DIVIN8_LIMITS.seeker : Number.POSITIVE_INFINITY;
+  const maxUsage = tier === "seeker" ? usageLimit ?? DIVIN8_LIMITS.seeker : Number.POSITIVE_INFINITY;
   const isBlocked = tier === "seeker" && usageCount >= maxUsage;
   const blockMessage = isBlocked ? `You've reached your monthly limit of ${DIVIN8_LIMITS.seeker} prompts.` : null;
-  const activeProfileTags = extractDivin8ProfileTags(inputText);
+  const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
+  const messageProfileTags = extractDivin8ProfileTags(inputText);
+  const conversationProfileTags = activeThreadId
+    ? profileTagsByThread[activeThreadId] ?? activeThread?.activeProfileTags ?? []
+    : [];
+  const activeProfileTags = mergeDivin8ActiveProfileTags(
+    conversationProfileTags,
+    undefined,
+    messageProfileTags,
+  );
   const activeTimelineTags = extractDivin8TimelineTags(inputText);
   const profileLimitMessage = activeProfileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE
     ? `Maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles allowed per reading.`
@@ -515,7 +532,6 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const timelineLimitMessage = activeTimelineTags.length > MAX_DIVIN8_TIMELINES_PER_MESSAGE
     ? TIMELINE_LIMIT_MESSAGE
     : null;
-  const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
   const chatTitle = activeThread?.title && activeThread.title !== "New Conversation"
     ? activeThread.title
     : "Divin8 Chat";
@@ -746,7 +762,13 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const res = (await api.get(`${basePath}/conversations`, token)) as Divin8ConversationsResponse;
     const next = res.threads.map((t) => mapThread(t, hideSummaryInPreviews));
     setThreads(next);
+    setProfileTagsByThread((current) => ({
+      ...current,
+      ...Object.fromEntries(next.map((thread) => [thread.id, thread.activeProfileTags])),
+    }));
     setUsageCount(res.usage.month_used ?? res.usage.used ?? 0);
+    setUsageLimit(res.usage.limit ?? res.usage.seeker_limit ?? null);
+    setUsagePeriodEnd(res.usage.period_end ?? null);
     return preferredThreadId ?? next[0]?.id ?? null;
   }, [api, basePath, getToken, hideSummaryInPreviews]);
 
@@ -779,6 +801,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         if (lastWithMeta?.meta) setDebugMeta(lastWithMeta.meta);
       }
       const updated = mapThread(detail.thread, hideSummaryInPreviews);
+      setProfileTagsByThread((cur) => ({ ...cur, [updated.id]: updated.activeProfileTags }));
       setThreads((cur) =>
         cur.some((t) => t.id === updated.id)
           ? cur.map((t) => (t.id === updated.id ? updated : t))
@@ -827,6 +850,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       setTimelineEvents([]);
       setDraftsByThread((cur) => ({ ...cur, [created.id]: "" }));
       setTimelineDraftsByThread((cur) => ({ ...cur, [created.id]: null }));
+      setProfileTagsByThread((cur) => ({ ...cur, [created.id]: created.activeProfileTags }));
     } finally {
       setIsCreatingThread(false);
     }
@@ -1025,6 +1049,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         };
 
         const updatedThread = mapThread(res.thread, hideSummaryInPreviews);
+        setProfileTagsByThread((cur) => ({ ...cur, [updatedThread.id]: updatedThread.activeProfileTags }));
         setThreads((cur) => [updatedThread, ...cur.filter((t) => t.id !== updatedThread.id)]);
         setSearchResults((cur) => {
           if (!cur) return cur;
@@ -1033,6 +1058,8 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
             : cur;
         });
         setUsageCount(res.usage.month_used ?? res.usage.used ?? 0);
+        setUsageLimit(res.usage.limit ?? res.usage.seeker_limit ?? null);
+        setUsagePeriodEnd(res.usage.period_end ?? null);
 
         if (activeThreadIdRef.current === threadId) {
           setDebugMeta(meta);
@@ -1101,6 +1128,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
 
     const nextText = inputText.trim() || "Please interpret the uploaded image symbolically.";
+    const nextMessageProfileTags = extractDivin8ProfileTags(nextText);
+    const nextProfileTags = mergeDivin8ActiveProfileTags(
+      conversationProfileTags,
+      undefined,
+      nextMessageProfileTags,
+    );
     const messageId = createMessage("user", nextText).id;
     const payload: Divin8RetryPayload = {
       text: nextText,
@@ -1110,7 +1143,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       imageRefs: selectedImages.map((attachment) => attachment.imageRef),
       imageNames: selectedImages.map((attachment) => attachment.imageName),
       imagePreviewUrls: selectedImages.map((attachment) => attachment.imagePreviewUrl),
-      profileTags: extractDivin8ProfileTags(nextText),
+      profileTags: nextProfileTags,
       systems: parseDivin8CategoryTags(nextText).labels,
       timeline: activeTimeline,
       tier,
@@ -1223,8 +1256,11 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     timelineError,
     profileLimitMessage,
     timelineLimitMessage,
+    conversationProfileTags,
     activeTimeline,
     usageCount,
+    usageLimit,
+    usagePeriodEnd,
     threadError,
     sendError,
     handleCreateConversation: () => { void handleCreateConversation(); },
