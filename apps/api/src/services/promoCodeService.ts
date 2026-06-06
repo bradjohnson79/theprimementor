@@ -26,6 +26,10 @@ import {
 } from "@wisdom/utils";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
+import { resolveMembershipPriceId } from "../config/membershipBilling.js";
+import { getMentorTrainingStripePriceId } from "../config/mentorTrainingPackages.js";
+import { getReportStripePriceId } from "../config/stripeReportPrices.js";
+import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { getActiveMentoringCirclePurchaseEvent, getMentoringCircleEventOrThrow } from "./mentoringCircleService.js";
 
 // Promo pipeline audit:
@@ -404,6 +408,9 @@ export function buildTargetsFromBookingSession(
   durationMinutes: number | null,
 ): PromoTarget[] {
   const targets = buildTargetsFromSessionType(sessionType);
+  if (sessionType === "focus" && (bookingTypeId === "focus-session-45" || durationMinutes === 45)) {
+    return [...targets, PROMO_TARGETS.MENTORING_SESSION_45];
+  }
   if (sessionType !== "mentoring") {
     return targets;
   }
@@ -1355,6 +1362,137 @@ export async function applyPromoFixSync(
   return getPromoCodeDetail(db, promoCodeId);
 }
 
+type StripePromoCatalogEntry = {
+  price: Stripe.Price;
+  productId: string | null;
+  productName: string | null;
+};
+
+type PromoCatalogTargetIndex = Map<string, PromoTarget[]>;
+
+async function resolveStripeCatalogEntry(stripe: Stripe, id: string): Promise<StripePromoCatalogEntry> {
+  const normalizedId = id.trim();
+  if (normalizedId.startsWith("prod_")) {
+    const product = await stripe.products.retrieve(normalizedId, { expand: ["default_price"] });
+    const defaultPrice = product.default_price;
+    if (defaultPrice && typeof defaultPrice !== "string" && !("deleted" in defaultPrice)) {
+      return {
+        price: defaultPrice,
+        productId: product.id,
+        productName: product.name,
+      };
+    }
+
+    const prices = await stripe.prices.list({ product: product.id, active: true, limit: 10 });
+    const price = prices.data.find((candidate) => typeof candidate.unit_amount === "number");
+    if (!price) {
+      throw createHttpError(400, "Stripe product does not have an active fixed-amount price");
+    }
+    return {
+      price,
+      productId: product.id,
+      productName: product.name,
+    };
+  }
+
+  const price = await stripe.prices.retrieve(normalizedId, { expand: ["product"] });
+  const product = price.product;
+  return {
+    price,
+    productId: typeof product === "string" ? product : product.id,
+    productName: typeof product === "string" || "deleted" in product ? null : product.name,
+  };
+}
+
+async function addPriceToPromoTargetIndex(
+  stripe: Stripe,
+  index: PromoCatalogTargetIndex,
+  priceId: string,
+  targets: PromoTarget[],
+) {
+  const setTargets = (key: string) => {
+    index.set(key, Array.from(new Set([...(index.get(key) ?? []), ...targets])));
+  };
+  setTargets(priceId);
+  try {
+    const price = await stripe.prices.retrieve(priceId, { expand: ["product"] });
+    const product = price.product;
+    const productId = typeof product === "string" ? product : product.id;
+    setTargets(productId);
+  } catch {
+    // Keep the tester usable even if an optional catalog entry is stale.
+  }
+}
+
+async function buildPromoCatalogTargetIndex(stripe: Stripe): Promise<PromoCatalogTargetIndex> {
+  const index: PromoCatalogTargetIndex = new Map();
+  const bookingMappings: Array<{ bookingTypeId: string; sessionType: string; durationMinutes: number | null }> = [
+    { bookingTypeId: "qa-session-30", sessionType: "qa_session", durationMinutes: 30 },
+    { bookingTypeId: "qa-session-45", sessionType: "qa_session", durationMinutes: 45 },
+    { bookingTypeId: "qa-session-60", sessionType: "qa_session", durationMinutes: 60 },
+    { bookingTypeId: "focus-session-45", sessionType: "focus", durationMinutes: 45 },
+    { bookingTypeId: "mentoring-session-45", sessionType: "mentoring", durationMinutes: 45 },
+    { bookingTypeId: "wisdom-mentoring-90", sessionType: "mentoring", durationMinutes: 90 },
+    { bookingTypeId: "regeneration-session", sessionType: "regeneration", durationMinutes: null },
+  ];
+
+  for (const mapping of bookingMappings) {
+    try {
+      await addPriceToPromoTargetIndex(
+        stripe,
+        index,
+        getBookingTypeStripePriceId(mapping.bookingTypeId),
+        buildTargetsFromBookingSession(mapping.sessionType, mapping.bookingTypeId, mapping.durationMinutes),
+      );
+    } catch {
+      // Missing optional booking catalog entries should not block testing other products.
+    }
+  }
+
+  for (const tier of ["seeker", "initiate"] as const) {
+    for (const billingInterval of ["monthly", "annual"] as const) {
+      try {
+        await addPriceToPromoTargetIndex(
+          stripe,
+          index,
+          resolveMembershipPriceId(tier, billingInterval).priceId,
+          [buildTargetFromMembershipTier(tier)],
+        );
+      } catch {
+        // Ignore optional catalog gaps.
+      }
+    }
+  }
+
+  for (const reportType of ["three_questions", "compatibility", "annual_12_month", "intro", "deep_dive", "initiate"] as ReportProductKey[]) {
+    try {
+      await addPriceToPromoTargetIndex(
+        stripe,
+        index,
+        getReportStripePriceId(reportType),
+        [buildTargetFromReportProduct(reportType)],
+      );
+    } catch {
+      // Ignore optional catalog gaps.
+    }
+  }
+
+  for (const packageType of ["entry", "seeker", "initiate"] as MentorTrainingPackageType[]) {
+    try {
+      await addPriceToPromoTargetIndex(
+        stripe,
+        index,
+        getMentorTrainingStripePriceId(packageType),
+        [buildTargetFromTrainingPackage(packageType)],
+      );
+    } catch {
+      // Ignore optional catalog gaps.
+    }
+  }
+
+  return index;
+}
+
 export async function testPromoCodeAgainstPrice(db: Database, input: {
   code: string;
   priceId: string;
@@ -1374,7 +1512,8 @@ export async function testPromoCodeAgainstPrice(db: Database, input: {
   }
 
   const stripe = getStripe();
-  const price = await stripe.prices.retrieve(input.priceId);
+  const catalogEntry = await resolveStripeCatalogEntry(stripe, input.priceId);
+  const price = catalogEntry.price;
   const priceAmount = price.unit_amount;
   const currency = price.currency?.toLowerCase() ?? null;
   if (typeof priceAmount !== "number" || !currency) {
@@ -1387,6 +1526,29 @@ export async function testPromoCodeAgainstPrice(db: Database, input: {
       currency,
       message: "Stripe price does not expose a fixed unit amount",
     };
+  }
+
+  const appliesTo = (promo.applies_to as PromoTarget[] | null) ?? null;
+  if (appliesTo?.length) {
+    const targetIndex = await buildPromoCatalogTargetIndex(stripe);
+    const priceTargets = [
+      ...(targetIndex.get(price.id) ?? []),
+      ...(catalogEntry.productId ? targetIndex.get(catalogEntry.productId) ?? [] : []),
+    ];
+    const matchesTarget = priceTargets.some((target) => appliesTo.includes(target));
+    if (!matchesTarget) {
+      return {
+        pass: false,
+        promoCode: promo.code,
+        priceAmount,
+        discountAmount: null,
+        finalAmount: priceAmount,
+        currency,
+        message: catalogEntry.productName
+          ? `This promo code does not apply to ${catalogEntry.productName}`
+          : "This promo code does not apply to this Stripe product",
+      };
+    }
   }
 
   const promoCurrency = getPromoCurrency(promo);

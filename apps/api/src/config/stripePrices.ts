@@ -31,7 +31,7 @@ const LIVE_SESSION_PRICE_FALLBACKS: Record<SessionCheckoutType, string> = {
   focus: "price_1TILliAd5V3LaCqjidvbVLrl",
   mentoring: "price_1TILnFAd5V3LaCqjkR9tAMuC",
   regeneration: "price_1TKj0yAd5V3LaCqjQC6LV0k2",
-  qa_session: "price_1TS1mkAd5V3LaCqjBfSoDdZn",
+  qa_session: "price_1Te0tkAd5V3LaCqjaF1A19RZ",
 };
 
 const BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = {
@@ -52,14 +52,17 @@ const BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> 
   "qa-session-45": {
     standard: "STRIPE_PRICE_QA_SESSION_45",
     live: "STRIPE_LIVE_PRICE_QA_SESSION_45",
+    liveFallback: "price_1Te0uFAd5V3LaCqjT7Cf7Gmg",
   },
   "qa-session-60": {
     standard: "STRIPE_PRICE_QA_SESSION_60",
     live: "STRIPE_LIVE_PRICE_QA_SESSION_60",
+    liveFallback: "price_1Te0ukAd5V3LaCqjDpn9oY0w",
   },
   "mentoring-session-45": {
     standard: "STRIPE_PRICE_MENTORING_45",
     live: "STRIPE_LIVE_PRICE_MENTORING_45",
+    liveFallback: LIVE_SESSION_PRICE_FALLBACKS.focus,
   },
   "wisdom-mentoring-90": {
     standard: "STRIPE_PRICE_MENTORING_90",
@@ -102,11 +105,12 @@ export function getBookingTypeStripePriceId(bookingTypeId: string) {
   }
 
   const livePriceId = process.env[envKeys.live]?.trim()
+    || envKeys.liveFallback
     || (envKeys.legacyLive ? process.env[envKeys.legacyLive]?.trim() : "");
   const standardPriceId = process.env[envKeys.standard]?.trim()
     || (envKeys.legacyStandard ? process.env[envKeys.legacyStandard]?.trim() : "");
   const priceId = isLiveStripeMode()
-    ? livePriceId || envKeys.liveFallback
+    ? livePriceId
     : standardPriceId;
 
   if (!priceId) {

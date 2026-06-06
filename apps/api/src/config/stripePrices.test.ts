@@ -48,7 +48,7 @@ test("getSessionStripePriceId returns the Q&A live fallback price", () => {
     delete process.env.STRIPE_PRICE_QA_SESSION;
     delete process.env.STRIPE_LIVE_PRICE_QA_SESSION;
 
-    assert.equal(getSessionStripePriceId("qa_session"), "price_1TS1mkAd5V3LaCqjBfSoDdZn");
+    assert.equal(getSessionStripePriceId("qa_session"), "price_1Te0tkAd5V3LaCqjaF1A19RZ");
   } finally {
     process.env.STRIPE_SECRET_KEY = originalSecret;
     if (originalQa === undefined) delete process.env.STRIPE_PRICE_QA_SESSION;

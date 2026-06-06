@@ -603,7 +603,7 @@ export default function PromoCodes() {
       <Card>
         <div>
           <h3 className="text-lg font-semibold text-white">Test Promo Code</h3>
-          <p className="mt-1 text-sm text-white/55">Validate Stripe recognition and preview exact discount math against a Stripe Price ID without charging a card.</p>
+          <p className="mt-1 text-sm text-white/55">Validate Stripe recognition and preview exact discount math against a Stripe Price or Product ID without charging a card.</p>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="text-sm text-white/70">
@@ -616,12 +616,12 @@ export default function PromoCodes() {
             />
           </label>
           <label className="text-sm text-white/70">
-            <span className="mb-2 block">Stripe Price ID</span>
+            <span className="mb-2 block">Stripe Price or Product ID</span>
             <input
               value={testPriceId}
               onChange={(event) => setTestPriceId(event.target.value)}
               className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-              placeholder="price_..."
+              placeholder="price_... or prod_..."
             />
           </label>
         </div>
