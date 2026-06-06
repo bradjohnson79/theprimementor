@@ -123,6 +123,30 @@ function buildCategoryContextBlock(labels: string[]) {
   ].join("\n");
 }
 
+function buildImageCategoryAttachmentContext(labels: string[], imageCount: number) {
+  if (imageCount === 0 || labels.length === 0) {
+    return "";
+  }
+
+  const imageRequiredLabels = labels.filter((label) => (
+    label === "Palmistry"
+    || label === "Face Reading"
+    || label === "Energy Body Reading"
+  ));
+  if (imageRequiredLabels.length === 0) {
+    return "";
+  }
+
+  return [
+    `The user uploaded ${imageCount === 1 ? "1 image" : `${imageCount} images`} for this image-based reading.`,
+    `Image-based categories requested: ${imageRequiredLabels.join(", ")}.`,
+    "Use the attached image(s) directly for these requested categories.",
+    "For #Palmistry, inspect the visible palm images and describe visible/symbolic hand features; do not say no palm photo is available when images are attached.",
+    "If an attached image is too blurry, cropped, or not a palm/selfie as required, say what is missing and ask for a clearer image instead of inventing details.",
+    "Keep image interpretation symbolic, non-diagnostic, and non-identifying.",
+  ].join("\n");
+}
+
 function buildImageRequiredCategoryMessage(category: Divin8Category) {
   if (!category.requiresImage) {
     return "I can do that reading, but I’ll need the required image upload first.";
@@ -1566,6 +1590,7 @@ async function requestStructuredAssistantReply(params: {
   timelineHighlights: string[];
   responseMode: "chat" | "engine";
   readingCategoryLabels: string[];
+  hasImageRequiredCategory: boolean;
   execDecision: Divin8Decision;
   readingState: ReadingState;
   routingPlan: Divin8RoutingPlan;
@@ -1586,6 +1611,7 @@ async function requestStructuredAssistantReply(params: {
     buildLanguageDirective(params.memory.responseLanguage),
     params.prompt,
     buildCategoryContextBlock(params.readingCategoryLabels),
+    buildImageCategoryAttachmentContext(params.readingCategoryLabels, params.imageDataUrls?.length ?? (params.imageDataUrl ? 1 : 0)),
     instruction,
   ].filter(Boolean);
   const history = historyForCompletion(params.history, params.message);
@@ -1618,7 +1644,10 @@ async function requestStructuredAssistantReply(params: {
   const userContent = imageDataUrls.length > 0
     ? [
         { type: "text" as const, text: payload },
-        ...imageDataUrls.slice(0, 2).map((url) => ({ type: "image_url" as const, image_url: { url, detail: "low" as const } })),
+        ...imageDataUrls.slice(0, 2).map((url) => ({
+          type: "image_url" as const,
+          image_url: { url, detail: params.hasImageRequiredCategory ? "high" as const : "low" as const },
+        })),
       ]
     : payload;
   try {
@@ -2427,6 +2456,7 @@ export async function processDivin8Message(params: ProcessDivin8MessageParams): 
         timelineHighlights,
         responseMode: engineSummary ? "engine" : "chat",
         readingCategoryLabels,
+        hasImageRequiredCategory: categoryParse.requiresImageCategories.length > 0,
         execDecision,
         readingState,
         routingPlan,
