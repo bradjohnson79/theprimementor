@@ -80,6 +80,13 @@ export const DIVIN8_CATEGORIES = [
     imageRequirement: "selfie",
     group: "imageBased",
   },
+  {
+    label: "Tea Leaf Reading",
+    tag: "#TeaLeafReading",
+    requiresImage: true,
+    imageRequirement: "teacup",
+    group: "imageBased",
+  },
 ] as const;
 
 export type Divin8Category = (typeof DIVIN8_CATEGORIES)[number];
@@ -115,6 +122,13 @@ const CATEGORY_ALIASES: Array<[string, Divin8Category["tag"]]> = [
   ["#HumanSystem", "#HumanSystems"],
   ["#EnergyReading", "#EnergyBodyReading"],
   ["#AuraReading", "#EnergyBodyReading"],
+  ["#TeaLeaf", "#TeaLeafReading"],
+  ["#TeaLeaves", "#TeaLeafReading"],
+  ["#TeaLeavesReading", "#TeaLeafReading"],
+  ["#TeaCup", "#TeaLeafReading"],
+  ["#TeaCupReading", "#TeaLeafReading"],
+  ["#Tasseography", "#TeaLeafReading"],
+  ["#Tasseomancy", "#TeaLeafReading"],
 ];
 
 const CATEGORY_BY_ALIAS = new Map(
@@ -188,8 +202,8 @@ export function filterDivin8CategorySuggestions(query: string, limit = 6) {
     return DIVIN8_CATEGORIES.slice(0, limit);
   }
 
-  return DIVIN8_CATEGORIES
-    .filter((category) => {
+  const scored = DIVIN8_CATEGORIES
+    .map((category) => {
       const candidates = [
         category.tag,
         category.label,
@@ -198,8 +212,21 @@ export function filterDivin8CategorySuggestions(query: string, limit = 6) {
           .map(([alias]) => alias),
       ].map(normalizeSuggestionKey);
 
-      return candidates.some((candidate) => candidate.includes(normalizedQuery));
+      if (candidates.some((candidate) => candidate.startsWith(normalizedQuery))) {
+        return { category, score: 0 };
+      }
+      if (candidates.some((candidate) => candidate.includes(normalizedQuery))) {
+        return { category, score: 1 };
+      }
+      return null;
     })
+    .filter((entry): entry is { category: Divin8Category; score: number } => Boolean(entry));
+
+  const bestScore = normalizedQuery.length <= 2 ? scored[0]?.score : undefined;
+  return scored
+    .filter((entry) => bestScore === undefined || entry.score === bestScore)
+    .sort((left, right) => left.score - right.score)
+    .map((entry) => entry.category)
     .slice(0, limit);
 }
 
@@ -211,5 +238,11 @@ export function getDivin8CategoryImageHelperText(category: Divin8Category) {
   if (!category.requiresImage) {
     return null;
   }
-  return category.imageRequirement === "palm" ? "Requires palm image" : "Requires selfie image";
+  if (category.imageRequirement === "palm") {
+    return "Requires palm image";
+  }
+  if (category.imageRequirement === "teacup") {
+    return "Requires tea leaf cup image";
+  }
+  return "Requires selfie image";
 }

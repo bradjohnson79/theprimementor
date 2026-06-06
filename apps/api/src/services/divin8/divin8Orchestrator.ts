@@ -132,6 +132,7 @@ function buildImageCategoryAttachmentContext(labels: string[], imageCount: numbe
     label === "Palmistry"
     || label === "Face Reading"
     || label === "Energy Body Reading"
+    || label === "Tea Leaf Reading"
   ));
   if (imageRequiredLabels.length === 0) {
     return "";
@@ -147,6 +148,9 @@ function buildImageCategoryAttachmentContext(labels: string[], imageCount: numbe
     imageRequiredLabels.includes("Energy Body Reading")
       ? "For #EnergyBodyReading, inspect the attached selfie image directly for symbolic posture, presence, expression, and energetic field cues; do not say no selfie is available when images are attached."
       : "",
+    imageRequiredLabels.includes("Tea Leaf Reading")
+      ? "For #TeaLeafReading, inspect the attached image of tea leaf remains in a cup directly for symbolic shapes, clusters, paths, and residue patterns; do not say no tea cup image is available when images are attached."
+      : "",
   ].filter(Boolean);
 
   return [
@@ -154,7 +158,7 @@ function buildImageCategoryAttachmentContext(labels: string[], imageCount: numbe
     `Image-based categories requested: ${imageRequiredLabels.join(", ")}.`,
     "Use the attached image(s) directly for these requested categories.",
     ...categoryInstructions,
-    "If an attached image is too blurry, cropped, or not a palm/selfie as required, say what is missing and ask for a clearer image instead of inventing details.",
+    "If an attached image is too blurry, cropped, or not a palm/selfie/tea-cup image as required, say what is missing and ask for a clearer image instead of inventing details.",
     "Keep image interpretation symbolic, non-diagnostic, and non-identifying.",
   ].join("\n");
 }
@@ -166,6 +170,10 @@ function buildImageRequiredCategoryMessage(category: Divin8Category) {
 
   if (category.imageRequirement === "palm") {
     return "I can do the #Palmistry reading, but I’ll need a clear image of your palm first. Please upload a well-lit palm photo, then I’ll continue.";
+  }
+
+  if (category.imageRequirement === "teacup") {
+    return "I can do the #TeaLeafReading reading, but I’ll need a clear image of the tea leaf remains in the cup first. Please upload a well-lit photo looking into the cup, then I’ll continue.";
   }
 
   if (category.tag === "#FaceReading") {

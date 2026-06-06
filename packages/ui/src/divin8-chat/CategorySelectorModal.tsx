@@ -64,7 +64,7 @@ export default function CategorySelectorModal({
         aria-modal="true"
         aria-labelledby="divin8-categories-modal-title"
         className={classNames(
-          "w-full max-w-2xl rounded-[28px] border p-6 shadow-[0_28px_90px_rgba(8,15,30,0.42),0_0_40px_rgba(34,211,238,0.14)] transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
+          "flex max-h-[82vh] w-full max-w-xl flex-col rounded-[24px] border p-5 shadow-[0_28px_90px_rgba(8,15,30,0.42),0_0_40px_rgba(34,211,238,0.14)] transition-all duration-200 ease-out animate-[fadeIn_180ms_ease-out]",
           isLightTheme ? "border-slate-200 bg-white text-slate-900" : "text-white",
         )}
         style={{
@@ -85,22 +85,26 @@ export default function CategorySelectorModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close categories"
+            title="Close"
             className={classNames(
-              "rounded-lg px-2 py-1 text-sm transition-colors",
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70",
               isLightTheme ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-white/55 hover:bg-white/10 hover:text-white",
             )}
           >
-            Close
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <div className="mt-6 max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+        <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           {DIVIN8_CATEGORY_GROUPS.map((group) => (
             <fieldset key={group.id}>
               <legend className={classNames("mb-2 text-xs font-semibold uppercase tracking-[0.14em]", isLightTheme ? "text-slate-500" : "text-white/55")}>
                 {group.title}
               </legend>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {getDivin8CategoriesByGroup(group.id).map((category) => {
                   const checked = selectedTags.has(category.tag);
                   const helperText = getDivin8CategoryImageHelperText(category);
@@ -108,7 +112,7 @@ export default function CategorySelectorModal({
                     <label
                       key={category.tag}
                       className={classNames(
-                        "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition-colors",
+                        "flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-2.5 text-sm transition-colors",
                         checked
                           ? isLightTheme
                             ? "border-cyan-300 bg-cyan-50 text-slate-900"
@@ -139,7 +143,7 @@ export default function CategorySelectorModal({
           ))}
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-5 flex shrink-0 justify-end gap-2">
           <button
             type="button"
             onClick={onClose}

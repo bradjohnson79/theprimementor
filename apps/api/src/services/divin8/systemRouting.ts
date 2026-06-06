@@ -10,7 +10,8 @@ export type Divin8InterpretiveSystem =
   | "humanDesign"
   | "physiognomy"
   | "bodymap"
-  | "palmistry";
+  | "palmistry"
+  | "teaLeafReading";
 export type Divin8NormalizedSystem = Divin8DeterministicSystem | Divin8InterpretiveSystem;
 export type Divin8SystemRoute = "ephemeris" | "interpretive";
 
@@ -56,6 +57,14 @@ const RAW_SYSTEM_MAP: Record<string, Divin8NormalizedSystem> = {
   "energy reading": "bodymap",
   "aura reading": "bodymap",
   palmistry: "palmistry",
+  "tea leaf reading": "teaLeafReading",
+  "tea leaves reading": "teaLeafReading",
+  "tea cup reading": "teaLeafReading",
+  "tea leaf": "teaLeafReading",
+  "tea leaves": "teaLeafReading",
+  "tea cup": "teaLeafReading",
+  tasseography: "teaLeafReading",
+  tasseomancy: "teaLeafReading",
 };
 
 const DETECTED_KEY_MAP: Record<ResolvedSystemKey, Divin8NormalizedSystem> = {
@@ -125,6 +134,7 @@ export function toBlueprintSystem(system: Divin8NormalizedSystem): SystemName | 
     case "bodymap":
       return "bodymap";
     case "palmistry":
+    case "teaLeafReading":
     case "tarot":
     default:
       return null;

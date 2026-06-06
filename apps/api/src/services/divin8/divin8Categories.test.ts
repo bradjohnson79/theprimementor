@@ -15,7 +15,7 @@ test("parseDivin8CategoryTags detects canonical category hashtags", () => {
 });
 
 test("parseDivin8CategoryTags maps common aliases to canonical categories", () => {
-  const parsed = parseDivin8CategoryTags("Compare #Kabbalah #HumanDesign #Western #BodyMap #AuraReading.");
+  const parsed = parseDivin8CategoryTags("Compare #Kabbalah #HumanDesign #Western #BodyMap #AuraReading #Tasseography.");
 
   assert.deepEqual(parsed.tags, [
     "#Kaballah",
@@ -23,6 +23,7 @@ test("parseDivin8CategoryTags maps common aliases to canonical categories", () =
     "#WesternAstrology",
     "#BodyMapNumerology",
     "#EnergyBodyReading",
+    "#TeaLeafReading",
   ]);
   assert.deepEqual(parsed.labels, [
     "Kaballah",
@@ -30,8 +31,12 @@ test("parseDivin8CategoryTags maps common aliases to canonical categories", () =
     "Western Astrology",
     "Body Map Numerology",
     "Energy Body Reading",
+    "Tea Leaf Reading",
   ]);
-  assert.deepEqual(parsed.requiresImageCategories.map((category) => category.tag), ["#EnergyBodyReading"]);
+  assert.deepEqual(parsed.requiresImageCategories.map((category) => category.tag), [
+    "#EnergyBodyReading",
+    "#TeaLeafReading",
+  ]);
 });
 
 test("parseDivin8CategoryTags ignores timeline-style non-category hashtags", () => {
@@ -65,5 +70,11 @@ test("filterDivin8CategorySuggestions handles casing, spacing, and aliases", () 
   ]);
   assert.deepEqual(filterDivin8CategorySuggestions("#body map").map((category) => category.label), [
     "Body Map Numerology",
+  ]);
+  assert.deepEqual(filterDivin8CategorySuggestions("#tea leaf").map((category) => category.label), [
+    "Tea Leaf Reading",
+  ]);
+  assert.deepEqual(filterDivin8CategorySuggestions("#tasse").map((category) => category.label), [
+    "Tea Leaf Reading",
   ]);
 });
