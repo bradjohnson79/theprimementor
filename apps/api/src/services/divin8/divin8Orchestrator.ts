@@ -137,11 +137,23 @@ function buildImageCategoryAttachmentContext(labels: string[], imageCount: numbe
     return "";
   }
 
+  const categoryInstructions = [
+    imageRequiredLabels.includes("Palmistry")
+      ? "For #Palmistry, inspect the visible palm images and describe visible/symbolic hand features; do not say no palm photo is available when images are attached."
+      : "",
+    imageRequiredLabels.includes("Face Reading")
+      ? "For #FaceReading, inspect the attached selfie image directly for symbolic facial/physiognomy cues; do not say no selfie is available when images are attached."
+      : "",
+    imageRequiredLabels.includes("Energy Body Reading")
+      ? "For #EnergyBodyReading, inspect the attached selfie image directly for symbolic posture, presence, expression, and energetic field cues; do not say no selfie is available when images are attached."
+      : "",
+  ].filter(Boolean);
+
   return [
     `The user uploaded ${imageCount === 1 ? "1 image" : `${imageCount} images`} for this image-based reading.`,
     `Image-based categories requested: ${imageRequiredLabels.join(", ")}.`,
     "Use the attached image(s) directly for these requested categories.",
-    "For #Palmistry, inspect the visible palm images and describe visible/symbolic hand features; do not say no palm photo is available when images are attached.",
+    ...categoryInstructions,
     "If an attached image is too blurry, cropped, or not a palm/selfie as required, say what is missing and ask for a clearer image instead of inventing details.",
     "Keep image interpretation symbolic, non-diagnostic, and non-identifying.",
   ].join("\n");
