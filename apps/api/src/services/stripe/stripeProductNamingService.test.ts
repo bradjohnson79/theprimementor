@@ -23,7 +23,7 @@ test("resolveStripeProductNaming names events, subscriptions, and add-ons", () =
   assert.equal(resolveStripeProductNaming({ type: "event", eventType: "mentoring_circle" }).productName, "Mentoring Circle Registration");
   assert.equal(resolveStripeProductNaming({ type: "event", eventType: "webinar" }).productName, "Prime Mentor Webinar Registration");
   assert.equal(resolveStripeProductNaming({ type: "subscription", subscriptionType: "regeneration" }).productName, "Regeneration Monthly Package");
-  assert.equal(resolveStripeProductNaming({ type: "addon", addonType: "regeneration_manifestation_enhancement" }).productName, "30-Day Manifestation Enhancement");
+  assert.equal(resolveStripeProductNaming({ type: "addon", addonType: "regeneration_manifestation_enhancement" }).productName, "Optional Additional Manifestation Request for First Month");
 });
 
 test("resolveStripeProductNaming emits consistent global metadata", () => {

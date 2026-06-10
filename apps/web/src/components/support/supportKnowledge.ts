@@ -24,7 +24,7 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "booking",
     keywords: ["book", "booking", "session", "availability", "purchase"],
     answer:
-      "To request Q&A or Mentoring sessions, choose your path from the Guided Private Sessions card, sign in or create your account if prompted, and complete the intake form. The Regeneration Monthly Package starts its own recurring checkout flow and does not require a live time selection up front.",
+      "To request Q&A or Mentoring sessions, choose your path from the Guided Private Sessions card, sign in or create your account if prompted, and complete the intake form. The Regeneration Monthly Package starts its own recurring checkout flow for $99 CAD/month and includes one 15-minute Zoom consultation each month. Cancel anytime.",
     links: [
       { label: "Go to Sessions", href: "/sessions" },
       { label: "View Regeneration Package", href: "/sessions/regeneration" },
@@ -35,7 +35,7 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "sessions",
     keywords: ["types", "difference", "qa", "questions", "mentoring", "regeneration", "sessions"],
     answer:
-      "There are three core service paths. Q&A Session is an open format for direct questions and fast clarity. Mentoring Session is a deeper guided session for blueprint insight, goal alignment, and longer-form support. The Regeneration Monthly Package is an offline 30-day regeneration cycle with recurring billing, no live session required, and priority support while it is active.",
+      "There are three core service paths. Q&A Session is an open format for direct questions and fast clarity. Mentoring Session is a deeper guided session for blueprint insight, goal alignment, and longer-form support. The Regeneration Monthly Package is a $99 CAD/month subscription that includes one 15-minute Zoom consultation with Brad Johnson, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support. It can be used for health and wellness, personal debt elimination, financial abundance, career improvement, relationships, household improvement, personal development, selling homes/assets, and custom personal manifestation requests. Cancel anytime.",
     links: [
       { label: "View Sessions", href: "/sessions" },
       { label: "View Regeneration Package", href: "/sessions/regeneration" },

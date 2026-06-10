@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { motion } from "framer-motion";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { getSuggestedTimezone } from "@wisdom/utils";
+import { findTimezoneOption, getBrowserTimezoneName, getSuggestedTimezone } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
@@ -63,6 +63,15 @@ interface CreateBookingResponse {
   requiresPayment?: boolean;
 }
 
+interface DetectedTimezoneResponse {
+  data?: {
+    timezone?: string | null;
+    source?: "edge_timezone" | "country_fallback" | null;
+  };
+}
+
+type DetectedTimezoneSource = NonNullable<DetectedTimezoneResponse["data"]>["source"];
+
 const SESSION_CARD_PRICE_OVERRIDES: Partial<Record<SessionType, number>> = {
   regeneration: 9900,
   qa_session: 13900,
@@ -117,6 +126,10 @@ function resolveBrowserTimezone() {
   return browserTimezone || "UTC";
 }
 
+function resolveSupportedBrowserTimezone() {
+  return findTimezoneOption(getBrowserTimezoneName())?.ianaName ?? "UTC";
+}
+
 function resolveBirthTimeInput(value: string) {
   const normalized = value.trim();
   return normalized ? normalized.slice(0, 5) : "00:00";
@@ -164,7 +177,7 @@ function resolveSessionCardPrice(sessionType: SessionType, bookingType: BookingT
 
 function formatSessionDuration(sessionType: SessionType, durationMinutes: number | null) {
   if (sessionType === "regeneration") {
-    return "Offline";
+    return "Monthly 1-to-1";
   }
   if (!durationMinutes) {
     return null;
@@ -201,10 +214,10 @@ function RegenerationBillingNotice() {
     <div className="rounded-2xl border border-amber-300/25 bg-amber-500/10 px-5 py-4 text-sm leading-7 text-amber-50/90">
       <p className="font-semibold uppercase tracking-[0.18em] text-amber-200/90">Important</p>
       <p className="mt-2">
-        The Regeneration Monthly Package is a monthly recurring payment that&apos;s automatically set up to auto-renew
-        in 30 days. Once your payment renews, Brad will be contacting you by email preparing you for your next monthly
-        Regeneration service. Remember that you&apos;re under no obligation and can cancel your recurring payment at
-        anytime through your member dashboard settings.
+        The Regeneration Monthly Package is $99 CAD/month and includes one 15-minute Zoom consultation with Brad Johnson,
+        safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority
+        email support. Your next monthly consultation is automatically scheduled approximately 30 days after your initial
+        consultation. Cancel anytime.
       </p>
       <p className="mt-3">
         If you have questions about your Regeneration Monthly Package, please{" "}
@@ -228,6 +241,8 @@ export default function Bookings() {
   const [selectedBookingTypeId, setSelectedBookingTypeId] = useState<string | null>(null);
   const [timezone, setTimezone] = useState("");
   const [timezoneSource, setTimezoneSource] = useState<"user" | "suggested" | "fallback">("user");
+  const [timezoneManuallySelected, setTimezoneManuallySelected] = useState(false);
+  const [detectedTimezoneSource, setDetectedTimezoneSource] = useState<DetectedTimezoneSource>(null);
   const [availabilitySelection, setAvailabilitySelection] = useState<AvailabilitySelection>(createEmptyAvailabilitySelection);
   const [form, setForm] = useState<IntakeFormState>(() => buildInitialFormState());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -301,6 +316,54 @@ export default function Bookings() {
       }),
     [birthplace?.lat, birthplace?.lng, birthplace?.timezone],
   );
+
+  useEffect(() => {
+    if (!selectedSessionType || timezoneManuallySelected) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function detectTimezone() {
+      try {
+        const response = (await api.get("/timezone/detect")) as DetectedTimezoneResponse;
+        if (cancelled || timezoneManuallySelected) {
+          return;
+        }
+
+        const detectedTimezone = findTimezoneOption(response.data?.timezone)?.ianaName;
+        if (detectedTimezone) {
+          setTimezone(detectedTimezone);
+          setTimezoneSource("suggested");
+          setDetectedTimezoneSource(response.data?.source ?? null);
+          setFieldErrors((current) => {
+            const next = { ...current };
+            delete next.timezone;
+            return next;
+          });
+          return;
+        }
+      } catch {
+        // Browser timezone below keeps the form usable if edge geo headers are unavailable.
+      }
+
+      if (!cancelled && !timezoneManuallySelected) {
+        setTimezone(resolveSupportedBrowserTimezone());
+        setTimezoneSource("fallback");
+        setDetectedTimezoneSource(null);
+        setFieldErrors((current) => {
+          const next = { ...current };
+          delete next.timezone;
+          return next;
+        });
+      }
+    }
+
+    void detectTimezone();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSessionType, timezoneManuallySelected]);
 
   useEffect(() => {
     const email = dbUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || "";
@@ -423,6 +486,8 @@ export default function Bookings() {
     setBirthplace(null);
     setTimezone("");
     setTimezoneSource("user");
+    setTimezoneManuallySelected(false);
+    setDetectedTimezoneSource(null);
     setBirthTimeEdited(false);
   }, [selectedSessionType]);
 
@@ -430,9 +495,6 @@ export default function Bookings() {
     if (!isQA) {
       return;
     }
-    const browserTimezone = resolveBrowserTimezone();
-    setTimezone(browserTimezone);
-    setTimezoneSource("fallback");
     setBirthplace(null);
     setForm((current) => ({
       ...current,
@@ -557,18 +619,18 @@ export default function Bookings() {
     if (selectedSessionType === "regeneration") {
       const namedAreas = form.healthFocusAreas.filter((area) => normalizeText(area.name));
       if (namedAreas.length === 0) {
-        nextErrors.healthFocusAreas = "Please enter at least one health focus area.";
+        nextErrors.healthFocusAreas = "Please enter at least one regeneration focus.";
       } else if (namedAreas.some((area) => {
         const severity = Number(area.severity);
         return !Number.isInteger(severity) || severity < 1 || severity > 10;
       })) {
-        nextErrors.healthFocusAreas = "Each health focus area needs a severity from 1 to 10.";
+        nextErrors.healthFocusAreas = "Each regeneration focus needs an intensity from 1 to 10.";
       }
       if (form.manifestationEnhancementSelected === null) {
-        nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional enhancement.";
+        nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional first-month add-on.";
       }
       if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
-        nextErrors.manifestationIntentions = "Share the intended manifestation(s) you would like supported.";
+        nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
       }
     }
 
@@ -614,7 +676,7 @@ export default function Bookings() {
       bookingTypeId: selectedBookingType?.id,
       sessionType: selectedSessionType,
       availability: requiresAvailabilitySelection ? availabilitySelection : undefined,
-      timezone: isQA ? resolveBrowserTimezone() : timezone,
+      timezone: isQA ? (timezone || resolveBrowserTimezone()) : timezone,
       fullName: normalizeText(form.fullName),
       email: normalizeText(form.email),
       phone: normalizeText(form.phone) || undefined,
@@ -763,12 +825,12 @@ export default function Bookings() {
     if (selectedSessionType === "regeneration") {
       const namedAreas = form.healthFocusAreas.filter((area) => normalizeText(area.name));
       if (namedAreas.length === 0) {
-        nextErrors.healthFocusAreas = "Add at least one health focus area so we know where to begin.";
+        nextErrors.healthFocusAreas = "Add at least one regeneration focus so we know where to begin.";
       } else if (namedAreas.some((area) => {
         const severity = Number(area.severity);
         return !Number.isInteger(severity) || severity < 1 || severity > 10;
       })) {
-        nextErrors.healthFocusAreas = "Each health focus area needs a severity between 1 and 10 before we continue.";
+        nextErrors.healthFocusAreas = "Each regeneration focus needs an intensity between 1 and 10 before we continue.";
       }
     }
 
@@ -783,10 +845,10 @@ export default function Bookings() {
   function validateManifestationEnhancementStep() {
     const nextErrors: ValidationErrors = {};
     if (form.manifestationEnhancementSelected === null) {
-      nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional enhancement.";
+      nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional first-month add-on.";
     }
     if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
-      nextErrors.manifestationIntentions = "Share the intended manifestation(s) you would like supported.";
+      nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
     }
     return createValidationResult(nextErrors);
   }
@@ -852,10 +914,10 @@ export default function Bookings() {
         id: "selected-services",
         title: "Selected Services",
         items: [
-          { label: "Regeneration Monthly Package", value: "$99/month" },
+          { label: "Regeneration Monthly Package — $99 CAD / month", value: "Selected" },
           {
-            label: "30-Day Manifestation Enhancement",
-            value: form.manifestationEnhancementSelected === true ? "+$29" : "Not selected",
+            label: "Optional: Add Additional Manifestation Request for First Month (+$29 CAD)",
+            value: form.manifestationEnhancementSelected === true ? "Selected" : "Not selected",
           },
           {
             label: "Today's Total",
@@ -911,7 +973,7 @@ export default function Bookings() {
         title: "Session Intent",
         items: [
           {
-            label: selectedSessionType === "mentoring" ? "Mentoring goals" : "Health focus",
+            label: selectedSessionType === "mentoring" ? "Mentoring goals" : "Regeneration Focus",
             value: selectedSessionType === "mentoring"
               ? (form.mentoringTopics.join(", ") || "Not selected yet")
               : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
@@ -926,19 +988,19 @@ export default function Bookings() {
       if (isRegeneration) {
         sections.push({
           id: "manifestation-enhancement",
-          title: "Manifestation Enhancement",
+          title: "Optional First-Month Add-On",
           items: [
             {
-              label: "Optional Enhancement",
+              label: "Optional: Add Additional Manifestation Request for First Month (+$29 CAD)",
               value: form.manifestationEnhancementSelected === true
-                ? "30-Day Manifestation Enhancement selected"
+                ? "Additional manifestation request selected"
                 : form.manifestationEnhancementSelected === false
                   ? "Regeneration only"
                   : "Not chosen yet",
             },
             ...(form.manifestationEnhancementSelected === true
               ? [{
-                  label: "Intended Manifestation(s)",
+                  label: "Additional Manifestation Request",
                   value: normalizeText(form.manifestationIntentions) || "Not added yet",
                 }]
               : []),
@@ -1266,11 +1328,19 @@ export default function Bookings() {
                     onChange={(value) => {
                       setTimezone(value);
                       setTimezoneSource("user");
+                      setTimezoneManuallySelected(true);
+                      setDetectedTimezoneSource(null);
                       setSingleFieldError("timezone");
                     }}
                     required
                     className={fieldClassName}
+                    autoSelectBrowserTimezone={false}
                   />
+                  {detectedTimezoneSource && timezoneSource === "suggested" ? (
+                    <span className="mt-2 block text-xs text-emerald-200/85">
+                      Timezone detected from your location. You can change it if needed.
+                    </span>
+                  ) : null}
                   {suggestedTimezone ? (
                     <span className="mt-2 block text-xs text-white/45">
                       Suggested timezone: <span className="text-white/75">{suggestedTimezone}</span>{" "}
@@ -1279,6 +1349,8 @@ export default function Bookings() {
                         onClick={() => {
                           setTimezone(suggestedTimezone);
                           setTimezoneSource("suggested");
+                          setTimezoneManuallySelected(true);
+                          setDetectedTimezoneSource(null);
                           setSingleFieldError("timezone");
                         }}
                         className="text-accent-cyan transition hover:text-accent-cyan/80"
@@ -1388,10 +1460,10 @@ export default function Bookings() {
       nextSteps.push(
         {
           id: "intent",
-          title: selectedSessionType === "regeneration" ? "Health focus" : "Session intent",
+          title: selectedSessionType === "regeneration" ? "Regeneration Focus" : "Session intent",
           guidance:
             selectedSessionType === "regeneration"
-              ? "Tell us where you'd like support. This gives us a grounded starting point before your regeneration work begins."
+              ? "Share the personal state, manifestation, or life area you want regenerated, safeguarded, and amplified."
               : "This helps us better tune into your situation and guide the session with precision.",
           validate: validateIntentStep,
           isComplete: () => {
@@ -1439,9 +1511,9 @@ export default function Bookings() {
 
               {isRegeneration ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-white">Health Focus Areas</h3>
+                  <h3 className="text-sm font-semibold text-white">Regeneration Focus</h3>
                   <p className="mt-2 text-sm text-white/60">
-                    Focus on physical, emotional, or energetic areas you want addressed.
+                    Share the personal state, manifestation, or life area you want regenerated, safeguarded, and amplified.
                   </p>
                   <div className="mt-4 space-y-3">
                     {form.healthFocusAreas.map((area, index) => (
@@ -1451,14 +1523,14 @@ export default function Bookings() {
                           type="text"
                           value={area.name}
                           onChange={(event) => updateHealthCondition(index, { name: event.target.value })}
-                          placeholder={`Condition ${index + 1}`}
+                          placeholder={`Focus ${index + 1}`}
                         />
                         <select
                           className={`${fieldClassName} cursor-pointer`}
                           value={area.severity}
                           onChange={(event) => updateHealthCondition(index, { severity: event.target.value })}
                         >
-                          <option value="" className="bg-slate-950">Severity</option>
+                          <option value="" className="bg-slate-950">Intensity</option>
                           {Array.from({ length: 10 }, (_, severityIndex) => severityIndex + 1).map((severity) => (
                             <option key={severity} value={severity} className="bg-slate-950">
                               {severity}
@@ -1495,8 +1567,8 @@ export default function Bookings() {
         },
         ...(isRegeneration ? [{
           id: "manifestation-enhancement",
-          title: "Manifestation Enhancement (Optional)",
-          guidance: "Choose whether you would like to include 30-Day Manifestation Enhancement with your regeneration cycle.",
+          title: "Optional First-Month Add-On",
+          guidance: "Choose whether you would like to add one additional manifestation request during your first monthly cycle.",
           validate: validateManifestationEnhancementStep,
           isComplete: () => form.manifestationEnhancementSelected !== null
             && (form.manifestationEnhancementSelected !== true || Boolean(normalizeText(form.manifestationIntentions))),
@@ -1512,17 +1584,17 @@ export default function Bookings() {
               ) : null}
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h3 className="text-base font-semibold text-white">Would you like to include 30-Day Manifestation Enhancement with your regeneration cycle?</h3>
+                <h3 className="text-base font-semibold text-white">Would you like to add one additional manifestation request for your first month?</h3>
                 <p className="mt-3 text-sm leading-7 text-white/62">
-                  This optional enhancement is designed to help support and maintain intended outcomes through focused manifestation holding during your 30-day cycle.
+                  For +$29 CAD, Brad can safeguard and amplify one extra desired outcome within the same monthly cycle.
                 </p>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-2">
                   {[
                     {
                       selected: true,
-                      title: "Yes - Add Manifestation Enhancement (+$29 CAD)",
-                      description: "Add focused intention holding for this 30-day regeneration cycle.",
+                      title: "Yes - Add Additional Manifestation Request (+$29 CAD)",
+                      description: "Add one additional manifestation request during the first monthly cycle.",
                     },
                     {
                       selected: false,
@@ -1556,12 +1628,12 @@ export default function Bookings() {
               {form.manifestationEnhancementSelected === true ? (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-cyan-300/18 bg-cyan-400/8 px-5 py-4 text-sm leading-7 text-cyan-50/86">
-                    Your manifestation intention(s) are held alongside your regeneration cycle for the next 30 days as an optional enhancement layer of focused support.
+                    Your additional manifestation request is held alongside your regeneration cycle for the first month as an optional layer of focused support.
                   </div>
                   <FormField
-                    label="Intended Manifestation(s)"
+                    label="Additional Manifestation Request"
                     htmlFor="session-manifestation-intentions"
-                    helperText="What intended manifestation(s) would you like support in holding, enhancing, or amplifying during this cycle?"
+                    helperText="What additional manifestation would you like supported, safeguarded, and amplified during this first monthly cycle?"
                     errorText={fieldErrors.manifestationIntentions}
                     isComplete={Boolean(normalizeText(form.manifestationIntentions))}
                   >
@@ -1571,7 +1643,7 @@ export default function Bookings() {
                       rows={6}
                       value={form.manifestationIntentions}
                       onChange={(event) => setFormField("manifestationIntentions", event.target.value)}
-                      placeholder="Share the intended outcomes you would like supported during this 30-day cycle."
+                      placeholder="Share the additional desired outcome you would like supported during this first monthly cycle."
                     />
                   </FormField>
                 </div>
@@ -1679,6 +1751,7 @@ export default function Bookings() {
     availabilitySummary,
     availableTypes,
     bookingTypes,
+    detectedTimezoneSource,
     fieldErrors.availability,
     fieldErrors.birthDate,
     fieldErrors.birthPlace,
@@ -1708,6 +1781,7 @@ export default function Bookings() {
     selectedSessionType,
     suggestedTimezone,
     timezone,
+    timezoneSource,
     promo,
   ]);
 
@@ -1719,7 +1793,7 @@ export default function Bookings() {
         </h1>
         <p className="max-w-2xl text-white/60">
           {isRegeneration
-            ? "Complete your intake first, then continue to Stripe to begin your 30-day regeneration cycle at $99/month recurring."
+            ? "Complete your intake first, then continue to Stripe to begin the Regeneration Monthly Package at $99 CAD / month. Cancel anytime."
             : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
         </p>
       </div>

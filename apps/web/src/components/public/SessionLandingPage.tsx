@@ -197,8 +197,20 @@ function AdvancedSupportServices({
   }
 
   const pageSpecificLine = theme === "regeneration"
-    ? "These advanced services may be integrated as part of your regeneration process where appropriate."
+    ? "These advanced focus areas may be supported inside your monthly regeneration process where appropriate."
     : "These advanced services can be explored as an additional focus during your session if relevant.";
+  const advancedSupportIntro = theme === "regeneration"
+    ? "Optional focused work for stabilizing desired outcomes and clearing interference"
+    : "Optional focused work for resolving conflict and accelerating intentional outcomes";
+  const timelineDescription = theme === "regeneration"
+    ? "A focused support process designed to help stabilize your intended direction and clear interference around the personal-life area you want regenerated."
+    : "A focused intervention designed to help shift you out of recurring conflict patterns and into a more stable and coherent life path.";
+  const timelineDetail = theme === "regeneration"
+    ? "Through guided cooperation with your practitioner, disruptive cycles can be addressed so a new direction can be supported with greater clarity."
+    : "Through guided cooperation with your practitioner, disruptive cycles can be neutralized and cleared, allowing a new direction to take hold with greater clarity and support.";
+  const timelineIdeal = theme === "regeneration"
+    ? "Ideal for stabilizing a preferred state, supporting life-area improvement, or refining your desired direction."
+    : "Ideal for recurring conflicts, emotional loops, or persistent instability in key areas of life.";
 
   return (
     <section className="mt-16">
@@ -208,7 +220,7 @@ function AdvancedSupportServices({
         </h2>
 
         <p className="mb-8 text-sm text-white opacity-80">
-          Optional focused work for resolving conflict and accelerating intentional outcomes
+          {advancedSupportIntro}
         </p>
 
         <p className="mb-6 text-xs text-white opacity-60">
@@ -226,15 +238,15 @@ function AdvancedSupportServices({
             </h3>
 
             <p className="text-sm text-white opacity-90">
-              A focused intervention designed to help shift you out of recurring conflict patterns and into a more stable and coherent life path.
+              {timelineDescription}
             </p>
 
             <p className="mt-3 text-sm text-white opacity-90">
-              Through guided cooperation with your practitioner, disruptive cycles can be neutralized and cleared, allowing a new direction to take hold with greater clarity and support.
+              {timelineDetail}
             </p>
 
             <p className="mt-3 text-sm text-white opacity-70">
-              Ideal for recurring conflicts, emotional loops, or persistent instability in key areas of life.
+              {timelineIdeal}
             </p>
           </div>
 
@@ -281,31 +293,31 @@ function OptionalManifestationEnhancement({
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-center">
             <div>
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">
-                Optional Intention Holding Enhancement
+                Optional First-Month Add-On
               </p>
               <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem]">
-                30-Day Manifestation Safeguarding
+                Additional Manifestation Request
               </h2>
               <div className="mt-5 max-w-3xl space-y-4 text-sm leading-7 text-white/66 sm:text-base">
                 <p>
-                  Add this option to your Regeneration Monthly Package and enhance your service further.
+                  Add one additional manifestation request during your first month and include another desired outcome within the same monthly cycle.
                 </p>
                 <p>
-                  This add-on is designed to safeguard your intended manifestation making it immune to self-sabotage and doubt (a common side effect in manifestion practices) maintaining and enhancing your manifestation within your energetic field.
+                  Brad works with the extra request to help safeguard and amplify the desired manifestation while clearing anti-goals and inner interference connected to that outcome.
                 </p>
                 <p>
-                  This optional enhancement remains active for the full duration of your Regeneration Monthly Package.
+                  This optional add-on is available for the first month for +$29 CAD.
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <p className="text-sm font-semibold text-cyan-100">+$29 CAD for 30 days</p>
+              <p className="text-sm font-semibold text-cyan-100">+$29 CAD for the first month</p>
               <ul className="mt-5 space-y-3">
                 {[
-                  "Safeguarding your manifested intention throughout your regeneration cycle",
-                  "Support intended outcomes without internal doubt interference",
-                  "30-day safeguarding support for your selected manifestation",
+                  "One additional manifestation request within the first monthly cycle",
+                  "Safeguarding and amplification support for the extra desired outcome",
+                  "Offline anti-goal clearing connected to the additional request",
                 ].map((benefit) => (
                   <li key={benefit} className="flex gap-3 text-sm leading-6 text-white/72">
                     <span className="mt-1 text-cyan-100">+</span>
@@ -355,7 +367,7 @@ export default function SessionLandingPage({
               </p>
               {content.theme === "regeneration" ? (
                 <p className="mt-3 text-sm opacity-80">
-                  $99 / month recurring. Cancel anytime. Additional Manifestation Safeguarding service can be added-on to your order where your intended manifestations are immune from self-sabotage and doubt for 30 days.
+                  $99 CAD / month. Cancel anytime. Optional first-month add-on: one additional manifestation request for +$29 CAD.
                 </p>
               ) : content.theme === "qa" ? (
                 <p className="mt-3 text-sm opacity-80">

@@ -52,10 +52,10 @@ interface SessionCardData {
 const REGENERATION_CARD: SessionCardData = {
   sessionKey: "regeneration",
   title: "Regeneration Monthly Package",
-  priceLabel: "$99.00 CAD",
-  durationLabel: "Offline",
+  priceLabel: "$99 CAD / month",
+  durationLabel: "Monthly 1-to-1",
   description:
-    "The Regeneration Monthly Package offers a subscription service to resolve physical ailments and emotional conflicts within 30 days through our priority email support.\n\n$99 / month recurring. Cancel anytime. Receive personal aid that has never been offered anywhere before. 30 days of regeneration to repair the physical and subtle bodies + the optional service to safeguard manifestations from personal sabotage & have your current timeline rewritten to refine your state.\n\nResolve any injury, clear any emotional conflict, and release any limiting condition with custom exercises and Brad's personal regeneration work helping you every step of the way.",
+    "The Regeneration Monthly Package is a monthly 1-to-1 service designed to support the regeneration of your personal life, desired manifestations, and preferred state.\n\nUse it for health and wellness, personal debt elimination, financial abundance, career improvement, relationship improvement, household improvement, personal development, selling homes and assets, and more.\n\nEach monthly cycle includes a private 15-minute Zoom consultation with Brad Johnson, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support.",
   href: REGENERATION_LANDING_PATH,
   imageSrc: regenerationMonthlyPackageImage,
   imageFit: "contain",
@@ -478,7 +478,7 @@ function SessionCard({
   const bookingHref = sessionKey === "regeneration"
     ? `${href}/book?manifestationEnhancement=suggested`
     : `${href}/book`;
-  const primaryCtaLabel = sessionKey === "regeneration" ? "Begin Cycle" : "Book Session";
+  const primaryCtaLabel = sessionKey === "regeneration" ? "Begin Monthly Cycle" : "Book Session";
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid sm:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] sm:items-center sm:gap-5 sm:p-5 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
@@ -507,7 +507,7 @@ function SessionCard({
         {sessionKey === "regeneration" ? (
           <div className="rounded-xl border border-cyan-200/15 bg-cyan-300/8 px-3 py-2.5 text-xs leading-5 text-cyan-50/78">
             <span className="font-semibold uppercase tracking-[0.16em] text-cyan-100/70">Optional</span>
-            <span className="ml-2">+ Add 30-Day Manifestation Enhancement (+$29)</span>
+            <span className="ml-2">Optional: Add Additional Manifestation Request for First Month (+$29 CAD)</span>
           </div>
         ) : null}
 
@@ -669,12 +669,7 @@ function MentoringCirclePromoBanner() {
   useEffect(() => {
     if (!isVisible) return;
     const delay = MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS - Date.now();
-    if (delay <= 0) {
-      setIsVisible(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => setIsVisible(false), Math.min(delay, 2_147_483_647));
+    const timeout = window.setTimeout(() => setIsVisible(false), Math.max(0, Math.min(delay, 2_147_483_647)));
     return () => window.clearTimeout(timeout);
   }, [isVisible]);
 
@@ -745,7 +740,7 @@ export default function Home() {
               <p className="text-xs uppercase tracking-widest text-white/40">Regeneration</p>
               <h2 className="max-w-3xl text-3xl font-semibold text-white">Our Most Popular Service</h2>
               <p className="max-w-3xl text-base leading-8 text-white/66">
-                Resolve any Injury or Conflict in less than 30 days with Brad's Regenerative Work and Guidance
+                Regenerate your personal life with monthly 1-to-1 manifestation support, clearing work, and priority guidance from Brad Johnson.
               </p>
             </div>
 

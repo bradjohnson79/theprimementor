@@ -1248,7 +1248,7 @@ export default function OrderDetail() {
           <h3 className="text-lg font-semibold text-white">Enhancement Summary</h3>
           <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-4">
             <p className="text-sm font-semibold text-cyan-100">
-              {manifestationEnhancement?.name ?? "30-Day Manifestation Enhancement"}
+              {manifestationEnhancement?.name ?? "Optional Additional Manifestation Request for First Month"}
             </p>
             <dl className="mt-4 grid gap-4 sm:grid-cols-3">
               <div>
