@@ -32,7 +32,7 @@ export default function MemberDivin8Chat() {
     showDebug: false,
     showTimeline: false,
     showTimelineReading: isInitiate,
-    showExport: false,
+    showExport: true,
     showRegenerate: false,
     showTierToggle: false,
   };
