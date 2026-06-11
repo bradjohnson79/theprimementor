@@ -1,5 +1,5 @@
 export type SessionType = "focus" | "mentoring" | "regeneration" | "qa_session";
-export type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+export type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 export type AvailabilitySelection = Record<AvailabilityDay, string[]>;
 export type HealthCondition = {
   name: string;
@@ -18,6 +18,7 @@ export const AVAILABILITY_DAYS: AvailabilityDay[] = [
   "tuesday",
   "wednesday",
   "thursday",
+  "friday",
 ];
 
 export const AVAILABILITY_DAY_LABELS: Record<AvailabilityDay, string> = {
@@ -25,13 +26,17 @@ export const AVAILABILITY_DAY_LABELS: Record<AvailabilityDay, string> = {
   tuesday: "Tuesday",
   wednesday: "Wednesday",
   thursday: "Thursday",
+  friday: "Friday",
 };
 
+const STANDARD_AVAILABILITY_SLOTS = ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00", "18:00"];
+
 export const AVAILABILITY_SLOTS: Record<AvailabilityDay, string[]> = {
-  monday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
-  tuesday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
-  wednesday: ["15:00", "16:00", "17:00"],
-  thursday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
+  monday: STANDARD_AVAILABILITY_SLOTS,
+  tuesday: STANDARD_AVAILABILITY_SLOTS,
+  wednesday: STANDARD_AVAILABILITY_SLOTS,
+  thursday: STANDARD_AVAILABILITY_SLOTS,
+  friday: STANDARD_AVAILABILITY_SLOTS,
 };
 
 export const SESSION_TYPE_OPTIONS: Array<{
@@ -75,6 +80,7 @@ export function createEmptyAvailabilitySelection(): AvailabilitySelection {
     tuesday: [],
     wednesday: [],
     thursday: [],
+    friday: [],
   };
 }
 
@@ -83,5 +89,5 @@ export function sessionTypeRequiresSchedule(sessionType: SessionType) {
 }
 
 export function sessionTypeRequiresAvailabilitySelection(sessionType: SessionType) {
-  return sessionType === "mentoring";
+  return sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration";
 }

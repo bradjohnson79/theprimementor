@@ -121,11 +121,6 @@ function normalizeText(value: string) {
   return value.trim();
 }
 
-function resolveBrowserTimezone() {
-  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone?.trim();
-  return browserTimezone || "UTC";
-}
-
 function resolveSupportedBrowserTimezone() {
   return findTimezoneOption(getBrowserTimezoneName())?.ianaName ?? "UTC";
 }
@@ -598,7 +593,7 @@ export default function Bookings() {
     if (!selectedBookingType) {
       nextErrors.sessionType = "This session type is not available yet.";
     }
-    if (!timezone && !isQA) {
+    if (!timezone) {
       nextErrors.timezone = "A valid timezone is required.";
     }
     if (requiresAvailabilitySelection && !hasSelectedAvailability(availabilitySelection)) {
@@ -676,7 +671,7 @@ export default function Bookings() {
       bookingTypeId: selectedBookingType?.id,
       sessionType: selectedSessionType,
       availability: requiresAvailabilitySelection ? availabilitySelection : undefined,
-      timezone: isQA ? (timezone || resolveBrowserTimezone()) : timezone,
+      timezone,
       fullName: normalizeText(form.fullName),
       email: normalizeText(form.email),
       phone: normalizeText(form.phone) || undefined,
@@ -799,7 +794,6 @@ export default function Bookings() {
     }
     if (!normalizeText(form.birthDate)) nextErrors.birthDate = requiredStepMessage("Your birth date");
     if (!isPlaceSelected) nextErrors.birthPlace = "Please choose your birthplace from the list so we can keep the details precise.";
-    if (!timezone) nextErrors.timezone = requiredStepMessage("Your timezone");
     return createValidationResult(nextErrors);
   }
 
@@ -807,6 +801,9 @@ export default function Bookings() {
     const nextErrors: ValidationErrors = {};
     if (requiresAvailabilitySelection && !hasSelectedAvailability(availabilitySelection)) {
       nextErrors.availability = "Just one more step here before we continue. Pick at least one time that works for you.";
+    }
+    if (requiresAvailabilitySelection && !timezone) {
+      nextErrors.timezone = requiredStepMessage("Your timezone");
     }
     return createValidationResult(nextErrors);
   }
@@ -872,7 +869,7 @@ export default function Bookings() {
       phone: () => (isQA || normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
       birthDate: () => (isQA || normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
       birthPlace: () => (isQA || isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
-      timezone: () => (isQA || timezone ? undefined : requiredStepMessage("Your timezone")),
+      timezone: () => (timezone ? undefined : requiredStepMessage("Your timezone")),
       otherDetail: () => {
         const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
         return !needsOtherDetail || normalizeText(form.otherDetail)
@@ -935,7 +932,6 @@ export default function Bookings() {
           { label: "Birth Date", value: form.birthDate || "Not provided yet" },
           { label: "Birth Time", value: form.birthTime || "12:00 AM" },
           { label: "Birthplace", value: form.birthPlace || "Not provided yet" },
-          { label: "Timezone", value: timezone || "Not selected yet" },
         ],
       });
     }
@@ -951,6 +947,7 @@ export default function Bookings() {
               ? availabilitySummary.map((entry) => `${entry.label}: ${entry.times.join(", ")}`).join(" | ")
               : "No availability selected yet",
           },
+          { label: "Timezone", value: timezone || "Not selected yet" },
         ],
       });
     }
@@ -1212,13 +1209,121 @@ export default function Bookings() {
       },
     ];
 
+    if (requiresAvailabilitySelection) {
+      nextSteps.push({
+        id: "availability",
+        title: "Availability",
+        guidance: "Share the days, times, and timezone that work best for you. This helps us personally schedule your session without any rush.",
+        validate: validateAvailabilityStep,
+        isComplete: () => hasSelectedAvailability(availabilitySelection) && Boolean(timezone),
+        render: () => (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-white/85">
+              <p>Please select your availability below.</p>
+              <p className="mt-2 text-white/65">
+                This does not confirm a specific booking time. Your session will be personally scheduled based on what you select here.
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              {AVAILABILITY_DAYS.map((day) => (
+                <div key={day} className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-white/55">
+                      {AVAILABILITY_DAY_LABELS[day]}
+                    </h3>
+                    {availabilitySelection[day].length > 0 ? (
+                      <span className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-3 py-1 text-xs text-accent-cyan">
+                        {availabilitySelection[day].length} selected
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {AVAILABILITY_SLOTS[day].map((time) => {
+                      const active = availabilitySelection[day].includes(time);
+                      return (
+                        <label
+                          key={`${day}-${time}`}
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${
+                            active
+                              ? "border-accent-cyan/60 bg-accent-cyan/10 text-white shadow-[0_0_20px_rgba(6,182,212,0.08)]"
+                              : "border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={() => toggleAvailability(day, time)}
+                            className="h-4 w-4 rounded border-white/20 bg-transparent text-accent-cyan focus:ring-accent-cyan/40"
+                          />
+                          <span className="font-medium">{formatAvailabilityTime(time)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <FormField
+              label="Timezone"
+              helperText="Choose your timezone (look for your UTC/GMT offset if you're unsure)."
+              errorText={fieldErrors.timezone}
+              isComplete={Boolean(timezone)}
+            >
+              <div>
+                <TimezoneSelect
+                  value={timezone}
+                  onChange={(value) => {
+                    setTimezone(value);
+                    setTimezoneSource("user");
+                    setTimezoneManuallySelected(true);
+                    setDetectedTimezoneSource(null);
+                    setSingleFieldError("timezone");
+                  }}
+                  required
+                  className={fieldClassName}
+                  autoSelectBrowserTimezone={false}
+                />
+                {detectedTimezoneSource && timezoneSource === "suggested" ? (
+                  <span className="mt-2 block text-xs text-emerald-200/85">
+                    Timezone detected from your location. You can change it if needed.
+                  </span>
+                ) : null}
+                {suggestedTimezone ? (
+                  <span className="mt-2 block text-xs text-white/45">
+                    Suggested timezone: <span className="text-white/75">{suggestedTimezone}</span>{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimezone(suggestedTimezone);
+                        setTimezoneSource("suggested");
+                        setTimezoneManuallySelected(true);
+                        setDetectedTimezoneSource(null);
+                        setSingleFieldError("timezone");
+                      }}
+                      className="text-accent-cyan transition hover:text-accent-cyan/80"
+                    >
+                      Use this
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+            </FormField>
+
+            {fieldErrors.availability ? <p className="text-sm text-amber-200">{fieldErrors.availability}</p> : null}
+          </div>
+        ),
+      });
+    }
+
     if (!isQA) {
       nextSteps.push({
         id: "birth-details",
         title: "Birth details",
         guidance: "Enter your birth details. If you're unsure of your birth time, you can leave the default in place and continue.",
         validate: validateBirthDetailsStep,
-        isComplete: () => Boolean(normalizeText(form.birthDate) && isPlaceSelected && timezone),
+        isComplete: () => Boolean(normalizeText(form.birthDate) && isPlaceSelected),
         render: () => (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -1316,112 +1421,7 @@ export default function Bookings() {
                 </div>
               </FormField>
 
-              <FormField
-                label="Timezone"
-                helperText="Choose your timezone (look for your UTC/GMT offset if you're unsure)."
-                errorText={fieldErrors.timezone}
-                isComplete={Boolean(timezone)}
-              >
-                <div>
-                  <TimezoneSelect
-                    value={timezone}
-                    onChange={(value) => {
-                      setTimezone(value);
-                      setTimezoneSource("user");
-                      setTimezoneManuallySelected(true);
-                      setDetectedTimezoneSource(null);
-                      setSingleFieldError("timezone");
-                    }}
-                    required
-                    className={fieldClassName}
-                    autoSelectBrowserTimezone={false}
-                  />
-                  {detectedTimezoneSource && timezoneSource === "suggested" ? (
-                    <span className="mt-2 block text-xs text-emerald-200/85">
-                      Timezone detected from your location. You can change it if needed.
-                    </span>
-                  ) : null}
-                  {suggestedTimezone ? (
-                    <span className="mt-2 block text-xs text-white/45">
-                      Suggested timezone: <span className="text-white/75">{suggestedTimezone}</span>{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTimezone(suggestedTimezone);
-                          setTimezoneSource("suggested");
-                          setTimezoneManuallySelected(true);
-                          setDetectedTimezoneSource(null);
-                          setSingleFieldError("timezone");
-                        }}
-                        className="text-accent-cyan transition hover:text-accent-cyan/80"
-                      >
-                        Use this
-                      </button>
-                    </span>
-                  ) : null}
-                </div>
-              </FormField>
             </div>
-          </div>
-        ),
-      });
-    }
-
-    if (requiresAvailabilitySelection) {
-      nextSteps.push({
-        id: "availability",
-        title: "Availability",
-        guidance: `Share the times that feel realistic for you. This helps us personally schedule your ${
-          selectedSessionType === "qa_session" ? "Q&A" : "mentoring"
-        } session without any rush.`,
-        validate: validateAvailabilityStep,
-        isComplete: () => hasSelectedAvailability(availabilitySelection),
-        render: () => (
-          <div className="space-y-5">
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-white/85">
-              <p>Please select your availability below.</p>
-              <p className="mt-2 text-white/65">
-                This does not confirm a specific booking time. Your session will be personally scheduled based on what you select here.
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              {AVAILABILITY_DAYS.map((day) => (
-                <div key={day} className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-white/55">
-                      {AVAILABILITY_DAY_LABELS[day]}
-                    </h3>
-                    {availabilitySelection[day].length > 0 ? (
-                      <span className="rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-3 py-1 text-xs text-accent-cyan">
-                        {availabilitySelection[day].length} selected
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {AVAILABILITY_SLOTS[day].map((time) => {
-                      const active = availabilitySelection[day].includes(time);
-                      return (
-                        <button
-                          key={`${day}-${time}`}
-                          type="button"
-                          onClick={() => toggleAvailability(day, time)}
-                          className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
-                            active
-                              ? "border-accent-cyan/60 bg-accent-cyan/10 text-white shadow-[0_0_20px_rgba(6,182,212,0.08)]"
-                              : "border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white"
-                          }`}
-                        >
-                          <span className="font-medium">{formatAvailabilityTime(time)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {fieldErrors.availability ? <p className="text-sm text-amber-200">{fieldErrors.availability}</p> : null}
           </div>
         ),
       });
