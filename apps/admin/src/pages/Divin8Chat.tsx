@@ -217,7 +217,7 @@ export default function Divin8Chat() {
   const toolModals = useCallback((chat: UseDivin8ChatReturn) => (
     <>
       <ChatToolModal
-        title={t("divin8.tools.guide")}
+        title="Divin8 Chat Guide"
         open={activeTool === "guide"}
         onClose={() => setActiveTool(null)}
         isLightTheme={isLightTheme}
