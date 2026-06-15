@@ -38,9 +38,10 @@ const AVAILABILITY_DAY_LABELS: Record<AdminOrderAvailabilityDay, string> = {
   tuesday: "Tuesday",
   wednesday: "Wednesday",
   thursday: "Thursday",
+  friday: "Friday",
 };
 
-const AVAILABILITY_DAYS: AdminOrderAvailabilityDay[] = ["monday", "tuesday", "wednesday", "thursday"];
+const AVAILABILITY_DAYS: AdminOrderAvailabilityDay[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
 function formatAvailabilityTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
@@ -366,14 +367,21 @@ export default function OrderDetail() {
   }, [order]);
 
   const canCreateInvoice = useMemo(() => {
-    if (!order || order.type !== "session") return false;
+    if (!order) return false;
+    const supportsManualInvoice = order.type === "session"
+      || (order.type === "subscription" && order.subscription?.kind === "membership");
+    if (!supportsManualInvoice) return false;
     if (order.metadata.stripe_invoice_id) return false;
     return !["paid", "completed", "refunded", "cancelled"].includes(order.status);
   }, [order]);
 
   const createInvoiceUnavailableReason = useMemo(() => {
     if (!order) return "Order is still loading.";
-    if (order.type !== "session") return "Manual invoice creation is currently only supported for session orders.";
+    const supportsManualInvoice = order.type === "session"
+      || (order.type === "subscription" && order.subscription?.kind === "membership");
+    if (!supportsManualInvoice) {
+      return "Manual invoice creation is currently only supported for session and membership subscription orders.";
+    }
     if (order.metadata.stripe_invoice_id) return "Invoice already exists for this order.";
     if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
       return "Invoice cannot be created for an order that is already paid or closed.";
@@ -878,7 +886,7 @@ export default function OrderDetail() {
                 {markingPaid ? "Updating…" : "Mark as paid"}
               </button>
             ) : null}
-            {order.type === "session" ? (
+            {order.type === "session" || (order.type === "subscription" && order.subscription?.kind === "membership") ? (
               <button
                 type="button"
                 onClick={() => void handleCreateInvoice()}
@@ -1166,30 +1174,6 @@ export default function OrderDetail() {
                   <dt className="text-xs text-white/40">Meeting Link</dt>
                   <dd className="break-all text-white/85">{renderValue(order.metadata.meeting_link)}</dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-white/40">Submitted Timezone</dt>
-                  <dd className="text-white/85">{renderValue(order.metadata.intake.timezone)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-white/40">Client Availability</dt>
-                  <dd className="text-white/85">
-                    {hasAvailability(order.metadata.availability) ? (
-                      <div className="space-y-1.5">
-                        {AVAILABILITY_DAYS.map((day) => {
-                          const times = order.metadata.availability?.[day] ?? [];
-                          if (times.length === 0) return null;
-
-                          return (
-                            <p key={day}>
-                              {AVAILABILITY_DAY_LABELS[day]}:{" "}
-                              <span className="text-white/70">{times.map(formatAvailabilityTime).join(", ")}</span>
-                            </p>
-                          );
-                        })}
-                      </div>
-                    ) : "—"}
-                  </dd>
-                </div>
               </>
             ) : null}
 
@@ -1209,6 +1193,31 @@ export default function OrderDetail() {
                 </div>
               </>
             ) : null}
+
+            <div>
+              <dt className="text-xs text-white/40">Submitted Timezone</dt>
+              <dd className="text-white/85">{renderValue(order.metadata.intake.timezone)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Client Availability</dt>
+              <dd className="text-white/85">
+                {hasAvailability(order.metadata.availability) ? (
+                  <div className="space-y-1.5">
+                    {AVAILABILITY_DAYS.map((day) => {
+                      const times = order.metadata.availability?.[day] ?? [];
+                      if (times.length === 0) return null;
+
+                      return (
+                        <p key={day}>
+                          {AVAILABILITY_DAY_LABELS[day]}:{" "}
+                          <span className="text-white/70">{times.map(formatAvailabilityTime).join(", ")}</span>
+                        </p>
+                      );
+                    })}
+                  </div>
+                ) : "—"}
+              </dd>
+            </div>
 
             {order.type === "webinar" ? (
               <>

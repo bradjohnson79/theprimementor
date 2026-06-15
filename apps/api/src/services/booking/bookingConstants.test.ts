@@ -17,12 +17,13 @@ test("qa_session requires scheduling like other live 1-on-1 sessions", () => {
 test("sessionTypeRequiresSchedule only requires availability for live sessions", () => {
   assert.equal(sessionTypeRequiresSchedule("focus"), true);
   assert.equal(sessionTypeRequiresSchedule("mentoring"), true);
-  assert.equal(sessionTypeRequiresSchedule("regeneration"), false);
+  assert.equal(sessionTypeRequiresSchedule("regeneration"), true);
   assert.equal(sessionTypeRequiresSchedule("mentoring_circle"), false);
 });
 
-test("qa_session skips the explicit availability-selection step", () => {
-  assert.equal(sessionTypeRequiresAvailabilitySelection("qa_session"), false);
+test("session intake types require the explicit availability-selection step", () => {
+  assert.equal(sessionTypeRequiresAvailabilitySelection("qa_session"), true);
   assert.equal(sessionTypeRequiresAvailabilitySelection("focus"), true);
   assert.equal(sessionTypeRequiresAvailabilitySelection("mentoring"), true);
+  assert.equal(sessionTypeRequiresAvailabilitySelection("regeneration"), true);
 });

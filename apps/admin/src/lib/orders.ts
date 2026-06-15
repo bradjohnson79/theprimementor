@@ -12,7 +12,7 @@ export type OrderStatus =
   | "refunded"
   | "failed";
 export type OrderExecutionState = "idle" | "generating" | "awaiting_input" | "completed" | "failed";
-export type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+export type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 export type AdminOrderAvailability = Record<AdminOrderAvailabilityDay, string[]>;
 export type AdminOrderHealthFocusArea = {
   name: string;

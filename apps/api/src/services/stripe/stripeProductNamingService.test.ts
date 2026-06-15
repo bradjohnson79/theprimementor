@@ -22,6 +22,7 @@ test("resolveStripeProductNaming uses canonical Divin8 report names", () => {
 test("resolveStripeProductNaming names events, subscriptions, and add-ons", () => {
   assert.equal(resolveStripeProductNaming({ type: "event", eventType: "mentoring_circle" }).productName, "Mentoring Circle Registration");
   assert.equal(resolveStripeProductNaming({ type: "event", eventType: "webinar" }).productName, "Prime Mentor Webinar Registration");
+  assert.equal(resolveStripeProductNaming({ type: "subscription", subscriptionType: "membership", tier: "seeker" }).productName, "Premium Member Subscription");
   assert.equal(resolveStripeProductNaming({ type: "subscription", subscriptionType: "regeneration" }).productName, "Regeneration Monthly Package");
   assert.equal(resolveStripeProductNaming({ type: "addon", addonType: "regeneration_manifestation_enhancement" }).productName, "Optional Additional Manifestation Request for First Month");
 });

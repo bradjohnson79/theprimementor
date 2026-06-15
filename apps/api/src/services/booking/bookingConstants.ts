@@ -4,14 +4,17 @@ export type BookingSessionType = typeof BOOKING_SESSION_TYPES[number];
 export const BOOKING_STATUSES = ["pending_payment", "paid", "scheduled", "completed", "cancelled"] as const;
 export type BookingStatus = typeof BOOKING_STATUSES[number];
 
-export const BOOKING_AVAILABILITY_DAYS = ["monday", "tuesday", "wednesday", "thursday"] as const;
+export const BOOKING_AVAILABILITY_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"] as const;
 export type BookingAvailabilityDay = typeof BOOKING_AVAILABILITY_DAYS[number];
 
+const STANDARD_BOOKING_AVAILABILITY_SLOTS = ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00", "18:00"] as const;
+
 export const BOOKING_AVAILABILITY_SLOTS: Record<BookingAvailabilityDay, readonly string[]> = {
-  monday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
-  tuesday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
-  wednesday: ["15:00", "16:00", "17:00"],
-  thursday: ["10:00", "11:00", "12:00", "15:00", "16:00", "17:00"],
+  monday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
+  tuesday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
+  wednesday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
+  thursday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
+  friday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
 };
 
 export type BookingAvailability = Record<BookingAvailabilityDay, string[]>;
@@ -81,13 +84,14 @@ export function createEmptyBookingAvailability(): BookingAvailability {
     tuesday: [],
     wednesday: [],
     thursday: [],
+    friday: [],
   };
 }
 
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
-  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
 }
 
 export function sessionTypeRequiresAvailabilitySelection(sessionType: BookingSessionType) {
-  return sessionType === "focus" || sessionType === "mentoring";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
 }

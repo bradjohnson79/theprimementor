@@ -1249,7 +1249,7 @@ export async function confirmBookingAvailability(
 
   const availabilityDay = input.availabilityDay.trim().toLowerCase() as BookingAvailabilityDay;
   if (!BOOKING_AVAILABILITY_DAYS.includes(availabilityDay)) {
-    throw createHttpError(400, "availabilityDay must be monday, tuesday, wednesday, or thursday");
+    throw createHttpError(400, "availabilityDay must be monday, tuesday, wednesday, thursday, or friday");
   }
 
   const availabilityTime = input.availabilityTime.trim();

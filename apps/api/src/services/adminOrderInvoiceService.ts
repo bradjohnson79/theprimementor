@@ -157,9 +157,18 @@ function isPersistedOrderTypeMatch(orderType: string, parsedType: ReturnType<typ
   return orderType === parsedType;
 }
 
+function isRegenerationSubscriptionMetadata(metadata: Awaited<ReturnType<typeof getAdminOrderById>>["metadata"]) {
+  return metadata.order_variant === "regeneration_monthly_package"
+    || metadata.plan_name === "Regeneration Monthly Package"
+    || metadata.invoice_label === "Regeneration Monthly Package"
+    || metadata.product_name === "Regeneration Monthly Package";
+}
+
 export function assertOrderCanCreateInvoice(order: Pick<Awaited<ReturnType<typeof getAdminOrderById>>, "type" | "status" | "metadata">) {
-  if (order.type !== "session") {
-    throw createHttpError(400, "Manual invoice creation is currently only supported for session orders.");
+  const isSupportedMembershipSubscription = order.type === "subscription"
+    && !isRegenerationSubscriptionMetadata(order.metadata);
+  if (order.type !== "session" && !isSupportedMembershipSubscription) {
+    throw createHttpError(400, "Manual invoice creation is currently only supported for session and membership subscription orders.");
   }
 
   if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
@@ -222,8 +231,11 @@ export async function createAdminOrderInvoice(
       eq(persistedOrdersTable.archived, false),
       or(
         eq(persistedOrdersTable.id, parsed.sourceId),
+        eq(persistedOrdersTable.subscription_id, parsed.sourceId),
         sql`${persistedOrdersTable.metadata}->>'bookingId' = ${parsed.sourceId}`,
         sql`${persistedOrdersTable.metadata}->>'booking_id' = ${parsed.sourceId}`,
+        sql`${persistedOrdersTable.metadata}->>'subscriptionId' = ${parsed.sourceId}`,
+        sql`${persistedOrdersTable.metadata}->>'subscription_id' = ${parsed.sourceId}`,
       ),
     ))
     .limit(5);
@@ -238,8 +250,67 @@ export async function createAdminOrderInvoice(
     throw createHttpError(409, "Invoice already exists for this order.");
   }
 
-  let priceSource: "persisted_order" | "snapshot" | "booking_type_fallback" = "persisted_order";
+  let priceSource: "persisted_order" | "snapshot" | "booking_type_fallback" | "admin_order_snapshot" = "persisted_order";
   let metadata = normalizeMetadata(row?.metadata);
+
+  if (!row && parsed.type === "subscription") {
+    const amountCents = Math.round(order.amount * 100);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+      throw createHttpError(400, "Subscription pricing is missing, so an invoice cannot be generated.");
+    }
+    priceSource = "admin_order_snapshot";
+
+    metadata = {
+      subscriptionId: parsed.sourceId,
+      subscription_id: parsed.sourceId,
+      adminOrderId: input.orderId,
+      tier: order.membership_tier,
+      billingInterval: order.metadata.billing_cycle,
+      billing_interval: order.metadata.billing_cycle,
+      invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      price_snapshot_cents: amountCents,
+      price_snapshot_currency: order.currency || "CAD",
+      price_source: "admin_order_snapshot",
+      invoice_timeline: [],
+    };
+
+    const [createdOrder] = await db
+      .insert(persistedOrdersTable)
+      .values({
+        user_id: order.user_id,
+        subscription_id: parsed.sourceId,
+        type: "subscription",
+        label: order.product_name || order.metadata.plan_name || "Premium Member Subscription",
+        amount: amountCents,
+        currency: order.currency || "CAD",
+        status: "pending",
+        metadata,
+      })
+      .returning({
+        id: persistedOrdersTable.id,
+        userId: persistedOrdersTable.user_id,
+        type: persistedOrdersTable.type,
+        label: persistedOrdersTable.label,
+        amount: persistedOrdersTable.amount,
+        currency: persistedOrdersTable.currency,
+        stripeInvoiceId: persistedOrdersTable.stripe_invoice_id,
+        metadata: persistedOrdersTable.metadata,
+      });
+
+    row = {
+      ...createdOrder,
+      email: order.email,
+    };
+
+    logInvoice("info", "admin_order_invoice_persisted_subscription_order_created", {
+      orderId: input.orderId,
+      persistedOrderId: row.id,
+      sourceId: parsed.sourceId,
+      userId: row.userId,
+      invoiceOrigin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      priceSource,
+    });
+  }
 
   if (!row) {
     const [booking] = await db
@@ -333,8 +404,10 @@ export async function createAdminOrderInvoice(
   } else {
     metadata = {
       ...metadata,
-      bookingId: getString(metadata.bookingId) ?? parsed.sourceId,
-      booking_id: getString(metadata.booking_id) ?? parsed.sourceId,
+      bookingId: parsed.type === "session" ? getString(metadata.bookingId) ?? parsed.sourceId : getString(metadata.bookingId),
+      booking_id: parsed.type === "session" ? getString(metadata.booking_id) ?? parsed.sourceId : getString(metadata.booking_id),
+      subscriptionId: parsed.type === "subscription" ? getString(metadata.subscriptionId) ?? parsed.sourceId : getString(metadata.subscriptionId),
+      subscription_id: parsed.type === "subscription" ? getString(metadata.subscription_id) ?? parsed.sourceId : getString(metadata.subscription_id),
       adminOrderId: getString(metadata.adminOrderId) ?? input.orderId,
       invoice_origin: getString(metadata.invoice_origin) ?? ADMIN_MANUAL_INVOICE_ORIGIN,
       price_snapshot_cents: getNumber(metadata.price_snapshot_cents) ?? row.amount,
@@ -355,12 +428,19 @@ export async function createAdminOrderInvoice(
   const stripe = getStripe();
   const currency = row.currency.trim().toLowerCase();
   const sessionDuration = getNumber(metadata.session_duration_minutes);
-  const naming = resolveStripeProductNaming({
-    type: "session",
-    sessionType: getString(metadata.sessionType) ?? getString(metadata.session_type),
-    durationMinutes: sessionDuration,
-    fallbackName: row.label,
-  });
+  const naming = order.type === "subscription"
+    ? resolveStripeProductNaming({
+      type: "subscription",
+      subscriptionType: "membership",
+      tier: order.membership_tier ?? getString(metadata.tier),
+      billingInterval: getString(metadata.billingInterval) ?? getString(metadata.billing_interval),
+    })
+    : resolveStripeProductNaming({
+      type: "session",
+      sessionType: getString(metadata.sessionType) ?? getString(metadata.session_type),
+      durationMinutes: sessionDuration,
+      fallbackName: row.label,
+    });
   const description = naming.description;
 
   try {

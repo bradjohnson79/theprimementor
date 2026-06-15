@@ -183,7 +183,9 @@ export function resolveStripeProductNaming(input: StripeNamedProduct): StripePro
   if (input.type === "subscription") {
     const productName = input.subscriptionType === "regeneration"
       ? REGENERATION_PLAN_NAME
-      : `${input.tier ? `${input.tier[0]?.toUpperCase()}${input.tier.slice(1)} ` : ""}Membership Subscription`.trim();
+      : input.tier === "seeker"
+        ? "Premium Member Subscription"
+        : `${input.tier ? `${input.tier[0]?.toUpperCase()}${input.tier.slice(1)} ` : ""}Membership Subscription`.trim();
     return {
       productName,
       description: input.subscriptionType === "regeneration"

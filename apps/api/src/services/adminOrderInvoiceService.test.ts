@@ -82,10 +82,33 @@ test("assertOrderCanCreateInvoice allows unpaid session orders", () => {
   assert.doesNotThrow(() => assertOrderCanCreateInvoice(makeOrder()));
 });
 
-test("assertOrderCanCreateInvoice rejects non-session orders", () => {
+test("assertOrderCanCreateInvoice allows unpaid membership subscription orders", () => {
+  assert.doesNotThrow(() => assertOrderCanCreateInvoice(makeOrder({
+    type: "subscription",
+    metadata: {
+      ...makeOrder().metadata,
+      order_variant: null,
+    },
+  })));
+});
+
+test("assertOrderCanCreateInvoice rejects unsupported non-session orders", () => {
   assert.throws(
     () => assertOrderCanCreateInvoice(makeOrder({ type: "report" })),
-    /currently only supported for session orders/i,
+    /currently only supported for session and membership subscription orders/i,
+  );
+});
+
+test("assertOrderCanCreateInvoice rejects regeneration subscription orders", () => {
+  assert.throws(
+    () => assertOrderCanCreateInvoice(makeOrder({
+      type: "subscription",
+      metadata: {
+        ...makeOrder().metadata,
+        order_variant: "regeneration_monthly_package",
+      },
+    })),
+    /currently only supported for session and membership subscription orders/i,
   );
 });
 

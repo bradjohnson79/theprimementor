@@ -32,6 +32,7 @@ import { resolveStripeProductNaming } from "./stripe/stripeProductNamingService.
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const PAYMENT_MATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
+const DUPLICATE_PENDING_ATTEMPT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "custom";
 export type AdminOrderStatus =
@@ -45,7 +46,7 @@ export type AdminOrderStatus =
   | "refunded"
   | "failed";
 export type OrderExecutionState = "idle" | "generating" | "awaiting_input" | "completed" | "failed";
-type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+type AdminOrderAvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 type AdminOrderAvailability = Record<AdminOrderAvailabilityDay, string[]>;
 type AdminOrderHealthFocusArea = {
   name: string;
@@ -346,6 +347,11 @@ interface SubscriptionSourceRow {
   createdAt: Date;
 }
 
+interface RegenerationSubscriptionProjectionRow {
+  id: string;
+  metadata: unknown;
+}
+
 interface WebinarSourceRow {
   id: string;
   userId: string;
@@ -544,6 +550,7 @@ function parseBookingAvailability(value: unknown): AdminOrderAvailability | null
     tuesday: getStringArray(value.tuesday),
     wednesday: getStringArray(value.wednesday),
     thursday: getStringArray(value.thursday),
+    friday: getStringArray(value.friday),
   };
 }
 
@@ -1225,6 +1232,55 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
   };
 }
 
+function normalizeDuplicateKeyPart(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function buildDuplicateAttemptKey(order: AdminOrder) {
+  return [
+    order.user_id,
+    normalizeDuplicateKeyPart(order.email),
+    normalizeDuplicateKeyPart(order.product_name),
+    order.amount.toFixed(2),
+    normalizeDuplicateKeyPart(order.currency),
+  ].join("|");
+}
+
+function isCanonicalPurchasedOrder(order: AdminOrder) {
+  return order.status === "completed"
+    || order.status === "paid"
+    || order.status === "in_progress"
+    || order.status === "processing";
+}
+
+function filterSupersededPendingAttempts(orders: AdminOrder[]) {
+  const purchasedByKey = new Map<string, AdminOrder[]>();
+  for (const order of orders) {
+    if (!isCanonicalPurchasedOrder(order)) {
+      continue;
+    }
+    const key = buildDuplicateAttemptKey(order);
+    const existing = purchasedByKey.get(key) ?? [];
+    existing.push(order);
+    purchasedByKey.set(key, existing);
+  }
+
+  return orders.filter((order) => {
+    if (order.status !== "pending_payment") {
+      return true;
+    }
+    const purchasedOrders = purchasedByKey.get(buildDuplicateAttemptKey(order));
+    if (!purchasedOrders?.length) {
+      return true;
+    }
+
+    const pendingCreatedAt = new Date(order.created_at).getTime();
+    return !purchasedOrders.some((purchased) => (
+      Math.abs(new Date(purchased.created_at).getTime() - pendingCreatedAt) <= DUPLICATE_PENDING_ATTEMPT_WINDOW_MS
+    ));
+  });
+}
+
 function normalizeSubscriptionLifecycleStatus(input: {
   kind: AdminSubscriptionDetails["kind"];
   status: string | null;
@@ -1613,7 +1669,7 @@ function getAvailableActions(type: AdminOrderType, sessionLabel?: string | null)
     case "session":
       return isQaSessionLabel(sessionLabel) ? ["schedule_session"] : ["generate_output", "schedule_session"];
     case "subscription":
-      return ["view_subscription"];
+      return ["view_subscription", "create_invoice"];
     case "webinar":
       return ["open_access_link"];
     case "mentor_training":
@@ -1632,6 +1688,7 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
     invoiceRows,
     persistedOrderRows,
     bookingRows,
+    regenerationSubscriptionRows,
     reportRows,
     subscriptionRows,
     mentorTrainingRows,
@@ -1753,6 +1810,12 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
       .where(showArchived ? sql`true` : eq(bookings.archived, false)),
     db
       .select({
+        id: regenerationSubscriptions.id,
+        metadata: regenerationSubscriptions.metadata,
+      })
+      .from(regenerationSubscriptions),
+    db
+      .select({
         id: reports.id,
         userId: reports.user_id,
         clientId: reports.client_id,
@@ -1846,6 +1909,7 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
     invoiceRows: invoiceRows as InvoiceRow[],
     persistedOrderRows: persistedOrderRows as PersistedOrderRow[],
     bookingRows: bookingRows as BookingSourceRow[],
+    regenerationSubscriptionRows: regenerationSubscriptionRows as RegenerationSubscriptionProjectionRow[],
     reportRows: reportRows as ReportSourceRow[],
     subscriptionRows: subscriptionRows as SubscriptionSourceRow[],
     mentorTrainingRows: mentorTrainingRows as MentorTrainingSourceRow[],
@@ -2105,7 +2169,9 @@ function createSubscriptionCandidate(
   const client = clientsByUserId.get(row.userId) ?? null;
   const entitlement = entitlementsByUserId.get(row.userId) ?? null;
   const subscriptionMeta = parseSubscriptionMetadata(row.metadata);
-  const planName = row.tier ? `${titleCase(row.tier)} Membership` : "Membership Subscription";
+  const planName = row.tier === "seeker"
+    ? "Premium Member Subscription"
+    : row.tier ? `${titleCase(row.tier)} Membership Subscription` : "Membership Subscription";
 
   return {
     id: getOrderId("subscription", row.id),
@@ -2338,6 +2404,21 @@ function isPersistedInvoiceMetadata(value: unknown): value is Record<string, unk
   return isRecord(value);
 }
 
+function resolveMembershipSubscriptionPlanName(tier: string | null | undefined) {
+  const normalized = tier?.trim().toLowerCase() ?? "";
+  return normalized === "seeker" || normalized.includes("seeker membership")
+    ? "Premium Member Subscription"
+    : normalized ? `${titleCase(normalized)} Membership Subscription` : "Membership Subscription";
+}
+
+function resolvePersistedSubscriptionProductName(value: string | null, fallback: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (!value || normalized.includes("seeker membership")) {
+    return resolveMembershipSubscriptionPlanName(fallback);
+  }
+  return value;
+}
+
 function createPersistedAdminOrder(
   row: PersistedOrderRow,
   usersById: Map<string, UserRow>,
@@ -2345,6 +2426,8 @@ function createPersistedAdminOrder(
   clientsById: Map<string, ClientRow>,
   entitlementsByUserId: Map<string, EntitlementRow>,
   invoicesById: Map<string, InvoiceRow>,
+  regenerationSubscriptionsById: Map<string, RegenerationSubscriptionProjectionRow>,
+  bookingsById: Map<string, BookingSourceRow>,
 ): AdminOrder | null {
   const user = usersById.get(row.userId);
   if (!user) {
@@ -2357,6 +2440,9 @@ function createPersistedAdminOrder(
   const client = row.clientId ? clientsById.get(row.clientId) ?? null : clientsByUserId.get(row.userId) ?? null;
   const invoiceMetadata = isPersistedInvoiceMetadata(invoice?.metadata) ? invoice.metadata : null;
   const orderMetadata = isPersistedInvoiceMetadata(row.metadata) ? row.metadata : null;
+  const projectionMetadata = parseObject(
+    row.subscriptionId ? regenerationSubscriptionsById.get(row.subscriptionId)?.metadata : null,
+  );
   const subscriptionState = getString(invoiceMetadata?.subscriptionStatus)
     ?? getString(orderMetadata?.subscriptionStatus)
     ?? null;
@@ -2364,12 +2450,32 @@ function createPersistedAdminOrder(
   const sessionType = getString(orderMetadata?.sessionType) ?? getString(orderMetadata?.session_type);
   const scheduledAt = getString(orderMetadata?.scheduledAt) ?? getString(orderMetadata?.scheduled_at);
   const meetingLink = getString(orderMetadata?.meetingLink) ?? getString(orderMetadata?.meeting_link);
-  const manifestationEnhancement = parseBookingManifestationEnhancement(orderMetadata?.manifestationEnhancement);
+  const manifestationEnhancement = parseBookingManifestationEnhancement(
+    orderMetadata?.manifestationEnhancement ?? projectionMetadata?.manifestationEnhancement,
+  );
+  const bookingId = getString(orderMetadata?.bookingId)
+    ?? getString(projectionMetadata?.bookingId)
+    ?? getString(invoiceMetadata?.bookingId);
+  const linkedBooking = bookingId ? bookingsById.get(bookingId) ?? null : null;
+  const bookingAvailability = parseBookingAvailability(
+    orderMetadata?.bookingAvailability
+      ?? projectionMetadata?.bookingAvailability
+      ?? orderMetadata?.availability
+      ?? linkedBooking?.availability,
+  );
+  const bookingTimezone = getString(orderMetadata?.bookingTimezone)
+    ?? getString(projectionMetadata?.bookingTimezone)
+    ?? getString(orderMetadata?.timezone)
+    ?? linkedBooking?.timezone
+    ?? null;
   const emptyIntake = createEmptyIntakeMetadata();
-  const productName = getString(orderMetadata?.product_name)
+  const rawProductName = getString(orderMetadata?.product_name)
     ?? getString(invoiceMetadata?.product_name)
     ?? row.label
     ?? "Unknown Product";
+  const productName = normalizedType === "subscription"
+    ? resolvePersistedSubscriptionProductName(rawProductName, getString(orderMetadata?.tier) ?? row.label)
+    : rawProductName;
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -2409,11 +2515,12 @@ function createPersistedAdminOrder(
       birth_location: null,
       intake: {
         ...emptyIntake,
+        timezone: bookingTimezone,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
         manifestation_goals: manifestationEnhancement?.intentions ?? null,
         manifestation_enhancement: manifestationEnhancement,
       },
-      availability: null,
+      availability: bookingAvailability,
       report_type: null,
       report_type_id: null,
       training_package: null,
@@ -2467,6 +2574,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     invoiceRows,
     persistedOrderRows,
     bookingRows,
+    regenerationSubscriptionRows,
     reportRows,
     subscriptionRows,
     mentorTrainingRows,
@@ -2478,6 +2586,8 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const { byUserId: clientsByUserId, byId: clientsById } = chooseLatestClientByUser(clientRows);
   const entitlementsByUserId = new Map(entitlementRows.map((row) => [row.userId, row]));
   const invoicesById = new Map(invoiceRows.map((row) => [row.id, row]));
+  const regenerationSubscriptionsById = new Map(regenerationSubscriptionRows.map((row) => [row.id, row]));
+  const bookingsById = new Map(bookingRows.map((row) => [row.id, row]));
   const paymentsByUser = buildPaymentMap(paymentRows);
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
   const bookingBackedMentoringCircleEvents = new Set(
@@ -2494,6 +2604,8 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
         clientsById,
         entitlementsByUserId,
         invoicesById,
+        regenerationSubscriptionsById,
+        bookingsById,
       ))
     .filter((row): row is AdminOrder => Boolean(row));
 
@@ -2595,7 +2707,8 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   const ordered = [...persistedOrders.filter((row) => !persistedSourceBackedOrderIds.has(row.id)), ...orders]
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
-  return attachSubscriptionDetails(db, ordered);
+  const visibleOrders = options.showArchived ? ordered : filterSupersededPendingAttempts(ordered);
+  return attachSubscriptionDetails(db, visibleOrders);
 }
 
 export async function getOrdersGroupedByUser(
