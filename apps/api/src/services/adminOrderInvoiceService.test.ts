@@ -95,7 +95,7 @@ test("assertOrderCanCreateInvoice allows unpaid membership subscription orders",
 test("assertOrderCanCreateInvoice rejects unsupported non-session orders", () => {
   assert.throws(
     () => assertOrderCanCreateInvoice(makeOrder({ type: "report" })),
-    /currently only supported for session and membership subscription orders/i,
+    /currently only supported for session orders and recurring membership subscriptions/i,
   );
 });
 
@@ -108,7 +108,7 @@ test("assertOrderCanCreateInvoice rejects regeneration subscription orders", () 
         order_variant: "regeneration_monthly_package",
       },
     })),
-    /currently only supported for session and membership subscription orders/i,
+    /currently only supported for session orders and recurring membership subscriptions/i,
   );
 });
 

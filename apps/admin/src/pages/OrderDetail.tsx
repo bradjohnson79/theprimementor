@@ -380,7 +380,7 @@ export default function OrderDetail() {
     const supportsManualInvoice = order.type === "session"
       || (order.type === "subscription" && order.subscription?.kind === "membership");
     if (!supportsManualInvoice) {
-      return "Manual invoice creation is currently only supported for session and membership subscription orders.";
+      return "Manual invoice creation is currently only supported for session orders and recurring membership subscriptions.";
     }
     if (order.metadata.stripe_invoice_id) return "Invoice already exists for this order.";
     if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {

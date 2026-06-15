@@ -168,7 +168,7 @@ export function assertOrderCanCreateInvoice(order: Pick<Awaited<ReturnType<typeo
   const isSupportedMembershipSubscription = order.type === "subscription"
     && !isRegenerationSubscriptionMetadata(order.metadata);
   if (order.type !== "session" && !isSupportedMembershipSubscription) {
-    throw createHttpError(400, "Manual invoice creation is currently only supported for session and membership subscription orders.");
+    throw createHttpError(400, "Manual invoice creation is currently only supported for session orders and recurring membership subscriptions.");
   }
 
   if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
