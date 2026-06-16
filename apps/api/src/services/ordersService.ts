@@ -33,6 +33,7 @@ const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const PAYMENT_MATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
 const DUPLICATE_PENDING_ATTEMPT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const REGENERATION_ORDER_BOOKING_FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "custom";
 export type AdminOrderStatus =
@@ -2442,6 +2443,32 @@ function resolvePersistedSubscriptionProductName(value: string | null, fallback:
   return value;
 }
 
+function isRegenerationSubscriptionOrder(type: AdminOrderType, productName: string | null | undefined) {
+  return type === "subscription" && productName?.trim().toLowerCase().includes("regeneration");
+}
+
+function hasParsedAvailabilityValue(value: unknown) {
+  const parsed = parseBookingAvailability(value);
+  return Boolean(parsed && Object.values(parsed).some((slots) => slots.length > 0));
+}
+
+function findFallbackRegenerationBooking(
+  order: PersistedOrderRow,
+  bookingsByUserId: Map<string, BookingSourceRow[]>,
+) {
+  const candidates = bookingsByUserId.get(order.userId) ?? [];
+  const orderCreatedAt = order.createdAt.getTime();
+
+  return candidates
+    .filter((booking) => (
+      booking.sessionType === "regeneration"
+      && hasParsedAvailabilityValue(booking.availability)
+      && Math.abs(booking.createdAt.getTime() - orderCreatedAt) <= REGENERATION_ORDER_BOOKING_FALLBACK_WINDOW_MS
+    ))
+    .sort((left, right) => Math.abs(left.createdAt.getTime() - orderCreatedAt) - Math.abs(right.createdAt.getTime() - orderCreatedAt))[0]
+    ?? null;
+}
+
 function createPersistedAdminOrder(
   row: PersistedOrderRow,
   usersById: Map<string, UserRow>,
@@ -2451,6 +2478,7 @@ function createPersistedAdminOrder(
   invoicesById: Map<string, InvoiceRow>,
   regenerationSubscriptionsById: Map<string, RegenerationSubscriptionProjectionRow>,
   bookingsById: Map<string, BookingSourceRow>,
+  bookingsByUserId: Map<string, BookingSourceRow[]>,
 ): AdminOrder | null {
   const user = usersById.get(row.userId);
   if (!user) {
@@ -2479,19 +2507,6 @@ function createPersistedAdminOrder(
   const bookingId = getString(orderMetadata?.bookingId)
     ?? getString(projectionMetadata?.bookingId)
     ?? getString(invoiceMetadata?.bookingId);
-  const linkedBooking = bookingId ? bookingsById.get(bookingId) ?? null : null;
-  const bookingAvailability = parseBookingAvailability(
-    orderMetadata?.bookingAvailability
-      ?? projectionMetadata?.bookingAvailability
-      ?? orderMetadata?.availability
-      ?? linkedBooking?.availability,
-  );
-  const bookingTimezone = getString(orderMetadata?.bookingTimezone)
-    ?? getString(projectionMetadata?.bookingTimezone)
-    ?? getString(orderMetadata?.timezone)
-    ?? linkedBooking?.timezone
-    ?? null;
-  const emptyIntake = createEmptyIntakeMetadata();
   const rawProductName = getString(orderMetadata?.product_name)
     ?? getString(invoiceMetadata?.product_name)
     ?? row.label
@@ -2499,6 +2514,27 @@ function createPersistedAdminOrder(
   const productName = normalizedType === "subscription"
     ? resolvePersistedSubscriptionProductName(rawProductName, getString(orderMetadata?.tier) ?? row.label)
     : rawProductName;
+  const linkedBooking = bookingId
+    ? bookingsById.get(bookingId) ?? null
+    : isRegenerationSubscriptionOrder(normalizedType, productName)
+      ? findFallbackRegenerationBooking(row, bookingsByUserId)
+      : null;
+  const linkedBookingIntake = linkedBooking ? parseBookingIntake(linkedBooking.intake) : null;
+  const linkedBookingIntakeSnapshot = linkedBooking ? parseBookingIntakeSnapshot(linkedBooking.intakeSnapshot) : null;
+  const linkedBookingAvailability = linkedBookingIntakeSnapshot?.availability ?? parseBookingAvailability(linkedBooking?.availability);
+  const bookingAvailability = parseBookingAvailability(
+    orderMetadata?.bookingAvailability
+      ?? projectionMetadata?.bookingAvailability
+      ?? orderMetadata?.availability
+      ?? linkedBookingAvailability,
+  );
+  const bookingTimezone = getString(orderMetadata?.bookingTimezone)
+    ?? getString(projectionMetadata?.bookingTimezone)
+    ?? getString(orderMetadata?.timezone)
+    ?? linkedBookingIntakeSnapshot?.timezone
+    ?? linkedBooking?.timezone
+    ?? null;
+  const emptyIntake = createEmptyIntakeMetadata();
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -2538,7 +2574,21 @@ function createPersistedAdminOrder(
       birth_location: null,
       intake: {
         ...emptyIntake,
+        birth_date: linkedBooking?.birthDate ?? linkedBookingIntakeSnapshot?.birthDate ?? null,
+        birth_time: linkedBooking?.birthTime ?? linkedBookingIntakeSnapshot?.birthTime ?? null,
+        location: resolveLocation(
+          linkedBookingIntakeSnapshot?.location ?? linkedBooking?.birthPlaceName,
+          linkedBooking?.birthPlace,
+        ),
+        phone: linkedBookingIntakeSnapshot?.phone ?? linkedBooking?.phone ?? null,
         timezone: bookingTimezone,
+        consent_given: linkedBookingIntakeSnapshot?.consentGiven ?? linkedBooking?.consentGiven ?? null,
+        submitted_questions: linkedBookingIntakeSnapshot?.submittedQuestions ?? [],
+        topics: linkedBookingIntakeSnapshot?.intake?.topics ?? linkedBookingIntake?.topics ?? [],
+        goals: linkedBookingIntakeSnapshot?.intake?.goals ?? linkedBookingIntake?.goals ?? [],
+        health_focus_areas: linkedBookingIntakeSnapshot?.intake?.healthFocusAreas ?? linkedBookingIntake?.healthFocusAreas ?? [],
+        other: linkedBookingIntakeSnapshot?.intake?.other ?? linkedBookingIntake?.other ?? null,
+        notes: linkedBookingIntakeSnapshot?.notes ?? linkedBookingIntake?.notes ?? linkedBooking?.notes ?? null,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
         manifestation_goals: manifestationEnhancement?.intentions ?? null,
         manifestation_enhancement: manifestationEnhancement,
@@ -2611,6 +2661,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const invoicesById = new Map(invoiceRows.map((row) => [row.id, row]));
   const regenerationSubscriptionsById = new Map(regenerationSubscriptionRows.map((row) => [row.id, row]));
   const bookingsById = new Map(bookingRows.map((row) => [row.id, row]));
+  const bookingsByUserId = new Map<string, BookingSourceRow[]>();
+  for (const row of bookingRows) {
+    const existing = bookingsByUserId.get(row.userId) ?? [];
+    existing.push(row);
+    bookingsByUserId.set(row.userId, existing);
+  }
   const paymentsByUser = buildPaymentMap(paymentRows);
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
   const bookingBackedMentoringCircleEvents = new Set(
@@ -2629,6 +2685,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
         invoicesById,
         regenerationSubscriptionsById,
         bookingsById,
+        bookingsByUserId,
       ))
     .filter((row): row is AdminOrder => Boolean(row));
 
