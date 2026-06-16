@@ -7,6 +7,21 @@ interface MemberChatToolModalProps {
   onClose: () => void;
   children: ReactNode;
   variant?: "modal" | "drawer";
+  closeLabel?: string;
+}
+
+let activeToolModalLocks = 0;
+
+function lockBodyScroll() {
+  activeToolModalLocks += 1;
+  document.body.classList.add("modal-open");
+}
+
+function unlockBodyScroll() {
+  activeToolModalLocks = Math.max(0, activeToolModalLocks - 1);
+  if (activeToolModalLocks === 0) {
+    document.body.classList.remove("modal-open");
+  }
 }
 
 export default function MemberChatToolModal({
@@ -15,14 +30,19 @@ export default function MemberChatToolModal({
   onClose,
   children,
   variant = "modal",
+  closeLabel = "Close",
 }: MemberChatToolModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
 
+    lockBodyScroll();
+
     const panel = panelRef.current;
-    if (!panel) return;
+    if (!panel) {
+      return () => unlockBodyScroll();
+    }
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const closeBtn = panel.querySelector<HTMLElement>("[data-modal-close]");
@@ -52,6 +72,7 @@ export default function MemberChatToolModal({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      unlockBodyScroll();
       previouslyFocused?.focus();
     };
   }, [open, onClose]);
@@ -62,7 +83,7 @@ export default function MemberChatToolModal({
 
   return (
     <div
-      className="fixed inset-0 left-64 z-[60] flex"
+      className="fixed inset-0 left-0 z-[60] flex md:left-64"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -84,7 +105,7 @@ export default function MemberChatToolModal({
           "relative z-10 flex max-h-full min-h-0 flex-col border shadow-2xl border-white/10 bg-slate-950 text-white",
           isDrawer
             ? "drawer-panel-enter ml-auto h-full w-full max-w-xl rounded-l-2xl"
-            : "modal-panel-enter m-auto h-[min(82vh,760px)] w-[min(92vw,980px)] rounded-2xl",
+            : "modal-panel-enter m-auto max-h-[85vh] max-h-[85dvh] w-[min(960px,calc(100vw-24px))] overflow-hidden rounded-2xl",
         )}
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-5 py-3">
@@ -93,7 +114,7 @@ export default function MemberChatToolModal({
             type="button"
             data-modal-close
             onClick={onClose}
-            aria-label="Close"
+            aria-label={closeLabel}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
@@ -101,7 +122,7 @@ export default function MemberChatToolModal({
             </svg>
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-5">{children}</div>
       </div>
     </div>
   );

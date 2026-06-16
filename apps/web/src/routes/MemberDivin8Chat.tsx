@@ -212,9 +212,10 @@ export default function MemberDivin8Chat() {
   const toolModals = (chat: UseDivin8ChatReturn, currentCapabilities: Divin8Capabilities) => (
     <>
       <MemberChatToolModal
-        title="Guide"
+        title="Divin8 Chat Guide"
         open={activeTool === "guide"}
         onClose={() => setActiveTool(null)}
+        closeLabel="Close guide"
       >
         <MemberGuide />
       </MemberChatToolModal>
