@@ -856,6 +856,9 @@ function normalizeSourceStatus(type: AdminOrderType, sourceStatus: string | null
 
 function finalizeOrderStatus(sourceStatus: Exclude<AdminOrderStatus, "unpaid" | "refunded">, paymentStatus: ReturnType<typeof normalizePaymentStatus>, hasPayment: boolean): AdminOrderStatus {
   if (!hasPayment) {
+    if (sourceStatus === "paid" || sourceStatus === "completed" || sourceStatus === "in_progress") {
+      return sourceStatus;
+    }
     return "unpaid";
   }
   if (paymentStatus === "refunded") {
@@ -1265,7 +1268,7 @@ function filterSupersededPendingAttempts(orders: AdminOrder[]) {
     purchasedByKey.set(key, existing);
   }
 
-  return orders.filter((order) => {
+  const afterPaidSiblingFilter = orders.filter((order) => {
     if (order.status !== "pending_payment") {
       return true;
     }
@@ -1278,6 +1281,26 @@ function filterSupersededPendingAttempts(orders: AdminOrder[]) {
     return !purchasedOrders.some((purchased) => (
       Math.abs(new Date(purchased.created_at).getTime() - pendingCreatedAt) <= DUPLICATE_PENDING_ATTEMPT_WINDOW_MS
     ));
+  });
+
+  const newestPendingByKey = new Map<string, AdminOrder>();
+  for (const order of afterPaidSiblingFilter) {
+    if (order.status !== "pending_payment") {
+      continue;
+    }
+    const key = buildDuplicateAttemptKey(order);
+    const existing = newestPendingByKey.get(key);
+    if (!existing || new Date(order.created_at).getTime() > new Date(existing.created_at).getTime()) {
+      newestPendingByKey.set(key, order);
+    }
+  }
+
+  return afterPaidSiblingFilter.filter((order) => {
+    if (order.status !== "pending_payment") {
+      return true;
+    }
+    const newest = newestPendingByKey.get(buildDuplicateAttemptKey(order));
+    return newest?.id === order.id;
   });
 }
 

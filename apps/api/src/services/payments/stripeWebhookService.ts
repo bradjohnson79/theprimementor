@@ -1420,6 +1420,9 @@ async function handleCheckoutSessionCompleted(
   }
 
   if (existingPayment?.status === "paid") {
+    if (entity.entityType === "session" && bookingId) {
+      await ensurePersistedSessionOrder(db, bookingId);
+    }
     if (entity.entityType === "mentoring_circle" && bookingId) {
       await finalizeMentoringCircleAccess(db, logger, {
         bookingId,
@@ -2020,6 +2023,137 @@ async function findSubscriptionInvoiceForPaymentIntent(paymentIntent: Stripe.Pay
   }) ?? null;
 }
 
+async function handleReportPaymentIntentSucceeded(
+  db: DbExecutor,
+  paymentIntent: Stripe.PaymentIntent,
+  logger: WebhookLogger,
+): Promise<boolean> {
+  const metadata = parseMetadata(paymentIntent.metadata, logger, {
+    eventType: "payment_intent.succeeded",
+    paymentIntentId: paymentIntent.id,
+  });
+  if (metadata.type !== "report") {
+    return false;
+  }
+
+  const reportId = metadata.reportId ?? metadata.entityId;
+  if (!reportId) {
+    logger.warn({ paymentIntentId: paymentIntent.id }, "report_payment_intent_missing_report_id");
+    return false;
+  }
+
+  const stripeCustomerId = stripeRef(paymentIntent.customer);
+  const userId = await resolveUserForStripeObject(
+    db,
+    {
+      stripeCustomerId,
+      stripeSubscriptionId: null,
+      metadata,
+    },
+    logger,
+    {
+      eventType: "payment_intent.succeeded",
+      paymentIntentId: paymentIntent.id,
+    },
+  );
+
+  if (!userId) {
+    logger.warn({ paymentIntentId: paymentIntent.id, reportId }, "report_payment_intent_missing_user");
+    return false;
+  }
+
+  if (stripeCustomerId) {
+    await upsertStripeCustomerMapping(
+      db,
+      { userId, stripeCustomerId },
+      logger,
+      { paymentIntentId: paymentIntent.id, eventType: "payment_intent.succeeded" },
+    );
+  }
+
+  const existingPayment = await findExistingPayment(db, {
+    providerPaymentIntentId: paymentIntent.id,
+    entityType: "report",
+    entityId: reportId,
+    bookingId: null,
+  });
+
+  if (!existingPayment) {
+    logger.warn(
+      { paymentIntentId: paymentIntent.id, reportId },
+      "report_payment_intent_missing_local_payment",
+    );
+    return false;
+  }
+
+  if (existingPayment.status === "paid") {
+    queueAutoExecution(db as Database, logger, `report_${reportId}`, {
+      eventType: "payment_intent.succeeded",
+      paymentIntentId: paymentIntent.id,
+      userId,
+      reportId,
+    });
+    logger.info(
+      { paymentIntentId: paymentIntent.id, paymentId: existingPayment.id, reportId },
+      "report_payment_intent_already_paid",
+    );
+    return true;
+  }
+
+  const nextMetadata = mergeMetadata(
+    parseObject(existingPayment.metadata),
+    metadata.raw,
+    {
+      source: "stripe_webhook",
+      stripePaymentIntentId: paymentIntent.id,
+      stripePaymentIntentSucceededAt: new Date().toISOString(),
+    },
+  );
+
+  const paidPayment = await markPaymentPaidFromWebhook(db as Database, {
+    paymentId: existingPayment.id,
+    providerPaymentIntentId: paymentIntent.id,
+    providerCustomerId: stripeCustomerId,
+    metadata: nextMetadata,
+  });
+
+  if (typeof metadata.raw.promoCodeId === "string" && metadata.raw.promoCodeId.trim()) {
+    await recordPromoUsage(db as Database, {
+      paymentId: paidPayment.id,
+      promoCodeId: metadata.raw.promoCodeId.trim(),
+    });
+  }
+
+  await emitPaymentSucceededNotifications(db, logger, {
+    userId,
+    userEmail: metadata.userEmail,
+    entityId: reportId,
+    paymentId: paidPayment.id,
+    amount: paidPayment.amount_cents,
+    currency: paidPayment.currency,
+    product: "report",
+    orderId: `report_${reportId}`,
+  });
+
+  queueAutoExecution(db as Database, logger, `report_${reportId}`, {
+    eventType: "payment_intent.succeeded",
+    paymentIntentId: paymentIntent.id,
+    userId,
+    reportId,
+  });
+
+  logger.info(
+    {
+      paymentIntentId: paymentIntent.id,
+      reportId,
+      paymentId: existingPayment.id,
+    },
+    "report_payment_intent_fallback_processed",
+  );
+
+  return true;
+}
+
 async function handleSubscriptionInvoicePaymentIntentSucceeded(
   db: DbExecutor,
   paymentIntent: Stripe.PaymentIntent,
@@ -2069,6 +2203,9 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
       return;
     case "payment_intent.succeeded":
       if (await handleRegenerationPaymentIntentSucceeded(db as Database, event.data.object as Stripe.PaymentIntent, logger)) {
+        return;
+      }
+      if (await handleReportPaymentIntentSucceeded(db, event.data.object as Stripe.PaymentIntent, logger)) {
         return;
       }
       await handleSubscriptionInvoicePaymentIntentSucceeded(db, event.data.object as Stripe.PaymentIntent, logger);

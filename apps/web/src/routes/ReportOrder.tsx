@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth, useUser } from "@clerk/react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import {
   getSchemaByReportType,
   isPremiumReportProduct,
@@ -9,6 +9,7 @@ import {
 } from "@wisdom/utils";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startReportCheckout } from "../lib/reportCheckout";
 
 type FormState = Record<string, string | boolean | string[]>;
@@ -105,6 +106,7 @@ function Label({ label, children, error }: { label: string; children: ReactNode;
 
 export default function ReportOrder() {
   const params = useParams();
+  const location = useLocation();
   const product = resolveReportProductFromRouteSlug(params.reportType ?? "");
   const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
@@ -115,6 +117,48 @@ export default function ReportOrder() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function reconcileCheckoutState() {
+      const params = new URLSearchParams(location.search);
+      const checkoutState = params.get("checkout");
+      const reportId = params.get("reportId");
+      const checkoutSessionId = params.get("checkoutSessionId");
+
+      if (checkoutState !== "success") {
+        if (checkoutState === "canceled" && !cancelled) {
+          setMessage("Checkout canceled. Your pending report is still ready if you want to retry payment.");
+        }
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        await syncOwnedCheckoutSession({
+          token,
+          checkoutSessionId,
+          entityType: reportId ? "report" : undefined,
+          entityId: reportId,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(error instanceof Error ? error.message : "Payment completed, but report fulfillment is still syncing.");
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setMessage("Payment confirmed. Your report is now in the fulfillment queue and will appear once it is completed.");
+      }
+    }
+
+    void reconcileCheckoutState();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, location.search]);
 
   const reportType = product?.key as ReportProductKey | undefined;
   const resolvedForm = useMemo<FormState>(() => ({

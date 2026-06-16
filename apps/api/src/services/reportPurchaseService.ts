@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { reports, reportTierOutputs, users, type Database } from "@wisdom/db";
 import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
@@ -238,7 +238,6 @@ export async function createMemberReportOrder(
     reportType,
     productId: product.id,
   };
-  const purchaseSnapshotJson = JSON.stringify(purchaseIntake);
 
   const [reusable] = await db
     .select({
@@ -255,7 +254,7 @@ export async function createMemberReportOrder(
       eq(reports.user_id, input.userId),
       eq(reports.interpretation_tier, reportType),
       eq(reports.member_status, "pending_payment"),
-      sql`${reports.purchase_intake} = ${purchaseSnapshotJson}::jsonb`,
+      eq(reports.archived, false),
     ))
     .orderBy(desc(reports.created_at))
     .limit(1);
@@ -264,6 +263,40 @@ export async function createMemberReportOrder(
   const currency = "CAD";
 
   if (reusable) {
+    await db
+      .update(reports)
+      .set({
+        purchase_intake: purchaseIntake,
+        birth_place_name: birthplace.name,
+        birth_lat: birthplace.lat,
+        birth_lng: birthplace.lng,
+        birth_timezone: birthplace.timezone,
+        meta: {
+          createdFrom: "member_purchase",
+          timezone_source: timezoneSource,
+          report_type: reportType,
+          product_id: product.id,
+          product_category: product.type,
+        },
+        updated_at: new Date(),
+      })
+      .where(eq(reports.id, reusable.id));
+
+    await db
+      .update(reports)
+      .set({
+        archived: true,
+        archived_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(and(
+        eq(reports.user_id, input.userId),
+        eq(reports.interpretation_tier, reportType),
+        eq(reports.member_status, "pending_payment"),
+        eq(reports.archived, false),
+        ne(reports.id, reusable.id),
+      ));
+
     const existingPayment = await getReusablePaymentForEntity(db, {
       entityType: "report",
       entityId: reusable.id,
@@ -372,7 +405,10 @@ export async function listMemberReports(db: Database, userId: string): Promise<M
       updated_at: reports.updated_at,
     })
     .from(reports)
-    .where(eq(reports.user_id, userId))
+    .where(and(
+      eq(reports.user_id, userId),
+      eq(reports.archived, false),
+    ))
     .orderBy(desc(reports.created_at));
 
   const summaries = rows.map((row) => {

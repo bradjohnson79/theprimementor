@@ -1,4 +1,4 @@
-import { and, desc, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, ne, notInArray } from "drizzle-orm";
 import { bookingTypes, bookings, mentorTrainingOrders, payments, reports, subscriptions, users, type Database } from "@wisdom/db";
 import { getPaymentProvider } from "./providerFactory.js";
 import { createHttpError } from "./errors.js";
@@ -243,6 +243,15 @@ async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) 
   }
 
   if (current.entityType === "report") {
+    const [paidReport] = await db
+      .select({
+        userId: reports.user_id,
+        interpretationTier: reports.interpretation_tier,
+      })
+      .from(reports)
+      .where(eq(reports.id, current.entityId))
+      .limit(1);
+
     await db
       .update(reports)
       .set({
@@ -250,6 +259,23 @@ async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) 
         updated_at: new Date(),
       })
       .where(eq(reports.id, current.entityId));
+
+    if (paidReport?.userId && paidReport.interpretationTier) {
+      await db
+        .update(reports)
+        .set({
+          archived: true,
+          archived_at: new Date(),
+          updated_at: new Date(),
+        })
+        .where(and(
+          eq(reports.user_id, paidReport.userId),
+          eq(reports.interpretation_tier, paidReport.interpretationTier),
+          eq(reports.member_status, "pending_payment"),
+          eq(reports.archived, false),
+          ne(reports.id, current.entityId),
+        ));
+    }
     return;
   }
 
