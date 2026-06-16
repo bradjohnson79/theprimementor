@@ -88,7 +88,7 @@ export function renderKeyValueTable(items: Array<{ label: string; value: string 
   `;
 }
 
-type AvailabilityTable = Partial<Record<"monday" | "tuesday" | "wednesday" | "thursday", string[]>>;
+type AvailabilityTable = Partial<Record<"monday" | "tuesday" | "wednesday" | "thursday" | "friday", string[]>>;
 
 function formatAvailabilityDay(day: string) {
   return day.charAt(0).toUpperCase() + day.slice(1);

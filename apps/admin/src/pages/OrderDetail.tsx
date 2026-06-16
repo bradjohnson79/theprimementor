@@ -57,6 +57,28 @@ function hasAvailability(availability: AdminOrderAvailability | null) {
   return Boolean(availability && AVAILABILITY_DAYS.some((day) => (availability[day] ?? []).length > 0));
 }
 
+function renderAvailability(availability: AdminOrderAvailability | null) {
+  if (!hasAvailability(availability)) {
+    return "—";
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {AVAILABILITY_DAYS.map((day) => {
+        const times = availability?.[day] ?? [];
+        if (times.length === 0) return null;
+
+        return (
+          <p key={day}>
+            {AVAILABILITY_DAY_LABELS[day]}:{" "}
+            <span className="text-white/70">{times.map(formatAvailabilityTime).join(", ")}</span>
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function renderHealthFocusAreas(values: AdminOrder["metadata"]["intake"]["health_focus_areas"]) {
   if (values.length === 0) return "—";
   return values.map((entry) => `${entry.name} (${entry.severity}/10)`).join(", ");
@@ -1198,26 +1220,6 @@ export default function OrderDetail() {
               <dt className="text-xs text-white/40">Submitted Timezone</dt>
               <dd className="text-white/85">{renderValue(order.metadata.intake.timezone)}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-white/40">Client Availability</dt>
-              <dd className="text-white/85">
-                {hasAvailability(order.metadata.availability) ? (
-                  <div className="space-y-1.5">
-                    {AVAILABILITY_DAYS.map((day) => {
-                      const times = order.metadata.availability?.[day] ?? [];
-                      if (times.length === 0) return null;
-
-                      return (
-                        <p key={day}>
-                          {AVAILABILITY_DAY_LABELS[day]}:{" "}
-                          <span className="text-white/70">{times.map(formatAvailabilityTime).join(", ")}</span>
-                        </p>
-                      );
-                    })}
-                  </div>
-                ) : "—"}
-              </dd>
-            </div>
 
             {order.type === "webinar" ? (
               <>
@@ -1509,6 +1511,10 @@ export default function OrderDetail() {
               <div>
                 <dt className="text-xs text-white/40">Phone</dt>
                 <dd className="text-white/85">{renderValue(order.metadata.intake.phone)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Availability</dt>
+                <dd className="text-white/85">{renderAvailability(order.metadata.availability)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-white/40">Birth Date</dt>

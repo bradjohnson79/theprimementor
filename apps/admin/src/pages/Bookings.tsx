@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Card from "../components/Card";
 import { api } from "../lib/api";
 
-type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday";
+type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 
 interface BookingType {
   id: string;
@@ -22,6 +22,7 @@ interface BookingAvailability {
   tuesday: string[];
   wednesday: string[];
   thursday: string[];
+  friday: string[];
 }
 
 interface BookingSummary {
@@ -46,13 +47,14 @@ interface BookingSummary {
   };
 }
 
-const AVAILABILITY_DAYS: AvailabilityDay[] = ["monday", "tuesday", "wednesday", "thursday"];
+const AVAILABILITY_DAYS: AvailabilityDay[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
 const AVAILABILITY_DAY_LABELS: Record<AvailabilityDay, string> = {
   monday: "Monday",
   tuesday: "Tuesday",
   wednesday: "Wednesday",
   thursday: "Thursday",
+  friday: "Friday",
 };
 
 function formatAvailabilityTime(value: string) {
