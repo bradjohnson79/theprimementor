@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/react";
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Divin8ChatPage,
   classNames,
@@ -30,6 +31,22 @@ export default function Divin8Chat() {
   const { t } = useI18n();
   const isLightTheme = resolvedTheme === "light";
   const seekerPromptLimit = 200;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedThreadId = searchParams.get("thread")?.trim() || null;
+  const handleSelectedThreadIdChange = useCallback((
+    threadId: string | null,
+    options?: { replace?: boolean },
+  ) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (threadId) {
+        next.set("thread", threadId);
+      } else {
+        next.delete("thread");
+      }
+      return next;
+    }, { replace: options?.replace ?? false });
+  }, [setSearchParams]);
 
   const [tier, setTier] = useState<Divin8ChatTier>("seeker");
   const [activeTool, setActiveTool] = useState<"guide" | "timeline" | "debug" | null>(null);
@@ -254,6 +271,8 @@ export default function Divin8Chat() {
         api: chatApi,
         tier,
         language: settings.language,
+        selectedThreadId,
+        onSelectedThreadIdChange: handleSelectedThreadIdChange,
       }}
       isLightTheme={isLightTheme}
       capabilities={{

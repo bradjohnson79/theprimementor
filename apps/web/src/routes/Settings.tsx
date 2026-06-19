@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/react";
+import { useAuth, UserProfile } from "@clerk/react";
 import { api } from "../lib/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { clerkAuthAppearance } from "../lib/authFormStyles";
 
 function toDisplayTier(tier: "free" | "seeker" | "initiate") {
   if (tier === "free") return "Free Tier";
@@ -16,12 +17,38 @@ type MemberRecurringSubscription = {
   amountCents: number;
   currency: string;
   billingInterval: "monthly" | "annual";
-  status: "active" | "cancelling" | "past_due" | "canceled";
+  status: "active" | "paused" | "cancelling" | "past_due" | "canceled";
   renewsOn: string | null;
   accessEndsOn: string | null;
   cancelAtPeriodEnd: boolean;
   cancelable: boolean;
+  pauseable: boolean;
+  pausedUntil: string | null;
   detail: string | null;
+};
+
+const CANCELLATION_REASONS = [
+  { value: "", label: "Select a reason" },
+  { value: "too_expensive", label: "It is too expensive right now" },
+  { value: "not_using", label: "I am not using it enough" },
+  { value: "missing_features", label: "It is missing something I need" },
+  { value: "temporary_break", label: "I only need a temporary break" },
+  { value: "technical_issue", label: "I had a technical issue" },
+  { value: "other", label: "Other" },
+];
+
+const clerkAccountAppearance = {
+  ...clerkAuthAppearance,
+  elements: {
+    ...clerkAuthAppearance.elements,
+    rootBox: "w-full",
+    card: "w-full rounded-2xl border border-white/10 bg-[#0b1220] p-4 shadow-none sm:p-6",
+    navbar: "border-white/10",
+    navbarButton: "text-slate-300 hover:text-white",
+    navbarButtonIcon: "text-slate-400",
+    profileSectionTitleText: "text-white",
+    profileSectionPrimaryButton: "text-blue-300 hover:text-blue-200",
+  },
 };
 
 function formatSubscriptionPrice(amountCents: number, currency: string, billingInterval: "monthly" | "annual") {
@@ -47,6 +74,8 @@ function statusBadgeClassName(status: MemberRecurringSubscription["status"]) {
   switch (status) {
     case "active":
       return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
+    case "paused":
+      return "border-sky-300/25 bg-sky-500/10 text-sky-100";
     case "cancelling":
       return "border-amber-300/25 bg-amber-500/10 text-amber-100";
     case "past_due":
@@ -60,6 +89,8 @@ function statusLabel(status: MemberRecurringSubscription["status"]) {
   switch (status) {
     case "active":
       return "Active";
+    case "paused":
+      return "Paused";
     case "cancelling":
       return "Cancelling";
     case "past_due":
@@ -78,7 +109,12 @@ export default function Settings() {
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(true);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<MemberRecurringSubscription | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<MemberRecurringSubscription | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [pausingId, setPausingId] = useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [cancellationDetails, setCancellationDetails] = useState("");
+  const [retentionAccepted, setRetentionAccepted] = useState(false);
   const [phone, setPhone] = useState("");
   const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -159,7 +195,11 @@ export default function Settings() {
       const token = await getToken();
       await api.post(
         `/member/subscriptions/${cancelTarget.kind}/${cancelTarget.id}/cancel`,
-        {},
+        {
+          reason: cancellationReason || null,
+          details: cancellationDetails || null,
+          retentionAccepted,
+        },
         token,
       );
       const refreshed = await api.get("/member/subscriptions", token) as {
@@ -168,10 +208,40 @@ export default function Settings() {
       setSubscriptions(refreshed.data ?? []);
       refetch();
       setCancelTarget(null);
+      setCancellationReason("");
+      setCancellationDetails("");
+      setRetentionAccepted(false);
     } catch (error) {
       setSubscriptionsError(error instanceof Error ? error.message : "Subscription could not be canceled.");
     } finally {
       setCancelingId(null);
+    }
+  }
+
+  async function handleConfirmPause() {
+    if (!pauseTarget) {
+      return;
+    }
+
+    setPausingId(pauseTarget.id);
+    setSubscriptionsError(null);
+    try {
+      const token = await getToken();
+      await api.post(
+        `/member/subscriptions/${pauseTarget.kind}/${pauseTarget.id}/pause`,
+        {},
+        token,
+      );
+      const refreshed = await api.get("/member/subscriptions", token) as {
+        data?: MemberRecurringSubscription[];
+      };
+      setSubscriptions(refreshed.data ?? []);
+      refetch();
+      setPauseTarget(null);
+    } catch (error) {
+      setSubscriptionsError(error instanceof Error ? error.message : "Subscription could not be paused.");
+    } finally {
+      setPausingId(null);
     }
   }
 
@@ -250,6 +320,19 @@ export default function Settings() {
         </section>
 
         <section className="glass-card rounded-2xl p-6">
+          <h2 className="text-lg font-medium text-white">Account & Security</h2>
+          <p className="mt-2 text-sm text-white/65">
+            Manage your name, email addresses, password, and connected sign-in methods through Clerk.
+          </p>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+            <UserProfile
+              appearance={clerkAccountAppearance}
+              routing="hash"
+            />
+          </div>
+        </section>
+
+        <section className="glass-card rounded-2xl p-6">
           <h2 className="text-lg font-medium text-white">Membership</h2>
           <div className="mt-4 space-y-2 text-sm text-white/70">
             <p>
@@ -302,15 +385,31 @@ export default function Settings() {
                             ) : null}
                           </div>
 
-                          {subscription.cancelable ? (
-                            <button
-                              type="button"
-                              onClick={() => setCancelTarget(subscription)}
-                              className="inline-flex rounded-lg border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/5 hover:text-white"
-                            >
-                              Cancel Subscription
-                            </button>
-                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            {subscription.pauseable ? (
+                              <button
+                                type="button"
+                                onClick={() => setPauseTarget(subscription)}
+                                className="inline-flex rounded-lg border border-sky-300/25 bg-sky-500/10 px-3 py-2 text-sm text-sky-100 transition hover:bg-sky-500/15"
+                              >
+                                Pause 1 Month
+                              </button>
+                            ) : null}
+                            {subscription.cancelable ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCancelTarget(subscription);
+                                  setCancellationReason("");
+                                  setCancellationDetails("");
+                                  setRetentionAccepted(false);
+                                }}
+                                className="inline-flex rounded-lg border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/5 hover:text-white"
+                              >
+                                Cancel Subscription
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
 
                         <div className="space-y-1 text-sm text-white/70">
@@ -324,6 +423,11 @@ export default function Settings() {
                             <p>
                               Access remains active until:{" "}
                               <span className="text-white">{formatSubscriptionDate(subscription.accessEndsOn)}</span>
+                            </p>
+                          ) : null}
+                          {subscription.status === "paused" ? (
+                            <p>
+                              Paused until: <span className="text-white">{formatSubscriptionDate(subscription.pausedUntil)}</span>
                             </p>
                           ) : null}
                           {subscription.status === "past_due" ? (
@@ -370,26 +474,94 @@ export default function Settings() {
             </div>
           </div>
         </section>
-
-        <section className="glass-card rounded-2xl p-6">
-          <h2 className="text-lg font-medium text-white">Security</h2>
-          <button
-            type="button"
-            className="mt-4 rounded-xl border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/30 hover:bg-white/5 hover:text-white"
-          >
-            Change password
-          </button>
-        </section>
       </div>
+
+      {pauseTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111326] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+            <h3 className="text-lg font-medium text-white">Pause Subscription</h3>
+            <p className="mt-3 text-sm leading-7 text-white/70">
+              Pause <span className="text-white">{pauseTarget.name}</span> for one month? Billing will pause in Stripe
+              and automatically resume after the pause window.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPauseTarget(null)}
+                disabled={Boolean(pausingId)}
+                className="rounded-xl border border-white/15 px-4 py-2.5 text-sm text-white/80 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Keep Active
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmPause()}
+                disabled={pausingId === pauseTarget.id}
+                className="rounded-xl border border-sky-300/30 bg-sky-500/10 px-4 py-2.5 text-sm text-sky-100 transition hover:bg-sky-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pausingId === pauseTarget.id ? "Pausing..." : "Confirm Pause"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {cancelTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111326] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111326] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
             <h3 className="text-lg font-medium text-white">Cancel Subscription</h3>
             <p className="mt-3 text-sm leading-7 text-white/70">
               Cancel <span className="text-white">{cancelTarget.name}</span>? Your access will remain active until the
               end of the current billing period, and Stripe will stop the next renewal.
             </p>
+            <div className="mt-5 rounded-xl border border-sky-300/20 bg-sky-500/10 p-4 text-sm text-sky-100">
+              Need a break instead? You can pause this subscription for one month and resume automatically.
+              <button
+                type="button"
+                onClick={() => {
+                  setPauseTarget(cancelTarget);
+                  setCancelTarget(null);
+                }}
+                className="mt-3 inline-flex rounded-lg border border-sky-300/25 px-3 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/15"
+              >
+                Pause Instead
+              </button>
+            </div>
+            <div className="mt-5 space-y-4">
+              <label className="block text-sm text-white/70">
+                What is the main reason you are cancelling?
+                <select
+                  value={cancellationReason}
+                  onChange={(event) => setCancellationReason(event.target.value)}
+                  className={`${inputClassName} cursor-pointer`}
+                >
+                  {CANCELLATION_REASONS.map((reason) => (
+                    <option key={reason.value} value={reason.value} className="bg-slate-950">
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm text-white/70">
+                Is there anything we could improve?
+                <textarea
+                  value={cancellationDetails}
+                  onChange={(event) => setCancellationDetails(event.target.value)}
+                  rows={3}
+                  className={`${inputClassName} min-h-24 resize-y`}
+                  placeholder="Optional feedback"
+                />
+              </label>
+              <label className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                <input
+                  type="checkbox"
+                  checked={retentionAccepted}
+                  onChange={(event) => setRetentionAccepted(event.target.checked)}
+                  className="mt-1"
+                />
+                <span>I understand that pausing for one month is available, and I still want to cancel.</span>
+              </label>
+            </div>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -402,7 +574,7 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => void handleConfirmCancellation()}
-                disabled={cancelingId === cancelTarget.id}
+                disabled={cancelingId === cancelTarget.id || !cancellationReason || !retentionAccepted}
                 className="rounded-xl border border-amber-300/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {cancelingId === cancelTarget.id ? "Canceling..." : "Confirm Cancel"}

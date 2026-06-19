@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/react";
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Divin8ChatPage, classNames, type Divin8Capabilities, type UseDivin8ChatReturn } from "@wisdom/ui/divin8-chat";
 import MemberChatToolModal from "../components/divin8-chat/MemberChatToolModal";
 import MemberGuide from "../components/divin8-chat/MemberGuide";
@@ -20,8 +20,24 @@ const chatApi = {
 export default function MemberDivin8Chat() {
   const { getToken } = useAuth();
   const { user: dbUser, isLoading, tierState } = useCurrentUser();
+  const [searchParams, setSearchParams] = useSearchParams();
   const handleTranscriptRef = useRef<(text: string) => void>(() => {});
   const speech = useSpeechRecognition((text) => handleTranscriptRef.current(text));
+  const selectedThreadId = searchParams.get("thread")?.trim() || null;
+  const handleSelectedThreadIdChange = useCallback((
+    threadId: string | null,
+    options?: { replace?: boolean },
+  ) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (threadId) {
+        next.set("thread", threadId);
+      } else {
+        next.delete("thread");
+      }
+      return next;
+    }, { replace: options?.replace ?? false });
+  }, [setSearchParams]);
 
   const memberTier = tierState;
   const isInitiate = dbUser?.member?.capabilities.unlimitedChat === true;
@@ -241,6 +257,8 @@ export default function MemberDivin8Chat() {
         api: chatApi,
         tier: memberTier === "initiate" ? "initiate" : "seeker",
         hideSummaryInPreviews: true,
+        selectedThreadId,
+        onSelectedThreadIdChange: handleSelectedThreadIdChange,
       }}
       capabilities={capabilities}
       isLightTheme={false}

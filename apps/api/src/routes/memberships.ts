@@ -6,6 +6,7 @@ import { confirmMembershipPurchase, createOrReuseMembershipPurchase } from "../s
 import {
   cancelMemberRecurringSubscription,
   listMemberRecurringSubscriptions,
+  pauseMemberRecurringSubscription,
   type MemberSubscriptionKind,
 } from "../services/memberSubscriptionsService.js";
 
@@ -17,6 +18,12 @@ interface CreateMembershipPurchaseBody {
 interface CancelMemberSubscriptionParams {
   subscriptionType: string;
   subscriptionId: string;
+}
+
+interface CancelMemberSubscriptionBody {
+  reason?: string | null;
+  details?: string | null;
+  retentionAccepted?: boolean;
 }
 
 export async function membershipsRoutes(app: FastifyInstance) {
@@ -57,7 +64,7 @@ export async function membershipsRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post<{ Params: CancelMemberSubscriptionParams }>(
+  app.post<{ Params: CancelMemberSubscriptionParams; Body: CancelMemberSubscriptionBody }>(
     "/member/subscriptions/:subscriptionType/:subscriptionId/cancel",
     { preHandler: requireAuth },
     async (request, reply) => {
@@ -69,6 +76,29 @@ export async function membershipsRoutes(app: FastifyInstance) {
       const db = requireDatabase(app.db);
       return ok({
         data: await cancelMemberRecurringSubscription(db, {
+          userId: request.dbUser!.id,
+          subscriptionType: subscriptionType as MemberSubscriptionKind,
+          subscriptionId: request.params.subscriptionId,
+          reason: request.body?.reason,
+          details: request.body?.details,
+          retentionAccepted: request.body?.retentionAccepted,
+        }),
+      });
+    },
+  );
+
+  app.post<{ Params: CancelMemberSubscriptionParams }>(
+    "/member/subscriptions/:subscriptionType/:subscriptionId/pause",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const subscriptionType = request.params.subscriptionType.trim();
+      if (subscriptionType !== "membership" && subscriptionType !== "regeneration") {
+        return sendApiError(reply, 400, "subscriptionType must be membership or regeneration");
+      }
+
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await pauseMemberRecurringSubscription(db, {
           userId: request.dbUser!.id,
           subscriptionType: subscriptionType as MemberSubscriptionKind,
           subscriptionId: request.params.subscriptionId,

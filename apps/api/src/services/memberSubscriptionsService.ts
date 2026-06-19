@@ -4,7 +4,7 @@ import { regenerationSubscriptions, subscriptions, users, type Database } from "
 import { MEMBER_PRICING } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 
-export type MemberSubscriptionStatus = "active" | "cancelling" | "past_due" | "canceled";
+export type MemberSubscriptionStatus = "active" | "paused" | "cancelling" | "past_due" | "canceled";
 export type MemberSubscriptionKind = "membership" | "regeneration";
 
 export interface MemberRecurringSubscriptionSummary {
@@ -19,6 +19,8 @@ export interface MemberRecurringSubscriptionSummary {
   accessEndsOn: string | null;
   cancelAtPeriodEnd: boolean;
   cancelable: boolean;
+  pauseable: boolean;
+  pausedUntil: string | null;
   detail: string | null;
 }
 
@@ -47,9 +49,40 @@ function dateToIso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
+function addMonths(value: Date, months: number) {
+  const next = new Date(value);
+  next.setUTCMonth(next.getUTCMonth() + months);
+  return next;
+}
+
+function extractPauseUntil(metadata: Record<string, unknown> | null) {
+  const pauseCollection = parseObject(metadata?.pauseCollection);
+  const resumesAt = pauseCollection?.resumesAt;
+  return typeof resumesAt === "string" && resumesAt.trim() ? resumesAt : null;
+}
+
+function getStripeCurrentPeriodEnd(subscription: Stripe.Subscription, fallback: Date | null | undefined) {
+  const item = subscription.items.data[0];
+  return item?.current_period_end ? new Date(item.current_period_end * 1000) : fallback ?? null;
+}
+
+function getStripePauseCollection(subscription: Stripe.Subscription) {
+  return subscription.pause_collection
+    ? {
+      behavior: subscription.pause_collection.behavior,
+      resumesAt: subscription.pause_collection.resumes_at
+        ? new Date(subscription.pause_collection.resumes_at * 1000).toISOString()
+        : null,
+    }
+    : null;
+}
+
 function normalizeMembershipStatus(value: string, cancelAtPeriodEnd: boolean): MemberSubscriptionStatus | null {
   if (value === "active") {
     return cancelAtPeriodEnd ? "cancelling" : "active";
+  }
+  if (value === "paused") {
+    return "paused";
   }
   if (value === "past_due" || value === "unpaid") {
     return "past_due";
@@ -66,6 +99,9 @@ function normalizeRegenerationStatus(value: string, cancelAtPeriodEnd: boolean):
   }
   if (value === "canceled_pending_expiry") {
     return "cancelling";
+  }
+  if (value === "paused") {
+    return "paused";
   }
   if (value === "past_due") {
     return "past_due";
@@ -117,6 +153,7 @@ export async function listMemberRecurringSubscriptions(
         cancelAtPeriodEnd: regenerationSubscriptions.cancel_at_period_end,
         currentPeriodEnd: regenerationSubscriptions.current_period_end,
         stripeSubscriptionId: regenerationSubscriptions.stripe_subscription_id,
+        metadata: regenerationSubscriptions.metadata,
         createdAt: regenerationSubscriptions.created_at,
       })
       .from(regenerationSubscriptions)
@@ -145,7 +182,9 @@ export async function listMemberRecurringSubscriptions(
         renewsOn: normalizedStatus === "active" ? dateToIso(row.currentPeriodEnd) : null,
         accessEndsOn: normalizedStatus === "cancelling" ? dateToIso(row.currentPeriodEnd) : null,
         cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-        cancelable: normalizedStatus === "active" || normalizedStatus === "past_due",
+        cancelable: normalizedStatus === "active" || normalizedStatus === "past_due" || normalizedStatus === "paused",
+        pauseable: normalizedStatus === "active" && !row.cancelAtPeriodEnd,
+        pausedUntil: normalizedStatus === "paused" ? extractPauseUntil(metadata) : null,
         detail: row.tier === "initiate" ? "Initiate tier" : "Premium tier",
         createdAt: row.createdAt,
       };
@@ -155,6 +194,7 @@ export async function listMemberRecurringSubscriptions(
   const regeneration = regenerationRows
     .filter((row) => row.stripeSubscriptionId)
     .map((row) => {
+      const metadata = parseObject(row.metadata);
       const normalizedStatus = normalizeRegenerationStatus(row.status, row.cancelAtPeriodEnd);
       if (!normalizedStatus) {
         return null;
@@ -171,7 +211,9 @@ export async function listMemberRecurringSubscriptions(
         renewsOn: normalizedStatus === "active" ? dateToIso(row.currentPeriodEnd) : null,
         accessEndsOn: normalizedStatus === "cancelling" ? dateToIso(row.currentPeriodEnd) : null,
         cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-        cancelable: normalizedStatus === "active" || normalizedStatus === "past_due",
+        cancelable: normalizedStatus === "active" || normalizedStatus === "past_due" || normalizedStatus === "paused",
+        pauseable: normalizedStatus === "active" && !row.cancelAtPeriodEnd,
+        pausedUntil: normalizedStatus === "paused" ? extractPauseUntil(metadata) : null,
         detail: null,
         createdAt: row.createdAt,
       };
@@ -189,6 +231,9 @@ export async function cancelMemberRecurringSubscription(
     userId: string;
     subscriptionType: MemberSubscriptionKind;
     subscriptionId: string;
+    reason?: string | null;
+    details?: string | null;
+    retentionAccepted?: boolean;
   },
 ): Promise<MemberRecurringSubscriptionSummary> {
   await ensureUserExists(db, input.userId);
@@ -220,11 +265,11 @@ export async function cancelMemberRecurringSubscription(
       throw createHttpError(409, "This subscription is already scheduled to cancel.");
     }
 
+    const cancelFeedback = normalizeMemberCancellationFeedback(input);
     const stripeSubscription = await stripe.subscriptions.update(membership.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
-    const item = stripeSubscription.items.data[0];
-    const currentPeriodEnd = item?.current_period_end ? new Date(item.current_period_end * 1000) : membership.currentPeriodEnd;
+    const currentPeriodEnd = getStripeCurrentPeriodEnd(stripeSubscription, membership.currentPeriodEnd);
 
     await db
       .update(subscriptions)
@@ -235,6 +280,7 @@ export async function cancelMemberRecurringSubscription(
         metadata: {
           ...(parseObject(membership.metadata) ?? {}),
           cancelRequestedAt: new Date().toISOString(),
+          cancellationFeedback: cancelFeedback,
         },
         updated_at: new Date(),
       })
@@ -264,11 +310,11 @@ export async function cancelMemberRecurringSubscription(
       throw createHttpError(409, "This subscription is already scheduled to cancel.");
     }
 
+    const cancelFeedback = normalizeMemberCancellationFeedback(input);
     const stripeSubscription = await stripe.subscriptions.update(regeneration.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
-    const item = stripeSubscription.items.data[0];
-    const currentPeriodEnd = item?.current_period_end ? new Date(item.current_period_end * 1000) : regeneration.currentPeriodEnd;
+    const currentPeriodEnd = getStripeCurrentPeriodEnd(stripeSubscription, regeneration.currentPeriodEnd);
 
     await db
       .update(regenerationSubscriptions)
@@ -280,6 +326,7 @@ export async function cancelMemberRecurringSubscription(
         metadata: {
           ...(parseObject(regeneration.metadata) ?? {}),
           cancelRequestedAt: new Date().toISOString(),
+          cancellationFeedback: cancelFeedback,
         },
         updated_at: new Date(),
       })
@@ -293,6 +340,152 @@ export async function cancelMemberRecurringSubscription(
 
   if (!updated) {
     throw createHttpError(500, "Subscription was updated but could not be reloaded.");
+  }
+
+  return updated;
+}
+
+function normalizeMemberCancellationFeedback(input: {
+  reason?: string | null;
+  details?: string | null;
+  retentionAccepted?: boolean;
+}) {
+  return {
+    reason: input.reason?.trim() || "not_provided",
+    details: input.details?.trim() || null,
+    retentionAccepted: input.retentionAccepted === true,
+    submittedAt: new Date().toISOString(),
+  };
+}
+
+export async function pauseMemberRecurringSubscription(
+  db: Database,
+  input: {
+    userId: string;
+    subscriptionType: MemberSubscriptionKind;
+    subscriptionId: string;
+  },
+): Promise<MemberRecurringSubscriptionSummary> {
+  await ensureUserExists(db, input.userId);
+  const stripe = getStripe();
+  const resumesAtDate = addMonths(new Date(), 1);
+  const resumesAt = Math.floor(resumesAtDate.getTime() / 1000);
+
+  if (input.subscriptionType === "membership") {
+    const [membership] = await db
+      .select({
+        id: subscriptions.id,
+        userId: subscriptions.user_id,
+        stripeSubscriptionId: subscriptions.stripe_subscription_id,
+        status: subscriptions.status,
+        cancelAtPeriodEnd: subscriptions.cancel_at_period_end,
+        currentPeriodEnd: subscriptions.current_period_end,
+        metadata: subscriptions.metadata,
+      })
+      .from(subscriptions)
+      .where(eq(subscriptions.id, input.subscriptionId))
+      .limit(1);
+
+    if (!membership || membership.userId !== input.userId) {
+      throw createHttpError(404, "Subscription not found");
+    }
+    if (!membership.stripeSubscriptionId) {
+      throw createHttpError(400, "This subscription is not connected to Stripe yet.");
+    }
+    if (membership.cancelAtPeriodEnd) {
+      throw createHttpError(409, "Subscriptions scheduled to cancel cannot be paused.");
+    }
+    if (membership.status === "paused") {
+      throw createHttpError(409, "This subscription is already paused.");
+    }
+
+    const stripeSubscription = await stripe.subscriptions.update(membership.stripeSubscriptionId, {
+      pause_collection: {
+        behavior: "void",
+        resumes_at: resumesAt,
+      },
+    });
+
+    await db
+      .update(subscriptions)
+      .set({
+        status: "paused",
+        cancel_at_period_end: false,
+        current_period_end: getStripeCurrentPeriodEnd(stripeSubscription, membership.currentPeriodEnd),
+        metadata: {
+          ...(parseObject(membership.metadata) ?? {}),
+          pauseRequestedAt: new Date().toISOString(),
+          pauseCollection: getStripePauseCollection(stripeSubscription) ?? {
+            behavior: "void",
+            resumesAt: resumesAtDate.toISOString(),
+          },
+        },
+        updated_at: new Date(),
+      })
+      .where(eq(subscriptions.id, membership.id));
+  } else {
+    const [regeneration] = await db
+      .select({
+        id: regenerationSubscriptions.id,
+        userId: regenerationSubscriptions.user_id,
+        stripeSubscriptionId: regenerationSubscriptions.stripe_subscription_id,
+        status: regenerationSubscriptions.status,
+        cancelAtPeriodEnd: regenerationSubscriptions.cancel_at_period_end,
+        currentPeriodEnd: regenerationSubscriptions.current_period_end,
+        metadata: regenerationSubscriptions.metadata,
+      })
+      .from(regenerationSubscriptions)
+      .where(eq(regenerationSubscriptions.id, input.subscriptionId))
+      .limit(1);
+
+    if (!regeneration || regeneration.userId !== input.userId) {
+      throw createHttpError(404, "Subscription not found");
+    }
+    if (!regeneration.stripeSubscriptionId) {
+      throw createHttpError(400, "This subscription is not connected to Stripe yet.");
+    }
+    if (regeneration.cancelAtPeriodEnd) {
+      throw createHttpError(409, "Subscriptions scheduled to cancel cannot be paused.");
+    }
+    if (regeneration.status === "paused") {
+      throw createHttpError(409, "This subscription is already paused.");
+    }
+
+    const stripeSubscription = await stripe.subscriptions.update(regeneration.stripeSubscriptionId, {
+      pause_collection: {
+        behavior: "void",
+        resumes_at: resumesAt,
+      },
+    });
+
+    await db
+      .update(regenerationSubscriptions)
+      .set({
+        status: "paused",
+        access_state: "inactive",
+        priority_support: false,
+        cancel_at_period_end: false,
+        current_period_end: getStripeCurrentPeriodEnd(stripeSubscription, regeneration.currentPeriodEnd),
+        metadata: {
+          ...(parseObject(regeneration.metadata) ?? {}),
+          pauseRequestedAt: new Date().toISOString(),
+          pauseCollection: getStripePauseCollection(stripeSubscription) ?? {
+            behavior: "void",
+            resumesAt: resumesAtDate.toISOString(),
+          },
+        },
+        updated_at: new Date(),
+      })
+      .where(eq(regenerationSubscriptions.id, regeneration.id));
+  }
+
+  const refreshed = await listMemberRecurringSubscriptions(db, input.userId);
+  const updated = refreshed.find((item) =>
+    item.id === input.subscriptionId && item.kind === input.subscriptionType,
+  );
+
+  if (!updated) {
+    throw createHttpError(500, "Subscription was paused but could not be reloaded.");
   }
 
   return updated;

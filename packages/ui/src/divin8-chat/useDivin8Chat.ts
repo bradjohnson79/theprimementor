@@ -22,6 +22,7 @@ import {
   parseDivin8CategoryTags,
   extractDivin8TimelineTags,
 } from "@wisdom/utils";
+import { resolveNextSelectedThread } from "./selection";
 import type {
   Divin8ChatMessage,
   Divin8ChatMeta,
@@ -53,6 +54,8 @@ export interface UseDivin8ChatConfig {
   tier: Divin8ChatTier;
   language?: string;
   hideSummaryInPreviews?: boolean;
+  selectedThreadId?: string | null;
+  onSelectedThreadIdChange?: (threadId: string | null, options?: { replace?: boolean }) => void;
 }
 
 export interface UseDivin8ChatReturn {
@@ -439,12 +442,30 @@ export function classifySendError(error: unknown) {
   };
 }
 
+function isNotFoundError(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "status" in error
+    && (error as { status?: unknown }).status === 404,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
 export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn {
-  const { basePath, getToken, api, tier, language = "en", hideSummaryInPreviews } = config;
+  const {
+    basePath,
+    getToken,
+    api,
+    tier,
+    language = "en",
+    hideSummaryInPreviews,
+    selectedThreadId = null,
+    onSelectedThreadIdChange,
+  } = config;
 
   const [threads, setThreads] = useState<Divin8ConversationThread[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -506,6 +527,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   });
   const latestAssistantIdRef = useRef<string | null>(null);
   const loadRequestIdRef = useRef(0);
+  const latestLoadThreadIdRef = useRef<string | null>(null);
+  const didBootstrapRef = useRef(false);
+  const selectedThreadIdRef = useRef<string | null>(selectedThreadId);
+  const createConversationRef = useRef<(() => void) | null>(null);
 
   const inputText = activeThreadId ? draftsByThread[activeThreadId] ?? "" : "";
   const activeTimeline = activeThreadId ? timelineDraftsByThread[activeThreadId] ?? null : null;
@@ -575,6 +600,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   // -- Sync refs --
   useEffect(() => { activeThreadIdRef.current = activeThreadId; }, [activeThreadId]);
+  useEffect(() => { selectedThreadIdRef.current = selectedThreadId; }, [selectedThreadId]);
 
   useEffect(() => {
     if (!activeThreadId || !activeTimeline) {
@@ -757,7 +783,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
   }, [api, basePath, getToken]);
 
-  const refreshThreads = useCallback(async (preferredThreadId?: string) => {
+  const refreshThreads = useCallback(async () => {
     const token = await getToken();
     const res = (await api.get(`${basePath}/conversations`, token)) as Divin8ConversationsResponse;
     const next = res.threads.map((t) => mapThread(t, hideSummaryInPreviews));
@@ -769,14 +795,15 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     setUsageCount(res.usage.month_used ?? res.usage.used ?? 0);
     setUsageLimit(res.usage.limit ?? res.usage.seeker_limit ?? null);
     setUsagePeriodEnd(res.usage.period_end ?? null);
-    return preferredThreadId ?? next[0]?.id ?? null;
+    return next;
   }, [api, basePath, getToken, hideSummaryInPreviews]);
 
-  const loadConversation = useCallback(async (threadId: string) => {
+  const loadConversation = useCallback(async (threadId: string, options: { requestedFromUrl?: boolean } = {}) => {
     if (activeThreadIdRef.current && messageViewportRef.current) {
       scrollPositionsRef.current[activeThreadIdRef.current] = messageViewportRef.current.scrollTop;
     }
     activeThreadIdRef.current = threadId;
+    latestLoadThreadIdRef.current = threadId;
     setActiveThreadId(threadId);
     setIsLoadingThread(true);
     setThreadError(null);
@@ -790,7 +817,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     try {
       const token = await getToken();
       const detail = (await api.get(`${basePath}/conversations/${threadId}`, token)) as Divin8ConversationDetailResponse;
-      if (loadRequestIdRef.current !== requestId || activeThreadIdRef.current !== threadId) return;
+      if (loadRequestIdRef.current !== requestId || latestLoadThreadIdRef.current !== threadId || activeThreadIdRef.current !== threadId) return;
+      if (detail.thread.id !== threadId) {
+        throw new Error("Conversation detail returned mismatched thread ID");
+      }
       const mapped = detail.messages.map(mapStoredMessage);
       setMessages(mapped);
       setTimelineEvents(detail.timeline.map(mapTimelineEvent));
@@ -813,16 +843,34 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         return cur.some((t) => t.id === u.id) ? cur.map((t) => (t.id === u.id ? u : t)) : cur;
       });
     } catch (err) {
-      if (loadRequestIdRef.current !== requestId || activeThreadIdRef.current !== threadId) return;
+      if (loadRequestIdRef.current !== requestId || latestLoadThreadIdRef.current !== threadId || activeThreadIdRef.current !== threadId) return;
       setMessages([]);
       setTimelineEvents([]);
       setThreadError(err instanceof Error ? err.message : "Unable to load conversation");
+      if (options.requestedFromUrl && isNotFoundError(err)) {
+        const refreshed = await refreshThreads();
+        const remainingThreads = refreshed.filter((thread) => thread.id !== threadId);
+        const fallbackThreadId = resolveNextSelectedThread({
+          requestedThreadId: threadId,
+          activeThreadId: null,
+          remainingThreads,
+          isInitialBootstrap: false,
+          requestedThreadInvalid: true,
+        });
+        selectedThreadIdRef.current = fallbackThreadId;
+        onSelectedThreadIdChange?.(fallbackThreadId, { replace: true });
+        if (fallbackThreadId) {
+          void loadConversation(fallbackThreadId);
+        } else if (remainingThreads.length === 0) {
+          createConversationRef.current?.();
+        }
+      }
     } finally {
-      if (loadRequestIdRef.current === requestId && activeThreadIdRef.current === threadId) {
+      if (loadRequestIdRef.current === requestId && latestLoadThreadIdRef.current === threadId && activeThreadIdRef.current === threadId) {
         setIsLoadingThread(false);
       }
     }
-  }, [api, basePath, getToken, hideSummaryInPreviews]);
+  }, [api, basePath, getToken, hideSummaryInPreviews, onSelectedThreadIdChange, refreshThreads]);
 
   const handleCreateConversation = useCallback(async () => {
     setIsCreatingThread(true);
@@ -843,9 +891,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         hideSummaryInPreviews,
       );
       activeThreadIdRef.current = created.id;
+      latestLoadThreadIdRef.current = created.id;
+      selectedThreadIdRef.current = created.id;
       pendingScrollRestoreRef.current = { threadId: created.id, mode: "bottom" };
       setThreads((cur) => [created, ...cur.filter((t) => t.id !== created.id)]);
       setActiveThreadId(created.id);
+      onSelectedThreadIdChange?.(created.id);
       setMessages([]);
       setTimelineEvents([]);
       setDraftsByThread((cur) => ({ ...cur, [created.id]: "" }));
@@ -854,7 +905,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     } finally {
       setIsCreatingThread(false);
     }
-  }, [api, basePath, clearImageSelection, getToken, hideSummaryInPreviews]);
+  }, [api, basePath, clearImageSelection, getToken, hideSummaryInPreviews, onSelectedThreadIdChange]);
+
+  createConversationRef.current = () => { void handleCreateConversation(); };
 
   const insertProfileTag = useCallback((tag: string) => {
     const current = inputText.trim();
@@ -946,15 +999,27 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   useEffect(() => {
     let cancelled = false;
     async function boot() {
+      if (didBootstrapRef.current) return;
+      didBootstrapRef.current = true;
       setIsBootstrapping(true);
       try {
-        const [preferred] = await Promise.all([
+        const [nextThreads] = await Promise.all([
           refreshThreads(),
           refreshProfiles(),
         ]);
         if (cancelled) return;
+        const requestedThreadId = selectedThreadIdRef.current ?? activeThreadIdRef.current;
+        const preferred = resolveNextSelectedThread({
+          requestedThreadId,
+          activeThreadId: null,
+          remainingThreads: nextThreads,
+          isInitialBootstrap: true,
+        });
         if (preferred) {
-          await loadConversation(preferred);
+          if (!requestedThreadId) {
+            onSelectedThreadIdChange?.(preferred, { replace: true });
+          }
+          await loadConversation(preferred, { requestedFromUrl: Boolean(requestedThreadId) });
         } else {
           await handleCreateConversation();
         }
@@ -964,7 +1029,14 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
     void boot();
     return () => { cancelled = true; };
-  }, [handleCreateConversation, loadConversation, refreshProfiles, refreshThreads]);
+  }, [handleCreateConversation, loadConversation, onSelectedThreadIdChange, refreshProfiles, refreshThreads]);
+
+  useEffect(() => {
+    if (!didBootstrapRef.current || !selectedThreadId || selectedThreadId === activeThreadIdRef.current) {
+      return;
+    }
+    void loadConversation(selectedThreadId, { requestedFromUrl: true });
+  }, [loadConversation, selectedThreadId]);
 
   // -- Send message --
   const sendMessageInternal = useCallback(
@@ -1171,29 +1243,67 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   }
 
   function handleSelectConversation(threadId: string) {
-    if (threadId === activeThreadId) return;
+    if (threadId === activeThreadId && !threadError) return;
     clearImageSelection();
+    selectedThreadIdRef.current = threadId;
+    onSelectedThreadIdChange?.(threadId);
     void loadConversation(threadId);
   }
 
   function handleArchiveConversation() {
     if (!archiveTarget || archivingThreadId) return;
-    setArchivingThreadId(archiveTarget.id);
+    const deletedThreadId = archiveTarget.id;
+    setArchivingThreadId(deletedThreadId);
     void (async () => {
       try {
         const token = await getToken();
-        await api.del(`${basePath}/conversations/${archiveTarget.id}`, token);
-        setThreads((cur) => cur.filter((t) => t.id !== archiveTarget.id));
-        setSearchResults((cur) => cur?.filter((t) => t.id !== archiveTarget.id) ?? null);
-        if (activeThreadId === archiveTarget.id) {
+        await api.del(`${basePath}/conversations/${deletedThreadId}`, token);
+        const wasActiveThread = activeThreadIdRef.current === deletedThreadId;
+        const remainingThreads = threads.filter((t) => t.id !== deletedThreadId);
+        setThreads(remainingThreads);
+        setSearchResults((cur) => cur?.filter((t) => t.id !== deletedThreadId) ?? null);
+
+        if (wasActiveThread) {
+          const fallbackThreadId = resolveNextSelectedThread({
+            activeThreadId: deletedThreadId,
+            deletedThreadId,
+            remainingThreads,
+            isInitialBootstrap: false,
+          });
+          loadRequestIdRef.current += 1;
+          latestLoadThreadIdRef.current = fallbackThreadId;
+          selectedThreadIdRef.current = fallbackThreadId;
           setActiveThreadId(null);
           activeThreadIdRef.current = null;
+          onSelectedThreadIdChange?.(fallbackThreadId, { replace: true });
           setMessages([]);
           setTimelineEvents([]);
           setDebugMeta(null);
           setThreadError(null);
+          setDraftsByThread((cur) => {
+            const rest = { ...cur };
+            delete rest[deletedThreadId];
+            return rest;
+          });
+          setTimelineDraftsByThread((cur) => {
+            const rest = { ...cur };
+            delete rest[deletedThreadId];
+            return rest;
+          });
+          setProfileTagsByThread((cur) => {
+            const rest = { ...cur };
+            delete rest[deletedThreadId];
+            return rest;
+          });
+          delete scrollPositionsRef.current[deletedThreadId];
+          clearImageSelection();
+
+          if (fallbackThreadId) {
+            void loadConversation(fallbackThreadId);
+          } else {
+            void handleCreateConversation();
+          }
         }
-        clearImageSelection();
         setArchiveNotice("Conversation deleted");
         setArchiveTarget(null);
       } finally {

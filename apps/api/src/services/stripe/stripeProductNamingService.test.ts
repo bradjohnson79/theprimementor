@@ -11,7 +11,7 @@ test("resolveStripeProductNaming names session products by duration and type", (
 });
 
 test("resolveStripeProductNaming uses canonical Divin8 report names", () => {
-  assert.equal(resolveStripeProductNaming({ type: "report", reportType: "intro" }).productName, "Seeker Divin8 Report");
+  assert.equal(resolveStripeProductNaming({ type: "report", reportType: "intro" }).productName, "Introductory Divin8 Report");
   assert.equal(resolveStripeProductNaming({ type: "report", reportType: "deep_dive" }).productName, "Deep Dive Divin8 Report");
   assert.equal(resolveStripeProductNaming({ type: "report", reportType: "initiate" }).productName, "Initiate Divin8 Report");
   assert.equal(resolveStripeProductNaming({ type: "report", reportType: "three_questions" }).productName, "3 Questions Divin8 Report");

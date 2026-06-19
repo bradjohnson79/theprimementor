@@ -60,7 +60,7 @@ export interface StripeProductNamingResult {
 }
 
 const REPORT_DISPLAY_NAMES: Record<ReportProductKey, string> = {
-  intro: "Seeker Divin8 Report",
+  intro: "Introductory Divin8 Report",
   deep_dive: "Deep Dive Divin8 Report",
   initiate: "Initiate Divin8 Report",
   three_questions: "3 Questions Divin8 Report",
