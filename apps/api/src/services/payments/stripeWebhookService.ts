@@ -52,6 +52,13 @@ import {
   handleRegenerationSubscriptionDeleted,
   handleRegenerationSubscriptionUpdated,
 } from "../regenerationSubscriptionService.js";
+import {
+  reconcileCanceledPaymentIntent,
+  reconcileChargeDispute,
+  reconcileChargeRefunded,
+  reconcileCheckoutSessionExpired,
+  reconcileSucceededSessionPaymentIntent,
+} from "./stripeReconciliationService.js";
 
 type DbExecutor = {
   select: Database["select"];
@@ -2178,6 +2185,11 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
     case "checkout.session.completed":
       await handleCheckoutSessionCompleted(db, event.data.object as Stripe.Checkout.Session, logger);
       return;
+    case "checkout.session.expired": {
+      const result = await reconcileCheckoutSessionExpired(db as Database, event.data.object as Stripe.Checkout.Session);
+      logger.info({ eventId: event.id, result }, "stripe_checkout_session_expired_reconciled");
+      return;
+    }
     case "checkout.session.async_payment_failed":
       await handleManagedInvoiceAsyncCheckoutFailed(
         db,
@@ -2193,6 +2205,9 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
     case "invoice.payment_failed":
       await handleInvoiceStatus(db, event.data.object as Stripe.Invoice, "past_due", logger);
       return;
+    case "invoice.payment_action_required":
+      await handleInvoiceStatus(db, event.data.object as Stripe.Invoice, "past_due", logger);
+      return;
     case "payment_intent.payment_failed":
       await handleManagedInvoicePaymentIntentFailed(
         db,
@@ -2201,6 +2216,11 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
         event.id,
       );
       return;
+    case "payment_intent.canceled": {
+      const result = await reconcileCanceledPaymentIntent(db as Database, event.data.object as Stripe.PaymentIntent);
+      logger.info({ eventId: event.id, result }, "stripe_payment_intent_canceled_reconciled");
+      return;
+    }
     case "payment_intent.succeeded":
       if (await handleRegenerationPaymentIntentSucceeded(db as Database, event.data.object as Stripe.PaymentIntent, logger)) {
         return;
@@ -2208,8 +2228,26 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
       if (await handleReportPaymentIntentSucceeded(db, event.data.object as Stripe.PaymentIntent, logger)) {
         return;
       }
+      {
+        const result = await reconcileSucceededSessionPaymentIntent(db as Database, event.data.object as Stripe.PaymentIntent);
+        if (result.outcome !== "ignored_entity_type") {
+          logger.info({ eventId: event.id, result }, "stripe_session_payment_intent_reconciled");
+          return;
+        }
+      }
       await handleSubscriptionInvoicePaymentIntentSucceeded(db, event.data.object as Stripe.PaymentIntent, logger);
       return;
+    case "charge.refunded": {
+      const result = await reconcileChargeRefunded(db as Database, event.data.object as Stripe.Charge);
+      logger.info({ eventId: event.id, result }, "stripe_charge_refunded_reconciled");
+      return;
+    }
+    case "charge.dispute.created":
+    case "charge.dispute.closed": {
+      const result = await reconcileChargeDispute(db as Database, event.data.object as Stripe.Dispute, event.type);
+      logger.info({ eventId: event.id, result }, "stripe_charge_dispute_reconciled");
+      return;
+    }
     case "charge.failed":
       await handleManagedInvoiceChargeFailed(
         db,

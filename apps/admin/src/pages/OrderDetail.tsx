@@ -1628,6 +1628,14 @@ export default function OrderDetail() {
               <dd className="text-white/85">{renderValue(order.payment_status ?? order.status)}</dd>
             </div>
             <div>
+              <dt className="text-xs text-white/40">Payment Source</dt>
+              <dd className="text-white/85">{renderValue(order.metadata.payment_source)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Sync Status</dt>
+              <dd className="text-white/85">{renderValue(order.metadata.payment_sync_status)}</dd>
+            </div>
+            <div>
               <dt className="text-xs text-white/40">Refunded At</dt>
               <dd className="text-white/85">{order.refunded_at ? formatOrderDate(order.refunded_at) : "—"}</dd>
             </div>
@@ -1642,6 +1650,10 @@ export default function OrderDetail() {
             <div>
               <dt className="text-xs text-white/40">Payment Match</dt>
               <dd className="text-white/85">{getPaymentMatchLabel(order.metadata.payment_match_strategy)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/40">Stripe Checkout Session ID</dt>
+              <dd className="break-all text-white/85">{renderValue(order.metadata.stripe_checkout_session_id)}</dd>
             </div>
             <div>
               <dt className="text-xs text-white/40">Invoice ID</dt>

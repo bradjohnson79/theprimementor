@@ -236,6 +236,10 @@ export interface AdminOrder {
     failure_message_normalized: string | null;
     last_payment_attempt_at: string | null;
     payment_match_strategy: string | null;
+    payment_source?: string | null;
+    payment_sync_status?: string | null;
+    stripe_checkout_session_id?: string | null;
+    manual_paid?: boolean | null;
     /** From payment.metadata when admin sent a Stripe recovery invoice (report checkout fallback). */
     recovery_invoice_id: string | null;
     recovery_invoice_sent_at: string | null;
@@ -1200,6 +1204,23 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
   );
   const createdAt = payment?.createdAt ?? candidate.sourceCreatedAt;
   const productName = resolveAdminOrderProductName(candidate, payment);
+  const paymentMetadata = payment?.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+    ? payment.metadata as Record<string, unknown>
+    : null;
+  const paymentSource = paymentMetadata?.manuallyMarkedPaid === true
+    ? "manual_paid"
+    : payment?.providerPaymentIntentId
+      ? "stripe_confirmed"
+      : payment?.status === "refunded"
+        ? "refunded"
+        : payment
+          ? "pending_reconciliation"
+          : "missing_payment";
+  const paymentSyncStatus = payment?.status === "paid" && !payment.providerPaymentIntentId && paymentSource !== "manual_paid"
+    ? "mismatch"
+    : paymentSource === "pending_reconciliation" && sourceStatus === "paid"
+      ? "mismatch"
+      : paymentSource;
 
   return {
     id: candidate.id,
@@ -1231,6 +1252,10 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
       ...candidate.metadata,
       product_name: productName,
       payment_match_strategy: paymentMatchStrategy,
+      payment_source: paymentSource,
+      payment_sync_status: paymentSyncStatus,
+      stripe_checkout_session_id: getString(paymentMetadata?.stripeCheckoutSessionId),
+      manual_paid: paymentSource === "manual_paid",
       ...extractRecoveryInvoiceMetadata(payment?.metadata ?? null),
     },
   };
@@ -2535,6 +2560,15 @@ function createPersistedAdminOrder(
     ?? linkedBooking?.timezone
     ?? null;
   const emptyIntake = createEmptyIntakeMetadata();
+  const persistedPaymentSource = row.stripePaymentIntentId ?? invoice?.stripePaymentIntentId
+    ? "stripe_confirmed"
+    : row.status === "refunded"
+      ? "refunded"
+      : orderMetadata?.manuallyMarkedPaid === true || orderMetadata?.manualPaid === true
+        ? "manual_paid"
+        : row.paymentReference
+          ? "stripe_confirmed"
+          : "pending_reconciliation";
 
   return {
     id: getOrderId(normalizedType, row.id),
@@ -2635,6 +2669,10 @@ function createPersistedAdminOrder(
       price_snapshot_currency: getString(orderMetadata?.price_snapshot_currency),
       invoice_timeline: Array.isArray(orderMetadata?.invoice_timeline) ? orderMetadata.invoice_timeline : [],
       payment_match_strategy: "persisted_order",
+      payment_source: persistedPaymentSource,
+      payment_sync_status: persistedPaymentSource,
+      stripe_checkout_session_id: row.paymentReference?.startsWith("cs_") ? row.paymentReference : invoice?.stripeCheckoutSessionId ?? null,
+      manual_paid: persistedPaymentSource === "manual_paid",
     },
   };
 }

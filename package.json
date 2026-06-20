@@ -14,6 +14,7 @@
     "db:seed-admin": "pnpm --filter @wisdom/db seed-admin --",
     "stripe:backfill": "pnpm --filter @wisdom/api stripe:backfill --",
     "stripe:backfill:dry-run": "pnpm --filter @wisdom/api stripe:backfill:dry-run",
+    "reconcile:stripe": "pnpm --filter @wisdom/api reconcile:stripe --",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

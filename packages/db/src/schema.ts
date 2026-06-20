@@ -480,6 +480,9 @@ export const payments = pgTable("payments", {
   statusCreatedIdx: index("payments_status_created_idx").on(table.status, table.created_at),
   bookingIdx: index("payments_booking_idx").on(table.booking_id),
   entityIdx: index("payments_entity_idx").on(table.entity_type, table.entity_id),
+  providerPaymentIntentUnique: uniqueIndex("payments_provider_payment_intent_uidx")
+    .on(table.provider_payment_intent_id)
+    .where(sql`${table.provider_payment_intent_id} is not null`),
 }));
 
 export const stripeCustomers = pgTable("stripe_customers", {

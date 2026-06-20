@@ -198,6 +198,10 @@ export interface AdminOrder {
     failure_message_normalized: string | null;
     last_payment_attempt_at: string | null;
     payment_match_strategy: string | null;
+    payment_source?: string | null;
+    payment_sync_status?: string | null;
+    stripe_checkout_session_id?: string | null;
+    manual_paid?: boolean | null;
     recovery_invoice_id: string | null;
     recovery_invoice_sent_at: string | null;
     recovery_invoice_hosted_url: string | null;

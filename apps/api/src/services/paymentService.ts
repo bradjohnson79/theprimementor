@@ -28,6 +28,7 @@ import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { createHttpError } from "./booking/errors.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
+import { buildStripeReferenceMetadata } from "./payments/stripeReferenceMetadata.js";
 import { createOrReuseMentoringCircleBooking } from "./booking/bookingService.js";
 import {
   getActiveMentoringCirclePurchaseEvent,
@@ -107,6 +108,18 @@ function buildCheckoutMetadata(
   },
 ): Record<string, string> {
   const metadata: Record<string, string> = {
+    ...buildStripeReferenceMetadata({
+      entityType: input.type,
+      entityId: input.entityId.trim(),
+      userId: input.userId.trim(),
+      userEmail: input.userEmail.trim(),
+      clerkId: input.clerkId.trim(),
+      bookingId: input.bookingId,
+      reportId: input.reportId,
+      membershipId: input.membershipId,
+      environment: getMembershipCheckoutEnvironment(),
+      platform: MEMBERSHIP_CHECKOUT_APP,
+    }),
     userId: input.userId.trim(),
     userEmail: input.userEmail.trim(),
     clerkId: input.clerkId.trim(),
