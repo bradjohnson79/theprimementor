@@ -8,6 +8,7 @@ export interface GuidedSessionDurationOption {
   minutes: number;
   priceCents: number;
   currency: "CAD";
+  description: string;
 }
 
 export interface GuidedSessionOption {
@@ -52,6 +53,7 @@ function buildGuidedSessionOption(sessionType: GuidedSessionType): GuidedSession
         minutes: offering.durationMinutes ?? 0,
         priceCents: offering.amountCents,
         currency: offering.currency,
+        description: offering.description,
       })),
   };
 }

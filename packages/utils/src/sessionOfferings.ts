@@ -21,6 +21,30 @@ export interface SessionOffering {
   tooltip?: string;
 }
 
+const QA_SESSION_45_DESCRIPTION = [
+  "A 45-minute Q&A Session gives us more room to move beyond the surface of a question and into the patterns underneath it. This is ideal when you have a few connected topics to explore, want greater clarity around a decision, or need time to unpack a situation without rushing through it.",
+  "You can bring questions around spiritual direction, relationships, life changes, personal challenges, manifestation, work, creativity, or anything else presently asking for clearer perspective. The format remains open and conversational, while allowing enough time for deeper reflection, practical insight, and a more complete response.",
+  "This is not a structured Divin8 reading or full Mentoring Session. It is a flexible space for focused questions, meaningful dialogue, and direct guidance when you want more than a quick answer but do not require a full blueprint-level session.",
+].join("\n\n");
+
+const QA_SESSION_60_DESCRIPTION = [
+  "The 60-minute Q&A Session is a longer open-format conversation for when you want to explore a larger situation from several angles. It is well suited for periods of transition, important choices, multiple connected questions, or a deeper discussion that benefits from time, context, and a more spacious pace.",
+  "This session allows us to move through the heart of what you are facing, examine the perspectives around it, and give your questions the attention they deserve. You may bring personal, spiritual, relational, career, creative, or life-direction concerns and use the hour as an open container for clarity, insight, and grounded next steps.",
+  "This is still not a formal Divin8 reading or the full structured Mentoring Session. Think of it as an extended direct-access conversation: more room to ask, explore, reflect, and leave with a clearer sense of where you are and what matters next.",
+].join("\n\n");
+
+const MENTORING_SESSION_45_DESCRIPTION = [
+  "The 45-minute Mentoring Session is a focused guided session for when you want meaningful support around one primary area of your life. It is designed to help you identify the core pattern at work, clarify the desired direction, and begin shifting your relationship with the challenge through Prime Mind principles and practical spiritual insight.",
+  "This is a strong choice when you have a specific goal, obstacle, emotional pattern, relationship issue, or life decision that needs concentrated attention. We work directly with the material that is most alive for you, bringing clarity to what is creating friction and what inner orientation better supports movement forward.",
+  "While shorter than the 90-minute Mentoring Session, this is still a true mentoring experience rather than an open Q&A. It is best for a focused reset, a single priority, or a targeted course correction.",
+].join("\n\n");
+
+const MENTORING_SESSION_90_DESCRIPTION = [
+  "The 90-minute Mentoring Session is the most comprehensive private session for deeper transformation, expanded self-understanding, and sustained movement in a chosen area of life. This longer format gives us room to explore your current circumstances, core patterns, personal blueprint, goals, and the deeper assumptions shaping your experience.",
+  "Together, we can work through multiple layers of a situation rather than stopping at the first answer. This may include exploring natal-chart or Divin8-informed themes, recurring emotional or behavioral patterns, manifestation goals, relationship dynamics, life direction, and practical ways to enter greater harmony with your preferred state of being.",
+  "This session is ideal when you are ready to go further: to understand not only what is happening, but why it continues, what must shift internally, and how to establish a more stable foundation for meaningful change. It is structured, personal, and designed to support real long-term movement rather than a quick insight alone.",
+].join("\n\n");
+
 export const CANONICAL_SESSION_OFFERINGS = [
   {
     productKey: "qa-session-30",
@@ -56,7 +80,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "guided_session",
     schedulingRequired: true,
     tooltip: "This session allows you to ask any questions you want and receive direct clarity from Brad Johnson.",
-    description: "An open, low-friction session for questions, clarity, and direct perspective when you want to lead the conversation.",
+    description: QA_SESSION_45_DESCRIPTION,
   },
   {
     productKey: "qa-session-60",
@@ -74,7 +98,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "guided_session",
     schedulingRequired: true,
     tooltip: "This session allows you to ask any questions you want and receive direct clarity from Brad Johnson.",
-    description: "An open, low-friction session for questions, clarity, and direct perspective when you want to lead the conversation.",
+    description: QA_SESSION_60_DESCRIPTION,
   },
   {
     productKey: "mentoring-session-45",
@@ -92,7 +116,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "guided_session",
     schedulingRequired: true,
     tooltip: "A focused mentoring session for blueprint insight, goal alignment, and practical direction.",
-    description: "A deeper guided session for blueprint insight, goal alignment, and practical mentoring through the Divin8 system.",
+    description: MENTORING_SESSION_45_DESCRIPTION,
   },
   {
     productKey: "wisdom-mentoring-90",
@@ -110,7 +134,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "guided_session",
     schedulingRequired: true,
     tooltip: "A full mentoring session for deeper blueprint insight, goal alignment, and practical direction.",
-    description: "A deeper guided session for blueprint insight, goal alignment, and practical mentoring through the Divin8 system.",
+    description: MENTORING_SESSION_90_DESCRIPTION,
   },
   {
     productKey: "regeneration-session",

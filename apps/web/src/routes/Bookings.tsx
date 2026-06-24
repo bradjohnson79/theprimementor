@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { motion } from "framer-motion";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { findTimezoneOption, getBrowserTimezoneName, getSuggestedTimezone } from "@wisdom/utils";
+import {
+  findTimezoneOption,
+  getActiveSessionOfferingByBookingTypeId,
+  getBrowserTimezoneName,
+  getSuggestedTimezone,
+} from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
@@ -177,6 +182,14 @@ function formatBookingTypeCardTitle(bookingType: BookingType) {
   return [option?.label ?? bookingType.name, bookingType.session_type === "regeneration" ? null : durationLabel]
     .filter(Boolean)
     .join(" — ");
+}
+
+function getBookingTypeCardDescription(bookingType: BookingType) {
+  const offeringDescription = getActiveSessionOfferingByBookingTypeId(bookingType.id)?.description;
+  if (offeringDescription) return offeringDescription;
+
+  return SESSION_TYPE_OPTIONS.find((item) => item.type === bookingType.session_type)?.description
+    ?? "A private session with Brad Johnson.";
 }
 
 function countSelectedAvailability(selection: AvailabilitySelection) {
@@ -1067,7 +1080,6 @@ export default function Bookings() {
 
             <div className="grid gap-4 md:grid-cols-2">
               {bookingTypes.map((bookingType) => {
-                const option = SESSION_TYPE_OPTIONS.find((item) => item.type === bookingType.session_type);
                 const isActive = selectedBookingTypeId === bookingType.id;
                 const priceLabel = resolveSessionCardPrice(bookingType.session_type, bookingType);
                 const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes);
@@ -1101,7 +1113,9 @@ export default function Bookings() {
                           {[priceLabel, durationLabel].filter(Boolean).join(" · ")}
                         </p>
                       ) : null}
-                      <p className="mt-2 flex-1 text-sm leading-6 text-white/60">{option?.description ?? "A private session with Brad Johnson."}</p>
+                      <p className="mt-2 flex-1 whitespace-pre-line text-sm leading-6 text-white/60">
+                        {getBookingTypeCardDescription(bookingType)}
+                      </p>
                       {bookingType.session_type === "regeneration" ? (
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/70">
                           Monthly subscription

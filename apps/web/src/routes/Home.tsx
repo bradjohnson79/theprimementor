@@ -365,6 +365,10 @@ function GuidedSessionSummary({
           <dt className="text-white/45">Price:</dt>
           <dd className="mt-1 text-base font-semibold text-amber-100">{formatGuidedSessionDisplayPrice(duration)}</dd>
         </div>
+        <div>
+          <dt className="text-white/45">Description:</dt>
+          <dd className="mt-2 whitespace-pre-line text-sm leading-7 text-white/68">{duration.description}</dd>
+        </div>
       </dl>
     </aside>
   );
