@@ -1,3 +1,4 @@
+import { CANONICAL_SESSION_OFFERINGS } from "@wisdom/utils";
 import type { SessionCheckoutType } from "./sessionCheckout.js";
 
 type BookingTypeStripePriceConfig = {
@@ -34,7 +35,27 @@ const LIVE_SESSION_PRICE_FALLBACKS: Record<SessionCheckoutType, string> = {
   qa_session: "price_1Te0tkAd5V3LaCqjaF1A19RZ",
 };
 
-const BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = {
+const CANONICAL_BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = Object.fromEntries(
+  CANONICAL_SESSION_OFFERINGS.map((offering) => [
+    offering.bookingTypeId,
+    {
+      standard: offering.stripePriceEnvKey ?? "",
+      live: offering.stripeLivePriceEnvKey ?? "",
+      liveFallback: offering.stripeLivePriceFallback,
+      ...(offering.bookingTypeId === "qa-session-30"
+        ? { legacyStandard: "STRIPE_PRICE_QA_SESSION", legacyLive: "STRIPE_LIVE_PRICE_QA_SESSION" }
+        : {}),
+      ...(offering.bookingTypeId === "wisdom-mentoring-90"
+        ? { legacyStandard: "STRIPE_PRICE_MENTORING", legacyLive: "STRIPE_LIVE_PRICE_MENTORING" }
+        : {}),
+      ...(offering.bookingTypeId === "regeneration-session"
+        ? { legacyStandard: "STRIPE_PRICE_REGENERATION", legacyLive: "STRIPE_LIVE_PRICE_REGENERATION" }
+        : {}),
+    },
+  ]),
+);
+
+const LEGACY_BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = {
   "focus-session-45": {
     standard: "STRIPE_PRICE_FOCUS_45",
     live: "STRIPE_LIVE_PRICE_FOCUS_45",
@@ -42,40 +63,11 @@ const BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> 
     legacyLive: "STRIPE_LIVE_PRICE_FOCUS",
     liveFallback: LIVE_SESSION_PRICE_FALLBACKS.focus,
   },
-  "qa-session-30": {
-    standard: "STRIPE_PRICE_QA_SESSION_30",
-    live: "STRIPE_LIVE_PRICE_QA_SESSION_30",
-    legacyStandard: "STRIPE_PRICE_QA_SESSION",
-    legacyLive: "STRIPE_LIVE_PRICE_QA_SESSION",
-    liveFallback: LIVE_SESSION_PRICE_FALLBACKS.qa_session,
-  },
-  "qa-session-45": {
-    standard: "STRIPE_PRICE_QA_SESSION_45",
-    live: "STRIPE_LIVE_PRICE_QA_SESSION_45",
-    liveFallback: "price_1Te0uFAd5V3LaCqjT7Cf7Gmg",
-  },
-  "qa-session-60": {
-    standard: "STRIPE_PRICE_QA_SESSION_60",
-    live: "STRIPE_LIVE_PRICE_QA_SESSION_60",
-    liveFallback: "price_1Te0ukAd5V3LaCqjDpn9oY0w",
-  },
-  "mentoring-session-45": {
-    standard: "STRIPE_PRICE_MENTORING_45",
-    live: "STRIPE_LIVE_PRICE_MENTORING_45",
-    liveFallback: LIVE_SESSION_PRICE_FALLBACKS.focus,
-  },
-  "wisdom-mentoring-90": {
-    standard: "STRIPE_PRICE_MENTORING_90",
-    live: "STRIPE_LIVE_PRICE_MENTORING_90",
-    legacyStandard: "STRIPE_PRICE_MENTORING",
-    legacyLive: "STRIPE_LIVE_PRICE_MENTORING",
-    liveFallback: LIVE_SESSION_PRICE_FALLBACKS.mentoring,
-  },
-  "regeneration-session": {
-    standard: "STRIPE_PRICE_REGENERATION",
-    live: "STRIPE_LIVE_PRICE_REGENERATION",
-    liveFallback: LIVE_SESSION_PRICE_FALLBACKS.regeneration,
-  },
+};
+
+const BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = {
+  ...LEGACY_BOOKING_TYPE_PRICE_ENV_KEYS,
+  ...CANONICAL_BOOKING_TYPE_PRICE_ENV_KEYS,
 };
 
 function isLiveStripeMode() {

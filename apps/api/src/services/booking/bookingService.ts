@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { bookings, bookingTypes, users, type Database } from "@wisdom/db";
-import { logger } from "@wisdom/utils";
+import { getActiveSessionOfferingByBookingTypeId, logger } from "@wisdom/utils";
 import { getBookingTypeForSessionTypeOrThrow, getBookingTypeOrThrow } from "./bookingTypesService.js";
 import { createHttpError } from "./errors.js";
 import {
@@ -822,6 +822,19 @@ async function findReusablePendingPaymentBooking(
 async function resolveBookingTypeAndSessionType(db: Database, input: CreateBookingInput) {
   if (input.bookingTypeId) {
     const bookingType = await getBookingTypeOrThrow(db, input.bookingTypeId);
+    const offering = getActiveSessionOfferingByBookingTypeId(bookingType.id);
+    if (offering) {
+      if (
+        bookingType.session_type !== offering.sessionType
+        || bookingType.duration_minutes !== (offering.durationMinutes ?? 0)
+        || bookingType.price_cents !== offering.amountCents
+        || bookingType.currency.toUpperCase() !== offering.currency
+      ) {
+        throw createHttpError(500, `Booking type ${bookingType.id} does not match the canonical session catalog`);
+      }
+    } else if (bookingType.session_type === "qa_session" || bookingType.session_type === "mentoring") {
+      throw createHttpError(400, "Invalid session duration selected");
+    }
     if (input.sessionType) {
       if (!isBookingSessionType(input.sessionType)) {
         throw createHttpError(400, "Invalid sessionType");

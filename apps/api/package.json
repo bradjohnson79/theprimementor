@@ -18,6 +18,7 @@
     "stripe:backfill": "tsx src/scripts/backfillStripeDescriptions.ts",
     "stripe:backfill:dry-run": "tsx src/scripts/backfillStripeDescriptions.ts --dry-run",
     "reconcile:stripe": "tsx src/scripts/reconcileStripe.ts",
+    "validate:session-catalog": "tsx src/scripts/validateSessionCatalog.ts",
     "verify": "pnpm build && pnpm test:enforce && pnpm test"
   },
   "dependencies": {

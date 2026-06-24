@@ -72,11 +72,6 @@ interface DetectedTimezoneResponse {
 
 type DetectedTimezoneSource = NonNullable<DetectedTimezoneResponse["data"]>["source"];
 
-const SESSION_CARD_PRICE_OVERRIDES: Partial<Record<SessionType, number>> = {
-  regeneration: 9900,
-  qa_session: 13900,
-};
-
 interface IntakeFormState {
   fullName: string;
   email: string;
@@ -158,16 +153,12 @@ function formatSessionPrice(priceCents: number, currency: string) {
 }
 
 function resolveSessionCardPrice(sessionType: SessionType, bookingType: BookingType | null) {
-  const overriddenPrice = SESSION_CARD_PRICE_OVERRIDES[sessionType];
-  if (typeof overriddenPrice === "number") {
-    return formatSessionPrice(overriddenPrice, bookingType?.currency ?? "CAD");
-  }
-
   if (!bookingType) {
     return null;
   }
 
-  return formatSessionPrice(bookingType.price_cents, bookingType.currency);
+  const formatted = formatSessionPrice(bookingType.price_cents, bookingType.currency);
+  return sessionType === "regeneration" ? `${formatted} / month` : formatted;
 }
 
 function formatSessionDuration(sessionType: SessionType, durationMinutes: number | null) {
@@ -178,6 +169,14 @@ function formatSessionDuration(sessionType: SessionType, durationMinutes: number
     return null;
   }
   return `${durationMinutes} mins`;
+}
+
+function formatBookingTypeCardTitle(bookingType: BookingType) {
+  const option = SESSION_TYPE_OPTIONS.find((item) => item.type === bookingType.session_type);
+  const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes);
+  return [option?.label ?? bookingType.name, bookingType.session_type === "regeneration" ? null : durationLabel]
+    .filter(Boolean)
+    .join(" — ");
 }
 
 function countSelectedAvailability(selection: AvailabilitySelection) {
@@ -265,19 +264,14 @@ export default function Bookings() {
     });
   });
 
-  const availableTypes = useMemo(
-    () => new Set(bookingTypes.map((item) => item.session_type)),
-    [bookingTypes],
-  );
-
   const selectedBookingType = useMemo(
     () => {
       if (selectedBookingTypeId) {
         return bookingTypes.find((item) => item.id === selectedBookingTypeId) ?? null;
       }
-      return bookingTypes.find((item) => item.session_type === selectedSessionType) ?? null;
+      return null;
     },
-    [bookingTypes, selectedBookingTypeId, selectedSessionType],
+    [bookingTypes, selectedBookingTypeId],
   );
 
   const availabilitySummary = useMemo(
@@ -379,6 +373,16 @@ export default function Bookings() {
     setPurchaseError(null);
     setSuccess(null);
   }, [location.pathname, searchParams]);
+
+  useEffect(() => {
+    if (selectedBookingTypeId || selectedSessionType !== "regeneration") {
+      return;
+    }
+    const regeneration = bookingTypes.find((item) => item.id === "regeneration-session") ?? null;
+    if (regeneration) {
+      setSelectedBookingTypeId(regeneration.id);
+    }
+  }, [bookingTypes, selectedBookingTypeId, selectedSessionType]);
 
   useEffect(() => {
     promo.reset();
@@ -890,7 +894,13 @@ export default function Bookings() {
         id: "session-choice",
         title: "Session Choice",
         items: [
-          { label: "Session", value: SESSION_TYPE_OPTIONS.find((option) => option.type === selectedSessionType)?.label ?? "Not selected yet" },
+          { label: "Session", value: selectedBookingType ? formatBookingTypeCardTitle(selectedBookingType) : "Not selected yet" },
+          {
+            label: "Duration",
+            value: selectedBookingType
+              ? formatSessionDuration(selectedBookingType.session_type, selectedBookingType.duration_minutes) ?? "Not selected yet"
+              : "Not selected yet",
+          },
           { label: "Pricing", value: selectedSessionType ? resolveSessionCardPrice(selectedSessionType, selectedBookingType) ?? "Available after selection" : "Available after selection" },
         ],
       },
@@ -1056,47 +1066,47 @@ export default function Bookings() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              {SESSION_TYPE_OPTIONS.map((option) => {
-                const isAvailable = availableTypes.has(option.type);
-                const isActive = selectedSessionType === option.type;
-                const bookingTypeForCard = bookingTypes.find((item) => item.session_type === option.type) ?? null;
-                const priceLabel = resolveSessionCardPrice(option.type, bookingTypeForCard);
-                const durationLabel = formatSessionDuration(option.type, bookingTypeForCard?.duration_minutes ?? null);
+              {bookingTypes.map((bookingType) => {
+                const option = SESSION_TYPE_OPTIONS.find((item) => item.type === bookingType.session_type);
+                const isActive = selectedBookingTypeId === bookingType.id;
+                const priceLabel = resolveSessionCardPrice(bookingType.session_type, bookingType);
+                const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes);
                 return (
                   <motion.button
-                    key={option.type}
+                    key={bookingType.id}
                     type="button"
-                    disabled={!isAvailable}
                     onClick={() => {
-                      setSelectedSessionType(option.type);
-                      setSelectedBookingTypeId(bookingTypeForCard?.id ?? null);
+                      setSelectedSessionType(bookingType.session_type);
+                      setSelectedBookingTypeId(bookingType.id);
                       setError(null);
                       setSuccess(null);
                       setSingleFieldError("sessionType");
                     }}
-                    whileTap={isAvailable ? { scale: 0.99 } : undefined}
+                    whileTap={{ scale: 0.99 }}
                     animate={isActive ? { scale: 1.03 } : { scale: 1 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                     className={`relative flex h-full min-h-[220px] flex-col overflow-hidden rounded-2xl border px-4 py-4 text-left transition ${
                       isActive
                         ? "border-amber-300/60 bg-accent-cyan/10 text-white shadow-[0_0_24px_rgba(34,211,238,0.14)]"
                         : "border-white/10 bg-white/5 text-white hover:border-white/25"
-                    } ${!isAvailable ? "cursor-not-allowed opacity-50" : ""}`}
+                    }`}
                   >
                     {isActive ? (
                       <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(250,204,21,0.12),transparent_60%)]" />
                     ) : null}
                     <div className="relative">
-                      <div className="text-base font-semibold">{option.label}</div>
+                      <div className="text-base font-semibold">{formatBookingTypeCardTitle(bookingType)}</div>
                       {priceLabel || durationLabel ? (
                         <p className="mt-2 min-h-[1.25rem] text-sm font-medium text-amber-200/90">
                           {[priceLabel, durationLabel].filter(Boolean).join(" · ")}
                         </p>
                       ) : null}
-                      <p className="mt-2 flex-1 text-sm leading-6 text-white/60">{option.description}</p>
-                      <div className="mt-4 min-h-[1rem]">
-                        {!isAvailable ? <p className="text-xs text-white/40">Not available yet</p> : null}
-                      </div>
+                      <p className="mt-2 flex-1 text-sm leading-6 text-white/60">{option?.description ?? "A private session with Brad Johnson."}</p>
+                      {bookingType.session_type === "regeneration" ? (
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/70">
+                          Monthly subscription
+                        </p>
+                      ) : null}
                     </div>
                   </motion.button>
                 );
@@ -1749,7 +1759,6 @@ export default function Bookings() {
   }, [
     availabilitySelection,
     availabilitySummary,
-    availableTypes,
     bookingTypes,
     detectedTimezoneSource,
     fieldErrors.availability,

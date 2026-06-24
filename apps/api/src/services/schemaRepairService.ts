@@ -721,6 +721,61 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     10,
     10,
     true
+  ),
+  (
+    'qa-session-45',
+    'Q&A Session',
+    'qa_session',
+    45,
+    18900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'qa-session-60',
+    'Q&A Session',
+    'qa_session',
+    60,
+    23900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'mentoring-session-45',
+    'Mentoring Session',
+    'mentoring',
+    45,
+    19900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'wisdom-mentoring-90',
+    'Mentoring Session',
+    'mentoring',
+    90,
+    29900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'regeneration-session',
+    'Regeneration Session',
+    'regeneration',
+    0,
+    9900,
+    'CAD',
+    10,
+    10,
+    true
   )
   ON CONFLICT ("id") DO UPDATE
   SET

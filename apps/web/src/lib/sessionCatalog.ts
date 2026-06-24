@@ -1,3 +1,5 @@
+import { CANONICAL_SESSION_OFFERINGS } from "@wisdom/utils";
+
 export type GuidedSessionIntakeType = "qa" | "mentoring";
 export type GuidedSessionType = "qa_session" | "mentoring";
 
@@ -19,8 +21,8 @@ export interface GuidedSessionOption {
 
 export const GUIDED_SESSION_BOOKING_PATH = "/sessions/live/book";
 
-export const GUIDED_SESSION_OPTIONS: GuidedSessionOption[] = [
-  {
+const GUIDED_SESSION_COPY: Record<GuidedSessionType, Omit<GuidedSessionOption, "durations">> = {
+  qa_session: {
     intakeType: "qa",
     sessionType: "qa_session",
     label: "Q&A Session",
@@ -28,13 +30,8 @@ export const GUIDED_SESSION_OPTIONS: GuidedSessionOption[] = [
       "This session allows you to ask any questions you want as you lead the session and receive clarity from Brad Johnson.",
     description:
       "An open, low-friction session for questions, clarity, and direct perspective when you want to lead the conversation.",
-    durations: [
-      { bookingTypeId: "qa-session-30", minutes: 30, priceCents: 13900, currency: "CAD" },
-      { bookingTypeId: "qa-session-45", minutes: 45, priceCents: 18900, currency: "CAD" },
-      { bookingTypeId: "qa-session-60", minutes: 60, priceCents: 23900, currency: "CAD" },
-    ],
   },
-  {
+  mentoring: {
     intakeType: "mentoring",
     sessionType: "mentoring",
     label: "Mentoring Session",
@@ -42,11 +39,26 @@ export const GUIDED_SESSION_OPTIONS: GuidedSessionOption[] = [
       "This session is guided by Brad Johnson as he explores your soul blueprint through the Divin8 system and works as a mentor to help you achieve set goals.",
     description:
       "A deeper guided session for blueprint insight, goal alignment, and practical mentoring through the Divin8 system.",
-    durations: [
-      { bookingTypeId: "mentoring-session-45", minutes: 45, priceCents: 19900, currency: "CAD" },
-      { bookingTypeId: "wisdom-mentoring-90", minutes: 90, priceCents: 29900, currency: "CAD" },
-    ],
   },
+};
+
+function buildGuidedSessionOption(sessionType: GuidedSessionType): GuidedSessionOption {
+  return {
+    ...GUIDED_SESSION_COPY[sessionType],
+    durations: CANONICAL_SESSION_OFFERINGS
+      .filter((offering) => offering.active && offering.intakeFlow === "guided_session" && offering.sessionType === sessionType)
+      .map((offering) => ({
+        bookingTypeId: offering.bookingTypeId,
+        minutes: offering.durationMinutes ?? 0,
+        priceCents: offering.amountCents,
+        currency: offering.currency,
+      })),
+  };
+}
+
+export const GUIDED_SESSION_OPTIONS: GuidedSessionOption[] = [
+  buildGuidedSessionOption("qa_session"),
+  buildGuidedSessionOption("mentoring"),
 ];
 
 export const GUIDED_SESSION_TYPE_OPTIONS = GUIDED_SESSION_OPTIONS.map((option) => ({

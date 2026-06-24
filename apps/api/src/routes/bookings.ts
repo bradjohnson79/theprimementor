@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { logger } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
@@ -9,7 +10,10 @@ import {
   listBookingsForAdmin,
   listBookingsForUser,
 } from "../services/booking/bookingService.js";
-import { listActiveBookingTypes } from "../services/booking/bookingTypesService.js";
+import {
+  listActiveIntakeBookingTypes,
+  validateActiveCanonicalBookingTypeCatalog,
+} from "../services/booking/bookingTypesService.js";
 
 interface CreateBookingBody {
   bookingTypeId?: string;
@@ -50,7 +54,12 @@ interface ConfirmBookingBody {
 export async function bookingsRoutes(app: FastifyInstance) {
   app.get("/booking-types", { preHandler: requireAuth }, async () => {
     const db = requireDatabase(app.db);
-    return ok({ data: await listActiveBookingTypes(db) });
+    const validation = await validateActiveCanonicalBookingTypeCatalog(db);
+    if (!validation.ok) {
+      logger.error("booking_type_catalog_invalid", { errors: validation.errors });
+      throw new Error(`Booking type catalog is invalid: ${validation.errors.join("; ")}`);
+    }
+    return ok({ data: await listActiveIntakeBookingTypes(db) });
   });
 
   app.post<{ Body: CreateBookingBody }>("/bookings", { preHandler: requireAuth }, async (request, reply) => {

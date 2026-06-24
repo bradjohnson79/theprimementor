@@ -15,6 +15,7 @@
     "stripe:backfill": "pnpm --filter @wisdom/api stripe:backfill --",
     "stripe:backfill:dry-run": "pnpm --filter @wisdom/api stripe:backfill:dry-run",
     "reconcile:stripe": "pnpm --filter @wisdom/api reconcile:stripe --",
+    "validate:session-catalog": "pnpm --filter @wisdom/api validate:session-catalog",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

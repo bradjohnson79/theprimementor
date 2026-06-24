@@ -5,6 +5,7 @@ import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
   MENTOR_TRAINING_PACKAGES,
   MEMBER_PRICING,
+  getActiveSessionOfferingByBookingTypeId,
   logger,
   REPORT_PRODUCTS,
   isPremiumReportProduct,
@@ -410,6 +411,26 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
   }
 
   const stripe = getStripe();
+  const offering = getActiveSessionOfferingByBookingTypeId(booking.bookingTypeId);
+  if (offering) {
+    if (
+      booking.sessionType !== offering.sessionType
+      || booking.durationMinutes !== (offering.durationMinutes ?? 0)
+      || booking.amountCents !== offering.amountCents
+      || booking.currency.toUpperCase() !== offering.currency
+    ) {
+      logger.error("session_checkout_catalog_mismatch", {
+        bookingId,
+        bookingTypeId: booking.bookingTypeId,
+        sessionType: booking.sessionType,
+        durationMinutes: booking.durationMinutes,
+        amountCents: booking.amountCents,
+      });
+      throw createHttpError(500, "Selected session is misconfigured. Please contact support.");
+    }
+  } else if (booking.sessionType === "qa_session" || booking.sessionType === "mentoring") {
+    throw createHttpError(400, "Invalid session duration selected");
+  }
   let priceId: string;
   try {
     priceId = getBookingTypeStripePriceId(booking.bookingTypeId);
