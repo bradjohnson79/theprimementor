@@ -192,6 +192,7 @@ export interface AdminOrder {
       topics: string[];
       goals: string[];
       health_focus_areas: AdminOrderHealthFocusArea[];
+      manifestation_intention: string | null;
       manifestation_enhancement_selected: boolean | null;
       manifestation_goals: string | null;
       manifestation_enhancement: AdminOrderManifestationEnhancement | null;
@@ -540,6 +541,7 @@ function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
     topics: [],
     goals: [],
     health_focus_areas: [],
+    manifestation_intention: null,
     manifestation_enhancement_selected: null,
     manifestation_goals: null,
     manifestation_enhancement: null,
@@ -1663,6 +1665,7 @@ function parseBookingIntake(value: unknown) {
     topics: normalizedTopics,
     goals: getStringArray(value.goals),
     healthFocusAreas: parseBookingHealthFocusAreas(value.healthFocusAreas),
+    manifestationIntention: getString(value.manifestationIntention),
     manifestationEnhancement: parseBookingManifestationEnhancement(value.manifestationEnhancement),
     other: getString(value.other),
     notes: getString(value.notes),
@@ -1997,6 +2000,7 @@ function createSessionCandidate(
   const topics = intakeSnapshot?.intake?.topics ?? intake?.topics ?? [];
   const goals = intakeSnapshot?.intake?.goals ?? intake?.goals ?? [];
   const healthFocusAreas = intakeSnapshot?.intake?.healthFocusAreas ?? intake?.healthFocusAreas ?? [];
+  const manifestationIntention = intakeSnapshot?.intake?.manifestationIntention ?? intake?.manifestationIntention ?? null;
   const manifestationEnhancement = intakeSnapshot?.intake?.manifestationEnhancement
     ?? intake?.manifestationEnhancement
     ?? null;
@@ -2008,7 +2012,11 @@ function createSessionCandidate(
   );
   const inferredSubmittedQuestions = buildQuestions(
     [other],
-    [topics, goals, healthFocusAreas.map((area) => `${area.name} (severity ${area.severity}/10)`)],
+    [
+      topics,
+      goals,
+      manifestationIntention ? [manifestationIntention] : healthFocusAreas.map((area) => `${area.name} (severity ${area.severity}/10)`),
+    ],
   );
   const submittedQuestions = intakeSnapshot?.submittedQuestions && intakeSnapshot.submittedQuestions.length > 0
     ? intakeSnapshot.submittedQuestions
@@ -2056,6 +2064,7 @@ function createSessionCandidate(
         topics,
         goals,
         health_focus_areas: healthFocusAreas,
+        manifestation_intention: manifestationIntention,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
         manifestation_goals: manifestationEnhancement?.intentions ?? null,
         manifestation_enhancement: manifestationEnhancement,
@@ -2621,6 +2630,7 @@ function createPersistedAdminOrder(
         topics: linkedBookingIntakeSnapshot?.intake?.topics ?? linkedBookingIntake?.topics ?? [],
         goals: linkedBookingIntakeSnapshot?.intake?.goals ?? linkedBookingIntake?.goals ?? [],
         health_focus_areas: linkedBookingIntakeSnapshot?.intake?.healthFocusAreas ?? linkedBookingIntake?.healthFocusAreas ?? [],
+        manifestation_intention: linkedBookingIntakeSnapshot?.intake?.manifestationIntention ?? linkedBookingIntake?.manifestationIntention ?? null,
         other: linkedBookingIntakeSnapshot?.intake?.other ?? linkedBookingIntake?.other ?? null,
         notes: linkedBookingIntakeSnapshot?.notes ?? linkedBookingIntake?.notes ?? linkedBooking?.notes ?? null,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,

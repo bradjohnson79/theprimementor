@@ -153,6 +153,7 @@ export interface UseDivin8ChatReturn {
 
 const GPT_LIVE_TAG_REGEX = /\[DIVIN8_GPT_LIVE_[^\]]+\]/g;
 const NEAR_BOTTOM_THRESHOLD = 100;
+const CHAT_STARTUP_TIMEOUT_MS = 20_000;
 const TIMELINE_LIMIT_MESSAGE = "⚠️ Only one timeline range can be used per reading.";
 const SEEKER_TIMELINE_MESSAGE = "⚠️ Timeline readings are available for Initiate members only.";
 
@@ -449,6 +450,56 @@ function isNotFoundError(error: unknown) {
     && "status" in error
     && (error as { status?: unknown }).status === 404,
   );
+}
+
+function createTimeoutError(label: string) {
+  const error = new Error(`${label} timed out. Please retry in a moment.`) as Error & { code?: string };
+  error.code = "DIVIN8_CHAT_TIMEOUT";
+  return error;
+}
+
+function withStartupTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(createTimeoutError(label)), CHAT_STARTUP_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+export function classifyLoadError(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+    ? error.code
+    : null;
+  const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
+    ? error.status
+    : null;
+  const message = error instanceof Error ? error.message : "";
+
+  if (code === "DIVIN8_CHAT_TIMEOUT") {
+    return "Divin8 chat is taking too long to load. Please retry in a moment.";
+  }
+  if (code === "AUTH_EXPIRED" || status === 401) {
+    return "Your session expired. Please log in again.";
+  }
+  if (status === 403) {
+    return "Your account does not currently have access to Divin8 chat.";
+  }
+  if (
+    error instanceof TypeError
+    || /Failed to fetch|Load failed|NetworkError|network request failed/i.test(message)
+  ) {
+    return "Connection issue while loading Divin8 chat. Check your internet, then try again.";
+  }
+  if (status && status >= 500) {
+    return "A technical issue interrupted Divin8 chat loading. Please try again in a moment.";
+  }
+
+  return message || "Unable to load Divin8 chat. Please try again.";
 }
 
 // ---------------------------------------------------------------------------
@@ -772,7 +823,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     setIsLoadingProfiles(true);
     try {
       const token = await getToken();
-      const res = (await api.get(`${basePath}/profiles`, token)) as Divin8ProfilesResponse;
+      const res = (await withStartupTimeout(
+        api.get(`${basePath}/profiles`, token),
+        "Divin8 profiles",
+      )) as Divin8ProfilesResponse;
       setProfiles((res.profiles ?? []).map(mapProfile));
       setProfileError(null);
     } catch (error) {
@@ -785,7 +839,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
 
   const refreshThreads = useCallback(async () => {
     const token = await getToken();
-    const res = (await api.get(`${basePath}/conversations`, token)) as Divin8ConversationsResponse;
+    const res = (await withStartupTimeout(
+      api.get(`${basePath}/conversations`, token),
+      "Divin8 conversations",
+    )) as Divin8ConversationsResponse;
     const next = res.threads.map((t) => mapThread(t, hideSummaryInPreviews));
     setThreads(next);
     setProfileTagsByThread((current) => ({
@@ -816,7 +873,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const requestId = ++loadRequestIdRef.current;
     try {
       const token = await getToken();
-      const detail = (await api.get(`${basePath}/conversations/${threadId}`, token)) as Divin8ConversationDetailResponse;
+      const detail = (await withStartupTimeout(
+        api.get(`${basePath}/conversations/${threadId}`, token),
+        "Divin8 conversation",
+      )) as Divin8ConversationDetailResponse;
       if (loadRequestIdRef.current !== requestId || latestLoadThreadIdRef.current !== threadId || activeThreadIdRef.current !== threadId) return;
       if (detail.thread.id !== threadId) {
         throw new Error("Conversation detail returned mismatched thread ID");
@@ -846,7 +906,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       if (loadRequestIdRef.current !== requestId || latestLoadThreadIdRef.current !== threadId || activeThreadIdRef.current !== threadId) return;
       setMessages([]);
       setTimelineEvents([]);
-      setThreadError(err instanceof Error ? err.message : "Unable to load conversation");
+      setThreadError(classifyLoadError(err));
       if (options.requestedFromUrl && isNotFoundError(err)) {
         const refreshed = await refreshThreads();
         const remainingThreads = refreshed.filter((thread) => thread.id !== threadId);
@@ -887,7 +947,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       }
       const token = await getToken();
       const created = mapThread(
-        (await api.post(`${basePath}/conversations`, undefined, token)) as Divin8ConversationSummaryResponse,
+        (await withStartupTimeout(
+          api.post(`${basePath}/conversations`, undefined, token),
+          "Divin8 conversation creation",
+        )) as Divin8ConversationSummaryResponse,
         hideSummaryInPreviews,
       );
       activeThreadIdRef.current = created.id;
@@ -902,6 +965,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       setDraftsByThread((cur) => ({ ...cur, [created.id]: "" }));
       setTimelineDraftsByThread((cur) => ({ ...cur, [created.id]: null }));
       setProfileTagsByThread((cur) => ({ ...cur, [created.id]: created.activeProfileTags }));
+    } catch (error) {
+      setMessages([]);
+      setTimelineEvents([]);
+      setThreadError(classifyLoadError(error));
     } finally {
       setIsCreatingThread(false);
     }
@@ -1022,6 +1089,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           await loadConversation(preferred, { requestedFromUrl: Boolean(requestedThreadId) });
         } else {
           await handleCreateConversation();
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessages([]);
+          setTimelineEvents([]);
+          setThreadError(classifyLoadError(error));
         }
       } finally {
         if (!cancelled) setIsBootstrapping(false);

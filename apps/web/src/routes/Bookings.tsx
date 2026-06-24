@@ -39,7 +39,6 @@ import {
   AVAILABILITY_DAYS,
   AVAILABILITY_DAY_LABELS,
   AVAILABILITY_SLOTS,
-  MAX_HEALTH_FOCUS_AREAS,
   MENTORING_GOALS,
   SESSION_TYPE_OPTIONS,
   SESSION_TYPE_ORDER,
@@ -85,17 +84,13 @@ interface IntakeFormState {
   birthTime: string;
   birthPlace: string;
   additionalNotes: string;
-  healthFocusAreas: Array<{ name: string; severity: string }>;
+  primaryManifestationIntention: string;
   mentoringTopics: string[];
   qaTopics: string;
   otherDetail: string;
   manifestationEnhancementSelected: boolean | null;
   manifestationIntentions: string;
   consentGiven: boolean;
-}
-
-function createEmptyHealthFocusAreas() {
-  return Array.from({ length: MAX_HEALTH_FOCUS_AREAS }, () => ({ name: "", severity: "" }));
 }
 
 function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormState {
@@ -107,7 +102,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     birthTime: "00:00",
     birthPlace: "",
     additionalNotes: "",
-    healthFocusAreas: createEmptyHealthFocusAreas(),
+    primaryManifestationIntention: "",
     mentoringTopics: [],
     qaTopics: "",
     otherDetail: "",
@@ -200,20 +195,9 @@ function hasSelectedAvailability(selection: AvailabilitySelection) {
   return countSelectedAvailability(selection) > 0;
 }
 
-function normalizeHealthFocusAreas(
-  areas: IntakeFormState["healthFocusAreas"],
-): HealthCondition[] {
-  return areas
-    .map((area) => ({
-      name: normalizeText(area.name),
-      severity: Number(area.severity),
-    }))
-    .filter((area) => area.name)
-    .map((area) => ({
-      name: area.name,
-      severity: area.severity,
-    }))
-    .filter((area) => Number.isInteger(area.severity));
+function buildRegenerationFocusAreas(primaryManifestationIntention: string): HealthCondition[] {
+  const name = normalizeText(primaryManifestationIntention);
+  return name ? [{ name, severity: 10 }] : [];
 }
 
 function RegenerationBillingNotice() {
@@ -307,8 +291,6 @@ export default function Bookings() {
   const requiresAvailabilitySelection = selectedSessionType ? sessionTypeRequiresAvailabilitySelection(selectedSessionType) : false;
   const isRegeneration = selectedSessionType === "regeneration";
   const isQA = selectedSessionType === "qa_session";
-  const manifestationEnhancementSuggested = isRegeneration
-    && searchParams.get("manifestationEnhancement") === "suggested";
   const suggestedTimezone = useMemo(
     () =>
       getSuggestedTimezone({
@@ -479,7 +461,7 @@ export default function Bookings() {
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.availability;
-      delete next.healthFocusAreas;
+      delete next.primaryManifestationIntention;
       delete next.mentoringTopics;
       delete next.otherDetail;
       delete next.manifestationEnhancementSelected;
@@ -488,7 +470,7 @@ export default function Bookings() {
     });
     setForm((current) => ({
       ...current,
-      healthFocusAreas: createEmptyHealthFocusAreas(),
+      primaryManifestationIntention: "",
       mentoringTopics: [],
       qaTopics: "",
       otherDetail: "",
@@ -573,20 +555,6 @@ export default function Bookings() {
     });
   }
 
-  function updateHealthCondition(index: number, patch: Partial<IntakeFormState["healthFocusAreas"][number]>) {
-    setForm((current) => ({
-      ...current,
-      healthFocusAreas: current.healthFocusAreas.map((area, currentIndex) => (
-        currentIndex === index ? { ...area, ...patch } : area
-      )),
-    }));
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.healthFocusAreas;
-      return next;
-    });
-  }
-
   function setManifestationEnhancementSelected(selected: boolean) {
     setForm((current) => ({
       ...current,
@@ -629,14 +597,8 @@ export default function Bookings() {
     }
 
     if (selectedSessionType === "regeneration") {
-      const namedAreas = form.healthFocusAreas.filter((area) => normalizeText(area.name));
-      if (namedAreas.length === 0) {
-        nextErrors.healthFocusAreas = "Please enter at least one regeneration focus.";
-      } else if (namedAreas.some((area) => {
-        const severity = Number(area.severity);
-        return !Number.isInteger(severity) || severity < 1 || severity > 10;
-      })) {
-        nextErrors.healthFocusAreas = "Each regeneration focus needs an intensity from 1 to 10.";
+      if (!normalizeText(form.primaryManifestationIntention)) {
+        nextErrors.primaryManifestationIntention = "Share the manifestation you want to work with.";
       }
       if (form.manifestationEnhancementSelected === null) {
         nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional first-month add-on.";
@@ -664,7 +626,8 @@ export default function Bookings() {
     }
 
     if (selectedSessionType === "regeneration") {
-      intake.healthFocusAreas = normalizeHealthFocusAreas(form.healthFocusAreas);
+      intake.manifestationIntention = normalizeText(form.primaryManifestationIntention);
+      intake.healthFocusAreas = buildRegenerationFocusAreas(form.primaryManifestationIntention);
       intake.manifestationEnhancement = {
         version: 1,
         selected: form.manifestationEnhancementSelected === true,
@@ -837,14 +800,14 @@ export default function Bookings() {
     }
 
     if (selectedSessionType === "regeneration") {
-      const namedAreas = form.healthFocusAreas.filter((area) => normalizeText(area.name));
-      if (namedAreas.length === 0) {
-        nextErrors.healthFocusAreas = "Add at least one regeneration focus so we know where to begin.";
-      } else if (namedAreas.some((area) => {
-        const severity = Number(area.severity);
-        return !Number.isInteger(severity) || severity < 1 || severity > 10;
-      })) {
-        nextErrors.healthFocusAreas = "Each regeneration focus needs an intensity between 1 and 10 before we continue.";
+      if (!normalizeText(form.primaryManifestationIntention)) {
+        nextErrors.primaryManifestationIntention = "Share the manifestation you want to work with before we continue.";
+      }
+      if (form.manifestationEnhancementSelected === null) {
+        nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional first-month add-on.";
+      }
+      if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
+        nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
       }
     }
 
@@ -853,17 +816,6 @@ export default function Bookings() {
       nextErrors.otherDetail = "Tell us a little more about what 'Other' means for you.";
     }
 
-    return createValidationResult(nextErrors);
-  }
-
-  function validateManifestationEnhancementStep() {
-    const nextErrors: ValidationErrors = {};
-    if (form.manifestationEnhancementSelected === null) {
-      nextErrors.manifestationEnhancementSelected = "Choose whether you would like to include the optional first-month add-on.";
-    }
-    if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
-      nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
-    }
     return createValidationResult(nextErrors);
   }
 
@@ -996,7 +948,7 @@ export default function Bookings() {
             label: selectedSessionType === "mentoring" ? "Mentoring goals" : "Regeneration Focus",
             value: selectedSessionType === "mentoring"
               ? (form.mentoringTopics.join(", ") || "Not selected yet")
-              : normalizeHealthFocusAreas(form.healthFocusAreas).map((area) => `${area.name} (${area.severity}/10)`).join(", ") || "Not added yet",
+              : normalizeText(form.primaryManifestationIntention) || "Not added yet",
           },
           {
             label: "Other Detail",
@@ -1048,11 +1000,11 @@ export default function Bookings() {
     form.consentGiven,
     form.email,
     form.fullName,
-    form.healthFocusAreas,
     form.manifestationEnhancementSelected,
     form.manifestationIntentions,
     form.mentoringTopics,
     form.otherDetail,
+    form.primaryManifestationIntention,
     form.qaTopics,
     form.phone,
     isRegeneration,
@@ -1492,7 +1444,9 @@ export default function Bookings() {
           validate: validateIntentStep,
           isComplete: () => {
             if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
-            return normalizeHealthFocusAreas(form.healthFocusAreas).length > 0;
+            return Boolean(normalizeText(form.primaryManifestationIntention))
+              && form.manifestationEnhancementSelected !== null
+              && (form.manifestationEnhancementSelected !== true || Boolean(normalizeText(form.manifestationIntentions)));
           },
           render: () => (
             <div className="space-y-4">
@@ -1534,37 +1488,89 @@ export default function Bookings() {
               ) : null}
 
               {isRegeneration ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="space-y-5 rounded-2xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm font-semibold text-white">Regeneration Focus</h3>
                   <p className="mt-2 text-sm text-white/60">
-                    Share the personal state, manifestation, or life area you want regenerated, safeguarded, and amplified.
+                    Share the manifestation you want to work with during this monthly cycle.
                   </p>
-                  <div className="mt-4 space-y-3">
-                    {form.healthFocusAreas.map((area, index) => (
-                      <div key={`health-focus-${index + 1}`} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-                        <input
-                          className={fieldClassName}
-                          type="text"
-                          value={area.name}
-                          onChange={(event) => updateHealthCondition(index, { name: event.target.value })}
-                          placeholder={`Focus ${index + 1}`}
-                        />
-                        <select
-                          className={`${fieldClassName} cursor-pointer`}
-                          value={area.severity}
-                          onChange={(event) => updateHealthCondition(index, { severity: event.target.value })}
-                        >
-                          <option value="" className="bg-slate-950">Intensity</option>
-                          {Array.from({ length: 10 }, (_, severityIndex) => severityIndex + 1).map((severity) => (
-                            <option key={severity} value={severity} className="bg-slate-950">
-                              {severity}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
+
+                  <FormField
+                    label="Manifestation Request"
+                    htmlFor="session-primary-manifestation"
+                    helperText="Describe the one manifestation, personal state, or life area you want regenerated, safeguarded, and amplified."
+                    errorText={fieldErrors.primaryManifestationIntention}
+                    isComplete={Boolean(normalizeText(form.primaryManifestationIntention))}
+                  >
+                    <textarea
+                      id="session-primary-manifestation"
+                      className={`${fieldClassName} min-h-[168px]`}
+                      rows={6}
+                      value={form.primaryManifestationIntention}
+                      onChange={(event) => setFormField("primaryManifestationIntention", event.target.value)}
+                      placeholder="Describe the manifestation you want to work with."
+                    />
+                  </FormField>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <h3 className="text-base font-semibold text-white">Would you like to add one additional manifestation request for your first month?</h3>
+                    <p className="mt-3 text-sm leading-7 text-white/62">
+                      For +$29 CAD, Brad can safeguard and amplify one extra desired outcome within the same monthly cycle.
+                    </p>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      {[
+                        {
+                          selected: true,
+                          title: "Yes - Add Additional Manifestation Request (+$29 CAD)",
+                          description: "Add one additional manifestation request during the first monthly cycle.",
+                        },
+                        {
+                          selected: false,
+                          title: "No - Continue with Regeneration Only",
+                          description: "Continue with the standard Regeneration Monthly Package.",
+                        },
+                      ].map((option) => {
+                        const active = form.manifestationEnhancementSelected === option.selected;
+                        return (
+                          <button
+                            key={option.title}
+                            type="button"
+                            onClick={() => setManifestationEnhancementSelected(option.selected)}
+                            className={`rounded-xl border px-4 py-4 text-left transition ${
+                              active
+                                ? "border-cyan-300/60 bg-cyan-400/12 text-white shadow-[0_0_22px_rgba(34,211,238,0.12)]"
+                                : "border-white/10 bg-white/[0.03] text-white/72 hover:border-white/20 hover:text-white"
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold">{option.title}</span>
+                            <span className="mt-2 block text-sm leading-6 text-white/58">{option.description}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {fieldErrors.manifestationEnhancementSelected ? (
+                      <p className="mt-3 text-sm text-amber-200">{fieldErrors.manifestationEnhancementSelected}</p>
+                    ) : null}
                   </div>
-                  {fieldErrors.healthFocusAreas ? <p className="mt-3 text-sm text-amber-200">{fieldErrors.healthFocusAreas}</p> : null}
+
+                  {form.manifestationEnhancementSelected === true ? (
+                    <FormField
+                      label="Additional Manifestation Request"
+                      htmlFor="session-manifestation-intentions"
+                      helperText="Describe the additional manifestation you would like supported, safeguarded, and amplified during this first monthly cycle."
+                      errorText={fieldErrors.manifestationIntentions}
+                      isComplete={Boolean(normalizeText(form.manifestationIntentions))}
+                    >
+                      <textarea
+                        id="session-manifestation-intentions"
+                        className={`${fieldClassName} min-h-[168px]`}
+                        rows={6}
+                        value={form.manifestationIntentions}
+                        onChange={(event) => setFormField("manifestationIntentions", event.target.value)}
+                        placeholder="Share the additional desired outcome you would like supported during this first monthly cycle."
+                      />
+                    </FormField>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1589,92 +1595,6 @@ export default function Bookings() {
             </div>
           ),
         },
-        ...(isRegeneration ? [{
-          id: "manifestation-enhancement",
-          title: "Optional First-Month Add-On",
-          guidance: "Choose whether you would like to add one additional manifestation request during your first monthly cycle.",
-          validate: validateManifestationEnhancementStep,
-          isComplete: () => form.manifestationEnhancementSelected !== null
-            && (form.manifestationEnhancementSelected !== true || Boolean(normalizeText(form.manifestationIntentions))),
-          render: () => (
-            <div className="space-y-5">
-              {manifestationEnhancementSuggested ? (
-                <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/8 px-5 py-4 text-sm leading-7 text-cyan-50/86">
-                  <p className="font-semibold uppercase tracking-[0.18em] text-cyan-100/80">Optional Enhancement Layer</p>
-                  <p className="mt-2">
-                    You can choose this add-on here if it feels aligned. It is not selected until you confirm it below.
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h3 className="text-base font-semibold text-white">Would you like to add one additional manifestation request for your first month?</h3>
-                <p className="mt-3 text-sm leading-7 text-white/62">
-                  For +$29 CAD, Brad can safeguard and amplify one extra desired outcome within the same monthly cycle.
-                </p>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  {[
-                    {
-                      selected: true,
-                      title: "Yes - Add Additional Manifestation Request (+$29 CAD)",
-                      description: "Add one additional manifestation request during the first monthly cycle.",
-                    },
-                    {
-                      selected: false,
-                      title: "No - Continue with Regeneration Only",
-                      description: "Continue with the standard Regeneration Monthly Package.",
-                    },
-                  ].map((option) => {
-                    const active = form.manifestationEnhancementSelected === option.selected;
-                    return (
-                      <button
-                        key={option.title}
-                        type="button"
-                        onClick={() => setManifestationEnhancementSelected(option.selected)}
-                        className={`rounded-xl border px-4 py-4 text-left transition ${
-                          active
-                            ? "border-cyan-300/60 bg-cyan-400/12 text-white shadow-[0_0_22px_rgba(34,211,238,0.12)]"
-                            : "border-white/10 bg-white/[0.03] text-white/72 hover:border-white/20 hover:text-white"
-                        }`}
-                      >
-                        <span className="block text-sm font-semibold">{option.title}</span>
-                        <span className="mt-2 block text-sm leading-6 text-white/58">{option.description}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {fieldErrors.manifestationEnhancementSelected ? (
-                  <p className="mt-3 text-sm text-amber-200">{fieldErrors.manifestationEnhancementSelected}</p>
-                ) : null}
-              </div>
-
-              {form.manifestationEnhancementSelected === true ? (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-cyan-300/18 bg-cyan-400/8 px-5 py-4 text-sm leading-7 text-cyan-50/86">
-                    Your additional manifestation request is held alongside your regeneration cycle for the first month as an optional layer of focused support.
-                  </div>
-                  <FormField
-                    label="Additional Manifestation Request"
-                    htmlFor="session-manifestation-intentions"
-                    helperText="What additional manifestation would you like supported, safeguarded, and amplified during this first monthly cycle?"
-                    errorText={fieldErrors.manifestationIntentions}
-                    isComplete={Boolean(normalizeText(form.manifestationIntentions))}
-                  >
-                    <textarea
-                      id="session-manifestation-intentions"
-                      className={`${fieldClassName} min-h-[168px]`}
-                      rows={6}
-                      value={form.manifestationIntentions}
-                      onChange={(event) => setFormField("manifestationIntentions", event.target.value)}
-                      placeholder="Share the additional desired outcome you would like supported during this first monthly cycle."
-                    />
-                  </FormField>
-                </div>
-              ) : null}
-            </div>
-          ),
-        }] : []),
         {
           id: "optional",
           title: "Optional inputs",
@@ -1717,7 +1637,9 @@ export default function Bookings() {
             {isRegeneration ? <RegenerationBillingNotice /> : null}
             <ReviewStep
               sections={reviewSections.map((section) => {
-                const targetStepId = section.id === "selected-services" ? "manifestation-enhancement" : section.id;
+                const targetStepId = section.id === "selected-services" || section.id === "manifestation-enhancement"
+                  ? "intent"
+                  : section.id;
                 const targetStepIndex = Math.max(0, nextSteps.findIndex((step) => step.id === targetStepId));
                 return {
                   ...section,
@@ -1781,18 +1703,17 @@ export default function Bookings() {
     fieldErrors.consentGiven,
     fieldErrors.email,
     fieldErrors.fullName,
-    fieldErrors.healthFocusAreas,
     fieldErrors.manifestationEnhancementSelected,
     fieldErrors.manifestationIntentions,
     fieldErrors.mentoringTopics,
     fieldErrors.otherDetail,
     fieldErrors.phone,
+    fieldErrors.primaryManifestationIntention,
     fieldErrors.sessionType,
     fieldErrors.timezone,
     form,
     isPlaceSelected,
     isRegeneration,
-    manifestationEnhancementSuggested,
     loadingTypes,
     placeSuggestions,
     fieldErrors.qaTopics,

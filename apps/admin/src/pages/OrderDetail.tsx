@@ -1541,6 +1541,10 @@ export default function OrderDetail() {
                 <dd className="text-white/85">{renderList(order.metadata.intake.goals)}</dd>
               </div>
               <div>
+                <dt className="text-xs text-white/40">Manifestation Request</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.manifestation_intention)}</dd>
+              </div>
+              <div>
                 <dt className="text-xs text-white/40">Health Focus Areas</dt>
                 <dd className="text-white/85">{renderHealthFocusAreas(order.metadata.intake.health_focus_areas)}</dd>
               </div>

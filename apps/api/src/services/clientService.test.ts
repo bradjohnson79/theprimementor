@@ -65,6 +65,7 @@ function makeOrder(input: {
         topics: [],
         goals: [],
         health_focus_areas: [],
+        manifestation_intention: null,
         manifestation_enhancement_selected: null,
         manifestation_goals: null,
         manifestation_enhancement: null,

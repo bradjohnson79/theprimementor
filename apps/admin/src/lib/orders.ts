@@ -157,6 +157,7 @@ export interface AdminOrder {
       topics: string[];
       goals: string[];
       health_focus_areas: AdminOrderHealthFocusArea[];
+      manifestation_intention: string | null;
       manifestation_enhancement_selected: boolean | null;
       manifestation_goals: string | null;
       manifestation_enhancement: AdminOrderManifestationEnhancement | null;

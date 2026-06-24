@@ -61,6 +61,7 @@ export interface BookingIntakePayload {
   topics?: string[] | string;
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];
+  manifestationIntention?: string;
   manifestationEnhancement?: BookingManifestationEnhancement;
   other?: string;
   notes?: string;

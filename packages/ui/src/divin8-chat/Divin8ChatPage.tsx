@@ -177,7 +177,11 @@ export default function Divin8ChatPage({
             isLightTheme={isLightTheme}
             onRetryMessage={chat.handleRetryMessage}
             onRetryLoad={() => {
-              if (chat.activeThreadId) chat.handleSelectConversation(chat.activeThreadId);
+              if (chat.activeThreadId) {
+                chat.handleSelectConversation(chat.activeThreadId);
+              } else {
+                chat.handleCreateConversation();
+              }
             }}
             showScrollToBottom={chat.showScrollToBottom}
             onScrollToBottom={() => chat.scrollToBottom("smooth")}

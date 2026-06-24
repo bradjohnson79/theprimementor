@@ -724,6 +724,10 @@ function buildNormalizedIntake(
   }
 
   if (sessionType === "regeneration") {
+    const manifestationIntention = normalizeText(intake.manifestationIntention);
+    if (manifestationIntention) {
+      normalized.manifestationIntention = manifestationIntention;
+    }
     const healthFocusAreas = normalizeHealthFocusAreas(intake.healthFocusAreas, {
       requireAtLeastOne: !allowAdminFallbacks,
     });
