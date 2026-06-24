@@ -19,6 +19,7 @@ interface ConversationListProps {
   onInsertProfileTag: (tag: string) => void;
   onDeleteProfile: (profileId: string) => void;
   onSelect: (threadId: string) => void;
+  onRenameRequest: (thread: Divin8ConversationThread, title: string) => void;
   onArchiveRequest: (thread: Divin8ConversationThread) => void;
   mode?: "all" | "conversations" | "profiles";
 }
@@ -46,6 +47,7 @@ export default function ConversationList({
   onInsertProfileTag,
   onDeleteProfile,
   onSelect,
+  onRenameRequest,
   onArchiveRequest,
   mode = "all",
 }: ConversationListProps) {
@@ -204,6 +206,25 @@ export default function ConversationList({
                             !isLightTheme ? { borderColor: "rgba(255,255,255,0.10)" } : undefined
                           }
                         >
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenMenuThreadId(null);
+                              const title = window.prompt("Rename conversation", thread.title);
+                              if (title !== null) {
+                                onRenameRequest(thread, title);
+                              }
+                            }}
+                            className={classNames(
+                              "w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                              isLightTheme
+                                ? "text-slate-700 hover:bg-slate-100"
+                                : "text-white/75 hover:bg-white/10",
+                            )}
+                          >
+                            Rename
+                          </button>
                           <button
                             type="button"
                             onClick={(event) => {

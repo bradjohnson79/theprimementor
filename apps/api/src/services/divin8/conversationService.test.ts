@@ -5,6 +5,7 @@ import {
   deleteConversationThread,
   getConversationDetail,
   listConversationThreads,
+  renameConversationThread,
 } from "./conversationService.js";
 
 type ThreadRow = typeof conversationThreads.$inferSelect;
@@ -153,6 +154,42 @@ function createFakeDb(input: {
           },
         };
       },
+      update(table: unknown) {
+        const patch: Record<string, unknown> = {};
+        return {
+          set(values: Record<string, unknown>) {
+            Object.assign(patch, values);
+            return this;
+          },
+          where(clause: unknown) {
+            const params = collectParamValues(clause);
+            const updated: unknown[] = [];
+            if (table === conversationThreads) {
+              const [threadId, userId, isArchived] = params;
+              state.threads = state.threads.map((thread) => {
+                if (
+                  thread.id === threadId
+                  && thread.user_id === userId
+                  && thread.is_archived === isArchived
+                ) {
+                  const next = {
+                    ...thread,
+                    ...patch,
+                  } as ThreadRow;
+                  updated.push(next);
+                  return next;
+                }
+                return thread;
+              });
+            }
+            return {
+              returning() {
+                return Promise.resolve(updated);
+              },
+            };
+          },
+        };
+      },
     } as unknown as Database,
   };
 }
@@ -222,4 +259,28 @@ test("deleting empty conversations leaves remaining conversations loadable and l
   assert.equal((await getConversationDetail(db, "thread-a", "user-1")).thread.id, "thread-a");
   assert.equal((await getConversationDetail(db, "thread-b", "user-1")).thread.id, "thread-b");
   assert.deepEqual((await listConversationThreads(db, "user-1", "admin")).threads.map((thread) => thread.id), ["thread-a", "thread-b"]);
+});
+
+test("renameConversationThread updates only the owned active conversation", async () => {
+  const { db, state } = createFakeDb({
+    threads: [
+      createThread({ id: "thread-a", user_id: "user-1", title: "Original Title" }),
+      createThread({ id: "thread-b", user_id: "user-2", title: "Other User" }),
+    ],
+    messages: [
+      createMessage({ id: "message-a", thread_id: "thread-a", content: "A" }),
+    ],
+  });
+
+  const renamed = await renameConversationThread(db, "thread-a", "  Renamed   Conversation  ", "user-1");
+
+  assert.equal(renamed.title, "Renamed Conversation");
+  assert.equal(renamed.message_count, 1);
+  assert.equal(state.threads.find((thread) => thread.id === "thread-a")?.title, "Renamed Conversation");
+  assert.equal(state.threads.find((thread) => thread.id === "thread-b")?.title, "Other User");
+
+  await assert.rejects(
+    () => renameConversationThread(db, "thread-b", "Should fail", "user-1"),
+    /Conversation not found/,
+  );
 });

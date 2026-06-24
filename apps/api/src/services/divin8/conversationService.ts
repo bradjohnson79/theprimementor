@@ -38,6 +38,7 @@ const DEFAULT_THREAD_TITLE = "New Conversation";
 const SUMMARY_FALLBACK_LIMIT = 160;
 const THREAD_EXECUTION_TIMEOUT_MS = 90_000;
 const THREAD_LOCK_NAMESPACE = 6418;
+const MAX_THREAD_TITLE_LENGTH = 80;
 
 interface ConversationThreadRow {
   id: string;
@@ -220,6 +221,20 @@ function clipSummary(content: string) {
 function buildThreadTitle(message: string) {
   const words = message.trim().split(/\s+/).filter(Boolean).slice(0, 6);
   return words.length > 0 ? words.join(" ") : DEFAULT_THREAD_TITLE;
+}
+
+function normalizeThreadTitle(value: unknown) {
+  if (typeof value !== "string") {
+    throw createHttpError(400, "Conversation title is required.");
+  }
+  const title = value.replace(/\s+/g, " ").trim();
+  if (!title) {
+    throw createHttpError(400, "Conversation title is required.");
+  }
+  if (title.length > MAX_THREAD_TITLE_LENGTH) {
+    throw createHttpError(400, `Conversation title must be ${MAX_THREAD_TITLE_LENGTH} characters or fewer.`);
+  }
+  return title;
 }
 
 function extractTitleKeywords(source: string) {
@@ -925,6 +940,37 @@ export async function deleteConversationThread(
     id: thread.id,
     deleted: true as const,
   };
+}
+
+export async function renameConversationThread(
+  db: Database,
+  threadId: string,
+  title: unknown,
+  userId = ADMIN_DIVIN8_USER_ID,
+) {
+  await getThreadRow(db, threadId, userId);
+  const normalizedTitle = normalizeThreadTitle(title);
+  const updatedAt = new Date();
+  const [updated] = await db
+    .update(conversationThreads)
+    .set({
+      title: normalizedTitle,
+      search_text: normalizedTitle,
+      updated_at: updatedAt,
+    })
+    .where(and(
+      eq(conversationThreads.id, threadId),
+      eq(conversationThreads.user_id, userId),
+      eq(conversationThreads.is_archived, false),
+    ))
+    .returning();
+
+  const messages = await getThreadMessages(db, threadId);
+  return threadSummaryFromRow(
+    updated as ConversationThreadRow,
+    messages.length > 0 ? clipPreview(messages[messages.length - 1].content) : null,
+    messages.length,
+  );
 }
 
 export async function getConversationDetail(db: Database, threadId: string, userId = ADMIN_DIVIN8_USER_ID): Promise<Divin8ConversationDetail> {

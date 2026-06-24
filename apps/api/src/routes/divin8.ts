@@ -26,6 +26,7 @@ import {
   getConversationDetail,
   getConversationTimeline,
   listConversationThreads,
+  renameConversationThread,
   searchConversationThreads,
 } from "../services/divin8/conversationService.js";
 
@@ -178,6 +179,15 @@ export async function divin8Routes(app: FastifyInstance) {
     return ok(await deleteConversationThread(app.db, request.params.id));
   });
 
+  app.post<{ Params: { id: string }; Body: { title?: unknown } }>(
+    "/divin8/conversations/:id/rename",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      return ok(await renameConversationThread(app.db, request.params.id, request.body?.title));
+    },
+  );
+
   app.post("/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);
     if (!request.body || typeof request.body !== "object") {
@@ -294,6 +304,15 @@ export async function divin8Routes(app: FastifyInstance) {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
     return ok(await deleteConversationThread(app.db, request.params.id, request.dbUser!.id));
   });
+
+  app.post<{ Params: { id: string }; Body: { title?: unknown } }>(
+    "/member/divin8/conversations/:id/rename",
+    { preHandler: requireAuth },
+    async (request) => {
+      await ensureMemberDivin8Access(app, request.dbUser!.id);
+      return ok(await renameConversationThread(app.db, request.params.id, request.body?.title, request.dbUser!.id));
+    },
+  );
 
   app.post("/member/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);

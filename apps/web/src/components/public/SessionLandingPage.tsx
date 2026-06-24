@@ -289,6 +289,50 @@ function OptionalManifestationEnhancement({
   return (
     <section className="relative border-b border-white/8 py-14">
       <div className="mx-auto max-w-6xl px-6">
+        <div className="mb-8">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">
+            Client Experiences
+          </p>
+          <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-[2.15rem]">
+            Regeneration and Manifestation Results
+          </h2>
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {[
+              {
+                quote:
+                  "After my consultation, my knees dont hurt anymore walking up the stairs to our house. my work with my contemplation on my feelings have come to an end, and i feel great!",
+                author: "Alice R.",
+              },
+              {
+                quote:
+                  "Within less than a week after Brad safeguarded my Manifestation, 5-figure income came to me. I'll be back for more manifestation safeguarding!",
+                author: "Jess S.",
+              },
+              {
+                quote:
+                  "Ever since day one of doing the manifestation with Brad, I felt my entire body alive. Meaning, I sensed improved circulation and sensations in places where I haven't felt in an long time, such as joints and muscles. I started working out doing HIIT and I felt great. I continue to do it with no pain, just the normal muscle soreness but even that, doesn't last long. My body feels recovered for the next day and ready to do another workout.",
+                author: "Yvan.",
+              },
+              {
+                quote:
+                  "I wanted to let you know that I received a check from my father's lawsuit, I have not received a check in years. I only had 27$ in my checking before that.",
+                author: "Judith C.",
+              },
+            ].map((testimonial) => (
+              <figure
+                key={testimonial.author}
+                className="rounded-2xl border border-cyan-200/14 bg-white/[0.045] p-5 shadow-[0_16px_42px_rgba(0,0,0,0.18)]"
+              >
+                <blockquote className="text-sm leading-7 text-white/72">
+                  "{testimonial.quote}"
+                </blockquote>
+                <figcaption className="mt-4 text-sm font-semibold text-cyan-100">
+                  ~ {testimonial.author}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
         <div className="overflow-hidden rounded-[1.5rem] border border-cyan-200/16 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025))] p-6 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:p-8">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-center">
             <div>

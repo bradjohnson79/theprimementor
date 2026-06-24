@@ -77,6 +77,7 @@ export default function Divin8ChatPage({
         void chat.handleDeleteProfile(profileId).catch(() => {});
       }}
       onSelect={chat.handleSelectConversation}
+      onRenameRequest={chat.handleRenameConversation}
       onArchiveRequest={chat.setArchiveTarget}
     />
   );
@@ -112,6 +113,7 @@ export default function Divin8ChatPage({
         chat.handleSelectConversation(threadId);
         setMobilePanel("chat");
       }}
+      onRenameRequest={chat.handleRenameConversation}
       onArchiveRequest={chat.setArchiveTarget}
       mode="conversations"
     />
@@ -148,6 +150,7 @@ export default function Divin8ChatPage({
         chat.handleSelectConversation(threadId);
         setMobilePanel("chat");
       }}
+      onRenameRequest={chat.handleRenameConversation}
       onArchiveRequest={chat.setArchiveTarget}
       mode="profiles"
     />

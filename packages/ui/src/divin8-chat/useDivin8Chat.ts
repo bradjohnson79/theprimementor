@@ -106,6 +106,7 @@ export interface UseDivin8ChatReturn {
 
   handleCreateConversation: () => void;
   handleSelectConversation: (threadId: string) => void;
+  handleRenameConversation: (thread: Divin8ConversationThread, title: string) => void;
   handleArchiveConversation: () => void;
   handleRetryMessage: (messageId: string) => void;
   handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -1323,6 +1324,43 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     void loadConversation(threadId);
   }
 
+  function handleRenameConversation(thread: Divin8ConversationThread, title: string) {
+    const normalizedTitle = title.replace(/\s+/g, " ").trim();
+    if (!normalizedTitle || normalizedTitle === thread.title) return;
+    void (async () => {
+      const token = await getToken();
+      const renamed = mapThread(
+        (await api.post(`${basePath}/conversations/${thread.id}/rename`, { title: normalizedTitle }, token)) as Divin8ConversationSummaryResponse,
+        hideSummaryInPreviews,
+      );
+      setThreads((current) => current.map((item) => (
+        item.id === renamed.id
+          ? {
+              ...item,
+              ...renamed,
+              summary: renamed.summary ?? item.summary,
+              preview: renamed.preview ?? item.preview,
+              messageCount: renamed.messageCount || item.messageCount,
+            }
+          : item
+      )));
+      setSearchResults((current) => current?.map((item) => (
+        item.id === renamed.id
+          ? {
+              ...item,
+              ...renamed,
+              summary: renamed.summary ?? item.summary,
+              preview: renamed.preview ?? item.preview,
+              messageCount: renamed.messageCount || item.messageCount,
+            }
+          : item
+      )) ?? null);
+      setArchiveNotice("Conversation renamed");
+    })().catch((error) => {
+      setThreadError(classifyLoadError(error));
+    });
+  }
+
   function handleArchiveConversation() {
     if (!archiveTarget || archivingThreadId) return;
     const deletedThreadId = archiveTarget.id;
@@ -1448,6 +1486,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     sendError,
     handleCreateConversation: () => { void handleCreateConversation(); },
     handleSelectConversation,
+    handleRenameConversation,
     handleArchiveConversation,
     handleRetryMessage,
     handleSubmit,
