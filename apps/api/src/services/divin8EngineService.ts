@@ -33,6 +33,7 @@ export interface Divin8Input {
   birth_date: string;
   birth_time?: string | null;
   birth_location: string;
+  timezone?: string | null;
   reading_type?: Divin8ReadingType | null;
   systems?: Divin8System[] | null;
   questions?: string[] | null;
@@ -266,7 +267,7 @@ export async function runDivin8Execution(input: Divin8Input): Promise<Divin8Exec
       birthLocation,
       birthDate: guest.birthDate,
       birthTime,
-      timezone: null,
+      timezone: getString(input.timezone) ?? getString(input.metadata?.timezone) ?? getString(input.metadata?.birth_timezone),
     });
     resolvedCoordinates = locationContext.coordinates;
     resolvedUtcOffsetMinutes = locationContext.utcOffsetMinutes;
@@ -297,6 +298,7 @@ export async function runDivin8Execution(input: Divin8Input): Promise<Divin8Exec
       systems: resolvedSystems,
       birth_time: getString(input.birth_time),
       birth_location: getString(input.birth_location) ?? input.birth_location,
+      timezone: getString(input.timezone),
     },
     output,
     blueprint,

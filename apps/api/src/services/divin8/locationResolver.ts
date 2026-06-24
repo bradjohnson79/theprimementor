@@ -9,6 +9,24 @@ export interface ResolvedBirthLocationContext {
 
 const locationCache = new Map<string, Promise<ResolvedBirthLocationContext>>();
 
+const TIMEZONE_ALIASES: Record<string, string> = {
+  IST: "Asia/Kolkata",
+  PST: "UTC-8",
+  PDT: "UTC-7",
+  MST: "UTC-7",
+  MDT: "UTC-6",
+  CST: "UTC-6",
+  CDT: "UTC-5",
+  EST: "UTC-5",
+  EDT: "UTC-4",
+};
+
+function normalizeTimezone(value: string | null): string | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return TIMEZONE_ALIASES[normalized.toUpperCase()] ?? normalized;
+}
+
 function parseUtcOffsetMinutes(value: string): number | null {
   const normalized = value.trim();
 
@@ -208,7 +226,11 @@ export async function resolveBirthLocationContext(input: {
   timezone: string | null;
   coordinates?: LocationCoordinates;
 }): Promise<ResolvedBirthLocationContext> {
-  const cacheKey = JSON.stringify(input);
+  const normalizedInput = {
+    ...input,
+    timezone: normalizeTimezone(input.timezone),
+  };
+  const cacheKey = JSON.stringify(normalizedInput);
   const cached = locationCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -216,32 +238,32 @@ export async function resolveBirthLocationContext(input: {
 
   const pending = (async () => {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim() || process.env.GOOGLE_MAPS_API_KEY?.trim();
-    const directOffset = input.timezone ? parseUtcOffsetMinutes(input.timezone) : null;
-    const ianaOffset = input.timezone && directOffset === null
-      ? getUtcOffsetMinutesForIana(input.timezone, input.birthDate, input.birthTime)
+    const directOffset = normalizedInput.timezone ? parseUtcOffsetMinutes(normalizedInput.timezone) : null;
+    const ianaOffset = normalizedInput.timezone && directOffset === null
+      ? getUtcOffsetMinutesForIana(normalizedInput.timezone, normalizedInput.birthDate, normalizedInput.birthTime)
       : null;
 
     let coordinates: LocationCoordinates;
-    if (input.coordinates) {
-      coordinates = input.coordinates;
+    if (normalizedInput.coordinates) {
+      coordinates = normalizedInput.coordinates;
     } else if (apiKey) {
       try {
-        coordinates = await geocodeViaGoogle(input.birthLocation, apiKey);
+        coordinates = await geocodeViaGoogle(normalizedInput.birthLocation, apiKey);
       } catch (googleError) {
         logger.warn("location_google_geocode_fallback", {
-          birthLocation: input.birthLocation,
+          birthLocation: normalizedInput.birthLocation,
           message: googleError instanceof Error ? googleError.message : String(googleError),
         });
-        coordinates = await geocodeViaOpenStreetMap(input.birthLocation);
+        coordinates = await geocodeViaOpenStreetMap(normalizedInput.birthLocation);
       }
     } else {
-      coordinates = await geocodeViaOpenStreetMap(input.birthLocation);
+      coordinates = await geocodeViaOpenStreetMap(normalizedInput.birthLocation);
     }
 
     if (directOffset !== null) {
       return {
         coordinates,
-        timezone: input.timezone,
+        timezone: normalizedInput.timezone,
         utcOffsetMinutes: directOffset,
       };
     }
@@ -249,7 +271,7 @@ export async function resolveBirthLocationContext(input: {
     if (ianaOffset !== null) {
       return {
         coordinates,
-        timezone: input.timezone,
+        timezone: normalizedInput.timezone,
         utcOffsetMinutes: ianaOffset,
       };
     }
@@ -257,8 +279,8 @@ export async function resolveBirthLocationContext(input: {
     if (apiKey) {
       const resolvedTimezone = await resolveTimezoneFromCoordinates({
         coordinates,
-        birthDate: input.birthDate,
-        birthTime: input.birthTime,
+        birthDate: normalizedInput.birthDate,
+        birthTime: normalizedInput.birthTime,
         apiKey,
       });
 
@@ -272,17 +294,17 @@ export async function resolveBirthLocationContext(input: {
     }
 
     if (directOffset !== null) {
-      return { coordinates, timezone: input.timezone, utcOffsetMinutes: directOffset };
+      return { coordinates, timezone: normalizedInput.timezone, utcOffsetMinutes: directOffset };
     }
 
     logger.error("location_timezone_resolution_failed", {
-      birthLocation: input.birthLocation,
-      timezone: input.timezone,
-      birthDate: input.birthDate,
-      birthTime: input.birthTime,
+      birthLocation: normalizedInput.birthLocation,
+      timezone: normalizedInput.timezone,
+      birthDate: normalizedInput.birthDate,
+      birthTime: normalizedInput.birthTime,
     });
     throw new Error(
-      `Could not determine timezone for "${input.birthLocation}". Please provide a timezone like "PST", "UTC-8", or "America/Vancouver".`,
+      `Could not determine timezone for "${normalizedInput.birthLocation}". Please provide a timezone like "PST", "UTC-8", or "America/Vancouver".`,
     );
   })();
 

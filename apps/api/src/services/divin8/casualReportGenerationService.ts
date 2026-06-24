@@ -79,10 +79,13 @@ function personInput(input: Divin8Input, person: RawIntake, label: string): Divi
     birth_date: getString(person.birthDate) ?? input.birth_date,
     birth_time: getString(person.birthTime) ?? input.birth_time,
     birth_location: getString(person.birthPlaceName) ?? input.birth_location,
+    timezone: getString(person.birthTimezone) ?? input.timezone,
     metadata: {
       ...input.metadata,
       full_name: getString(person.fullName) ?? label,
       client_name: getString(person.fullName) ?? label,
+      timezone: getString(person.birthTimezone) ?? getString(input.metadata?.timezone),
+      birth_timezone: getString(person.birthTimezone) ?? getString(input.metadata?.birth_timezone),
     },
   };
 }
