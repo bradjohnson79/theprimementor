@@ -308,6 +308,13 @@ function resolveName(blueprint: BlueprintData): string {
   return blueprint.core?.birthData?.fullBirthName ?? blueprint.client?.fullBirthName ?? "the client";
 }
 
+function resolveGenderLabel(blueprint: BlueprintData): string | null {
+  const gender = blueprint.core?.birthData?.gender ?? blueprint.client?.gender ?? null;
+  if (gender === "male") return "Male";
+  if (gender === "female") return "Female";
+  return null;
+}
+
 function safeJsonParse<T>(value: string): T | null {
   try {
     return JSON.parse(value) as T;
@@ -415,9 +422,11 @@ async function generateNarrativeSection(
   const tierDefinition = getReportTierDefinition(tier);
   const reasoningConfig = DIVIN8_REPORT_REASONING_CONFIG_BY_TIER[tier];
   const title = SECTION_MARKDOWN_LABELS[def.key];
+  const genderLabel = resolveGenderLabel(blueprint);
   const userPrompt = [
     `REPORT DATE: ${reportDateLabel}`,
     `PERSON: ${name}`,
+    genderLabel ? `GENDER: ${genderLabel}` : null,
     `TIER LABEL: ${tierDefinition.label}`,
     `OUTPUT STYLE: ${tierDefinition.outputStyle}`,
     `TARGET SECTION: ${title}`,
@@ -429,7 +438,7 @@ async function generateNarrativeSection(
     "The response must be plain prose inside JSON, not markdown.",
     "Do not collapse sections into summary language. Do not omit concrete details. Do not use vague mysticism.",
     "Return JSON only in this exact shape: {\"sections\":[{\"title\":\"TARGET SECTION TITLE\",\"content\":\"...\"}]}",
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
@@ -501,6 +510,7 @@ async function generateForecastSection(
   const tierDefinition = getReportTierDefinition(tier);
   const reasoningConfig = DIVIN8_REPORT_REASONING_CONFIG_BY_TIER[tier];
   const forecastContext = await buildForecastContext(blueprint, tier, reportDate);
+  const genderLabel = resolveGenderLabel(blueprint);
   const expectedMonths = forecastContext.months.map((month) => month.monthLabel);
   const monthPayload = forecastContext.months.map((month) => ({
     month: month.monthLabel,
@@ -545,12 +555,13 @@ async function generateForecastSection(
             content: [
               `REPORT DATE: ${formatReportDateLabel(reportDate)}`,
               `PERSON: ${name}`,
+              genderLabel ? `GENDER: ${genderLabel}` : null,
               `TIER LABEL: ${tierDefinition.label}`,
               `EXACT MONTH COUNT: ${expectedMonths.length}`,
               `EXPECTED MONTH ORDER: ${expectedMonths.join(" | ")}`,
               `FORECAST DATA:\n${JSON.stringify(monthPayload, null, 2)}`,
               "Return JSON only in this exact shape: {\"entries\":[{\"month\":\"Month Year\",\"content\":\"...\"}]}",
-            ].join("\n\n"),
+            ].filter(Boolean).join("\n\n"),
           },
         ],
         max_completion_tokens: completionBudget,

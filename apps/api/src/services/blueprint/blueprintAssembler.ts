@@ -117,6 +117,7 @@ export async function assembleBlueprint(
   const clientData = {
     id: client.id === "guest" ? null : client.id,
     fullBirthName: client.fullBirthName,
+    gender: client.gender ?? null,
     birthDate: client.birthDate,
     birthTime: client.birthTime,
     birthLocation: client.birthLocation,

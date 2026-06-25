@@ -3,6 +3,7 @@ import type { ReportTierId, ReportTierSystemsConfig } from "@wisdom/utils";
 export interface ClientInput {
   id: string;
   fullBirthName: string;
+  gender?: "male" | "female" | null;
   birthDate: string;
   birthTime: string | null;
   birthLocation: string | null;
@@ -148,6 +149,7 @@ export interface BlueprintCore {
   birthData: {
     id: string | null;
     fullBirthName: string;
+    gender?: "male" | "female" | null;
     birthDate: string;
     birthTime: string | null;
     birthLocation: string | null;
@@ -161,6 +163,7 @@ export interface BlueprintData {
   client: {
     id: string | null;
     fullBirthName: string;
+    gender?: "male" | "female" | null;
     birthDate: string;
     birthTime: string | null;
     birthLocation: string | null;
@@ -301,6 +304,7 @@ export type SystemName =
 export interface GuestInput {
   firstName: string;
   lastName: string;
+  gender?: "male" | "female" | null;
   birthDate: string;
   birthTime: string | null;
   birthLocation: string | null;

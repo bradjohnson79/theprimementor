@@ -209,6 +209,7 @@ function validateInput(input: Divin8Input, systems: Divin8System[]) {
 
 function buildGuestInput(input: Divin8Input): GuestInput {
   const fullName = getString(input.metadata?.full_name) ?? getString(input.metadata?.client_name) ?? "Client";
+  const gender = getString(input.metadata?.gender)?.toLowerCase();
   const parts = fullName.split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? "Client";
   const lastName = parts.slice(1).join(" ") || "Reading";
@@ -219,6 +220,7 @@ function buildGuestInput(input: Divin8Input): GuestInput {
     birthDate: input.birth_date,
     birthTime: getString(input.birth_time),
     birthLocation: getString(input.birth_location),
+    gender: gender === "male" || gender === "female" ? gender : null,
   };
 }
 
@@ -280,6 +282,7 @@ export async function runDivin8Execution(input: Divin8Input): Promise<Divin8Exec
       birthDate: guest.birthDate,
       birthTime: guest.birthTime,
       birthLocation: guest.birthLocation,
+      gender: guest.gender,
     },
     includeSystems,
     tier,

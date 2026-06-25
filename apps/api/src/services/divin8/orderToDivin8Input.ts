@@ -74,6 +74,7 @@ export function mapOrderToDivin8Input(order: AdminOrder): Divin8Input {
       report_type_id: reportType ?? order.metadata.report_type_id,
       timezone: order.metadata.intake.timezone,
       birth_timezone: order.metadata.intake.timezone,
+      gender: order.metadata.intake.gender,
       raw_intake: order.metadata.raw_intake ?? null,
       session_type: order.metadata.session_type,
       full_name: order.client_name,

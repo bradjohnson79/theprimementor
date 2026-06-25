@@ -186,6 +186,7 @@ export interface AdminOrder {
       birth_time: string | null;
       location: string | null;
       phone: string | null;
+      gender: "male" | "female" | null;
       timezone: string | null;
       consent_given: boolean | null;
       submitted_questions: string[];
@@ -521,6 +522,11 @@ function getStringArray(value: unknown): string[] {
   return value.map((item) => getString(item)).filter((item): item is string => Boolean(item));
 }
 
+function getGender(value: unknown): "male" | "female" | null {
+  const normalized = getString(value)?.toLowerCase();
+  return normalized === "male" || normalized === "female" ? normalized : null;
+}
+
 function getBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
@@ -535,6 +541,7 @@ function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
     birth_time: null,
     location: null,
     phone: null,
+    gender: null,
     timezone: null,
     consent_given: null,
     submitted_questions: [],
@@ -1660,8 +1667,10 @@ function parseBookingIntake(value: unknown) {
     .map((entry) => entry.trim())
     .filter(Boolean)
     ?? getStringArray(value.topics);
+  const gender = getGender(value.gender);
   return {
     type: getString(value.type),
+    gender,
     topics: normalizedTopics,
     goals: getStringArray(value.goals),
     healthFocusAreas: parseBookingHealthFocusAreas(value.healthFocusAreas),
@@ -1680,6 +1689,7 @@ function parseBookingIntakeSnapshot(value: unknown) {
     birthTime: getString(value.birthTime),
     location: getString(value.birthPlaceName) ?? getString(value.birthPlace),
     phone: getString(value.phone),
+    gender: getGender(value.gender) ?? intake?.gender ?? null,
     timezone: getString(value.timezone),
     consentGiven: getBoolean(value.consentGiven),
     submittedQuestions: getStringArray(value.submittedQuestions).length > 0
@@ -2004,6 +2014,7 @@ function createSessionCandidate(
   const manifestationEnhancement = intakeSnapshot?.intake?.manifestationEnhancement
     ?? intake?.manifestationEnhancement
     ?? null;
+  const gender = intakeSnapshot?.gender ?? intakeSnapshot?.intake?.gender ?? intake?.gender ?? null;
   const other = intakeSnapshot?.intake?.other ?? intake?.other ?? null;
   const availability = intakeSnapshot?.availability ?? parseBookingAvailability(row.availability);
   const birthLocation = resolveLocation(
@@ -2058,6 +2069,7 @@ function createSessionCandidate(
         birth_time: row.birthTime ?? intakeSnapshot?.birthTime ?? null,
         location: birthLocation,
         phone: intakeSnapshot?.phone ?? row.phone ?? null,
+        gender,
         timezone: intakeSnapshot?.timezone ?? row.timezone ?? null,
         consent_given: intakeSnapshot?.consentGiven ?? row.consentGiven ?? null,
         submitted_questions: submittedQuestions,
@@ -2624,6 +2636,10 @@ function createPersistedAdminOrder(
           linkedBooking?.birthPlace,
         ),
         phone: linkedBookingIntakeSnapshot?.phone ?? linkedBooking?.phone ?? null,
+        gender: linkedBookingIntakeSnapshot?.gender
+          ?? linkedBookingIntakeSnapshot?.intake?.gender
+          ?? linkedBookingIntake?.gender
+          ?? null,
         timezone: bookingTimezone,
         consent_given: linkedBookingIntakeSnapshot?.consentGiven ?? linkedBooking?.consentGiven ?? null,
         submitted_questions: linkedBookingIntakeSnapshot?.submittedQuestions ?? [],

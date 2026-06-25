@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from "framer-motion";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { trackCtaClick } from "../../lib/analytics";
 import type { SessionLandingType } from "../../lib/sessionLandingPaths";
@@ -379,8 +380,12 @@ function OptionalManifestationEnhancement({
 
 export default function SessionLandingPage({
   content,
+  ctaHrefOverride,
+  heroCtaAdjacentContent,
 }: {
   content: SessionLandingContent;
+  ctaHrefOverride?: string;
+  heroCtaAdjacentContent?: ReactNode;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const styles = themeStyles[content.theme];
@@ -418,9 +423,15 @@ export default function SessionLandingPage({
                   Includes advanced support options such as Timeline Rewriting and Manifestation Holding for deeper transformation and directed outcomes.
                 </p>
               ) : null}
-              <div className="mt-8">
+              {heroCtaAdjacentContent ? (
+                <div className="mt-8">
+                  {heroCtaAdjacentContent}
+                </div>
+              ) : null}
+
+              <div className={heroCtaAdjacentContent ? "mt-5" : "mt-8"}>
                 <LandingCta
-                  href={content.hero.cta.href}
+                  href={ctaHrefOverride ?? content.hero.cta.href}
                   label={content.hero.cta.label}
                   theme={content.theme}
                   location={content.pageTitle}
@@ -526,7 +537,7 @@ export default function SessionLandingPage({
                   {section.cta ? (
                     <div className={`mt-8 ${isCentered ? "flex justify-center" : ""}`}>
                       <LandingCta
-                        href={section.cta.href}
+                        href={ctaHrefOverride ?? section.cta.href}
                         label={section.cta.label}
                         theme={content.theme}
                         location={`${content.pageTitle}:${section.id}`}
@@ -563,7 +574,7 @@ export default function SessionLandingPage({
             </p>
             <div className="mt-8">
               <LandingCta
-                href={content.finalCta.cta.href}
+                href={ctaHrefOverride ?? content.finalCta.cta.href}
                 label={content.finalCta.cta.label}
                 theme={content.theme}
                 location={`${content.pageTitle}:final-cta`}

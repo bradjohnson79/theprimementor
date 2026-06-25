@@ -17,6 +17,8 @@ export const BOOKING_AVAILABILITY_SLOTS: Record<BookingAvailabilityDay, readonly
   friday: STANDARD_BOOKING_AVAILABILITY_SLOTS,
 };
 
+export type BookingClientGender = "male" | "female";
+
 export type BookingAvailability = Record<BookingAvailabilityDay, string[]>;
 export interface BookingHealthFocusArea {
   name: string;
@@ -58,6 +60,7 @@ const BOOKING_AVAILABILITY_DAY_SET = new Set<string>(BOOKING_AVAILABILITY_DAYS);
 
 export interface BookingIntakePayload {
   type: BookingSessionType;
+  gender?: BookingClientGender;
   topics?: string[] | string;
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];

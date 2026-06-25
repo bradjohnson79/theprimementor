@@ -59,6 +59,7 @@ function makeOrder(input: {
         birth_time: null,
         location: null,
         phone: null,
+        gender: null,
         timezone: null,
         consent_given: null,
         submitted_questions: [],

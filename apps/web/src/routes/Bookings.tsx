@@ -75,11 +75,13 @@ interface DetectedTimezoneResponse {
 }
 
 type DetectedTimezoneSource = NonNullable<DetectedTimezoneResponse["data"]>["source"];
+type ClientGender = "male" | "female";
 
 interface IntakeFormState {
   fullName: string;
   email: string;
   phone: string;
+  gender: ClientGender | "";
   birthDate: string;
   birthTime: string;
   birthPlace: string;
@@ -98,6 +100,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     fullName: prefill?.fullName ?? "",
     email: prefill?.email ?? "",
     phone: "",
+    gender: "",
     birthDate: "",
     birthTime: "00:00",
     birthPlace: "",
@@ -587,6 +590,7 @@ export default function Bookings() {
 
     if (!normalizeText(form.fullName)) nextErrors.fullName = "Full name is required.";
     if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
+    if (!form.gender) nextErrors.gender = "Gender is required.";
     if (!isQA && !normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
     if (!isQA && !normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
     if (!isQA && !isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
@@ -619,6 +623,7 @@ export default function Bookings() {
   function buildBookingPayload(place?: PlaceResult | null) {
     const intake: Record<string, unknown> = {
       type: selectedSessionType,
+      gender: form.gender,
     };
 
     if (selectedSessionType === "mentoring") {
@@ -655,6 +660,7 @@ export default function Bookings() {
       fullName: normalizeText(form.fullName),
       email: normalizeText(form.email),
       phone: normalizeText(form.phone) || undefined,
+      gender: form.gender,
       birthDate: form.birthDate || undefined,
       birthTime: isQA ? undefined : resolveBirthTimeInput(form.birthTime),
       birthPlace: isQA ? undefined : normalizeText(form.birthPlace),
@@ -763,6 +769,7 @@ export default function Bookings() {
     const nextErrors: ValidationErrors = {};
     if (!normalizeText(form.fullName)) nextErrors.fullName = requiredStepMessage("Your full name");
     if (!normalizeText(form.email)) nextErrors.email = requiredStepMessage("Your email");
+    if (!form.gender) nextErrors.gender = requiredStepMessage("Gender");
     if (!isQA && !normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
     return createValidationResult(nextErrors);
   }
@@ -831,11 +838,12 @@ export default function Bookings() {
     return createValidationResult(nextErrors);
   }
 
-  function handleFieldBlur(field: "fullName" | "email" | "phone" | "birthDate" | "birthPlace" | "timezone" | "otherDetail" | "qaTopics") {
+  function handleFieldBlur(field: "fullName" | "email" | "phone" | "gender" | "birthDate" | "birthPlace" | "timezone" | "otherDetail" | "qaTopics") {
     const validators: Record<typeof field, () => string | undefined> = {
       fullName: () => (normalizeText(form.fullName) ? undefined : requiredStepMessage("Your full name")),
       email: () => (normalizeText(form.email) ? undefined : requiredStepMessage("Your email")),
       phone: () => (isQA || normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
+      gender: () => (form.gender ? undefined : requiredStepMessage("Gender")),
       birthDate: () => (isQA || normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
       birthPlace: () => (isQA || isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
       timezone: () => (timezone ? undefined : requiredStepMessage("Your timezone")),
@@ -875,6 +883,7 @@ export default function Bookings() {
         items: [
           { label: "Full Name", value: form.fullName || "Not provided yet" },
           { label: "Email", value: form.email || "Not provided yet" },
+          { label: "Gender", value: form.gender ? form.gender[0].toUpperCase() + form.gender.slice(1) : "Not provided yet" },
           { label: "Phone", value: form.phone || "None added" },
           { label: "Birth Date", value: form.birthDate || "None added" },
         ],
@@ -1000,6 +1009,7 @@ export default function Bookings() {
     form.consentGiven,
     form.email,
     form.fullName,
+    form.gender,
     form.manifestationEnhancementSelected,
     form.manifestationIntentions,
     form.mentoringTopics,
@@ -1099,6 +1109,7 @@ export default function Bookings() {
         isComplete: (state) => Boolean(
           normalizeText(state.fullName)
           && normalizeText(state.email)
+          && state.gender
           && (isQA || normalizeText(state.phone)),
         ),
         render: () => (
@@ -1140,6 +1151,26 @@ export default function Bookings() {
               </FormField>
 
               <FormField
+                label="Gender"
+                htmlFor="session-gender"
+                helperText="This helps us keep AI-generated reports clear when a name could be interpreted more than one way."
+                errorText={fieldErrors.gender}
+                isComplete={Boolean(form.gender)}
+              >
+                <select
+                  id="session-gender"
+                  className={fieldClassName}
+                  value={form.gender}
+                  onChange={(event) => setFormField("gender", event.target.value as ClientGender | "")}
+                  onBlur={() => handleFieldBlur("gender")}
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </FormField>
+
+              <FormField
                 label="Phone Number"
                 htmlFor="session-phone"
                 helperText={isQA
@@ -1147,7 +1178,6 @@ export default function Bookings() {
                   : "This helps us reach you if we need to confirm scheduling details."}
                 errorText={isQA ? undefined : fieldErrors.phone}
                 isComplete={Boolean(normalizeText(form.phone))}
-                className="md:col-span-2"
                 optional={isQA}
               >
                 <input
@@ -1703,6 +1733,7 @@ export default function Bookings() {
     fieldErrors.consentGiven,
     fieldErrors.email,
     fieldErrors.fullName,
+    fieldErrors.gender,
     fieldErrors.manifestationEnhancementSelected,
     fieldErrors.manifestationIntentions,
     fieldErrors.mentoringTopics,

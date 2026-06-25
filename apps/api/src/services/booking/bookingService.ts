@@ -36,6 +36,7 @@ import {
   type BookingAvailabilityDay,
   sessionTypeRequiresAvailabilitySelection,
   sessionTypeRequiresSchedule,
+  type BookingClientGender,
   type BookingIntakePayload,
   type BookingSessionType,
   type BookingStatus,
@@ -143,6 +144,7 @@ export interface CreateBookingInput {
   fullName?: string;
   email?: string;
   phone?: string;
+  gender?: string;
   birthDate?: string;
   birthTime?: string;
   birthPlace?: string;
@@ -184,6 +186,7 @@ interface BookingIntakeSnapshot {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  gender: BookingClientGender | null;
   birthDate: string | null;
   birthTime: string;
   birthPlace: string | null;
@@ -334,6 +337,13 @@ function normalizeText(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeClientGender(value: unknown): BookingClientGender | null {
+  const normalized = normalizeText(value)?.toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "male" || normalized === "female") return normalized;
+  throw createHttpError(400, "gender must be male or female");
 }
 
 function normalizeEmail(value: unknown): string | null {
@@ -500,6 +510,7 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (!type) return null;
 
   const intake: BookingIntakePayload = { type };
+  const gender = normalizeClientGender(raw.gender);
   const topics = type === "qa_session"
     ? (() => {
       const textValue = normalizeText(raw.topics);
@@ -516,6 +527,7 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
     ? normalizeManifestationEnhancement(raw.manifestationEnhancement)
     : null;
 
+  if (gender) intake.gender = gender;
   if (topics && (typeof topics === "string" ? Boolean(topics) : topics.length > 0)) intake.topics = topics;
   if (goals.length > 0) intake.goals = goals;
   if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
@@ -605,6 +617,7 @@ function normalizeSharedFields(
   const email = normalizeEmail(input.email ?? fallbackEmail ?? undefined);
   const fullName = normalizeText(input.fullName) ?? (allowAdminFallbacks ? getFallbackNameFromEmail(email) : null);
   const phone = normalizeText(input.phone);
+  const gender = normalizeClientGender(input.gender);
   const birthDate = normalizeBirthDate(input.birthDate);
   const birthTime = normalizeBirthTime(input.birthTime);
   const birthplace = sessionType === "qa_session"
@@ -630,6 +643,9 @@ function normalizeSharedFields(
     if (!phone && sessionType !== "qa_session") {
       throw createHttpError(400, "phone is required");
     }
+    if (!gender) {
+      throw createHttpError(400, "gender is required");
+    }
     if (!birthDate && sessionType !== "qa_session") {
       throw createHttpError(400, "birthDate is required");
     }
@@ -642,6 +658,7 @@ function normalizeSharedFields(
     fullName,
     email,
     phone,
+    gender,
     birthDate,
     birthTime,
     birthPlace: birthplace?.name ?? null,
@@ -665,6 +682,7 @@ function buildNormalizedIntake(
   const notes = intake.notes ?? normalizeNotes(legacyNotes) ?? undefined;
   const other = normalizeText(intake.other);
   const normalized: BookingIntakePayload = { type: sessionType };
+  if (intake.gender) normalized.gender = intake.gender;
   if (notes) normalized.notes = notes;
 
   if (sessionType === "focus") {
@@ -754,6 +772,7 @@ function buildBookingIntakeSnapshot(input: {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  gender: BookingClientGender | null;
   birthDate: string | null;
   birthTime: string;
   birthPlace: string | null;
@@ -783,6 +802,7 @@ function buildBookingIntakeSnapshot(input: {
     fullName: input.fullName,
     email: input.email,
     phone: input.phone,
+    gender: input.gender,
     birthDate: input.birthDate,
     birthTime: input.birthTime,
     birthPlace: input.birthPlace,
@@ -1066,6 +1086,9 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const timezone = assertValidTimeZone(input.timezone ?? "");
   const sharedFields = normalizeSharedFields(sessionType, input, targetUser.email, allowAdminFallbacks);
   const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks);
+  if (sharedFields.gender && !intake.gender) {
+    intake.gender = sharedFields.gender;
+  }
   const normalizedAvailability = normalizeBookingAvailability(input.availability, {
     requireSelection: sessionTypeRequiresAvailabilitySelection(sessionType),
   });
@@ -1080,6 +1103,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     fullName: sharedFields.fullName,
     email: sharedFields.email,
     phone: sharedFields.phone,
+    gender: sharedFields.gender,
     birthDate: sharedFields.birthDate,
     birthTime: sharedFields.birthTime,
     birthPlace: sharedFields.birthPlace,

@@ -9,18 +9,18 @@ export const qaSessionLandingContent: SessionLandingContent = {
   hero: {
     eyebrow: "Q&A Session",
     title: "Q&A Session",
-    subtitle: "30-Minute Open Interaction for Clarity, Insight & Direct Connection",
+    subtitle: "Open Q&A Sessions for Clarity, Insight & Direct Connection",
     supportingLine:
-      "Bring the questions that matter most right now and meet them in a focused space designed for direct conversation, clarity, and immediate perspective.",
+      "Bring the questions that matter most right now and choose the amount of space you need for direct conversation, clarity, and immediate perspective.",
     cta: {
       label: "Book Q&A Session",
       href: QA_BOOKING_PATH,
     },
     callout: {
       eyebrow: "Quick Access",
-      title: "A flexible 30-minute session for open dialogue without Divin8 structure.",
+      title: "Choose the level of space you need for open dialogue, clarity, and direct perspective.",
       description:
-        "This is a live 1-on-1 interaction built for clarity, perspective, and direct connection when you want insight without entering a full Divin8 reading, blueprint analysis, or mentoring framework.",
+        "These live 1-on-1 interactions are built for clarity, perspective, and direct connection when you want insight without entering a full Divin8 reading, blueprint analysis, or mentoring framework.",
     },
   },
   sections: [
@@ -64,9 +64,9 @@ export const qaSessionLandingContent: SessionLandingContent = {
     {
       id: "mid-page-cta",
       label: "Book Your Q&A Session",
-      title: "Gain clarity and direct insight in a focused 30-minute session",
+      title: "Gain clarity and direct insight in the session length that fits your question",
       paragraphs: [
-        "If what you need is a concise space for real questions and real perspective, this session gives you that access without overcomplicating the experience.",
+        "If what you need is a concise space for real questions and real perspective, choose the Q&A length that gives your topic the right amount of room without overcomplicating the experience.",
       ],
       statementLines: [
         "Bring your questions.",
@@ -112,7 +112,7 @@ export const qaSessionLandingContent: SessionLandingContent = {
       label: "What You Receive",
       title: "Direct access, a clear live session, and a recording you can return to.",
       paragraphs: [
-        "Your Q&A Session includes a 30-minute live Zoom session where you can interact directly with Brad and, if requested, Adronis. The space is open enough for free inquiry while still being focused enough to keep the time meaningful and clear.",
+        "Your Q&A Session includes a live Zoom session in the length you select, where you can interact directly with Brad and, if requested, Adronis. The space is open enough for free inquiry while still being focused enough to keep the time meaningful and clear.",
         "After the session, your Zoom recording is delivered through the same reliable flow used for other live sessions. You will receive it by email, and it will also remain available inside your member dashboard so you can revisit the conversation whenever you need to.",
       ],
       density: "tight",

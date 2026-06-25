@@ -4,6 +4,7 @@ export type GuidedSessionIntakeType = "qa" | "mentoring";
 export type GuidedSessionType = "qa_session" | "mentoring";
 
 export interface GuidedSessionDurationOption {
+  productKey: string;
   bookingTypeId: string;
   minutes: number;
   priceCents: number;
@@ -43,18 +44,35 @@ const GUIDED_SESSION_COPY: Record<GuidedSessionType, Omit<GuidedSessionOption, "
   },
 };
 
+function getSessionTypeForIntakeType(intakeType: GuidedSessionIntakeType): GuidedSessionType {
+  return intakeType === "qa" ? "qa_session" : "mentoring";
+}
+
+export function getSessionOfferingsByType(intakeType: GuidedSessionIntakeType): GuidedSessionDurationOption[] {
+  const sessionType = getSessionTypeForIntakeType(intakeType);
+  return CANONICAL_SESSION_OFFERINGS
+    .filter((offering) => (
+      offering.active
+      && offering.intakeFlow === "guided_session"
+      && offering.sessionType === sessionType
+      && typeof offering.durationMinutes === "number"
+    ))
+    .map((offering) => ({
+      productKey: offering.productKey,
+      bookingTypeId: offering.bookingTypeId,
+      minutes: offering.durationMinutes ?? 0,
+      priceCents: offering.amountCents,
+      currency: offering.currency,
+      description: offering.description,
+    }))
+    .sort((left, right) => left.minutes - right.minutes);
+}
+
 function buildGuidedSessionOption(sessionType: GuidedSessionType): GuidedSessionOption {
+  const intakeType = sessionType === "qa_session" ? "qa" : "mentoring";
   return {
     ...GUIDED_SESSION_COPY[sessionType],
-    durations: CANONICAL_SESSION_OFFERINGS
-      .filter((offering) => offering.active && offering.intakeFlow === "guided_session" && offering.sessionType === sessionType)
-      .map((offering) => ({
-        bookingTypeId: offering.bookingTypeId,
-        minutes: offering.durationMinutes ?? 0,
-        priceCents: offering.amountCents,
-        currency: offering.currency,
-        description: offering.description,
-      })),
+    durations: getSessionOfferingsByType(intakeType),
   };
 }
 
@@ -99,11 +117,15 @@ export function buildGuidedSessionBookingPath(input: {
   intakeType: GuidedSessionIntakeType;
   minutes: number;
   bookingTypeId: string;
+  productKey?: string;
 }) {
   const params = new URLSearchParams({
     intakeType: input.intakeType,
     minutes: String(input.minutes),
     bookingTypeId: input.bookingTypeId,
   });
+  if (input.productKey) {
+    params.set("productKey", input.productKey);
+  }
   return `${GUIDED_SESSION_BOOKING_PATH}?${params.toString()}`;
 }

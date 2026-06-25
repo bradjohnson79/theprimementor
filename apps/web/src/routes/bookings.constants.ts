@@ -54,7 +54,7 @@ export const SESSION_TYPE_OPTIONS: Array<{
     type: "qa_session",
     label: "Q&A Session",
     description:
-      "The Q&A Session is a 30-minute open interaction designed for clarity, insight, and direct connection. This session gives you the opportunity to ask any questions you have, whether they relate to your current life situation, spiritual direction, or general curiosity. It is also an open space for a personal interaction with Adronis, offering a unique and direct experience for those seeking perspective beyond conventional dialogue. This is not a structured Divin8 reading or mentoring session. Instead, it is designed for flexibility and fast access, allowing you to explore specific questions, gain immediate insight, and connect in a more open and conversational format.",
+      "The Q&A Session is an open interaction designed for clarity, insight, and direct connection, with flexible 30, 45, and 60 minute options. This session gives you the opportunity to ask any questions you have, whether they relate to your current life situation, spiritual direction, or general curiosity. It is also an open space for a personal interaction with Adronis, offering a unique and direct experience for those seeking perspective beyond conventional dialogue. This is not a structured Divin8 reading or mentoring session. Instead, it is designed for flexibility and fast access, allowing you to explore specific questions, gain immediate insight, and connect in a more open and conversational format.",
   },
   {
     type: "mentoring",
