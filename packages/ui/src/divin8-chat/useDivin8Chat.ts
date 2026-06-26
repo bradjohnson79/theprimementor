@@ -581,6 +581,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const loadRequestIdRef = useRef(0);
   const latestLoadThreadIdRef = useRef<string | null>(null);
   const didBootstrapRef = useRef(false);
+  const bootstrapRequestIdRef = useRef(0);
   const selectedThreadIdRef = useRef<string | null>(selectedThreadId);
   const createConversationRef = useRef<(() => void) | null>(null);
 
@@ -1066,6 +1067,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   // -- Bootstrap --
   useEffect(() => {
     let cancelled = false;
+    let completed = false;
+    const bootstrapRequestId = ++bootstrapRequestIdRef.current;
+    const isCurrentBootstrap = () => bootstrapRequestIdRef.current === bootstrapRequestId;
+
     async function boot() {
       if (didBootstrapRef.current) return;
       didBootstrapRef.current = true;
@@ -1075,7 +1080,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           refreshThreads(),
           refreshProfiles(),
         ]);
-        if (cancelled) return;
+        if (cancelled || !isCurrentBootstrap()) return;
         const requestedThreadId = selectedThreadIdRef.current ?? activeThreadIdRef.current;
         const preferred = resolveNextSelectedThread({
           requestedThreadId,
@@ -1092,17 +1097,24 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           await handleCreateConversation();
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && isCurrentBootstrap()) {
+          didBootstrapRef.current = false;
           setMessages([]);
           setTimelineEvents([]);
           setThreadError(classifyLoadError(error));
         }
       } finally {
-        if (!cancelled) setIsBootstrapping(false);
+        completed = true;
+        if (!cancelled && isCurrentBootstrap()) setIsBootstrapping(false);
       }
     }
     void boot();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (isCurrentBootstrap() && !completed) {
+        didBootstrapRef.current = false;
+      }
+    };
   }, [handleCreateConversation, loadConversation, onSelectedThreadIdChange, refreshProfiles, refreshThreads]);
 
   useEffect(() => {
