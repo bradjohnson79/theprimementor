@@ -1439,6 +1439,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     if (!activeThreadId || messages.length === 0 || exporting || !api.downloadBlobPost) return;
     setExportingThreadId(activeThreadId);
     setExporting(format);
+    setSendError(null);
     void (async () => {
       try {
         const token = await getToken();
@@ -1448,6 +1449,10 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
           token,
           `divin8-conversation.${format}`,
         );
+      } catch (error) {
+        setSendError(error instanceof Error && error.message.trim()
+          ? error.message
+          : "Export failed. Please try again.");
       } finally {
         setExporting(null);
         setExportingThreadId(null);

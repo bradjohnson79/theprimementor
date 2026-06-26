@@ -23,6 +23,7 @@ interface CreateBookingBody {
   fullName?: string;
   email?: string;
   phone?: string;
+  gender?: string;
   birthDate?: string;
   birthTime?: string;
   birthPlace?: string;
@@ -73,6 +74,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
       fullName,
       email,
       phone,
+      gender,
       birthDate,
       birthTime,
       birthPlace,
@@ -104,6 +106,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
       fullName,
       email,
       phone,
+      gender,
       birthDate,
       birthTime,
       birthPlace,

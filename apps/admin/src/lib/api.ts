@@ -29,6 +29,28 @@ async function handleResponse(res: Response) {
   return res.json();
 }
 
+async function getErrorMessage(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const body = await res.json().catch(() => null) as { message?: unknown; error?: unknown } | null;
+    if (typeof body?.message === "string" && body.message.trim()) return body.message;
+    if (typeof body?.error === "string" && body.error.trim()) return body.error;
+  }
+  return await res.text().catch(() => res.statusText) || res.statusText;
+}
+
+function downloadBlobResponse(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export const api = {
   get: async (path: string, token?: string | null) => {
     const headers: Record<string, string> = {};
@@ -105,20 +127,14 @@ export const api = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => res.statusText);
-      throw new Error(body || res.statusText);
+      throw new Error(await getErrorMessage(res));
     }
     const blob = await res.blob();
     const cd = res.headers.get("Content-Disposition");
     let filename = suggestedFilename;
     const m = cd?.match(/filename="?([^";]+)"?/);
     if (m?.[1]) filename = m[1];
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlobResponse(blob, filename);
   },
 
   downloadBlobPost: async (
@@ -136,19 +152,13 @@ export const api = {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const bodyText = await res.text().catch(() => res.statusText);
-      throw new Error(bodyText || res.statusText);
+      throw new Error(await getErrorMessage(res));
     }
     const blob = await res.blob();
     const cd = res.headers.get("Content-Disposition");
     let filename = suggestedFilename;
     const m = cd?.match(/filename="?([^";]+)"?/);
     if (m?.[1]) filename = m[1];
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlobResponse(blob, filename);
   },
 };
