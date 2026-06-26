@@ -1159,14 +1159,21 @@ export default function Bookings() {
               >
                 <select
                   id="session-gender"
-                  className={fieldClassName}
+                  className={`${fieldClassName} bg-white text-black`}
+                  style={{ backgroundColor: "#fff", color: "#000" }}
                   value={form.gender}
                   onChange={(event) => setFormField("gender", event.target.value as ClientGender | "")}
                   onBlur={() => handleFieldBlur("gender")}
                 >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
+                  <option className="bg-white text-black" style={{ backgroundColor: "#fff", color: "#000" }} value="">
+                    Select gender
+                  </option>
+                  <option className="bg-white text-black" style={{ backgroundColor: "#fff", color: "#000" }} value="male">
+                    Male
+                  </option>
+                  <option className="bg-white text-black" style={{ backgroundColor: "#fff", color: "#000" }} value="female">
+                    Female
+                  </option>
                 </select>
               </FormField>
 
