@@ -38,6 +38,12 @@ async function ensureMemberDivin8Access(app: FastifyInstance, userId: string) {
   return memberAccess;
 }
 
+function parseConversationListQuery(query: { limit?: unknown; cursor?: unknown }) {
+  const limit = typeof query.limit === "string" ? Number(query.limit) : undefined;
+  const cursor = typeof query.cursor === "string" && query.cursor.trim() ? query.cursor.trim() : null;
+  return { limit, cursor };
+}
+
 export async function divin8Routes(app: FastifyInstance) {
   app.post("/divin8/run", { preHandler: requireAuth }, async (request, reply) => {
     requireDatabase(app.db);
@@ -141,14 +147,14 @@ export async function divin8Routes(app: FastifyInstance) {
     return ok(await createConversationThread(app.db));
   });
 
-  app.get("/divin8/conversations", { preHandler: requireAuth }, async (request) => {
+  app.get<{ Querystring: { limit?: string; cursor?: string } }>("/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
-    return ok(await listConversationThreads(app.db, undefined, "admin"));
+    return ok(await listConversationThreads(app.db, undefined, "admin", parseConversationListQuery(request.query)));
   });
 
-  app.get<{ Querystring: { q?: string } }>("/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
+  app.get<{ Querystring: { q?: string; limit?: string; cursor?: string } }>("/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
-    return ok(await searchConversationThreads(app.db, request.query.q ?? ""));
+    return ok(await searchConversationThreads(app.db, request.query.q ?? "", undefined, parseConversationListQuery(request.query)));
   });
 
   app.get<{ Params: { id: string } }>("/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {
@@ -248,14 +254,14 @@ export async function divin8Routes(app: FastifyInstance) {
     return ok(await deleteDivin8Profile(app.db, request.dbUser!.id, request.params.id));
   });
 
-  app.get("/member/divin8/conversations", { preHandler: requireAuth }, async (request) => {
+  app.get<{ Querystring: { limit?: string; cursor?: string } }>("/member/divin8/conversations", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return ok(await listConversationThreads(app.db, request.dbUser!.id, request.dbUser!.role));
+    return ok(await listConversationThreads(app.db, request.dbUser!.id, request.dbUser!.role, parseConversationListQuery(request.query)));
   });
 
-  app.get<{ Querystring: { q?: string } }>("/member/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
+  app.get<{ Querystring: { q?: string; limit?: string; cursor?: string } }>("/member/divin8/conversations/search", { preHandler: requireAuth }, async (request) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
-    return ok(await searchConversationThreads(app.db, request.query.q ?? "", request.dbUser!.id));
+    return ok(await searchConversationThreads(app.db, request.query.q ?? "", request.dbUser!.id, parseConversationListQuery(request.query)));
   });
 
   app.get<{ Params: { id: string } }>("/member/divin8/conversations/:id", { preHandler: requireAuth }, async (request) => {

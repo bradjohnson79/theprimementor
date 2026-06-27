@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type UIEvent } from "react";
 import type {
   Divin8ProfileCreateRequest,
   Divin8ProfileResponse,
@@ -13,6 +13,7 @@ import type {
   Divin8TimelineRequest,
 } from "@wisdom/utils";
 import {
+  DIVIN8_MAX_MESSAGE_CHARS,
   DIVIN8_LIMITS,
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
   MAX_DIVIN8_TIMELINES_PER_MESSAGE,
@@ -71,7 +72,9 @@ export interface UseDivin8ChatReturn {
   isLoadingThread: boolean;
   isBootstrapping: boolean;
   isCreatingThread: boolean;
+  isLoadingThreads: boolean;
   isSearching: boolean;
+  isSending: boolean;
 
   inputText: string;
   setInputText: (value: string) => void;
@@ -96,7 +99,11 @@ export interface UseDivin8ChatReturn {
   timelineError: string | null;
   profileLimitMessage: string | null;
   timelineLimitMessage: string | null;
+  messageLimitMessage: string | null;
   conversationProfileTags: string[];
+  detectedProfileTags: string[];
+  draftOnlyProfileTags: string[];
+  detectedTimelineTags: string[];
   activeTimeline: Divin8TimelineDraft | null;
   usageCount: number;
   usageLimit: number | null;
@@ -157,6 +164,23 @@ const NEAR_BOTTOM_THRESHOLD = 100;
 const CHAT_STARTUP_TIMEOUT_MS = 20_000;
 const TIMELINE_LIMIT_MESSAGE = "⚠️ Only one timeline range can be used per reading.";
 const SEEKER_TIMELINE_MESSAGE = "⚠️ Timeline readings are available for Initiate members only.";
+const MESSAGE_LIMIT_MESSAGE = `Message is too long. Please keep Divin8 Chat messages to ${DIVIN8_MAX_MESSAGE_CHARS.toLocaleString()} characters or fewer.`;
+
+function shouldLogDivin8Perf() {
+  return typeof window !== "undefined"
+    && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+}
+
+function logDivin8Perf(label: string, startedAt: number, details?: Record<string, unknown>) {
+  if (!shouldLogDivin8Perf()) {
+    return;
+  }
+  console.debug("[Divin8 perf]", label, `${Math.round(performance.now() - startedAt)}ms`, details ?? "");
+}
+
+function getThreadCacheKey(basePath: string, tier: Divin8ChatTier) {
+  return `divin8-chat:${basePath}:${tier}:threads:v1`;
+}
 
 function replaceTimelineTagInDraft(
   inputText: string,
@@ -202,6 +226,52 @@ function mapThread(
     updatedAt: thread.updated_at,
     activeProfileTags: thread.active_profile_tags ?? [],
   };
+}
+
+function readCachedThreads(cacheKey: string): Divin8ConversationThread[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as { threads?: unknown };
+    if (!Array.isArray(parsed.threads)) {
+      return [];
+    }
+    return parsed.threads.filter((thread): thread is Divin8ConversationThread => (
+      Boolean(thread)
+      && typeof thread === "object"
+      && typeof (thread as Divin8ConversationThread).id === "string"
+      && typeof (thread as Divin8ConversationThread).title === "string"
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedThreads(cacheKey: string, threads: Divin8ConversationThread[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(cacheKey, JSON.stringify({
+      cachedAt: new Date().toISOString(),
+      threads: threads.slice(0, 50),
+    }));
+  } catch {
+    // Cache writes should never affect chat behavior.
+  }
+}
+
+function imageRefsMatchPayload(attachments: Divin8ImageAttachment[], payload: Divin8RetryPayload) {
+  const refs = attachments.map((attachment) => attachment.imageRef);
+  if (refs.length !== payload.imageRefs.length) {
+    return false;
+  }
+  return refs.every((ref, index) => ref === payload.imageRefs[index]);
 }
 
 function mapProfile(profile: Divin8ProfileResponse): Divin8Profile {
@@ -414,6 +484,13 @@ export function classifySendError(error: unknown) {
     };
   }
 
+  if (code === "DIVIN8_MESSAGE_TOO_LONG" || status === 413) {
+    return {
+      message: MESSAGE_LIMIT_MESSAGE,
+      isLimitReached: false,
+    };
+  }
+
   if (
     error instanceof TypeError
     || /Failed to fetch|Load failed|NetworkError|network request failed/i.test(message)
@@ -518,11 +595,14 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     selectedThreadId = null,
     onSelectedThreadIdChange,
   } = config;
+  const threadCacheKey = getThreadCacheKey(basePath, tier);
 
-  const [threads, setThreads] = useState<Divin8ConversationThread[]>([]);
+  const [threads, setThreads] = useState<Divin8ConversationThread[]>(() => readCachedThreads(threadCacheKey));
+  const cachedThreadsRef = useRef<Divin8ConversationThread[]>(threads);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Divin8ConversationThread[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingThreads, setIsLoadingThreads] = useState(false);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Divin8ChatMessage[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<Divin8TimelineEvent[]>([]);
@@ -537,6 +617,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [sendError, setSendError] = useState<string | null>(null);
   const [debugMeta, setDebugMeta] = useState<Divin8ChatMeta | null>(null);
   const [generatingThreadId, setGeneratingThreadId] = useState<string | null>(null);
+  const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const [archiveTarget, setArchiveTarget] = useState<Divin8ConversationThread | null>(null);
@@ -588,22 +669,39 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const inputText = activeThreadId ? draftsByThread[activeThreadId] ?? "" : "";
   const activeTimeline = activeThreadId ? timelineDraftsByThread[activeThreadId] ?? null : null;
   const isGenerating = generatingThreadId === activeThreadId;
+  const isSending = Boolean(sendingRequestId && generatingThreadId === activeThreadId);
   const isExporting = exportingThreadId === activeThreadId ? exporting : null;
 
   const maxUsage = tier === "seeker" ? usageLimit ?? DIVIN8_LIMITS.seeker : Number.POSITIVE_INFINITY;
   const isBlocked = tier === "seeker" && usageCount >= maxUsage;
   const blockMessage = isBlocked ? `You've reached your monthly limit of ${DIVIN8_LIMITS.seeker} prompts.` : null;
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? null;
-  const messageProfileTags = extractDivin8ProfileTags(inputText);
+  const parsedDraft = useMemo(() => {
+    const startedAt = performance.now();
+    const next = {
+      profileTags: extractDivin8ProfileTags(inputText),
+      timelineTags: extractDivin8TimelineTags(inputText),
+      categoryLabels: parseDivin8CategoryTags(inputText).labels,
+    };
+    logDivin8Perf("draft parsing", startedAt, {
+      length: inputText.length,
+      profileTags: next.profileTags.length,
+      timelineTags: next.timelineTags.length,
+      categoryLabels: next.categoryLabels.length,
+    });
+    return next;
+  }, [inputText]);
   const conversationProfileTags = activeThreadId
     ? profileTagsByThread[activeThreadId] ?? activeThread?.activeProfileTags ?? []
     : [];
   const activeProfileTags = mergeDivin8ActiveProfileTags(
     conversationProfileTags,
     undefined,
-    messageProfileTags,
+    parsedDraft.profileTags,
   );
-  const activeTimelineTags = extractDivin8TimelineTags(inputText);
+  const activeTimelineTags = parsedDraft.timelineTags;
+  const draftOnlyProfileTags = parsedDraft.profileTags.filter((tag) => !conversationProfileTags.includes(tag));
+  const messageLimitMessage = inputText.length > DIVIN8_MAX_MESSAGE_CHARS ? MESSAGE_LIMIT_MESSAGE : null;
   const profileLimitMessage = activeProfileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE
     ? `Maximum of ${MAX_DIVIN8_PROFILES_PER_MESSAGE} profiles allowed per reading.`
     : null;
@@ -618,6 +716,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   // -- Derived setter --
   const setInputText = useCallback((value: string) => {
     if (!activeThreadIdRef.current) return;
+    const startedAt = performance.now();
     const threadId = activeThreadIdRef.current;
     setSendError(null);
     setTimelineError(null);
@@ -629,6 +728,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       }
       return { ...current, [threadId]: null };
     });
+    logDivin8Perf("draft persistence", startedAt, { length: value.length });
   }, []);
 
   // -- Image helpers --
@@ -840,22 +940,30 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   }, [api, basePath, getToken]);
 
   const refreshThreads = useCallback(async () => {
-    const token = await getToken();
-    const res = (await withStartupTimeout(
-      api.get(`${basePath}/conversations`, token),
-      "Divin8 conversations",
-    )) as Divin8ConversationsResponse;
-    const next = res.threads.map((t) => mapThread(t, hideSummaryInPreviews));
-    setThreads(next);
-    setProfileTagsByThread((current) => ({
-      ...current,
-      ...Object.fromEntries(next.map((thread) => [thread.id, thread.activeProfileTags])),
-    }));
-    setUsageCount(res.usage.month_used ?? res.usage.used ?? 0);
-    setUsageLimit(res.usage.limit ?? res.usage.seeker_limit ?? null);
-    setUsagePeriodEnd(res.usage.period_end ?? null);
-    return next;
-  }, [api, basePath, getToken, hideSummaryInPreviews]);
+    const startedAt = performance.now();
+    setIsLoadingThreads(true);
+    try {
+      const token = await getToken();
+      const res = (await withStartupTimeout(
+        api.get(`${basePath}/conversations?limit=50`, token),
+        "Divin8 conversations",
+      )) as Divin8ConversationsResponse;
+      const next = res.threads.map((t) => mapThread(t, hideSummaryInPreviews));
+      setThreads(next);
+      writeCachedThreads(threadCacheKey, next);
+      setProfileTagsByThread((current) => ({
+        ...current,
+        ...Object.fromEntries(next.map((thread) => [thread.id, thread.activeProfileTags])),
+      }));
+      setUsageCount(res.usage.month_used ?? res.usage.used ?? 0);
+      setUsageLimit(res.usage.limit ?? res.usage.seeker_limit ?? null);
+      setUsagePeriodEnd(res.usage.period_end ?? null);
+      logDivin8Perf("conversation-list refresh", startedAt, { count: next.length });
+      return next;
+    } finally {
+      setIsLoadingThreads(false);
+    }
+  }, [api, basePath, getToken, hideSummaryInPreviews, threadCacheKey]);
 
   const loadConversation = useCallback(async (threadId: string, options: { requestedFromUrl?: boolean } = {}) => {
     if (activeThreadIdRef.current && messageViewportRef.current) {
@@ -1076,23 +1184,37 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       didBootstrapRef.current = true;
       setIsBootstrapping(true);
       try {
+        const requestedThreadId = selectedThreadIdRef.current ?? activeThreadIdRef.current;
+        const cachedPreferred = resolveNextSelectedThread({
+          requestedThreadId,
+          activeThreadId: null,
+          remainingThreads: cachedThreadsRef.current,
+          isInitialBootstrap: true,
+        });
+        if (cachedPreferred) {
+          if (!requestedThreadId) {
+            onSelectedThreadIdChange?.(cachedPreferred, { replace: true });
+          }
+          void loadConversation(cachedPreferred, { requestedFromUrl: Boolean(requestedThreadId) });
+        }
         const [nextThreads] = await Promise.all([
           refreshThreads(),
           refreshProfiles(),
         ]);
         if (cancelled || !isCurrentBootstrap()) return;
-        const requestedThreadId = selectedThreadIdRef.current ?? activeThreadIdRef.current;
         const preferred = resolveNextSelectedThread({
           requestedThreadId,
-          activeThreadId: null,
+          activeThreadId: activeThreadIdRef.current,
           remainingThreads: nextThreads,
           isInitialBootstrap: true,
         });
         if (preferred) {
-          if (!requestedThreadId) {
+          if (!requestedThreadId && preferred !== cachedPreferred) {
             onSelectedThreadIdChange?.(preferred, { replace: true });
           }
-          await loadConversation(preferred, { requestedFromUrl: Boolean(requestedThreadId) });
+          if (preferred !== activeThreadIdRef.current) {
+            void loadConversation(preferred, { requestedFromUrl: Boolean(requestedThreadId) });
+          }
         } else {
           await handleCreateConversation();
         }
@@ -1128,6 +1250,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const sendMessageInternal = useCallback(
     async (threadId: string, messageId: string, payload: Divin8RetryPayload) => {
       setGeneratingThreadId(threadId);
+      setSendingRequestId(payload.requestId);
       setDebugMeta(buildPendingMeta());
       setThreadError(null);
       setSendError(null);
@@ -1222,6 +1345,24 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         if (activeThreadIdRef.current === threadId) {
           setDebugMeta(meta);
           setSendError(null);
+          setDraftsByThread((current) => {
+            const currentDraft = current[threadId] ?? "";
+            const shouldClearDraft = currentDraft.trim() === payload.text
+              || (payload.text === "Please interpret the uploaded image symbolically." && !currentDraft.trim());
+            return shouldClearDraft ? { ...current, [threadId]: "" } : current;
+          });
+          setTimelineDraftsByThread((current) => ({ ...current, [threadId]: null }));
+          setImageAttachmentsState((current) => {
+            if (!imageRefsMatchPayload(current, payload)) {
+              return current;
+            }
+            current.forEach((attachment) => URL.revokeObjectURL(attachment.imagePreviewUrl));
+            setImageRef(null);
+            setImageName(null);
+            setImagePreviewUrl(null);
+            return [];
+          });
+          setImageError(null);
           setMessages((cur) => [
             ...cur.map((m) =>
               m.id === messageId
@@ -1261,6 +1402,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         }
       } finally {
         setGeneratingThreadId((cur) => (cur === threadId ? null : cur));
+        setSendingRequestId((cur) => (cur === payload.requestId ? null : cur));
       }
     },
     [api, basePath, getToken, hideSummaryInPreviews],
@@ -1286,7 +1428,11 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     }
 
     const nextText = inputText.trim() || "Please interpret the uploaded image symbolically.";
-    const nextMessageProfileTags = extractDivin8ProfileTags(nextText);
+    if (nextText.length > DIVIN8_MAX_MESSAGE_CHARS) {
+      setSendError(MESSAGE_LIMIT_MESSAGE);
+      return;
+    }
+    const nextMessageProfileTags = parsedDraft.profileTags;
     const nextProfileTags = mergeDivin8ActiveProfileTags(
       conversationProfileTags,
       undefined,
@@ -1302,20 +1448,13 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       imageNames: selectedImages.map((attachment) => attachment.imageName),
       imagePreviewUrls: selectedImages.map((attachment) => attachment.imagePreviewUrl),
       profileTags: nextProfileTags,
-      systems: parseDivin8CategoryTags(nextText).labels,
+      systems: parsedDraft.categoryLabels,
       timeline: activeTimeline,
       tier,
       language,
       requestId: messageId,
     };
     shouldAutoFollowRef.current = true;
-    setInputText("");
-    setTimelineDraftsByThread((current) => ({ ...current, [activeThreadId]: null }));
-    setImageRef(null);
-    setImageName(null);
-    setImagePreviewUrl(null);
-    setImageAttachmentsState([]);
-    setImageError(null);
     void sendMessageInternal(activeThreadId, messageId, payload);
   }
 
@@ -1472,7 +1611,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     isLoadingThread,
     isBootstrapping,
     isCreatingThread,
+    isLoadingThreads,
     isSearching,
+    isSending,
     inputText,
     setInputText,
     showScrollToBottom,
@@ -1494,7 +1635,11 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     timelineError,
     profileLimitMessage,
     timelineLimitMessage,
+    messageLimitMessage,
     conversationProfileTags,
+    detectedProfileTags: parsedDraft.profileTags,
+    draftOnlyProfileTags,
+    detectedTimelineTags: parsedDraft.timelineTags,
     activeTimeline,
     usageCount,
     usageLimit,

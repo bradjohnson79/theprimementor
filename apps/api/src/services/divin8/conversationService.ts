@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, lt, sql } from "drizzle-orm";
 import {
   conversationMessages,
   conversationTimelineEvents,
@@ -39,6 +39,8 @@ const SUMMARY_FALLBACK_LIMIT = 160;
 const THREAD_EXECUTION_TIMEOUT_MS = 90_000;
 const THREAD_LOCK_NAMESPACE = 6418;
 const MAX_THREAD_TITLE_LENGTH = 80;
+const DEFAULT_THREAD_LIST_LIMIT = 50;
+const MAX_THREAD_LIST_LIMIT = 100;
 
 interface ConversationThreadRow {
   id: string;
@@ -91,6 +93,11 @@ export interface Divin8ConversationSummary {
   updated_at: string | null;
   active_profile_tags: string[];
   active_execution?: Divin8ActiveExecutionState | null;
+}
+
+export interface Divin8ConversationListOptions {
+  limit?: number;
+  cursor?: string | null;
 }
 
 export interface Divin8ConversationMessage {
@@ -193,12 +200,13 @@ function threadSummaryFromRow(
   messageCount: number,
 ): Divin8ConversationSummary {
   const storedState = asStoredState(row.meta);
+  const listState = getThreadListState(row.meta);
   return {
     id: row.id,
     title: row.title,
     summary: row.summary,
-    preview,
-    message_count: messageCount,
+    preview: preview ?? listState.preview ?? row.summary,
+    message_count: messageCount || listState.messageCount,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at ? row.updated_at.toISOString() : null,
     active_profile_tags: storedState?.activeProfileTags ?? [],
@@ -209,6 +217,43 @@ function threadSummaryFromRow(
 function clipPreview(content: string) {
   const cleaned = content.replace(/\s+/g, " ").trim();
   return cleaned.length > 96 ? `${cleaned.slice(0, 93)}...` : cleaned;
+}
+
+function getThreadListState(meta: unknown) {
+  if (!isRecord(meta)) {
+    return {
+      preview: null as string | null,
+      messageCount: 0,
+      lastMessageAt: null as string | null,
+    };
+  }
+  return {
+    preview: typeof meta.listPreview === "string" ? meta.listPreview : null,
+    messageCount: typeof meta.messageCount === "number" && Number.isFinite(meta.messageCount) ? meta.messageCount : 0,
+    lastMessageAt: typeof meta.lastMessageAt === "string" ? meta.lastMessageAt : null,
+  };
+}
+
+function withThreadListState(
+  state: StoredDivin8SessionState,
+  input: { preview: string; messageCount: number; lastMessageAt: Date },
+) {
+  return {
+    ...state,
+    listPreview: clipPreview(input.preview),
+    messageCount: Math.max(0, input.messageCount),
+    lastMessageAt: input.lastMessageAt.toISOString(),
+  };
+}
+
+function normalizeThreadListOptions(options: Divin8ConversationListOptions = {}) {
+  const requestedLimit = Number.isFinite(options.limit) ? Number(options.limit) : DEFAULT_THREAD_LIST_LIMIT;
+  const limit = Math.max(1, Math.min(MAX_THREAD_LIST_LIMIT, Math.trunc(requestedLimit)));
+  const cursorDate = options.cursor ? new Date(options.cursor) : null;
+  return {
+    limit,
+    cursorDate: cursorDate && Number.isFinite(cursorDate.getTime()) ? cursorDate : null,
+  };
 }
 
 function clipSummary(content: string) {
@@ -399,31 +444,8 @@ function mapTimelineEvent(row: {
   };
 }
 
-async function mapThreadsWithMessages(db: Database, threads: ConversationThreadRow[]) {
-  if (threads.length === 0) {
-    return [] as Divin8ConversationSummary[];
-  }
-
-  const threadIds = threads.map((thread) => thread.id);
-  const messages = (await db
-    .select()
-    .from(conversationMessages)
-    .where(inArray(conversationMessages.thread_id, threadIds))
-    .orderBy(desc(conversationMessages.created_at))) as ConversationMessageRow[];
-
-  const previews = new Map<string, string | null>();
-  const counts = new Map<string, number>();
-
-  for (const message of messages) {
-    counts.set(message.thread_id, (counts.get(message.thread_id) ?? 0) + 1);
-    if (!previews.has(message.thread_id)) {
-      previews.set(message.thread_id, clipPreview(message.content));
-    }
-  }
-
-  return threads.map((thread) =>
-    threadSummaryFromRow(thread, previews.get(thread.id) ?? null, counts.get(thread.id) ?? 0),
-  );
+function mapThreadsLightweight(threads: ConversationThreadRow[]) {
+  return threads.map((thread) => threadSummaryFromRow(thread, null, 0));
 }
 
 function asStoredState(meta: unknown): StoredDivin8SessionState | null {
@@ -614,6 +636,7 @@ async function finalizeThreadExecutionSuccess(
     await withThreadAdvisoryLock(tx, input.thread.id);
     const thread = await getThreadRow(tx as unknown as Database, input.thread.id, input.userId);
     const currentState = asStoredState(thread.meta) ?? {};
+    const currentListState = getThreadListState(thread.meta);
 
     if (currentState.activeExecution?.requestId !== input.requestId) {
       throw createHttpError(409, "Conversation execution state changed before finalize.", "THREAD_STATE_MISMATCH");
@@ -655,7 +678,11 @@ async function finalizeThreadExecutionSuccess(
         summary: input.nextSummary,
         search_text: input.nextSearchText,
         meta: {
-          ...input.storedState,
+          ...withThreadListState(input.storedState, {
+            preview: input.visibleAssistantMessage,
+            messageCount: currentListState.messageCount + 2,
+            lastMessageAt: input.savedAt,
+          }),
           activeExecution: null,
           lastExecutionError: null,
         },
@@ -873,25 +900,40 @@ async function getUsageSummaryForListing(db: Database, userId: string, actorRole
   };
 }
 
-export async function listConversationThreads(db: Database, userId = ADMIN_DIVIN8_USER_ID, actorRole?: string) {
+export async function listConversationThreads(
+  db: Database,
+  userId = ADMIN_DIVIN8_USER_ID,
+  actorRole?: string,
+  options: Divin8ConversationListOptions = {},
+) {
+  const { limit, cursorDate } = normalizeThreadListOptions(options);
   const threads = (await db
     .select()
     .from(conversationThreads)
     .where(and(
       eq(conversationThreads.user_id, userId),
       eq(conversationThreads.is_archived, false),
+      cursorDate ? lt(sql<Date>`coalesce(${conversationThreads.updated_at}, ${conversationThreads.created_at})`, cursorDate) : undefined,
     ))
-    .orderBy(desc(conversationThreads.updated_at), desc(conversationThreads.created_at))) as ConversationThreadRow[];
+    .orderBy(desc(conversationThreads.updated_at), desc(conversationThreads.created_at))
+    .limit(limit + 1)) as ConversationThreadRow[];
 
-  if (threads.length === 0) {
+  const visibleThreads = threads.slice(0, limit);
+  const nextThread = threads.length > limit ? threads[limit] : null;
+
+  if (visibleThreads.length === 0) {
     return {
       threads: [] as Divin8ConversationSummary[],
+      next_cursor: null as string | null,
       usage: await getUsageSummaryForListing(db, userId, actorRole),
     };
   }
 
   return {
-    threads: await mapThreadsWithMessages(db, threads),
+    threads: mapThreadsLightweight(visibleThreads),
+    next_cursor: nextThread
+      ? (nextThread.updated_at ?? nextThread.created_at).toISOString()
+      : null,
     usage: await getUsageSummaryForListing(db, userId, actorRole),
   };
 }
@@ -900,11 +942,13 @@ export async function searchConversationThreads(
   db: Database,
   query: string,
   userId = ADMIN_DIVIN8_USER_ID,
+  options: Divin8ConversationListOptions = {},
 ) {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) {
     return { threads: [] as Divin8ConversationSummary[] };
   }
+  const { limit, cursorDate } = normalizeThreadListOptions(options);
 
   const threads = (await db
     .select()
@@ -913,12 +957,19 @@ export async function searchConversationThreads(
       eq(conversationThreads.user_id, userId),
       eq(conversationThreads.is_archived, false),
       ilike(sql<string>`coalesce(${conversationThreads.search_text}, ${conversationThreads.title})`, `%${normalizedQuery}%`),
+      cursorDate ? lt(sql<Date>`coalesce(${conversationThreads.updated_at}, ${conversationThreads.created_at})`, cursorDate) : undefined,
     ))
     .orderBy(desc(conversationThreads.updated_at), desc(conversationThreads.created_at))
-    .limit(20)) as ConversationThreadRow[];
+    .limit(limit + 1)) as ConversationThreadRow[];
+
+  const visibleThreads = threads.slice(0, limit);
+  const nextThread = threads.length > limit ? threads[limit] : null;
 
   return {
-    threads: await mapThreadsWithMessages(db, threads),
+    threads: mapThreadsLightweight(visibleThreads),
+    next_cursor: nextThread
+      ? (nextThread.updated_at ?? nextThread.created_at).toISOString()
+      : null,
   };
 }
 
@@ -1178,7 +1229,11 @@ export async function addMessageToConversation(
           search_text: nextSearchText,
           updated_at: savedAt,
           meta: {
-            ...orchestration.storedState,
+            ...withThreadListState(orchestration.storedState, {
+              preview: visibleAssistantMessage,
+              messageCount: history.length + 2,
+              lastMessageAt: savedAt,
+            }),
             activeExecution: null,
             lastExecutionError: null,
           },

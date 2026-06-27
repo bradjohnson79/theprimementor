@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import ChatComposer from "./ChatComposer";
 import ChatWindow from "./ChatWindow";
@@ -48,6 +48,8 @@ export default function Divin8ChatPage({
 }: Divin8ChatPageProps) {
   const chat = useDivin8Chat(config);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("chat");
+  const renderStartedAtRef = useRef(performance.now());
+  const renderCountRef = useRef(0);
   const mergedCapabilities: Divin8Capabilities = {
     showDebug: true,
     showTimeline: true,
@@ -58,12 +60,26 @@ export default function Divin8ChatPage({
     ...capabilities,
   };
 
+  renderStartedAtRef.current = performance.now();
+  renderCountRef.current += 1;
+  useEffect(() => {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      console.debug("[Divin8 perf] page render", `${Math.round(performance.now() - renderStartedAtRef.current)}ms`, {
+        renderCount: renderCountRef.current,
+        messages: chat.messages.length,
+        threads: chat.displayedThreads.length,
+        inputLength: chat.inputText.length,
+      });
+    }
+  });
+
   const desktopConversationList = (
     <ConversationList
       threads={chat.displayedThreads}
       activeThreadId={chat.activeThreadId}
       isLightTheme={isLightTheme}
       isCreating={chat.isCreatingThread}
+      isLoadingThreads={chat.isLoadingThreads || (chat.isBootstrapping && chat.displayedThreads.length === 0)}
       searchQuery={chat.searchQuery}
       isSearching={chat.isSearching}
       profiles={chat.profiles}
@@ -88,6 +104,7 @@ export default function Divin8ChatPage({
       activeThreadId={chat.activeThreadId}
       isLightTheme={isLightTheme}
       isCreating={chat.isCreatingThread}
+      isLoadingThreads={chat.isLoadingThreads || (chat.isBootstrapping && chat.displayedThreads.length === 0)}
       searchQuery={chat.searchQuery}
       isSearching={chat.isSearching}
       profiles={chat.profiles}
@@ -125,6 +142,7 @@ export default function Divin8ChatPage({
       activeThreadId={chat.activeThreadId}
       isLightTheme={isLightTheme}
       isCreating={chat.isCreatingThread}
+      isLoadingThreads={chat.isLoadingThreads || (chat.isBootstrapping && chat.displayedThreads.length === 0)}
       searchQuery={chat.searchQuery}
       isSearching={chat.isSearching}
       profiles={chat.profiles}
@@ -175,7 +193,7 @@ export default function Divin8ChatPage({
             title={chat.chatTitle}
             messages={chat.messages}
             isGenerating={chat.isGenerating}
-            isThreadLoading={chat.isLoadingThread || chat.isBootstrapping}
+            isThreadLoading={chat.isLoadingThread}
             threadError={chat.threadError}
             isLightTheme={isLightTheme}
             onRetryMessage={chat.handleRetryMessage}
@@ -217,13 +235,13 @@ export default function Divin8ChatPage({
                 imagePreviewUrl={chat.imagePreviewUrl}
                 imageError={chat.imageError || speech?.error || null}
                 disabled={
-                  chat.isGenerating ||
                   !!chat.blockMessage ||
                   !!chat.profileLimitMessage ||
                   !!chat.timelineLimitMessage ||
-                  chat.isLoadingThread ||
-                  chat.isBootstrapping
+                  !!chat.messageLimitMessage ||
+                  chat.isLoadingThread
                 }
+                isSubmitting={chat.isSending}
                 isSpeechSupported={speech?.isSupported ?? false}
                 speechStatus={speech?.status ?? "disabled"}
                 speechButtonTitle={speech?.buttonTitle ?? "Speech unavailable"}
@@ -236,10 +254,14 @@ export default function Divin8ChatPage({
                   chat.blockMessage ??
                   chat.profileLimitMessage ??
                   chat.timelineLimitMessage ??
+                  chat.messageLimitMessage ??
                   chat.timelineError
                 }
                 submitError={chat.sendError}
                 activeTimeline={chat.activeTimeline}
+                detectedProfileTags={chat.detectedProfileTags}
+                draftOnlyProfileTags={chat.draftOnlyProfileTags}
+                detectedTimelineTags={chat.detectedTimelineTags}
                 showTimelineButton={mergedCapabilities.showTimelineReading}
                 inputRef={chat.composerInputRef}
               />

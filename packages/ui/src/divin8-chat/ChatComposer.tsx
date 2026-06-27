@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject, type UIEvent } from "react";
-import { extractDivin8ProfileTags, extractDivin8TimelineTags } from "@wisdom/utils";
+import { DIVIN8_MAX_MESSAGE_CHARS } from "@wisdom/utils";
 import type { Divin8ImageAttachment, Divin8Profile, Divin8TimelineDraft } from "./types";
 import CategorySelectorButton from "./CategorySelectorButton";
 import ChatAutocompleteMenu from "./ChatAutocompleteMenu";
@@ -21,6 +21,7 @@ interface ChatComposerProps {
   imagePreviewUrl: string | null;
   imageError: string | null;
   disabled: boolean;
+  isSubmitting: boolean;
   isSpeechSupported: boolean;
   speechStatus: SpeechRecognitionStatus;
   speechButtonTitle: string;
@@ -32,6 +33,9 @@ interface ChatComposerProps {
   blockMessage: string | null;
   submitError: string | null;
   activeTimeline: Divin8TimelineDraft | null;
+  detectedProfileTags: string[];
+  draftOnlyProfileTags: string[];
+  detectedTimelineTags: string[];
   showTimelineButton: boolean;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   placeholder?: string;
@@ -50,6 +54,7 @@ export default function ChatComposer({
   imagePreviewUrl,
   imageError,
   disabled,
+  isSubmitting,
   isSpeechSupported,
   speechStatus,
   speechButtonTitle,
@@ -61,11 +66,15 @@ export default function ChatComposer({
   blockMessage,
   submitError,
   activeTimeline,
+  detectedProfileTags,
+  draftOnlyProfileTags,
+  detectedTimelineTags,
   showTimelineButton,
   inputRef,
   placeholder = "Share what you want guidance on...",
 }: ChatComposerProps) {
   const localInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
 
   function setRefs(element: HTMLTextAreaElement | null) {
     localInputRef.current = element;
@@ -75,22 +84,38 @@ export default function ChatComposer({
   }
 
   useEffect(() => {
-    const textarea = localInputRef.current;
-    if (!textarea) {
-      return;
+    if (resizeRafRef.current) {
+      window.cancelAnimationFrame(resizeRafRef.current);
     }
+    const startedAt = performance.now();
+    resizeRafRef.current = window.requestAnimationFrame(() => {
+      resizeRafRef.current = null;
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        console.debug("[Divin8 perf] composer resize", Math.round(performance.now() - startedAt), "ms");
+      }
+      const textarea = localInputRef.current;
+      if (!textarea) {
+        return;
+      }
 
-    textarea.style.height = "0px";
-    const styles = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(styles.lineHeight || "24") || 24;
-    const paddingTop = Number.parseFloat(styles.paddingTop || "0") || 0;
-    const paddingBottom = Number.parseFloat(styles.paddingBottom || "0") || 0;
-    const maxHeight = lineHeight * 6 + paddingTop + paddingBottom;
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = "0px";
+      const styles = window.getComputedStyle(textarea);
+      const lineHeight = Number.parseFloat(styles.lineHeight || "24") || 24;
+      const paddingTop = Number.parseFloat(styles.paddingTop || "0") || 0;
+      const paddingBottom = Number.parseFloat(styles.paddingBottom || "0") || 0;
+      const maxHeight = lineHeight * 6 + paddingTop + paddingBottom;
+      const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
 
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    });
   }, [inputText]);
+
+  useEffect(() => () => {
+    if (resizeRafRef.current) {
+      window.cancelAnimationFrame(resizeRafRef.current);
+    }
+  }, []);
 
   const autocomplete = useDivin8Autocomplete({
     inputText,
@@ -122,10 +147,14 @@ export default function ChatComposer({
       ? [{ imageRef: "", imageName: imageName ?? "Uploaded image", imagePreviewUrl }]
       : [];
   const canSend = !disabled && (inputText.trim().length > 0 || previewAttachments.length > 0);
-  const detectedTags = extractDivin8ProfileTags(inputText);
+  const remainingCharacters = DIVIN8_MAX_MESSAGE_CHARS - inputText.length;
+  const isNearLimit = remainingCharacters <= 500 && remainingCharacters >= 0;
+  const isOverLimit = remainingCharacters < 0;
   const activeProfileTagSet = new Set(conversationProfileTags);
-  const draftOnlyTags = detectedTags.filter((tag) => !activeProfileTagSet.has(tag));
-  const detectedTimelineTags = extractDivin8TimelineTags(inputText);
+  const draftOnlyTags = draftOnlyProfileTags.length > 0
+    ? draftOnlyProfileTags
+    : detectedProfileTags.filter((tag) => !activeProfileTagSet.has(tag));
+  const canSubmit = canSend && !isSubmitting && !isOverLimit;
 
   return (
     <form onSubmit={onSubmit} className="space-y-2" aria-label="Divin8 chat composer">
@@ -325,11 +354,11 @@ export default function ChatComposer({
 
           <button
             type="submit"
-            disabled={!canSend}
+            disabled={!canSubmit}
             aria-label="Send"
             className={classNames(
               "inline-flex h-8 w-8 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70",
-              canSend
+              canSubmit
                 ? "bg-accent-cyan text-slate-950 hover:brightness-110"
                 : isLightTheme
                   ? "text-slate-300"
@@ -353,6 +382,28 @@ export default function ChatComposer({
             </svg>
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 px-1 text-[11px]">
+        <span
+          className={classNames(
+            isOverLimit
+              ? "font-semibold"
+              : isNearLimit
+                ? "font-medium"
+                : "",
+            isOverLimit
+              ? isLightTheme ? "text-rose-600" : "text-rose-300"
+              : isNearLimit
+                ? isLightTheme ? "text-amber-600" : "text-amber-200"
+                : isLightTheme ? "text-slate-400" : "text-white/35",
+          )}
+        >
+          {remainingCharacters.toLocaleString()} characters remaining
+        </span>
+        <span className={isLightTheme ? "text-slate-400" : "text-white/30"}>
+          Limit: {DIVIN8_MAX_MESSAGE_CHARS.toLocaleString()}
+        </span>
       </div>
 
       {conversationProfileTags.length > 0 || draftOnlyTags.length > 0 ? (
@@ -403,6 +454,16 @@ export default function ChatComposer({
       {blockMessage ? (
         <div className={classNames("rounded-lg px-3 py-2 text-xs", isLightTheme ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-amber-500/30 bg-amber-500/10 text-amber-100")}>
           {blockMessage}
+        </div>
+      ) : null}
+
+      {isOverLimit ? (
+        <div className={classNames("rounded-lg px-3 py-2 text-xs", isLightTheme ? "border border-rose-200 bg-rose-50 text-rose-700" : "border border-rose-500/30 bg-rose-500/10 text-rose-100")} role="alert">
+          Message is too long. Please shorten it before sending.
+        </div>
+      ) : isNearLimit ? (
+        <div className={classNames("rounded-lg px-3 py-2 text-xs", isLightTheme ? "border border-amber-200 bg-amber-50 text-amber-700" : "border border-amber-500/30 bg-amber-500/10 text-amber-100")}>
+          You are close to the message limit.
         </div>
       ) : null}
 

@@ -8,6 +8,7 @@ interface ConversationListProps {
   activeThreadId: string | null;
   isLightTheme: boolean;
   isCreating: boolean;
+  isLoadingThreads: boolean;
   searchQuery: string;
   isSearching: boolean;
   profiles: Divin8Profile[];
@@ -36,6 +37,7 @@ export default function ConversationList({
   activeThreadId,
   isLightTheme,
   isCreating,
+  isLoadingThreads,
   searchQuery,
   isSearching,
   profiles,
@@ -109,6 +111,22 @@ export default function ConversationList({
               Conversations
             </div>
             <div className="space-y-1">
+              {isLoadingThreads && threads.length === 0 ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`conversation-skeleton-${index}`}
+                    className={classNames(
+                      "rounded-xl border px-3 py-3",
+                      isLightTheme ? "border-slate-100 bg-slate-50" : "border-white/5 bg-white/[0.03]",
+                    )}
+                    aria-hidden="true"
+                  >
+                    <div className={classNames("h-3 w-2/3 rounded", isLightTheme ? "bg-slate-200" : "bg-white/10")} />
+                    <div className={classNames("mt-2 h-2 w-full rounded", isLightTheme ? "bg-slate-100" : "bg-white/5")} />
+                    <div className={classNames("mt-2 h-2 w-1/3 rounded", isLightTheme ? "bg-slate-100" : "bg-white/5")} />
+                  </div>
+                ))
+              ) : null}
               {threads.map((thread) => {
                 const isActive = thread.id === activeThreadId;
                 return (
@@ -247,7 +265,7 @@ export default function ConversationList({
                   </div>
                 );
               })}
-              {threads.length === 0 ? (
+              {threads.length === 0 && !isLoadingThreads ? (
                 <div
                   className={classNames(
                     "rounded-xl border px-3 py-4 text-sm",
@@ -259,7 +277,9 @@ export default function ConversationList({
                     ? isSearching
                       ? "Searching..."
                       : "No conversations match your search."
-                    : "No conversations yet."}
+                    : isLoadingThreads
+                      ? "Loading conversations..."
+                      : "No conversations yet."}
                 </div>
               ) : null}
             </div>

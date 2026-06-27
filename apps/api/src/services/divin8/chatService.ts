@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
+  DIVIN8_MAX_MESSAGE_CHARS,
   DIVIN8_LIMITS,
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
   MAX_DIVIN8_TIMELINES_PER_MESSAGE,
@@ -126,6 +127,16 @@ export interface SessionHistoryItem {
 export const MAX_HISTORY = 10;
 export const GPT_LIVE_TAG_REGEX = /\[DIVIN8_GPT_LIVE_[^\]]+\]/g;
 
+function createMessageTooLongError() {
+  const error = new Error(`Message is too long. Please keep Divin8 Chat messages to ${DIVIN8_MAX_MESSAGE_CHARS.toLocaleString()} characters or fewer.`) as Error & {
+    code?: string;
+    statusCode?: number;
+  };
+  error.code = "DIVIN8_MESSAGE_TOO_LONG";
+  error.statusCode = 413;
+  return error;
+}
+
 export function stripVerificationTags(text: string) {
   return text.replace(GPT_LIVE_TAG_REGEX, "").trim();
 }
@@ -217,6 +228,9 @@ export function validateDivin8ChatRequest(body: unknown): Divin8ChatRequest {
   if (!message) {
     throw new Error("message is required.");
   }
+  if (message.length > DIVIN8_MAX_MESSAGE_CHARS) {
+    throw createMessageTooLongError();
+  }
 
   if (tier !== "seeker" && tier !== "initiate") {
     throw new Error("tier must be seeker or initiate.");
@@ -266,6 +280,9 @@ export function validateDivin8MemberMessageRequest(body: unknown): Divin8MemberM
 
   if (!message) {
     throw new Error("message is required.");
+  }
+  if (message.length > DIVIN8_MAX_MESSAGE_CHARS) {
+    throw createMessageTooLongError();
   }
 
   if (profileTags.length > MAX_DIVIN8_PROFILES_PER_MESSAGE) {

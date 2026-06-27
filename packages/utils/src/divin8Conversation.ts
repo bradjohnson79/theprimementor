@@ -127,6 +127,7 @@ export interface Divin8ConversationDetailResponse {
 
 export interface Divin8ConversationsResponse {
   threads: Divin8ConversationSummaryResponse[];
+  next_cursor?: string | null;
   usage: Divin8UsageResponse;
 }
 

@@ -28,7 +28,6 @@ export default function CategorySelectorModal({
 
   useEffect(() => {
     if (!open) {
-      setSelectedTags(new Set());
       return;
     }
     setSelectedTags(new Set(parseDivin8CategoryTags(inputText).tags));

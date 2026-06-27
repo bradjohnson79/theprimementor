@@ -40,6 +40,8 @@ export const DIVIN8_LIMITS = {
   initiate: Number.POSITIVE_INFINITY,
 } as const;
 
+export const DIVIN8_MAX_MESSAGE_CHARS = 8000;
+
 export interface MemberUsageState {
   promptsUsed: number;
   periodStart: string;

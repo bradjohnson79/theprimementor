@@ -25,6 +25,11 @@ interface UseDivin8AutocompleteParams {
   onInputChange: (value: string) => void;
 }
 
+function shouldLogDivin8AutocompletePerf() {
+  return typeof window !== "undefined"
+    && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+}
+
 function getActiveAutocompleteMatch(inputText: string, selectionStart: number): ActiveAutocompleteMatch | null {
   const beforeCursor = inputText.slice(0, selectionStart);
   const profileMatch = beforeCursor.match(/(^|\s)(@[A-Za-z0-9]*)$/);
@@ -66,24 +71,34 @@ export function useDivin8Autocomplete({
   }, [inputText, textareaRef]);
 
   const suggestions = useMemo<Divin8AutocompleteSuggestion[]>(() => {
+    const startedAt = performance.now();
+    const finish = (result: Divin8AutocompleteSuggestion[]) => {
+      if (shouldLogDivin8AutocompletePerf()) {
+        console.debug("[Divin8 perf] autocomplete parsing", `${Math.round(performance.now() - startedAt)}ms`, {
+          trigger: activeMatch?.trigger ?? null,
+          suggestions: result.length,
+        });
+      }
+      return result;
+    };
     if (!activeMatch || activeMatch.query === dismissedQuery) {
-      return [];
+      return finish([]);
     }
 
     if (activeMatch.trigger === "@") {
       const normalized = activeMatch.query.slice(1).toLowerCase();
-      return profiles
+      return finish(profiles
         .filter((profile) => (
           !normalized
           || profile.tag.slice(1).toLowerCase().startsWith(normalized)
           || profile.fullName.toLowerCase().includes(normalized)
         ))
         .slice(0, 6)
-        .map((profile) => ({ kind: "profile", profile, token: profile.tag }));
+        .map((profile) => ({ kind: "profile", profile, token: profile.tag })));
     }
 
-    return filterDivin8CategorySuggestions(activeMatch.query)
-      .map((category) => ({ kind: "category", category, token: category.tag }));
+    return finish(filterDivin8CategorySuggestions(activeMatch.query)
+      .map((category) => ({ kind: "category", category, token: category.tag })));
   }, [activeMatch, dismissedQuery, profiles]);
 
   useEffect(() => {
