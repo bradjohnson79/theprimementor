@@ -46,6 +46,7 @@ export interface SessionLandingContent {
     eyebrow: string;
     title: string;
     subtitle: string;
+    bullets?: string[];
     supportingLine: string;
     cta: SessionLandingCta;
     callout: SessionLandingCallout;
@@ -411,6 +412,16 @@ export default function SessionLandingPage({
               <p className="mt-5 max-w-3xl text-base leading-8 text-white/72 sm:text-lg">
                 {content.hero.subtitle}
               </p>
+              {content.hero.bullets?.length ? (
+                <ul className="mt-5 max-w-3xl space-y-3 text-sm leading-7 text-white/72 sm:text-base">
+                  {content.hero.bullets.map((item) => (
+                    <li key={item} className="flex gap-3">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-200/70" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <p className="mt-5 max-w-2xl text-sm leading-7 text-white/58 sm:text-base">
                 {content.hero.supportingLine}
               </p>

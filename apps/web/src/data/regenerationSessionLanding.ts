@@ -10,6 +10,12 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
     title: "Regenerate Your Personal Life Every Month",
     subtitle:
       "A monthly 1-to-1 manifestation and regeneration service with Brad Johnson to safeguard your desired outcomes, amplify preferred assumptions, clear anti-goals, and support your personal transformation.",
+    bullets: [
+      "15 minute ZOOM consultation with Brad Johnson",
+      "Desired manifestation(s) safeguarded indefinitely free from doubt/sabotage.",
+      "Video recording of consultation and 2 free MP3 exercises to remove conflict and empower additional manifestations.",
+      "30 day priority email support with Brad Johnson",
+    ],
     supportingLine:
       "$99 CAD / month · Cancel anytime",
     cta: {
@@ -31,6 +37,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
       paragraphs: [
         "The Regeneration Monthly Package is a monthly subscription service designed to help regenerate your personal life from the inside out.",
         "This is not limited to physical regeneration. Brad works with your desired manifestation, personal state, or life improvement goal by safeguarding the assumption, amplifying the preferred outcome, and clearing anti-goals that may interfere with the result.",
+        "The Regeneration Monthly Package includes a 15 minute ZOOM consultation with Brad Johnson. Brad interacts with you teaching you a simple and powerful breathwork exercise and guides you through your desired manifestation with a meditation. This leads to Manifestation safeguarding securing your manifestation from personal doubt/sabotage increasing it to accelerate itself to you.",
       ],
       density: "default",
     },
