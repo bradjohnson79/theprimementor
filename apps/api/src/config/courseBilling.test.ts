@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type Stripe from "stripe";
 import {
+  RESONANT_DOWSING_CHECKOUT_UNAVAILABLE_MESSAGE,
   RESONANT_DOWSING_STRIPE_PRICE_ID,
+  diagnoseResonantDowsingStripePrice,
   getResonantDowsingStripePriceId,
+  isResonantDowsingStripePriceConfigError,
   validateResonantDowsingStripePrice,
+  verifyResonantDowsingStripePrice,
 } from "./courseBilling.js";
 
 function price(overrides: Partial<Stripe.Price> = {}) {
@@ -33,14 +37,32 @@ function price(overrides: Partial<Stripe.Price> = {}) {
 }
 
 describe("courseBilling", () => {
-  it("requires the pinned Resonant Dowsing Stripe Price ID", () => {
+  it("uses the configured Resonant Dowsing Stripe Price ID from the environment", () => {
     const previous = process.env.STRIPE_PRICE_RESONANT_DOWSING;
     try {
       process.env.STRIPE_PRICE_RESONANT_DOWSING = RESONANT_DOWSING_STRIPE_PRICE_ID;
       assert.equal(getResonantDowsingStripePriceId(), RESONANT_DOWSING_STRIPE_PRICE_ID);
 
-      process.env.STRIPE_PRICE_RESONANT_DOWSING = "price_wrong";
-      assert.throws(() => getResonantDowsingStripePriceId(), /Expected active one-time CAD price/);
+      process.env.STRIPE_PRICE_RESONANT_DOWSING = "price_other";
+      assert.equal(getResonantDowsingStripePriceId(), "price_other");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.STRIPE_PRICE_RESONANT_DOWSING;
+      } else {
+        process.env.STRIPE_PRICE_RESONANT_DOWSING = previous;
+      }
+    }
+  });
+
+  it("rejects a missing configured Price ID", () => {
+    const previous = process.env.STRIPE_PRICE_RESONANT_DOWSING;
+    try {
+      delete process.env.STRIPE_PRICE_RESONANT_DOWSING;
+      assert.throws(
+        () => getResonantDowsingStripePriceId(),
+        (error) => isResonantDowsingStripePriceConfigError(error)
+          && error.diagnostics.failureReason === "missing_env",
+      );
     } finally {
       if (previous === undefined) {
         delete process.env.STRIPE_PRICE_RESONANT_DOWSING;
@@ -52,9 +74,68 @@ describe("courseBilling", () => {
 
   it("accepts only an active one-time CAD price at 9900 cents", () => {
     assert.equal(validateResonantDowsingStripePrice(price()), true);
-    assert.throws(() => validateResonantDowsingStripePrice(price({ active: false })), /Expected active one-time CAD price/);
-    assert.throws(() => validateResonantDowsingStripePrice(price({ currency: "usd" })), /Expected active one-time CAD price/);
-    assert.throws(() => validateResonantDowsingStripePrice(price({ unit_amount: 9800 })), /Expected active one-time CAD price/);
-    assert.throws(() => validateResonantDowsingStripePrice(price({ type: "recurring" })), /Expected active one-time CAD price/);
+    assert.throws(
+      () => validateResonantDowsingStripePrice(price({ active: false })),
+      (error) => isResonantDowsingStripePriceConfigError(error)
+        && error.diagnostics.failureReason === "price_inactive",
+    );
+    assert.throws(
+      () => validateResonantDowsingStripePrice(price({ currency: "usd" })),
+      (error) => isResonantDowsingStripePriceConfigError(error)
+        && error.diagnostics.failureReason === "wrong_currency",
+    );
+    assert.throws(
+      () => validateResonantDowsingStripePrice(price({ unit_amount: 9800 })),
+      (error) => isResonantDowsingStripePriceConfigError(error)
+        && error.diagnostics.failureReason === "wrong_amount",
+    );
+    assert.throws(
+      () => validateResonantDowsingStripePrice(price({ type: "recurring" })),
+      (error) => isResonantDowsingStripePriceConfigError(error)
+        && error.diagnostics.failureReason === "wrong_type",
+    );
+  });
+
+  it("rejects a missing Stripe Price in the current Stripe mode", async () => {
+    const previous = process.env.STRIPE_PRICE_RESONANT_DOWSING;
+    process.env.STRIPE_PRICE_RESONANT_DOWSING = RESONANT_DOWSING_STRIPE_PRICE_ID;
+    try {
+      const stripe = {
+        prices: {
+          retrieve: async () => {
+            const error = new Error("No such price") as Error & { code: string; statusCode: number; type: string };
+            error.code = "resource_missing";
+            error.statusCode = 404;
+            error.type = "StripeInvalidRequestError";
+            throw error;
+          },
+        },
+      } as unknown as Stripe;
+
+      await assert.rejects(
+        () => verifyResonantDowsingStripePrice(stripe),
+        (error) => isResonantDowsingStripePriceConfigError(error)
+          && error.diagnostics.failureReason === "price_not_found"
+          && error.diagnostics.priceDoesNotExist === true,
+      );
+      const diagnostics = await diagnoseResonantDowsingStripePrice(stripe);
+      assert.equal(diagnostics.exists, false);
+      assert.equal(diagnostics.valid, false);
+      assert.equal(diagnostics.failureReason, "price_not_found");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.STRIPE_PRICE_RESONANT_DOWSING;
+      } else {
+        process.env.STRIPE_PRICE_RESONANT_DOWSING = previous;
+      }
+    }
+  });
+
+  it("keeps detailed diagnostics server-side and a generic checkout error for members", () => {
+    assert.equal(
+      RESONANT_DOWSING_CHECKOUT_UNAVAILABLE_MESSAGE,
+      "Course checkout is temporarily unavailable. Please try again later or contact support.",
+    );
+    assert.doesNotMatch(RESONANT_DOWSING_CHECKOUT_UNAVAILABLE_MESSAGE, /Stripe|Price ID|9900|CAD|configuration/i);
   });
 });

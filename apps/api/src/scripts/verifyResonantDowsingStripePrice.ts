@@ -1,7 +1,7 @@
 import "dotenv/config";
 import Stripe from "stripe";
 import {
-  RESONANT_DOWSING_STRIPE_PRICE_ID,
+  getResonantDowsingStripePriceId,
   verifyResonantDowsingStripePrice,
 } from "../config/courseBilling.js";
 
@@ -12,4 +12,4 @@ if (!apiKey) {
 
 const stripe = new Stripe(apiKey);
 await verifyResonantDowsingStripePrice(stripe);
-console.log(`Verified Resonant Dowsing Stripe price ${RESONANT_DOWSING_STRIPE_PRICE_ID}.`);
+console.log(`Verified Resonant Dowsing Stripe price ${getResonantDowsingStripePriceId()}.`);

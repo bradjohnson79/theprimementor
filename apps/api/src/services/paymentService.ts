@@ -740,7 +740,7 @@ async function createCourseCheckoutSession(db: Database, input: CreateCheckoutSe
   }
 
   const stripe = getStripe();
-  await verifyResonantDowsingStripePrice(stripe);
+  await verifyResonantDowsingStripePrice(stripe, { logger });
   const priceId = getResonantDowsingStripePriceId();
   const metadata = buildCheckoutMetadata({
     ...input,

@@ -1,7 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { ok } from "../apiContract.js";
+import Stripe from "stripe";
+import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireClerkId, requireDatabase, requireDbUser } from "../routeAssertions.js";
+import {
+  RESONANT_DOWSING_CHECKOUT_UNAVAILABLE_MESSAGE,
+  diagnoseResonantDowsingStripePrice,
+  isResonantDowsingStripePriceConfigError,
+} from "../config/courseBilling.js";
+import { createHttpError } from "../services/booking/errors.js";
 import {
   prepareCourseEntitlementForCheckout,
   RESONANT_DOWSING_COURSE_SLUG,
@@ -62,7 +69,17 @@ export async function coursesRoutes(app: FastifyInstance) {
     }));
   });
 
-  app.post("/courses/resonant-dowsing/checkout", { preHandler: requireAuth }, async (request) => {
+  app.get("/admin/courses/resonant-dowsing/price-diagnostics", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    const apiKey = process.env.STRIPE_SECRET_KEY?.trim();
+    if (!apiKey) {
+      throw createHttpError(503, "STRIPE_SECRET_KEY is not configured.");
+    }
+    const stripe = new Stripe(apiKey);
+    return ok(await diagnoseResonantDowsingStripePrice(stripe));
+  });
+
+  app.post("/courses/resonant-dowsing/checkout", { preHandler: requireAuth }, async (request, reply) => {
     const db = requireDatabase(app.db);
     const user = requireDbUser(request);
     const clerkId = requireClerkId(request);
@@ -81,13 +98,27 @@ export async function coursesRoutes(app: FastifyInstance) {
       });
     }
 
-    const session = await createCheckoutSession(db, {
-      type: "course",
-      userId: user.id,
-      userEmail: user.email,
-      clerkId,
-      courseEntitlementId: prepared.entitlement.id,
-    });
+    let session: Awaited<ReturnType<typeof createCheckoutSession>>;
+    try {
+      session = await createCheckoutSession(db, {
+        type: "course",
+        userId: user.id,
+        userEmail: user.email,
+        clerkId,
+        courseEntitlementId: prepared.entitlement.id,
+      });
+    } catch (error) {
+      if (isResonantDowsingStripePriceConfigError(error)) {
+        app.log.error({
+          checkoutType: "course",
+          courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+          courseEntitlementId: prepared.entitlement.id,
+          diagnostics: error.diagnostics,
+        }, "resonant_dowsing_checkout_unavailable");
+        return sendApiError(reply, 503, RESONANT_DOWSING_CHECKOUT_UNAVAILABLE_MESSAGE);
+      }
+      throw error;
+    }
 
     return ok({
       alreadyPaid: false,

@@ -138,6 +138,7 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "POST", url: "/api/courses/resonant-dowsing/lessons/:lessonId/complete", auth: "bearer", validation: "service", handlerFile: "routes/courses.ts", serviceRefs: ["services/courses/courseProgressService.ts"] },
   { method: "POST", url: "/api/courses/resonant-dowsing/checkout", auth: "bearer", validation: "manual", handlerFile: "routes/courses.ts", serviceRefs: ["services/courses/courseEntitlementService.ts", "services/paymentService.ts"] },
   { method: "GET", url: "/api/admin/courses/resonant-dowsing/content", auth: "admin", validation: "none", handlerFile: "routes/courses.ts", serviceRefs: ["services/courses/resonantDowsingCourse.ts"] },
+  { method: "GET", url: "/api/admin/courses/resonant-dowsing/price-diagnostics", auth: "admin", validation: "service", handlerFile: "routes/courses.ts", serviceRefs: ["config/courseBilling.ts"] },
   { method: "GET", url: "/api/admin/orders", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/ordersService.ts"] },
   { method: "POST", url: "/api/admin/orders/archive", auth: "admin", validation: "manual", handlerFile: "routes/orders.ts", serviceRefs: ["services/ordersService.ts"] },
   { method: "GET", url: "/api/admin/orders/:orderId", auth: "admin", validation: "service", handlerFile: "routes/orders.ts", serviceRefs: ["services/ordersService.ts"] },
