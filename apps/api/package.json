@@ -19,6 +19,7 @@
     "stripe:backfill:dry-run": "tsx src/scripts/backfillStripeDescriptions.ts --dry-run",
     "reconcile:stripe": "tsx src/scripts/reconcileStripe.ts",
     "validate:session-catalog": "tsx src/scripts/validateSessionCatalog.ts",
+    "stripe:diagnose-resonant-dowsing": "tsx src/scripts/diagnoseResonantDowsingStripe.ts",
     "verify:resonant-dowsing-price": "tsx src/scripts/verifyResonantDowsingStripePrice.ts",
     "verify": "pnpm build && pnpm test:enforce && pnpm test"
   },

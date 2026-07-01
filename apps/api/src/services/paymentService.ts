@@ -27,6 +27,7 @@ import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
 import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import {
+  buildResonantDowsingCheckoutLineItem,
   getResonantDowsingStripePriceId,
   verifyResonantDowsingStripePrice,
 } from "../config/courseBilling.js";
@@ -768,7 +769,7 @@ async function createCourseCheckoutSession(db: Database, input: CreateCheckoutSe
     payment_method_types: ["card"],
     mode: "payment",
     client_reference_id: courseEntitlementId,
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: [buildResonantDowsingCheckoutLineItem()],
     metadata,
     payment_intent_data: {
       description,
