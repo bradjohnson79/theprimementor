@@ -262,7 +262,6 @@ export default function CourseResonantDowsing() {
         <CourseLearningShell
           title={publicCourse?.title ?? "The Resonant Dowsing Course"}
           summary={publicCourse?.description?.[0] ?? ""}
-          thumbnailUrl={publicCourse?.thumbnailUrl}
           badge={`${publicCourse?.moduleCount ?? 13} Modules · ${content.progress.totalLessons} Lessons`}
           lessons={content.lessons}
           selectedLesson={selectedLesson}

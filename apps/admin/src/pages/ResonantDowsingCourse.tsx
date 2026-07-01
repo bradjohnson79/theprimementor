@@ -113,7 +113,6 @@ export default function ResonantDowsingCourse() {
       <CourseLearningShell
         title={content?.course.title ?? "The Resonant Dowsing Course"}
         summary={content?.course.description[0] ?? "Resonant Dowsing course content."}
-        thumbnailUrl={content?.course.thumbnailUrl ?? "/images/courses/resonant-dowsing-course.png"}
         badge={`${content?.course.moduleCount ?? 13} Modules · ${content?.progress.totalLessons ?? 14} Lessons`}
         statusPill={{ label: "Admin Access", value: "All lessons unlocked" }}
         lessons={content?.lessons ?? []}

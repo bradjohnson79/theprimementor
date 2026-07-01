@@ -51,7 +51,7 @@ export default function CourseLearningShell({
     <div className="dashboard-shell">
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="dashboard-panel relative overflow-hidden border border-white/10">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-end">
+          <div className={`grid gap-6 lg:items-end ${thumbnailUrl ? "lg:grid-cols-[minmax(0,1fr)_13rem]" : ""}`}>
             <div>
               <a href={backHref} className="text-sm font-medium text-cyan-100/75 hover:text-cyan-100">
                 {"<-"} {backLabel}
@@ -145,7 +145,7 @@ export default function CourseLearningShell({
             ) : selectedLesson ? (
               <>
                 <div className="glass-card overflow-hidden rounded-2xl border border-white/10 bg-black/20 shadow-[0_24px_80px_rgba(8,15,30,0.32)]">
-                  <div className="aspect-video min-h-[220px] w-full bg-slate-950 lg:min-h-[420px]">
+                  <div className="aspect-video min-h-[420px] w-full bg-slate-950 lg:min-h-[720px]">
                     {isValidEmbedUrl(selectedLesson.videoUrl) ? (
                       <iframe
                         src={selectedLesson.videoUrl}
