@@ -233,12 +233,9 @@ export default function CourseResonantDowsing() {
     setError(null);
     try {
       const token = await getToken();
-      const progress = await api.post(`/courses/resonant-dowsing/lessons/${encodeURIComponent(lessonId)}/complete`, undefined, token) as CompletionResponse;
+      await api.post(`/courses/resonant-dowsing/lessons/${encodeURIComponent(lessonId)}/complete`, undefined, token) as CompletionResponse;
       const refreshed = await api.get("/courses/resonant-dowsing/content", token) as CourseContentResponse;
       setContent(refreshed);
-      if (progress.nextLessonId) {
-        setSelectedLessonId(progress.nextLessonId);
-      }
     } catch (completeError) {
       setError(completeError instanceof Error ? completeError.message : "Lesson completion could not be saved.");
     } finally {
@@ -256,6 +253,8 @@ export default function CourseResonantDowsing() {
   }
 
   const publicCourse = content?.course ?? access?.course;
+  const selectedLessonSummary = content?.lessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
+  const shouldDisableNext = Boolean(selectedLessonSummary && selectedLessonSummary.status !== "completed");
 
   if (access?.hasAccess && content) {
     return (
@@ -264,7 +263,7 @@ export default function CourseResonantDowsing() {
           title={publicCourse?.title ?? "The Resonant Dowsing Course"}
           summary={publicCourse?.description?.[0] ?? ""}
           thumbnailUrl={publicCourse?.thumbnailUrl}
-          badge={`${publicCourse?.moduleCount ?? 13} modules · Lifetime access`}
+          badge={`${publicCourse?.moduleCount ?? 13} Modules · ${content.progress.totalLessons} Lessons`}
           lessons={content.lessons}
           selectedLesson={selectedLesson}
           selectedLessonId={selectedLessonId}
@@ -272,6 +271,7 @@ export default function CourseResonantDowsing() {
           totalLessons={content.progress.totalLessons}
           isLoadingLesson={lessonLoading || contentLoading}
           isCompleting={Boolean(completingLessonId)}
+          nextDisabled={shouldDisableNext}
           backHref="/dashboard/courses"
           message={message}
           error={error}

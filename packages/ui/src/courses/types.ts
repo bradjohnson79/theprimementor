@@ -25,6 +25,7 @@ export interface CourseLearningResource {
   id: string;
   title: string;
   url: string;
+  helperText?: string;
 }
 
 export interface CourseLearningSelectedLesson {
@@ -50,6 +51,11 @@ export interface CourseLearningShellProps {
   isLoadingLesson?: boolean;
   isCompleting?: boolean;
   completionDisabled?: boolean;
+  nextDisabled?: boolean;
+  statusPill?: {
+    label: string;
+    value: string;
+  };
   backHref: string;
   backLabel?: string;
   message?: ReactNode;
