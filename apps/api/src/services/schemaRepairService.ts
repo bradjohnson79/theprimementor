@@ -20,6 +20,7 @@ const REPAIRABLE_PREFIXES = [
   "promo_codes.",
   "promo_code_usages.",
   "promo_code_changes_log.",
+  "course_entitlements.",
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
@@ -131,6 +132,49 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "regeneration_check_ins_user_week_uidx" ON "regeneration_check_ins" USING btree ("user_id", "week_start");`,
   `CREATE INDEX IF NOT EXISTS "regeneration_check_ins_subscription_created_idx" ON "regeneration_check_ins" USING btree ("subscription_id", "created_at");`,
   `CREATE INDEX IF NOT EXISTS "regeneration_check_ins_user_submitted_idx" ON "regeneration_check_ins" USING btree ("user_id", "submitted_at");`,
+  `CREATE TABLE IF NOT EXISTS "course_entitlements" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL,
+    "course_slug" text NOT NULL,
+    "stripe_checkout_session_id" text,
+    "stripe_payment_intent_id" text,
+    "order_id" uuid,
+    "purchased_at" timestamp with time zone,
+    "revoked_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "user_id" uuid;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "course_slug" text;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "stripe_checkout_session_id" text;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "stripe_payment_intent_id" text;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "order_id" uuid;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "purchased_at" timestamp with time zone;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "course_entitlements" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_entitlements_user_id_users_id_fk') THEN
+      ALTER TABLE "course_entitlements"
+        ADD CONSTRAINT "course_entitlements_user_id_users_id_fk"
+        FOREIGN KEY ("user_id") REFERENCES "public"."users"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_entitlements_order_id_orders_id_fk') THEN
+      ALTER TABLE "course_entitlements"
+        ADD CONSTRAINT "course_entitlements_order_id_orders_id_fk"
+        FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "course_entitlements_user_course_uidx" ON "course_entitlements" USING btree ("user_id", "course_slug");`,
+  `CREATE INDEX IF NOT EXISTS "course_entitlements_user_active_idx" ON "course_entitlements" USING btree ("user_id", "revoked_at");`,
+  `CREATE INDEX IF NOT EXISTS "course_entitlements_course_purchased_idx" ON "course_entitlements" USING btree ("course_slug", "purchased_at");`,
+  `CREATE INDEX IF NOT EXISTS "course_entitlements_checkout_session_idx" ON "course_entitlements" USING btree ("stripe_checkout_session_id");`,
+  `CREATE INDEX IF NOT EXISTS "course_entitlements_payment_intent_idx" ON "course_entitlements" USING btree ("stripe_payment_intent_id");`,
   `CREATE TABLE IF NOT EXISTS "subscription_admin_audit_entries" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "subscription_kind" text NOT NULL,
