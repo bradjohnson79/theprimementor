@@ -4,7 +4,7 @@ import {
   RESONANT_DOWSING_PRICE_CENTS,
 } from "../services/courses/resonantDowsingCourse.js";
 
-export const RESONANT_DOWSING_STRIPE_PRICE_ID = "price_1ToANDGPXfP6Qy0mYKW6tmQA";
+export const RESONANT_DOWSING_STRIPE_PRICE_ID = "price_1ToFFCAd5V3LaCqj2pPuEFp9";
 export const RESONANT_DOWSING_STRIPE_PRICE_ENV = "STRIPE_PRICE_RESONANT_DOWSING";
 export const RESONANT_DOWSING_STRIPE_PRICE_MISMATCH_MESSAGE =
   "Resonant Dowsing Stripe configuration mismatch: Expected active one-time CAD price at 9900 cents.";
