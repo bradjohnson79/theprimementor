@@ -21,6 +21,7 @@ const REPAIRABLE_PREFIXES = [
   "promo_code_usages.",
   "promo_code_changes_log.",
   "course_entitlements.",
+  "course_lesson_progress.",
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
@@ -175,6 +176,32 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "course_entitlements_course_purchased_idx" ON "course_entitlements" USING btree ("course_slug", "purchased_at");`,
   `CREATE INDEX IF NOT EXISTS "course_entitlements_checkout_session_idx" ON "course_entitlements" USING btree ("stripe_checkout_session_id");`,
   `CREATE INDEX IF NOT EXISTS "course_entitlements_payment_intent_idx" ON "course_entitlements" USING btree ("stripe_payment_intent_id");`,
+  `CREATE TABLE IF NOT EXISTS "course_lesson_progress" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL,
+    "course_slug" text NOT NULL,
+    "lesson_id" text NOT NULL,
+    "completed_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "user_id" uuid;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "course_slug" text;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "lesson_id" text;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "completed_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "course_lesson_progress" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'course_lesson_progress_user_id_users_id_fk') THEN
+      ALTER TABLE "course_lesson_progress"
+        ADD CONSTRAINT "course_lesson_progress_user_id_users_id_fk"
+        FOREIGN KEY ("user_id") REFERENCES "public"."users"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "course_lesson_progress_user_course_lesson_uidx" ON "course_lesson_progress" USING btree ("user_id", "course_slug", "lesson_id");`,
+  `CREATE INDEX IF NOT EXISTS "course_lesson_progress_user_course_completed_idx" ON "course_lesson_progress" USING btree ("user_id", "course_slug", "completed_at");`,
   `CREATE TABLE IF NOT EXISTS "subscription_admin_audit_entries" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "subscription_kind" text NOT NULL,

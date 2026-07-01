@@ -3,6 +3,7 @@ import { RESONANT_DOWSING_COURSE_SLUG } from "./courseEntitlementService.js";
 export const RESONANT_DOWSING_PRICE_CENTS = 9900;
 export const RESONANT_DOWSING_CURRENCY = "CAD";
 export const RESONANT_DOWSING_PRICE_LABEL = "$99 CAD";
+export const RESONANT_DOWSING_THUMBNAIL_URL = "/images/courses/resonant-dowsing-course.png";
 
 export const RESONANT_DOWSING_PUBLIC_DESCRIPTION = [
   "The Resonant Dowsing Course is an online teaching series instructed by its founder, Brad Johnson. Through the Resonant Dowsing Course, you will learn practices involving both neutral and universal pendulums.",
@@ -37,8 +38,13 @@ interface SourceModule {
 
 export interface ResonantDowsingLesson {
   id: string;
+  sequence: number;
+  moduleId: string;
+  moduleTitle: string;
   title: string;
   youtubeEmbedUrl: string;
+  description: string[];
+  resources: ResonantDowsingResource[];
 }
 
 export interface ResonantDowsingResource {
@@ -54,6 +60,15 @@ export interface ResonantDowsingModule {
   description: string[];
   lessons: ResonantDowsingLesson[];
   resources: ResonantDowsingResource[];
+}
+
+export interface ResonantDowsingLessonSummary {
+  id: string;
+  sequence: number;
+  moduleId: string;
+  moduleTitle: string;
+  title: string;
+  status: "locked" | "unlocked" | "completed";
 }
 
 function toDescriptionList(description: CourseDescription) {
@@ -268,11 +283,59 @@ export const resonantDowsingModules = sourceModules.map((module): ResonantDowsin
   description: toDescriptionList(module.description),
   lessons: module.lessons.map((lesson) => ({
     id: lesson.id,
+    sequence: 0,
+    moduleId: module.id,
+    moduleTitle: module.title,
     title: lesson.title,
     youtubeEmbedUrl: toYouTubeNoCookieEmbedUrl(lesson.youtubeUrl),
+    description: toDescriptionList(module.description),
+    resources: module.resources,
   })),
   resources: module.resources,
 }));
+
+export const resonantDowsingLessonSequence = resonantDowsingModules
+  .flatMap((module) => module.lessons)
+  .map((lesson, index): ResonantDowsingLesson => ({
+    ...lesson,
+    sequence: index + 1,
+  }));
+
+export const RESONANT_DOWSING_TOTAL_LESSONS = resonantDowsingLessonSequence.length;
+export const RESONANT_DOWSING_MODULE_COUNT = resonantDowsingModules.length;
+
+export function getResonantDowsingLessonById(lessonId: string) {
+  return resonantDowsingLessonSequence.find((lesson) => lesson.id === lessonId) ?? null;
+}
+
+export function getCurrentUnlockedLessonId(completedLessonIds: Set<string>) {
+  return resonantDowsingLessonSequence.find((lesson) => !completedLessonIds.has(lesson.id))?.id ?? null;
+}
+
+export function getNextLessonId(lessonId: string) {
+  const index = resonantDowsingLessonSequence.findIndex((lesson) => lesson.id === lessonId);
+  if (index < 0) return null;
+  return resonantDowsingLessonSequence[index + 1]?.id ?? null;
+}
+
+export function getResonantDowsingLessonSummaries(input: {
+  completedLessonIds: Set<string>;
+  unlockedLessonId: string | null;
+  admin?: boolean;
+}): ResonantDowsingLessonSummary[] {
+  return resonantDowsingLessonSequence.map((lesson) => {
+    const completed = input.completedLessonIds.has(lesson.id);
+    const unlocked = input.admin || completed || lesson.id === input.unlockedLessonId;
+    return {
+      id: lesson.id,
+      sequence: lesson.sequence,
+      moduleId: lesson.moduleId,
+      moduleTitle: lesson.moduleTitle,
+      title: lesson.title,
+      status: completed ? "completed" : unlocked ? "unlocked" : "locked",
+    };
+  });
+}
 
 export function getResonantDowsingPublicCourse() {
   return {
@@ -284,6 +347,7 @@ export function getResonantDowsingPublicCourse() {
       currency: RESONANT_DOWSING_CURRENCY,
       amountCents: RESONANT_DOWSING_PRICE_CENTS,
     },
+    thumbnailUrl: RESONANT_DOWSING_THUMBNAIL_URL,
     access: "lifetime" as const,
     disclaimer: RESONANT_DOWSING_DISCLAIMER,
   };
@@ -292,11 +356,8 @@ export function getResonantDowsingPublicCourse() {
 export function getResonantDowsingCourseContent() {
   return {
     ...getResonantDowsingPublicCourse(),
-    moduleCount: resonantDowsingModules.length,
+    moduleCount: RESONANT_DOWSING_MODULE_COUNT,
+    totalLessons: RESONANT_DOWSING_TOTAL_LESSONS,
     modules: resonantDowsingModules,
-    unresolvedTodos: [
-      "Final branded course thumbnail asset is still needed.",
-      "Module 10 Brad's Home Map resource is withheld pending anonymized replacement or safety review.",
-    ],
   };
 }

@@ -353,6 +353,15 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "created_at",
     "updated_at",
   ],
+  course_lesson_progress: [
+    "id",
+    "user_id",
+    "course_slug",
+    "lesson_id",
+    "completed_at",
+    "created_at",
+    "updated_at",
+  ],
   report_tier_outputs: [
     "report_id",
     "tier",
@@ -604,6 +613,7 @@ async function getMissingSchemaEntries(db: Database) {
         'reports',
         'mentor_training_orders',
         'course_entitlements',
+        'course_lesson_progress',
         'report_tier_outputs',
         'mentoring_circle_registrations',
         'conversation_threads',

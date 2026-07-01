@@ -17,6 +17,7 @@ import {
   subscriptionAdminNotes,
   reports,
   courseEntitlements,
+  courseLessonProgress,
   webhookEvents,
   invoices,
   orders,
@@ -44,6 +45,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   reports: many(reports),
   courseEntitlements: many(courseEntitlements),
+  courseLessonProgress: many(courseLessonProgress),
   mentoringCircleRegistrations: many(mentoringCircleRegistrations),
   memberEntitlements: many(memberEntitlements),
   memberUsage: many(memberUsage),
@@ -58,6 +60,13 @@ export const courseEntitlementsRelations = relations(courseEntitlements, ({ one 
   order: one(orders, {
     fields: [courseEntitlements.order_id],
     references: [orders.id],
+  }),
+}));
+
+export const courseLessonProgressRelations = relations(courseLessonProgress, ({ one }) => ({
+  user: one(users, {
+    fields: [courseLessonProgress.user_id],
+    references: [users.id],
   }),
 }));
 

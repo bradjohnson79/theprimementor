@@ -13,33 +13,20 @@ import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
 import Events from "./pages/Events";
+import Courses from "./pages/Courses";
+import CourseTTT from "./pages/CourseTTT";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Seo from "./pages/Seo";
 import PromoCodes from "./pages/PromoCodes";
 import ResonantDowsingCourse from "./pages/ResonantDowsingCourse";
-import ResonantDowsingCourseLocalPreview from "./pages/ResonantDowsingCourseLocalPreview";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
 import Divin8KnowledgeBase from "./pages/Divin8KnowledgeBase";
 import NotificationsSettings from "./routes/settings/Notifications";
 import { useUserSync } from "./hooks/useUserSync";
 
-const ADMIN_DEV_PREVIEW = import.meta.env.DEV && import.meta.env.VITE_ADMIN_DEV_PREVIEW === "true";
-
-function PreviewApp() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AdminLayout />}>
-          <Route path="admin/courses/resonant-dowsing" element={<ResonantDowsingCourseLocalPreview />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-function AuthenticatedApp() {
+export default function App() {
   useUserSync();
 
   return (
@@ -57,6 +44,8 @@ function AuthenticatedApp() {
             <Route path="admin/orders/:orderId" element={<OrderDetail />} />
             <Route path="services" element={<Services />} />
             <Route path="events" element={<Events />} />
+            <Route path="admin/courses" element={<Courses />} />
+            <Route path="admin/courses/ttt" element={<CourseTTT />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
@@ -75,8 +64,4 @@ function AuthenticatedApp() {
       </Routes>
     </BrowserRouter>
   );
-}
-
-export default function App() {
-  return ADMIN_DEV_PREVIEW ? <PreviewApp /> : <AuthenticatedApp />;
 }

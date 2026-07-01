@@ -21,6 +21,14 @@
       "browser": "./src/divin8-chat/index.ts",
       "development": "./src/divin8-chat/index.ts",
       "default": "./src/divin8-chat/index.ts"
+    },
+    "./courses": {
+      "types": "./src/courses/index.ts",
+      "import": "./src/courses/index.ts",
+      "module": "./src/courses/index.ts",
+      "browser": "./src/courses/index.ts",
+      "development": "./src/courses/index.ts",
+      "default": "./src/courses/index.ts"
     }
   },
   "dependencies": {

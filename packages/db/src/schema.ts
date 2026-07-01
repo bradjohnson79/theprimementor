@@ -941,6 +941,20 @@ export const courseEntitlements = pgTable("course_entitlements", {
   paymentIntentIdx: index("course_entitlements_payment_intent_idx").on(table.stripe_payment_intent_id),
 }));
 
+export const courseLessonProgress = pgTable("course_lesson_progress", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  course_slug: text("course_slug").notNull(),
+  lesson_id: text("lesson_id").notNull(),
+  completed_at: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  userCourseLessonUnique: uniqueIndex("course_lesson_progress_user_course_lesson_uidx").on(table.user_id, table.course_slug, table.lesson_id),
+  userCourseCompletedIdx: index("course_lesson_progress_user_course_completed_idx").on(table.user_id, table.course_slug, table.completed_at),
+}));
+
 export const promoCodes = pgTable("promo_codes", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),

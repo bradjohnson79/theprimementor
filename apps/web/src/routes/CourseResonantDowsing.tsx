@@ -1,8 +1,8 @@
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, BookOpen, ExternalLink, LockKeyhole } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { CourseLearningShell, type CourseLearningLesson, type CourseLearningSelectedLesson } from "@wisdom/ui/courses";
 import { api } from "../lib/api";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 
@@ -18,27 +18,8 @@ interface PublicCourse {
   access: "lifetime";
   disclaimer: string;
   moduleCount?: number;
-}
-
-interface CourseLesson {
-  id: string;
-  title: string;
-  youtubeEmbedUrl: string;
-}
-
-interface CourseResource {
-  id: string;
-  title: string;
-  url: string;
-}
-
-interface CourseModule {
-  id: string;
-  order: number;
-  title: string;
-  description: string[];
-  lessons: CourseLesson[];
-  resources: CourseResource[];
+  totalLessons?: number;
+  thumbnailUrl: string;
 }
 
 interface CourseAccessResponse {
@@ -48,12 +29,35 @@ interface CourseAccessResponse {
 }
 
 interface CourseContentResponse {
-  course: PublicCourse & {
-    moduleCount: number;
-    modules: CourseModule[];
-    unresolvedTodos?: string[];
-  };
+  course: PublicCourse & { totalLessons: number; moduleCount: number };
   accessSource: "admin" | "entitlement";
+  lessons: CourseLearningLesson[];
+  progress: {
+    completedLessonIds: string[];
+    unlockedLessonId: string | null;
+    completedCount: number;
+    totalLessons: number;
+  };
+}
+
+interface LessonDetailResponse {
+  lesson: {
+    id: string;
+    sequence: number;
+    moduleTitle: string;
+    title: string;
+    youtubeEmbedUrl: string;
+    description: string[];
+    resources: Array<{ id: string; title: string; url: string }>;
+  };
+}
+
+interface CompletionResponse {
+  completedLessonIds: string[];
+  unlockedLessonId: string | null;
+  nextLessonId: string | null;
+  completedCount: number;
+  totalLessons: number;
 }
 
 export default function CourseResonantDowsing() {
@@ -62,10 +66,13 @@ export default function CourseResonantDowsing() {
   const checkoutState = searchParams.get("checkout");
   const checkoutSessionId = searchParams.get("checkoutSessionId");
   const [access, setAccess] = useState<CourseAccessResponse | null>(null);
-  const [content, setContent] = useState<CourseContentResponse["course"] | null>(null);
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [content, setContent] = useState<CourseContentResponse | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<CourseLearningSelectedLesson | null>(null);
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
+  const [lessonLoading, setLessonLoading] = useState(false);
+  const [completingLessonId, setCompletingLessonId] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +136,8 @@ export default function CourseResonantDowsing() {
     async function loadContent() {
       if (!access?.hasAccess) {
         setContent(null);
-        setSelectedModuleId(null);
+        setSelectedLessonId(null);
+        setSelectedLesson(null);
         return;
       }
 
@@ -139,8 +147,8 @@ export default function CourseResonantDowsing() {
         const token = await getToken();
         const response = await api.get("/courses/resonant-dowsing/content", token) as CourseContentResponse;
         if (!cancelled) {
-          setContent(response.course);
-          setSelectedModuleId((current) => current ?? response.course.modules[0]?.id ?? null);
+          setContent(response);
+          setSelectedLessonId((current) => current ?? response.progress.unlockedLessonId ?? response.lessons.find((lesson) => lesson.status !== "locked")?.id ?? null);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -160,12 +168,39 @@ export default function CourseResonantDowsing() {
     };
   }, [access?.hasAccess, getToken]);
 
-  const selectedModuleIndex = useMemo(() => {
-    if (!content?.modules.length || !selectedModuleId) return 0;
-    return Math.max(0, content.modules.findIndex((module) => module.id === selectedModuleId));
-  }, [content?.modules, selectedModuleId]);
+  const selectedLessonIndex = useMemo(() => {
+    if (!content?.lessons.length || !selectedLessonId) return 0;
+    return Math.max(0, content.lessons.findIndex((lesson) => lesson.id === selectedLessonId));
+  }, [content?.lessons, selectedLessonId]);
 
-  const selectedModule = content?.modules[selectedModuleIndex] ?? null;
+  const loadLesson = useCallback(async (lessonId: string) => {
+    setLessonLoading(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const response = await api.get(`/courses/resonant-dowsing/lessons/${encodeURIComponent(lessonId)}`, token) as LessonDetailResponse;
+      setSelectedLesson({
+        id: response.lesson.id,
+        sequence: response.lesson.sequence,
+        moduleTitle: response.lesson.moduleTitle,
+        title: response.lesson.title,
+        videoUrl: response.lesson.youtubeEmbedUrl,
+        description: response.lesson.description,
+        resources: response.lesson.resources,
+      });
+      setSelectedLessonId(lessonId);
+    } catch (lessonError) {
+      setError(lessonError instanceof Error ? lessonError.message : "Lesson could not be loaded.");
+    } finally {
+      setLessonLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    if (selectedLessonId) {
+      void loadLesson(selectedLessonId);
+    }
+  }, [loadLesson, selectedLessonId]);
 
   async function startCheckout() {
     setCheckoutLoading(true);
@@ -193,13 +228,61 @@ export default function CourseResonantDowsing() {
     }
   }
 
-  function goToOffset(offset: number) {
-    if (!content?.modules.length) return;
-    const nextIndex = Math.min(content.modules.length - 1, Math.max(0, selectedModuleIndex + offset));
-    setSelectedModuleId(content.modules[nextIndex]?.id ?? null);
+  async function markLessonComplete(lessonId: string) {
+    setCompletingLessonId(lessonId);
+    setError(null);
+    try {
+      const token = await getToken();
+      const progress = await api.post(`/courses/resonant-dowsing/lessons/${encodeURIComponent(lessonId)}/complete`, undefined, token) as CompletionResponse;
+      const refreshed = await api.get("/courses/resonant-dowsing/content", token) as CourseContentResponse;
+      setContent(refreshed);
+      if (progress.nextLessonId) {
+        setSelectedLessonId(progress.nextLessonId);
+      }
+    } catch (completeError) {
+      setError(completeError instanceof Error ? completeError.message : "Lesson completion could not be saved.");
+    } finally {
+      setCompletingLessonId(null);
+    }
   }
 
-  const publicCourse = content ?? access?.course;
+  function goToOffset(offset: number) {
+    if (!content?.lessons.length) return;
+    const nextIndex = Math.min(content.lessons.length - 1, Math.max(0, selectedLessonIndex + offset));
+    const nextLesson = content.lessons[nextIndex];
+    if (nextLesson?.status !== "locked") {
+      setSelectedLessonId(nextLesson.id);
+    }
+  }
+
+  const publicCourse = content?.course ?? access?.course;
+
+  if (access?.hasAccess && content) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}>
+        <CourseLearningShell
+          title={publicCourse?.title ?? "The Resonant Dowsing Course"}
+          summary={publicCourse?.description?.[0] ?? ""}
+          thumbnailUrl={publicCourse?.thumbnailUrl}
+          badge={`${publicCourse?.moduleCount ?? 13} modules · Lifetime access`}
+          lessons={content.lessons}
+          selectedLesson={selectedLesson}
+          selectedLessonId={selectedLessonId}
+          completedCount={content.progress.completedCount}
+          totalLessons={content.progress.totalLessons}
+          isLoadingLesson={lessonLoading || contentLoading}
+          isCompleting={Boolean(completingLessonId)}
+          backHref="/dashboard/courses"
+          message={message}
+          error={error}
+          onSelectLesson={setSelectedLessonId}
+          onMarkComplete={markLessonComplete}
+          onSelectPrevious={selectedLessonIndex > 0 ? () => goToOffset(-1) : undefined}
+          onSelectNext={selectedLessonIndex < content.lessons.length - 1 ? () => goToOffset(1) : undefined}
+        />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -209,9 +292,9 @@ export default function CourseResonantDowsing() {
       className="dashboard-shell"
     >
       <div className="mx-auto max-w-6xl space-y-6">
-        <Link to="/dashboard/courses" className="text-sm font-medium text-cyan-100/75 hover:text-cyan-100">
-          ← Back to Courses
-        </Link>
+        <a href="/dashboard/courses" className="text-sm font-medium text-cyan-100/75 hover:text-cyan-100">
+          {"<-"} Back to Courses
+        </a>
 
         <section className="dashboard-panel relative overflow-hidden border border-amber-200/15">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_46%)]" />
@@ -231,17 +314,19 @@ export default function CourseResonantDowsing() {
               ) : null}
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-amber-200/25 bg-amber-200/10 text-amber-100">
-                  {access?.hasAccess ? <BookOpen className="h-5 w-5" aria-hidden /> : <LockKeyhole className="h-5 w-5" aria-hidden />}
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Access</p>
-                  <p className="text-sm font-semibold text-white">
-                    {access?.hasAccess ? "Purchased" : publicCourse?.price.label ?? "$99 CAD"}
-                  </p>
-                </div>
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <img
+                  src={publicCourse?.thumbnailUrl ?? "/images/courses/resonant-dowsing-course.png"}
+                  alt=""
+                  className="aspect-video w-full object-cover"
+                />
+              </div>
+              <div className="mt-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/45">Access</p>
+                <p className="text-sm font-semibold text-white">
+                  {access?.hasAccess ? "Purchased" : publicCourse?.price.label ?? "$99 CAD"}
+                </p>
               </div>
               <p className="mt-4 text-xs leading-6 text-white/55">
                 {publicCourse?.disclaimer}
@@ -273,106 +358,9 @@ export default function CourseResonantDowsing() {
                 disabled={checkoutLoading}
                 className="dashboard-action-primary mt-6"
               >
-                {checkoutLoading ? "Starting checkout..." : "Unlock Course — $99 CAD"}
+                {checkoutLoading ? "Starting checkout..." : "Purchase Course — $99 CAD"}
               </button>
             </div>
-          </section>
-        ) : contentLoading ? (
-          <div className="dashboard-panel text-sm text-white/60">Loading course curriculum...</div>
-        ) : content && selectedModule ? (
-          <section className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-            <aside className="dashboard-panel h-fit lg:sticky lg:top-24">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/65">Modules</p>
-              <div className="mt-4 space-y-2">
-                {content.modules.map((module) => (
-                  <button
-                    key={module.id}
-                    type="button"
-                    onClick={() => setSelectedModuleId(module.id)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                      module.id === selectedModule.id
-                        ? "border-cyan-200/30 bg-cyan-200/10 text-cyan-50"
-                        : "border-white/8 bg-white/[0.03] text-white/60 hover:border-white/16 hover:text-white/80"
-                    }`}
-                  >
-                    <span className="block text-[11px] uppercase tracking-[0.18em] opacity-70">
-                      {module.order === 0 ? "Prep" : `Module ${module.order}`}
-                    </span>
-                    <span className="mt-1 block font-medium">{module.title}</span>
-                  </button>
-                ))}
-              </div>
-            </aside>
-
-            <article className="dashboard-panel">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/65">
-                {selectedModule.order === 0 ? "Preparation" : `Module ${selectedModule.order}`}
-              </p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">{selectedModule.title}</h2>
-              <div className="mt-4 space-y-2">
-                {selectedModule.description.map((paragraph) => (
-                  <p key={paragraph} className="text-sm leading-7 text-white/68">{paragraph}</p>
-                ))}
-              </div>
-
-              <div className="mt-6 space-y-6">
-                {selectedModule.lessons.map((lesson) => (
-                  <div key={lesson.id} className="overflow-hidden rounded-3xl border border-white/10 bg-black/20">
-                    <div className="aspect-video bg-black">
-                      <iframe
-                        title={lesson.title}
-                        src={lesson.youtubeEmbedUrl}
-                        className="h-full w-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold text-white">{lesson.title}</h3>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {selectedModule.resources.length ? (
-                <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/48">Resources</p>
-                  <div className="mt-3 space-y-2">
-                    {selectedModule.resources.map((resource) => (
-                      <a
-                        key={resource.id}
-                        href={resource.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/15 px-4 py-3 text-sm text-cyan-100/82 hover:border-cyan-200/24 hover:text-cyan-50"
-                      >
-                        <span>{resource.title}</span>
-                        <ExternalLink className="h-4 w-4" aria-hidden />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-8 flex flex-wrap justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => goToOffset(-1)}
-                  disabled={selectedModuleIndex === 0}
-                  className="dashboard-action-secondary disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden /> Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => goToOffset(1)}
-                  disabled={selectedModuleIndex >= content.modules.length - 1}
-                  className="dashboard-action-primary disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  Next <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-                </button>
-              </div>
-            </article>
           </section>
         ) : null}
       </div>
