@@ -26,7 +26,16 @@ import { getReportCheckoutPath } from "../config/reportCheckout.js";
 import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
 import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
+import {
+  getResonantDowsingStripePriceId,
+  verifyResonantDowsingStripePrice,
+} from "../config/courseBilling.js";
 import { createHttpError } from "./booking/errors.js";
+import { RESONANT_DOWSING_COURSE_SLUG } from "./courses/courseEntitlementService.js";
+import {
+  RESONANT_DOWSING_CURRENCY,
+  RESONANT_DOWSING_PRICE_CENTS,
+} from "./courses/resonantDowsingCourse.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
 import { buildStripeReferenceMetadata } from "./payments/stripeReferenceMetadata.js";
@@ -41,7 +50,7 @@ import {
   resolveStripeProductNaming,
 } from "./stripe/stripeProductNamingService.js";
 
-type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
+type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course";
 type CheckoutTier = "seeker" | "initiate";
 type CheckoutDiscountConfig = Pick<Stripe.Checkout.SessionCreateParams, "allow_promotion_codes" | "discounts">;
 
@@ -81,6 +90,7 @@ export interface CreateCheckoutSessionInput {
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;
+  courseEntitlementId?: string;
   eventId?: string;
   promoCode?: string;
 }
@@ -100,6 +110,7 @@ function buildCheckoutMetadata(
     membershipId?: string;
     trainingOrderId?: string;
     packageType?: MentorTrainingPackageType;
+    courseSlug?: string;
     billingInterval?: "monthly" | "annual";
     eventId?: string;
     eventKey?: string;
@@ -170,6 +181,11 @@ function buildCheckoutMetadata(
   }
   if (input.packageType) {
     metadata.packageType = input.packageType;
+  }
+  if (input.courseSlug?.trim()) {
+    metadata.courseSlug = input.courseSlug.trim();
+    metadata.course_slug = input.courseSlug.trim();
+    metadata.purchase_type = "course";
   }
   if (input.billingInterval) {
     metadata.billingInterval = input.billingInterval;
@@ -289,7 +305,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -670,6 +686,122 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
     priceId,
     productId: null,
     productName: naming.productName,
+    userId: input.userId,
+    clerkId: input.clerkId,
+    customerId: stripeCustomerId,
+    environment: metadata.environment,
+  });
+
+  return session;
+}
+
+async function createCourseCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  const courseEntitlementId = input.courseEntitlementId?.trim();
+  if (!courseEntitlementId) {
+    throw createHttpError(400, "courseEntitlementId is required for course checkout.");
+  }
+
+  let payment = await getLatestPaymentForEntity(db, { entityType: "course", entityId: courseEntitlementId });
+  if (!payment) {
+    const created = await createPaymentRecordForEntity(db, {
+      userId: input.userId,
+      entityType: "course",
+      entityId: courseEntitlementId,
+      amountCents: RESONANT_DOWSING_PRICE_CENTS,
+      currency: RESONANT_DOWSING_CURRENCY,
+      status: "pending",
+      metadata: {
+        source: "resonant_dowsing_checkout_recovery",
+        purchase_type: "course",
+        course_slug: RESONANT_DOWSING_COURSE_SLUG,
+        courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+        courseEntitlementId,
+      },
+    });
+    payment = await getLatestPaymentForEntity(db, { entityType: "course", entityId: courseEntitlementId });
+    if (!payment) {
+      payment = {
+        id: created.id,
+        entityType: "course",
+        entityId: courseEntitlementId,
+        status: "pending",
+        providerPaymentIntentId: null,
+        providerCustomerId: null,
+        metadata: null,
+      };
+    }
+  }
+
+  if (payment.status === "paid") {
+    throw createHttpError(409, "The Resonant Dowsing Course has already been purchased.");
+  }
+  if (payment.status === "refunded") {
+    throw createHttpError(400, "Refunded course purchases require manual support before checkout can restart.");
+  }
+
+  const stripe = getStripe();
+  await verifyResonantDowsingStripePrice(stripe);
+  const priceId = getResonantDowsingStripePriceId();
+  const metadata = buildCheckoutMetadata({
+    ...input,
+    type: "course",
+    entityId: courseEntitlementId,
+    courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+  });
+  metadata.customer_email = input.userEmail;
+  metadata.courseEntitlementId = courseEntitlementId;
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
+  const frontendUrl = getFrontendUrl();
+  const coursePath = "/dashboard/courses/resonant-dowsing";
+  const productName = "The Resonant Dowsing Course";
+  const description = "Lifetime access to The Resonant Dowsing Course by Brad Johnson.";
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: courseEntitlementId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata,
+    payment_intent_data: {
+      description,
+      metadata,
+    },
+    success_url: `${frontendUrl}${coursePath}?checkout=success&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}${coursePath}?checkout=canceled`,
+    customer: stripeCustomerId,
+  });
+
+  await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
+    source: "resonant_dowsing_checkout_create",
+    stripeCheckoutSessionId: session.id,
+    stripeCheckoutMode: session.mode,
+    stripeCheckoutUrl: session.url,
+    stripePriceId: priceId,
+    stripeProductId: null,
+    stripeProductName: productName,
+    purchase_type: "course",
+    course_slug: RESONANT_DOWSING_COURSE_SLUG,
+    courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+    courseEntitlementId,
+    environment: metadata.environment,
+  });
+
+  logger.info("course_checkout_created", {
+    checkoutType: "course",
+    courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+    courseEntitlementId,
+    paymentId: payment.id,
+    sessionId: session.id,
+    priceId,
+    productName,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -1156,6 +1288,9 @@ export async function createCheckoutSession(
   }
   if (type === "mentor_training") {
     return createMentorTrainingCheckoutSession(db, input);
+  }
+  if (type === "course") {
+    return createCourseCheckoutSession(db, input);
   }
   if (type === "mentoring_circle") {
     return createMentoringCircleCheckoutSession(db, input);

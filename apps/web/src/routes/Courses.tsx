@@ -1,12 +1,25 @@
 import { motion } from "framer-motion";
+import { useAuth } from "@clerk/react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen } from "lucide-react";
+import { BookOpen, LockKeyhole } from "lucide-react";
+import { api } from "../lib/api";
 import {
   COURSES,
   getTTTCourseStatus,
   readTTTProgressState,
   type CourseStatus,
 } from "../lib/courses.config";
+
+interface ResonantDowsingAccessState {
+  course?: {
+    title: string;
+    description: string[];
+    price: { label: string };
+    moduleCount?: number;
+  };
+  hasAccess?: boolean;
+}
 
 function getCourseActionLabel(status: CourseStatus) {
   if (status === "completed") return "Completed ✓";
@@ -15,11 +28,40 @@ function getCourseActionLabel(status: CourseStatus) {
 }
 
 export default function Courses() {
+  const { getToken } = useAuth();
   const progress = readTTTProgressState();
   const tttStatus = getTTTCourseStatus(progress);
   const resumeDay = tttStatus === "in_progress" ? progress.lastViewedLesson : null;
   const featuredCourse = COURSES.find((course) => course.slug === "ttt") ?? COURSES[0];
   const remainingCourses = COURSES.filter((course) => course.slug !== "ttt");
+  const [resonantDowsing, setResonantDowsing] = useState<ResonantDowsingAccessState | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCourseAccess() {
+      try {
+        const token = await getToken();
+        const response = await api.get("/courses/resonant-dowsing", token) as ResonantDowsingAccessState;
+        if (!cancelled) {
+          setResonantDowsing(response);
+        }
+      } catch {
+        if (!cancelled) {
+          setResonantDowsing(null);
+        }
+      }
+    }
+
+    void loadCourseAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
+
+  const resonantCourse = resonantDowsing?.course;
+  const hasResonantAccess = resonantDowsing?.hasAccess === true;
 
   return (
     <motion.div
@@ -77,6 +119,60 @@ export default function Courses() {
                   }`}
                 >
                   {getCourseActionLabel(tttStatus)}
+                </Link>
+              </div>
+            </div>
+          </article>
+
+          <article className="dashboard-panel cosmic-motion relative overflow-hidden border border-amber-200/15 lg:col-span-2">
+            <motion.div
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.1),transparent_44%)]"
+              animate={{ opacity: [0.62, 0.95, 0.72] }}
+              transition={{ duration: 3.8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            />
+            <div className="relative grid gap-5 lg:grid-cols-[14rem_minmax(0,1fr)_auto] lg:items-center">
+              <div className="flex min-h-40 items-center justify-center rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_30%_20%,rgba(251,191,36,0.25),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(88,28,135,0.45),rgba(8,47,73,0.75))] p-5 text-center">
+                <div>
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-200/25 bg-amber-200/10 text-amber-100">
+                    {hasResonantAccess ? <BookOpen className="h-5 w-5" aria-hidden /> : <LockKeyhole className="h-5 w-5" aria-hidden />}
+                  </div>
+                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.26em] text-amber-100/72">Resonant Dowsing</p>
+                  <p className="mt-1 text-xs text-white/52">Final thumbnail coming soon</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-100/70">
+                  {hasResonantAccess ? "Lifetime Access" : "One-Time Course"}
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  {resonantCourse?.title ?? "The Resonant Dowsing Course"}
+                </h2>
+                <p className="mt-2 text-sm font-medium text-amber-100/80">
+                  {hasResonantAccess && resonantCourse?.moduleCount
+                    ? `${resonantCourse.moduleCount} modules · Lifetime access`
+                    : `${resonantCourse?.price.label ?? "$99 CAD"} · Lifetime access`}
+                </p>
+                <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70">
+                  {resonantCourse?.description?.[0]
+                    ?? "Learn Brad Johnson's Resonant Dowsing practices through a protected one-time paid course inside your dashboard."}
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start gap-3 lg:items-end">
+                <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                  hasResonantAccess
+                    ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100/80"
+                    : "border-amber-200/20 bg-amber-200/10 text-amber-100/80"
+                }`}
+                >
+                  {hasResonantAccess ? "Purchased" : resonantCourse?.price.label ?? "$99 CAD"}
+                </span>
+                <Link
+                  to="/dashboard/courses/resonant-dowsing"
+                  className="dashboard-action-primary"
+                >
+                  {hasResonantAccess ? "Continue Course" : "Unlock Course — $99 CAD"}
                 </Link>
               </div>
             </div>

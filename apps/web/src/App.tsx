@@ -44,6 +44,7 @@ import { TTT_COURSE_ROUTE } from "./lib/courses.config";
 
 const Courses = lazy(() => import("./routes/Courses"));
 const CourseTTT = lazy(() => import("./routes/CourseTTT"));
+const CourseResonantDowsing = lazy(() => import("./routes/CourseResonantDowsing"));
 
 function RouteFallback() {
   return (
@@ -120,6 +121,14 @@ export default function App() {
               element={(
                 <Suspense fallback={<RouteFallback />}>
                   <Courses />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/dashboard/courses/resonant-dowsing"
+              element={(
+                <Suspense fallback={<RouteFallback />}>
+                  <CourseResonantDowsing />
                 </Suspense>
               )}
             />

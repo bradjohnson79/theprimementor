@@ -32,6 +32,7 @@ import { ordersRoutes } from "./routes/orders.js";
 import { adminSubscriptionsRoutes } from "./routes/admin-subscriptions.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { mentorTrainingRoutes } from "./routes/mentor-training.js";
+import { coursesRoutes } from "./routes/courses.js";
 import { adminNotificationRoutes } from "./routes/admin-notifications.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { seoRoutes } from "./routes/seo.js";
@@ -340,6 +341,18 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "created_at",
     "updated_at",
   ],
+  course_entitlements: [
+    "id",
+    "user_id",
+    "course_slug",
+    "stripe_checkout_session_id",
+    "stripe_payment_intent_id",
+    "order_id",
+    "purchased_at",
+    "revoked_at",
+    "created_at",
+    "updated_at",
+  ],
   report_tier_outputs: [
     "report_id",
     "tier",
@@ -590,6 +603,7 @@ async function getMissingSchemaEntries(db: Database) {
         'member_usage_events',
         'reports',
         'mentor_training_orders',
+        'course_entitlements',
         'report_tier_outputs',
         'mentoring_circle_registrations',
         'conversation_threads',
@@ -825,6 +839,7 @@ export async function buildApp() {
   await app.register(socialRoutes, { prefix: "/api" });
   await app.register(dashboardRoutes, { prefix: "/api" });
   await app.register(mentorTrainingRoutes, { prefix: "/api" });
+  await app.register(coursesRoutes, { prefix: "/api" });
   await app.register(ordersRoutes, { prefix: "/api" });
   await app.register(adminSubscriptionsRoutes, { prefix: "/api" });
   await app.register(adminNotificationRoutes, { prefix: "/api" });

@@ -13,7 +13,7 @@ import {
 } from "../services/payments/invoiceService.js";
 import { processStripeWebhookEvent, syncCheckoutSessionCompleted } from "../services/payments/stripeWebhookService.js";
 
-type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "subscription";
+type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "subscription" | "course";
 
 interface CheckoutSessionSyncBody {
   checkoutSessionId?: string;

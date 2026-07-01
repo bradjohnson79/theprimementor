@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { to: "/admin/orders", label: "Orders", icon: "◈", matchPrefix: "/admin/orders" },
   { to: "/services", label: "Services", icon: "◫" },
   { to: "/events", label: "Events", icon: "◌" },
+  { to: "/admin/courses/resonant-dowsing", label: "Courses", icon: "◎", matchPrefix: "/admin/courses" },
   { to: "/bookings", label: "Bookings", icon: "▦" },
   { to: "/payments", label: "Payments", icon: "▣" },
   { to: "/reports", label: "Reports", icon: "▤" },

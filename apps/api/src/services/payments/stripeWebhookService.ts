@@ -43,6 +43,10 @@ import {
 } from "./invoiceService.js";
 import { ensurePersistedSessionOrder } from "../orderRecordingService.js";
 import { markPaymentPaidFromWebhook } from "./paymentsService.js";
+import {
+  markCourseEntitlementPurchased,
+  RESONANT_DOWSING_COURSE_SLUG,
+} from "../courses/courseEntitlementService.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
 import {
   handleRegenerationCheckoutSessionCompleted,
@@ -93,6 +97,7 @@ type StripePaymentType =
   | "subscription"
   | "mentor_training"
   | "mentoring_circle"
+  | "course"
   | "regeneration_subscription";
 
 interface StandardStripeMetadata {
@@ -106,6 +111,7 @@ interface StandardStripeMetadata {
   membershipId: string | null;
   trainingOrderId: string | null;
   packageType: string | null;
+  courseSlug: string | null;
   regenerationSubscriptionId: string | null;
   version: string | null;
   entityId: string | null;
@@ -376,6 +382,7 @@ function parseMetadata(
       || raw.type === "subscription"
       || raw.type === "mentor_training"
       || raw.type === "mentoring_circle"
+      || raw.type === "course"
       || raw.type === "regeneration_subscription"
       ? raw.type
       : null,
@@ -385,6 +392,11 @@ function parseMetadata(
     membershipId: typeof raw.membershipId === "string" && raw.membershipId.trim() ? raw.membershipId.trim() : null,
     trainingOrderId: typeof raw.trainingOrderId === "string" && raw.trainingOrderId.trim() ? raw.trainingOrderId.trim() : null,
     packageType: typeof raw.packageType === "string" && raw.packageType.trim() ? raw.packageType.trim() : null,
+    courseSlug: typeof raw.courseSlug === "string" && raw.courseSlug.trim()
+      ? raw.courseSlug.trim()
+      : typeof raw.course_slug === "string" && raw.course_slug.trim()
+        ? raw.course_slug.trim()
+        : null,
     regenerationSubscriptionId:
       typeof raw.regenerationSubscriptionId === "string" && raw.regenerationSubscriptionId.trim()
         ? raw.regenerationSubscriptionId.trim()
@@ -411,7 +423,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "regeneration_subscription"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -431,6 +443,10 @@ function resolvePaymentEntity(
   if (metadata.type === "mentor_training") {
     const entityId = metadata.entityId ?? metadata.trainingOrderId;
     return entityId ? { entityType: "mentor_training", entityId } : null;
+  }
+  if (metadata.type === "course") {
+    const entityId = metadata.entityId ?? metadata.raw.courseEntitlementId;
+    return entityId ? { entityType: "course", entityId } : null;
   }
   if (metadata.type === "regeneration_subscription") {
     const entityId = metadata.entityId ?? metadata.regenerationSubscriptionId;
@@ -616,7 +632,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "regeneration_subscription" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1426,6 +1442,31 @@ async function handleCheckoutSessionCompleted(
     }
   }
 
+  if (entity.entityType === "course") {
+    if (metadata.courseSlug !== RESONANT_DOWSING_COURSE_SLUG || metadata.raw.purchase_type !== "course") {
+      logger.warn(
+        {
+          checkoutSessionId: session.id,
+          courseSlug: metadata.courseSlug,
+          purchaseType: metadata.raw.purchase_type ?? null,
+        },
+        "stripe_course_metadata_mismatch_ignored",
+      );
+      return;
+    }
+    if (session.payment_status !== "paid") {
+      logger.warn(
+        {
+          checkoutSessionId: session.id,
+          paymentStatus: session.payment_status,
+          courseSlug: metadata.courseSlug,
+        },
+        "stripe_course_checkout_not_paid_ignored",
+      );
+      return;
+    }
+  }
+
   if (existingPayment?.status === "paid") {
     if (entity.entityType === "session" && bookingId) {
       await ensurePersistedSessionOrder(db, bookingId);
@@ -1435,6 +1476,15 @@ async function handleCheckoutSessionCompleted(
         bookingId,
         userId,
         eventId: metadata.eventId ?? metadata.eventKey,
+      });
+    }
+    if (entity.entityType === "course") {
+      await markCourseEntitlementPurchased(db as Database, {
+        entitlementId: entity.entityId,
+        userId,
+        courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: providerPaymentIntentId,
       });
     }
     logger.info(
@@ -1461,6 +1511,35 @@ async function handleCheckoutSessionCompleted(
       paymentId: paidPayment.id,
       promoCodeId: metadata.raw.promoCodeId.trim(),
     });
+  }
+
+  if (entity.entityType === "course") {
+    await markCourseEntitlementPurchased(db as Database, {
+      entitlementId: entity.entityId,
+      userId,
+      courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId: providerPaymentIntentId,
+    });
+    logger.info({
+      eventType: "checkout.session.completed",
+      checkoutSessionId: session.id,
+      paymentId: paidPayment.id,
+      courseSlug: RESONANT_DOWSING_COURSE_SLUG,
+      entitlementId: entity.entityId,
+      userId,
+    }, "stripe_course_entitlement_granted");
+    await emitPaymentSucceededNotifications(db, logger, {
+      userId,
+      userEmail: metadata.userEmail,
+      entityId: entity.entityId,
+      paymentId: paidPayment.id,
+      amount: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+      product: "The Resonant Dowsing Course",
+      orderId: entity.entityId,
+    });
+    return;
   }
 
   if (entity.entityType === "session" && bookingId) {

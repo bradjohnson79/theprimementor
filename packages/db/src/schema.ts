@@ -921,6 +921,26 @@ export const mentorTrainingOrders = pgTable("mentor_training_orders", {
     .where(sql`${table.status} = 'pending_payment'`),
 }));
 
+export const courseEntitlements = pgTable("course_entitlements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  course_slug: text("course_slug").notNull(),
+  stripe_checkout_session_id: text("stripe_checkout_session_id"),
+  stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  order_id: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+  purchased_at: timestamp("purchased_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  ...timestamps,
+}, (table) => ({
+  userCourseUnique: uniqueIndex("course_entitlements_user_course_uidx").on(table.user_id, table.course_slug),
+  userActiveIdx: index("course_entitlements_user_active_idx").on(table.user_id, table.revoked_at),
+  coursePurchasedIdx: index("course_entitlements_course_purchased_idx").on(table.course_slug, table.purchased_at),
+  checkoutSessionIdx: index("course_entitlements_checkout_session_idx").on(table.stripe_checkout_session_id),
+  paymentIntentIdx: index("course_entitlements_payment_intent_idx").on(table.stripe_payment_intent_id),
+}));
+
 export const promoCodes = pgTable("promo_codes", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull(),

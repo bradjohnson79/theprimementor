@@ -20,6 +20,7 @@ export type PaymentEntityType =
   | "subscription"
   | "mentor_training"
   | "mentoring_circle"
+  | "course"
   | "regeneration_subscription";
 type PaymentStatus = "pending" | "requires_payment" | "paid" | "failed" | "refunded";
 

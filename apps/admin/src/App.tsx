@@ -17,13 +17,29 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Seo from "./pages/Seo";
 import PromoCodes from "./pages/PromoCodes";
+import ResonantDowsingCourse from "./pages/ResonantDowsingCourse";
+import ResonantDowsingCourseLocalPreview from "./pages/ResonantDowsingCourseLocalPreview";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
 import Divin8KnowledgeBase from "./pages/Divin8KnowledgeBase";
 import NotificationsSettings from "./routes/settings/Notifications";
 import { useUserSync } from "./hooks/useUserSync";
 
-export default function App() {
+const ADMIN_DEV_PREVIEW = import.meta.env.DEV && import.meta.env.VITE_ADMIN_DEV_PREVIEW === "true";
+
+function PreviewApp() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AdminLayout />}>
+          <Route path="admin/courses/resonant-dowsing" element={<ResonantDowsingCourseLocalPreview />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function AuthenticatedApp() {
   useUserSync();
 
   return (
@@ -50,6 +66,7 @@ export default function App() {
             <Route path="admin/analytics" element={<Analytics />} />
             <Route path="admin/seo" element={<Seo />} />
             <Route path="admin/promo-codes" element={<PromoCodes />} />
+            <Route path="admin/courses/resonant-dowsing" element={<ResonantDowsingCourse />} />
             <Route path="admin/divin8-chat/prompt" element={<Divin8Prompt />} />
             <Route path="admin/divin8-chat/knowledge-base" element={<Divin8KnowledgeBase />} />
             <Route path="blueprint" element={<Blueprint />} />
@@ -58,4 +75,8 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+export default function App() {
+  return ADMIN_DEV_PREVIEW ? <PreviewApp /> : <AuthenticatedApp />;
 }
