@@ -63,7 +63,7 @@ function buildBirthTime(hour: string, minute: string, period: "AM" | "PM" | "") 
   if (!hour || !minute || !period) {
     return "";
   }
-  return `${hour}:${minute} ${period}`;
+  return `${Number(hour)}:${minute.padStart(2, "0")} ${period}`;
 }
 
 function isValidBirthTimeParts(hour: string, minute: string, period: "AM" | "PM" | "") {
@@ -168,6 +168,8 @@ export default function Divin8ProfileModal({
     && form.lng !== null
     && form.timezone
   ), [form]);
+  const needsBirthplaceSelection = Boolean(form.birthPlace.trim() && (form.lat === null || form.lng === null));
+  const needsTimezoneSelection = Boolean(form.birthPlace.trim() && form.lat !== null && form.lng !== null && !form.timezone);
 
   async function handleSelectSuggestion(suggestion: PlaceSuggestion) {
     setIsResolvingPlace(true);
@@ -417,7 +419,18 @@ export default function Divin8ProfileModal({
                 {placeError || (isResolvingPlace ? "Resolving birthplace..." : "Searching places...")}
               </p>
             ) : null}
+            {!placeError && !isSearchingPlaces && !isResolvingPlace && needsBirthplaceSelection ? (
+              <p className={classNames("mt-2 text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
+                Select a birthplace from the dropdown so coordinates can be saved.
+              </p>
+            ) : null}
           </label>
+
+          {needsTimezoneSelection ? (
+            <p className={classNames("text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
+              Select a timezone to finish the profile. Google Places does not always provide one automatically.
+            </p>
+          ) : null}
 
           {(validationError || errorMessage) ? (
             <div className={classNames(
