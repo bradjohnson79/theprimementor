@@ -46,6 +46,7 @@ export default function CourseLearningShell({
   const canMarkComplete = Boolean(selectedLesson && currentLessonStatus !== "completed" && !completionDisabled && !isCompleting);
   const canSelectNext = Boolean(onSelectNext && !nextDisabled);
   const descriptionAsList = Boolean(selectedLesson && selectedLesson.description.length > 1);
+  const hasVideo = Boolean(selectedLesson?.videoUrl);
 
   return (
     <div className="dashboard-shell">
@@ -144,25 +145,27 @@ export default function CourseLearningShell({
               <section className="dashboard-panel text-sm text-white/60">Loading lesson...</section>
             ) : selectedLesson ? (
               <>
-                <div className="glass-card overflow-hidden rounded-2xl border border-white/10 bg-black/20 shadow-[0_24px_80px_rgba(8,15,30,0.32)]">
-                  <div className="aspect-video min-h-[420px] w-full bg-slate-950 lg:min-h-[720px]">
-                    {isValidEmbedUrl(selectedLesson.videoUrl) ? (
-                      <iframe
-                        src={selectedLesson.videoUrl}
-                        title={selectedLesson.title}
-                        className="h-full w-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        loading="lazy"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
-                        A valid lesson video is not available.
-                      </div>
-                    )}
+                {hasVideo ? (
+                  <div className="glass-card overflow-hidden rounded-2xl border border-white/10 bg-black/20 shadow-[0_24px_80px_rgba(8,15,30,0.32)]">
+                    <div className="aspect-video min-h-[420px] w-full bg-slate-950 lg:min-h-[720px]">
+                      {selectedLesson.videoUrl && isValidEmbedUrl(selectedLesson.videoUrl) ? (
+                        <iframe
+                          src={selectedLesson.videoUrl}
+                          title={selectedLesson.title}
+                          className="h-full w-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
+                          A valid lesson video is not available.
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <section className="dashboard-panel border border-white/10 bg-slate-950/55 shadow-[0_24px_80px_rgba(8,15,30,0.28)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/60">Current Lesson</p>
@@ -184,21 +187,23 @@ export default function CourseLearningShell({
                     </div>
                   )}
                   <div className="mt-6 flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => selectedLesson && onMarkComplete(selectedLesson.id)}
-                      disabled={!canMarkComplete}
-                      className={`inline-flex items-center rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                        currentLessonStatus === "completed"
-                          ? "dashboard-action-secondary cursor-default border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/10 hover:text-teal-100"
-                          : "dashboard-action-primary disabled:cursor-not-allowed disabled:opacity-50"
-                      }`}
-                    >
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3.5 8.2 6.5 11 12.5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      {currentLessonStatus === "completed" ? "Completed" : isCompleting ? "Saving..." : "Mark as Complete"}
-                    </button>
+                    {hasVideo ? (
+                      <button
+                        type="button"
+                        onClick={() => selectedLesson && onMarkComplete(selectedLesson.id)}
+                        disabled={!canMarkComplete}
+                        className={`inline-flex items-center rounded-md px-4 py-2.5 text-sm font-medium transition ${
+                          currentLessonStatus === "completed"
+                            ? "dashboard-action-secondary cursor-default border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/10 hover:text-teal-100"
+                            : "dashboard-action-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        }`}
+                      >
+                        <svg className="mr-2 h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M3.5 8.2 6.5 11 12.5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        {currentLessonStatus === "completed" ? "Completed" : isCompleting ? "Saving..." : "Mark as Complete"}
+                      </button>
+                    ) : null}
                     <button type="button" onClick={onSelectPrevious} className="dashboard-action-secondary" disabled={!onSelectPrevious}>
                       Previous
                     </button>

@@ -4,36 +4,67 @@ import { CourseLearningShell, type CourseLearningLesson, type CourseLearningSele
 import {
   TTT_COURSE_SUMMARY,
   TTT_LESSONS,
+  TTT_MATERIALS,
   TTT_TOTAL_LESSONS,
   readTTTProgressState,
   writeTTTProgressState,
   type CourseProgressState,
 } from "../lib/courses.config";
 
+const COURSE_MATERIALS_LESSON_ID = "course-materials";
+
 function createInitialCourseState() {
   const progress = readTTTProgressState();
   return {
     progress,
-    selectedDay: progress.lastViewedLesson,
+    selectedLessonId: String(progress.lastViewedLesson),
   };
 }
 
-function toLearningLessons(progress: CourseProgressState, selectedDay: number): CourseLearningLesson[] {
+function toLearningLessons(progress: CourseProgressState, selectedLessonId: string): CourseLearningLesson[] {
   const completed = new Set(progress.completedLessons);
-  return TTT_LESSONS.map((lesson) => ({
-    id: String(lesson.day),
-    sequence: lesson.day,
-    moduleTitle: `Day ${lesson.day}`,
-    title: lesson.title,
-    status: completed.has(lesson.day)
-      ? "completed"
-      : lesson.day === selectedDay
-        ? "unlocked"
-        : "unlocked",
-  }));
+  return [
+    {
+      id: COURSE_MATERIALS_LESSON_ID,
+      sequence: 0,
+      moduleTitle: "Course Materials",
+      title: "Downloadable PDFs",
+      status: "unlocked" as const,
+    },
+    ...TTT_LESSONS.map((lesson) => ({
+      id: String(lesson.day),
+      sequence: lesson.day,
+      moduleTitle: `Day ${lesson.day}`,
+      title: lesson.title,
+      status: completed.has(lesson.day)
+        ? "completed" as const
+        : lesson.day === Number(selectedLessonId)
+          ? "unlocked" as const
+          : "unlocked" as const,
+    })),
+  ];
 }
 
-function toSelectedLesson(day: number): CourseLearningSelectedLesson {
+function toSelectedLesson(lessonId: string): CourseLearningSelectedLesson {
+  if (lessonId === COURSE_MATERIALS_LESSON_ID) {
+    return {
+      id: COURSE_MATERIALS_LESSON_ID,
+      sequence: 0,
+      moduleTitle: "Course Materials",
+      title: "Downloadable PDFs",
+      description: [
+        "Download the course worksheets and templates before beginning Day 1, or return to them whenever you need support during the 10-day practice.",
+      ],
+      resources: TTT_MATERIALS.map((material) => ({
+        id: material.title,
+        title: material.title,
+        url: material.href,
+        helperText: "Open PDF in Google Drive",
+      })),
+    };
+  }
+
+  const day = Number(lessonId);
   const lesson = TTT_LESSONS.find((item) => item.day === day) ?? TTT_LESSONS[0];
   return {
     id: String(lesson.day),
@@ -49,15 +80,17 @@ function toSelectedLesson(day: number): CourseLearningSelectedLesson {
 export default function CourseTTT() {
   const [initialCourseState] = useState(() => createInitialCourseState());
   const [progress, setProgress] = useState<CourseProgressState>(initialCourseState.progress);
-  const [selectedDay, setSelectedDay] = useState(initialCourseState.selectedDay);
+  const [selectedLessonId, setSelectedLessonId] = useState(initialCourseState.selectedLessonId);
 
   useEffect(() => {
     writeTTTProgressState(progress);
   }, [progress]);
 
-  const lessons = useMemo(() => toLearningLessons(progress, selectedDay), [progress, selectedDay]);
-  const selectedLesson = useMemo(() => toSelectedLesson(selectedDay), [selectedDay]);
+  const lessons = useMemo(() => toLearningLessons(progress, selectedLessonId), [progress, selectedLessonId]);
+  const selectedLesson = useMemo(() => toSelectedLesson(selectedLessonId), [selectedLessonId]);
   const completedLessons = useMemo(() => new Set(progress.completedLessons), [progress.completedLessons]);
+  const selectedDay = Number(selectedLessonId);
+  const selectedLessonIndex = lessons.findIndex((lesson) => lesson.id === selectedLessonId);
 
   function markLessonComplete(lessonId: string) {
     const day = Number(lessonId);
@@ -72,14 +105,19 @@ export default function CourseTTT() {
       };
     });
     if (day < TTT_TOTAL_LESSONS) {
-      setSelectedDay(day + 1);
+      setSelectedLessonId(String(day + 1));
     }
   }
 
   function selectLesson(lessonId: string) {
+    if (lessonId === COURSE_MATERIALS_LESSON_ID) {
+      setSelectedLessonId(lessonId);
+      return;
+    }
+
     const day = Number(lessonId);
     if (!Number.isFinite(day) || day < 1 || day > TTT_TOTAL_LESSONS) return;
-    setSelectedDay(day);
+    setSelectedLessonId(lessonId);
     setProgress((current) => ({
       ...current,
       lastViewedLesson: day,
@@ -87,8 +125,11 @@ export default function CourseTTT() {
   }
 
   function goToOffset(offset: number) {
-    const nextDay = Math.min(TTT_TOTAL_LESSONS, Math.max(1, selectedDay + offset));
-    selectLesson(String(nextDay));
+    const nextIndex = Math.min(lessons.length - 1, Math.max(0, selectedLessonIndex + offset));
+    const nextLessonId = lessons[nextIndex]?.id;
+    if (nextLessonId) {
+      selectLesson(nextLessonId);
+    }
   }
 
   return (
@@ -104,15 +145,15 @@ export default function CourseTTT() {
         badge="Free · 10 Days"
         lessons={lessons}
         selectedLesson={selectedLesson}
-        selectedLessonId={String(selectedDay)}
+        selectedLessonId={selectedLessonId}
         completedCount={completedLessons.size}
         totalLessons={TTT_TOTAL_LESSONS}
         backHref="/dashboard/courses"
-        completionDisabled={completedLessons.has(selectedDay)}
+        completionDisabled={selectedLessonId === COURSE_MATERIALS_LESSON_ID || completedLessons.has(selectedDay)}
         onSelectLesson={selectLesson}
         onMarkComplete={markLessonComplete}
-        onSelectPrevious={selectedDay > 1 ? () => goToOffset(-1) : undefined}
-        onSelectNext={selectedDay < TTT_TOTAL_LESSONS ? () => goToOffset(1) : undefined}
+        onSelectPrevious={selectedLessonIndex > 0 ? () => goToOffset(-1) : undefined}
+        onSelectNext={selectedLessonIndex < lessons.length - 1 ? () => goToOffset(1) : undefined}
       />
     </motion.div>
   );

@@ -34,7 +34,7 @@ export interface CourseLearningSelectedLesson {
   moduleTitle: string;
   title: string;
   description: string[];
-  videoUrl: string;
+  videoUrl?: string;
   resources: CourseLearningResource[];
 }
 

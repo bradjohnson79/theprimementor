@@ -126,18 +126,23 @@ export const TTT_LESSONS: readonly CourseLessonDefinition[] = [
 export const TTT_MATERIALS: readonly CourseMaterialDefinition[] = [
   {
     title: "Emotional Situations Checklist",
-    href: "https://drive.google.com/file/d/1yNn6vBaLcx746AHjfUbQOqVJSNcy9rTe/view?usp=drive_link",
-    relatedDay: 3,
+    href: "https://drive.google.com/file/d/1yNn6vBaLcx746AHjfUbQOqVJSNcy9rTe/view?usp=sharing",
+  },
+  {
+    title: "Example Prep Entries for Traumas and Desires",
+    href: "https://drive.google.com/file/d/1s4j6HtUjOV8oI2p4x_-0kLqjIR4TYrwK/view?usp=sharing",
   },
   {
     title: "Reactions & Desires Checklist",
-    href: "https://drive.google.com/file/d/1WRIcM1cPsLBWzxqTE0FM5_XEsiBLqwlc/view?usp=drive_link",
-    relatedDay: 8,
+    href: "https://drive.google.com/file/d/1WRIcM1cPsLBWzxqTE0FM5_XEsiBLqwlc/view?usp=sharing",
   },
   {
-    title: "Example Prep Entries",
-    href: "https://drive.google.com/file/d/1s4j6HtUjOV8oI2p4x_-0kLqjIR4TYrwK/view?usp=drive_link",
-    relatedDay: 10,
+    title: "Tree of Relationships",
+    href: "https://drive.google.com/file/d/1VUZAP4czzoJVC2Z8rbLCE5KKhmdAAab9/view?usp=sharing",
+  },
+  {
+    title: "Trauma Transcendence Technique Template",
+    href: "https://drive.google.com/file/d/1-nmO7ctJyiK_cC_3VTXwaBZfc2HfmqGh/view?usp=sharing",
   },
 ] as const;
 
