@@ -214,11 +214,15 @@ export interface AdminOrder {
 }
 
 export interface AdminOrdersResponse {
+  orders?: AdminOrder[];
   data: AdminOrder[];
   pagination: {
+    page?: number;
+    pageSize?: number;
     limit: number;
     offset: number;
     total: number;
+    totalPages?: number;
     hasMore: boolean;
   };
 }

@@ -5,7 +5,7 @@ import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import { upsertOrderRecordingLink } from "../services/orderRecordingService.js";
 import { refundAdminOrder } from "../services/orderRefundService.js";
 import { dispatchOrderExecution } from "../services/divin8ExecutionDispatcher.js";
-import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders } from "../services/ordersService.js";
+import { getAdminOrderById, getAdminOrders, setArchivedStateForAdminOrders, type AdminOrderStatus, type AdminOrderType } from "../services/ordersService.js";
 import { markAdminOrderManualPaid } from "../services/adminOrderPaymentService.js";
 import { updateAdminOrderIntake, type AdminOrderIntakeUpdateInput } from "../services/adminOrderIntakeService.js";
 import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
@@ -15,6 +15,11 @@ interface OrdersQuery {
   limit?: string;
   offset?: string;
   showArchived?: string;
+  search?: string;
+  type?: string;
+  category?: string;
+  trainingPackage?: string;
+  trainingStatus?: string;
 }
 
 interface GenerateQuery {
@@ -35,6 +40,37 @@ interface RefundOrderBody {
   customReason?: string;
 }
 
+const ORDER_TYPES: AdminOrderType[] = ["session", "report", "subscription", "webinar", "mentor_training", "custom"];
+const TRAINING_PACKAGES = ["entry", "seeker", "initiate"] as const;
+const ORDER_STATUSES: AdminOrderStatus[] = [
+  "unpaid",
+  "pending_payment",
+  "paid",
+  "in_progress",
+  "processing",
+  "completed",
+  "cancelled",
+  "refunded",
+  "failed",
+];
+
+function parseOrderType(value: string | undefined): AdminOrderType | "all" | undefined {
+  if (!value || value === "all") return value === "all" ? "all" : undefined;
+  return ORDER_TYPES.includes(value as AdminOrderType) ? value as AdminOrderType : undefined;
+}
+
+function parseTrainingPackage(value: string | undefined): "all" | "entry" | "seeker" | "initiate" | undefined {
+  if (!value || value === "all") return value === "all" ? "all" : undefined;
+  return TRAINING_PACKAGES.includes(value as (typeof TRAINING_PACKAGES)[number])
+    ? value as (typeof TRAINING_PACKAGES)[number]
+    : undefined;
+}
+
+function parseOrderStatus(value: string | undefined): "all" | AdminOrderStatus | undefined {
+  if (!value || value === "all") return value === "all" ? "all" : undefined;
+  return ORDER_STATUSES.includes(value as AdminOrderStatus) ? value as AdminOrderStatus : undefined;
+}
+
 export async function ordersRoutes(app: FastifyInstance) {
   app.get<{ Querystring: OrdersQuery }>("/admin/orders", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);
@@ -47,6 +83,11 @@ export async function ordersRoutes(app: FastifyInstance) {
       limit: Number.isFinite(limit) ? limit : undefined,
       offset: Number.isFinite(offset) ? offset : undefined,
       showArchived,
+      search: request.query.search,
+      type: parseOrderType(request.query.type),
+      category: request.query.category,
+      trainingPackage: parseTrainingPackage(request.query.trainingPackage),
+      trainingStatus: parseOrderStatus(request.query.trainingStatus),
     }));
   });
 

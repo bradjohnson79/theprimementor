@@ -254,11 +254,15 @@ export interface AdminOrder {
 }
 
 export interface AdminOrdersListResult {
+  orders: AdminOrder[];
   data: AdminOrder[];
   pagination: {
+    page: number;
+    pageSize: number;
     limit: number;
     offset: number;
     total: number;
+    totalPages: number;
     hasMore: boolean;
   };
 }
@@ -269,6 +273,11 @@ interface AdminOrdersQuery {
   limit?: number;
   offset?: number;
   showArchived?: boolean;
+  search?: string;
+  type?: AdminOrderType | "all";
+  category?: string;
+  trainingPackage?: "all" | "entry" | "seeker" | "initiate";
+  trainingStatus?: "all" | AdminOrderStatus;
 }
 
 interface UserRow {
@@ -654,6 +663,160 @@ function clampLimit(value: number | undefined) {
 function clampOffset(value: number | undefined) {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.trunc(value ?? 0));
+}
+
+function normalizeFilterText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function includesSearch(value: string | null | undefined, query: string) {
+  return normalizeSearchText(value).includes(query);
+}
+
+function orderMatchesSearch(order: AdminOrder, query: string) {
+  if (!query) return true;
+  const metadata = order.metadata;
+  const rawIntake = parseObject(metadata.raw_intake);
+  const searchTargets = [
+    order.id,
+    order.source_id,
+    order.client_name,
+    order.email,
+    order.product_name,
+    order.stripe_payment_id,
+    order.payment_id,
+    order.execution.report_id,
+    metadata.stripe_subscription_id,
+    metadata.stripe_checkout_session_id,
+    metadata.stripe_invoice_id,
+    metadata.recovery_invoice_id,
+    metadata.invoice_id,
+    metadata.invoice_link,
+    metadata.report_type_id,
+    metadata.session_type_id,
+    metadata.session_type,
+    metadata.plan_name,
+    metadata.invoice_label,
+    getString(rawIntake.reportId),
+    getString(rawIntake.report_id),
+    getString(rawIntake.sessionId),
+    getString(rawIntake.session_id),
+  ];
+
+  return searchTargets.some((target) => includesSearch(target, query));
+}
+
+function fallbackLabelMatches(value: string | null | undefined, expected: string) {
+  return normalizeFilterText(value).includes(expected);
+}
+
+function orderMatchesSessionCategory(order: AdminOrder, category: string) {
+  if (order.type !== "session") return false;
+  if (!category || category === "all") return true;
+
+  const sessionTypeId = normalizeFilterText(order.metadata.session_type_id);
+  const sessionType = normalizeFilterText(order.metadata.session_type);
+
+  if (category === "qa_session") {
+    return sessionTypeId === "qa_session"
+      || sessionTypeId === "q_a_session"
+      || sessionType.includes("qa_session")
+      || sessionType.includes("q_a_session")
+      || fallbackLabelMatches(order.product_name, "qa_session")
+      || fallbackLabelMatches(order.product_name, "q_a_session");
+  }
+
+  if (category === "mentoring_session") {
+    return sessionTypeId === "mentoring"
+      || sessionTypeId === "mentoring_session"
+      || sessionType === "mentoring"
+      || sessionType.includes("mentoring_session")
+      || fallbackLabelMatches(order.product_name, "mentoring_session");
+  }
+
+  return true;
+}
+
+function orderMatchesReportCategory(order: AdminOrder, category: string) {
+  if (order.type !== "report") return false;
+  if (!category || category === "all" || category === "divin8_reports") return true;
+
+  const rawIntake = parseObject(order.metadata.raw_intake);
+  const normalizedValues = [
+    normalizeFilterText(order.metadata.report_type_id),
+    normalizeFilterText(order.metadata.report_type),
+    normalizeFilterText(getString(rawIntake.report_type)),
+    normalizeFilterText(getString(rawIntake.reportCategory)),
+    normalizeFilterText(getString(rawIntake.report_category)),
+  ];
+  return normalizedValues.includes(category) || fallbackLabelMatches(order.product_name, category);
+}
+
+function orderMatchesSubscriptionCategory(order: AdminOrder, category: string) {
+  if (order.type !== "subscription") return false;
+  if (!category || category === "all") return true;
+
+  const subscriptionKind = order.subscription?.kind ?? null;
+  const membershipTier = normalizeFilterText(order.membership_tier);
+  const orderVariant = normalizeFilterText(order.metadata.order_variant);
+  const planName = normalizeFilterText(order.metadata.plan_name);
+
+  if (category === "regeneration_monthly_package") {
+    return subscriptionKind === "regeneration"
+      || orderVariant === "regeneration_monthly_package"
+      || planName === "regeneration_monthly_package"
+      || fallbackLabelMatches(order.product_name, "regeneration_monthly_package");
+  }
+
+  if (category === "premium_subscription") {
+    return subscriptionKind === "membership"
+      || membershipTier === "seeker"
+      || membershipTier === "initiate"
+      || fallbackLabelMatches(order.metadata.plan_name, "premium_subscription")
+      || fallbackLabelMatches(order.product_name, "premium_subscription");
+  }
+
+  return true;
+}
+
+function orderMatchesCategory(order: AdminOrder, category: string) {
+  const normalized = normalizeFilterText(category);
+  if (!normalized || normalized === "all") return true;
+  if (normalized === "qa_session" || normalized === "mentoring_session") {
+    return orderMatchesSessionCategory(order, normalized);
+  }
+  if (normalized === "divin8_reports") {
+    return orderMatchesReportCategory(order, normalized);
+  }
+  if (normalized === "regeneration_monthly_package" || normalized === "premium_subscription") {
+    return orderMatchesSubscriptionCategory(order, normalized);
+  }
+  if (order.type === "session") return orderMatchesSessionCategory(order, normalized);
+  if (order.type === "report") return orderMatchesReportCategory(order, normalized);
+  if (order.type === "subscription") return orderMatchesSubscriptionCategory(order, normalized);
+  return true;
+}
+
+function orderMatchesQuery(order: AdminOrder, query: AdminOrdersQuery) {
+  const type = query.type && query.type !== "all" ? query.type : null;
+  if (type && order.type !== type) return false;
+
+  if (!orderMatchesCategory(order, query.category ?? "")) return false;
+
+  if (type === "mentor_training" || order.type === "mentor_training") {
+    if (query.trainingPackage && query.trainingPackage !== "all" && order.metadata.training_package_id !== query.trainingPackage) {
+      return false;
+    }
+    if (query.trainingStatus && query.trainingStatus !== "all" && order.status !== query.trainingStatus) {
+      return false;
+    }
+  }
+
+  return orderMatchesSearch(order, normalizeSearchText(query.search));
 }
 
 function titleCase(value: string | null) {
@@ -2878,15 +3041,22 @@ export async function getAdminOrders(db: Database, query: AdminOrdersQuery = {})
   const limit = clampLimit(query.limit);
   const offset = clampOffset(query.offset);
   const allOrders = await buildAllOrders(db, { showArchived: query.showArchived });
-  const data = allOrders.slice(offset, offset + limit);
+  const filteredOrders = allOrders.filter((order) => orderMatchesQuery(order, query));
+  const data = filteredOrders.slice(offset, offset + limit);
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / limit));
+  const page = Math.floor(offset / limit) + 1;
 
   return {
+    orders: data,
     data,
     pagination: {
+      page,
+      pageSize: limit,
       limit,
       offset,
-      total: allOrders.length,
-      hasMore: offset + limit < allOrders.length,
+      total: filteredOrders.length,
+      totalPages,
+      hasMore: offset + limit < filteredOrders.length,
     },
   };
 }

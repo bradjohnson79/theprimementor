@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
@@ -18,6 +18,8 @@ interface OrderColumn {
   label: ReactNode;
   render?: (value: AdminOrder[keyof AdminOrder], row: AdminOrder) => React.ReactNode;
 }
+
+type SubscriptionListAction = "cancel_period_end" | "cancel_immediately";
 
 const PAGE_SIZE = 25;
 const MODE_TABS = [
@@ -45,6 +47,37 @@ const TRAINING_STATUS_FILTERS = [
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
 ] as const;
+const SUBSCRIPTION_LIST_ACTIONS: Array<{ id: SubscriptionListAction; label: string; helper: string }> = [
+  {
+    id: "cancel_period_end",
+    label: "Cancel at Period End",
+    helper: "The client keeps access until the current billing cycle ends.",
+  },
+  {
+    id: "cancel_immediately",
+    label: "Cancel Immediately",
+    helper: "This immediately cancels billing and revokes subscription access where applicable.",
+  },
+];
+const SUBSCRIPTION_LIST_ACTION_ENDPOINTS: Record<SubscriptionListAction, string> = {
+  cancel_period_end: "cancel-period-end",
+  cancel_immediately: "cancel-immediately",
+};
+const ORDER_CATEGORY_FILTERS = {
+  session: [
+    { id: "all", label: "All Sessions" },
+    { id: "qa_session", label: "Q&A Sessions" },
+    { id: "mentoring_session", label: "Mentoring Sessions" },
+  ],
+  report: [
+    { id: "divin8_reports", label: "All Divin8 Reports" },
+  ],
+  subscription: [
+    { id: "all", label: "All Subscriptions" },
+    { id: "regeneration_monthly_package", label: "Regeneration Monthly Package" },
+    { id: "premium_subscription", label: "Premium Subscription" },
+  ],
+} as const;
 
 const baseColumns: OrderColumn[] = [
   { key: "id" as const, label: "Order ID" },
@@ -110,6 +143,23 @@ const baseColumns: OrderColumn[] = [
   },
 ];
 
+function canRunSubscriptionListAction(order: AdminOrder, action: SubscriptionListAction) {
+  const subscription = order.subscription;
+  if (order.type !== "subscription" || !subscription?.local_id) {
+    return false;
+  }
+  if (!subscription.available_actions.includes(action)) {
+    return false;
+  }
+  if (subscription.lifecycle_status === "canceled" || subscription.lifecycle_status === "expired") {
+    return false;
+  }
+  if (action === "cancel_period_end" && subscription.cancel_at_period_end) {
+    return false;
+  }
+  return !subscription.action_requirements[action]?.disabled;
+}
+
 export default function Orders() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
@@ -119,6 +169,9 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | OrderType>("all");
+  const [orderSearchInput, setOrderSearchInput] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderCategory, setOrderCategory] = useState("all");
   const [showArchived, setShowArchived] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [archiveSubmitting, setArchiveSubmitting] = useState(false);
@@ -140,6 +193,13 @@ export default function Orders() {
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [invoiceSuccess, setInvoiceSuccess] = useState<string | null>(null);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [subscriptionActionTarget, setSubscriptionActionTarget] = useState<{
+    order: AdminOrder;
+    action: SubscriptionListAction;
+  } | null>(null);
+  const [subscriptionActionReason, setSubscriptionActionReason] = useState("");
+  const [subscriptionActionSubmitting, setSubscriptionActionSubmitting] = useState(false);
+  const [subscriptionActionSuccess, setSubscriptionActionSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const requestedMode = searchParams.get("mode");
@@ -150,40 +210,76 @@ export default function Orders() {
     setMode("orders");
   }, [searchParams]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadOrders() {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = await getToken();
-        const offset = (page - 1) * PAGE_SIZE;
-        const response = (await api.get(
-          `/admin/orders?limit=${PAGE_SIZE}&offset=${offset}&showArchived=${showArchived ? "true" : "false"}`,
-          token,
-        )) as AdminOrdersResponse;
-        if (!cancelled) {
-          setOrders(response.data);
-          setPagination(response.pagination);
-          setSelectedOrderIds([]);
+  const loadOrders = useCallback(async (options: { clearSelection?: boolean } = {}) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const offset = (page - 1) * PAGE_SIZE;
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        showArchived: showArchived ? "true" : "false",
+      });
+      const normalizedSearch = orderSearch.trim();
+      if (normalizedSearch) {
+        params.set("search", normalizedSearch);
+      }
+      if (activeTab !== "all") {
+        params.set("type", activeTab);
+      }
+      if (orderCategory !== "all") {
+        params.set("category", orderCategory);
+      }
+      if (activeTab === "mentor_training") {
+        if (trainingPackageFilter !== "all") {
+          params.set("trainingPackage", trainingPackageFilter);
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load orders.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
+        if (trainingStatusFilter !== "all") {
+          params.set("trainingStatus", trainingStatusFilter);
         }
       }
+      const response = (await api.get(`/admin/orders?${params.toString()}`, token)) as AdminOrdersResponse;
+      setOrders(response.orders ?? response.data);
+      setPagination(response.pagination);
+      if (options.clearSelection !== false) {
+        setSelectedOrderIds([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load orders.");
+    } finally {
+      setLoading(false);
     }
+  }, [
+    activeTab,
+    getToken,
+    orderCategory,
+    orderSearch,
+    page,
+    showArchived,
+    trainingPackageFilter,
+    trainingStatusFilter,
+  ]);
 
-    void loadOrders();
+  useEffect(() => {
+    let cancelled = false;
+    void loadOrders().catch((err) => {
+      if (!cancelled) {
+        setError(err instanceof Error ? err.message : "Failed to load orders.");
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, [getToken, page, showArchived]);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setOrderSearch(orderSearchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [orderSearchInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,17 +310,8 @@ export default function Orders() {
   }, [getToken]);
 
   const filteredOrders = useMemo(() => {
-    const typeFiltered = activeTab === "all" ? orders : orders.filter((order) => order.type === activeTab);
-    if (activeTab !== "mentor_training") {
-      return typeFiltered;
-    }
-
-    return typeFiltered.filter((order) => {
-      const packageMatches = trainingPackageFilter === "all" || order.metadata.training_package_id === trainingPackageFilter;
-      const statusMatches = trainingStatusFilter === "all" || order.status === trainingStatusFilter;
-      return packageMatches && statusMatches;
-    });
-  }, [activeTab, orders, trainingPackageFilter, trainingStatusFilter]);
+    return orders;
+  }, [orders]);
   const selectedVisibleOrders = filteredOrders.filter((order) => selectedOrderIds.includes(order.id));
   const allVisibleSelected = filteredOrders.length > 0 && selectedVisibleOrders.length === filteredOrders.length;
   const selectedArchivedCount = selectedVisibleOrders.filter((order) => order.archived).length;
@@ -269,8 +356,41 @@ export default function Orders() {
         ),
       },
       ...baseColumns,
+      {
+        key: "subscription",
+        label: "Actions",
+        render: (_value, row) => {
+          if (row.type !== "subscription" || !row.subscription?.local_id) {
+            return <span className="text-xs text-white/35">-</span>;
+          }
+
+          return (
+            <div className="flex min-w-[11rem] flex-col gap-2" onClick={(event) => event.stopPropagation()}>
+              {SUBSCRIPTION_LIST_ACTIONS.map((action) => {
+                const enabled = canRunSubscriptionListAction(row, action.id);
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    disabled={!enabled || subscriptionActionSubmitting}
+                    onClick={() => openSubscriptionListAction(row, action.id)}
+                    className={`rounded-lg border px-3 py-1.5 text-left text-xs font-medium transition ${
+                      enabled
+                        ? "border-rose-300/40 bg-rose-400/10 text-rose-100 hover:border-rose-200/70 hover:bg-rose-400/20"
+                        : "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/35"
+                    }`}
+                    title={enabled ? action.helper : "This action is not currently available for this subscription."}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        },
+      },
     ],
-    [allVisibleSelected, filteredOrders, selectedOrderIds],
+    [allVisibleSelected, filteredOrders, selectedOrderIds, subscriptionActionSubmitting],
   );
 
   const visibleClients = useMemo(() => {
@@ -280,7 +400,10 @@ export default function Orders() {
       `${client.full_birth_name} ${client.email}`.toLowerCase().includes(query));
   }, [clientSearch, clients]);
 
-  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
+  const categoryFilterOptions = activeTab === "session" || activeTab === "report" || activeTab === "subscription"
+    ? ORDER_CATEGORY_FILTERS[activeTab]
+    : null;
+  const totalPages = pagination?.totalPages ?? (pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1);
 
   async function handleCreateInvoice() {
     setInvoiceSubmitting(true);
@@ -316,6 +439,58 @@ export default function Orders() {
     setInvoiceSuccess("Payment link copied.");
   }
 
+  function openSubscriptionListAction(order: AdminOrder, action: SubscriptionListAction) {
+    if (!canRunSubscriptionListAction(order, action)) {
+      return;
+    }
+    setSubscriptionActionTarget({ order, action });
+    setSubscriptionActionReason("");
+    setSubscriptionActionSuccess(null);
+    setError(null);
+  }
+
+  async function handleSubscriptionListAction() {
+    if (!subscriptionActionTarget?.order.subscription?.local_id) {
+      return;
+    }
+    const { order, action } = subscriptionActionTarget;
+    const subscriptionLocalId = order.subscription?.local_id;
+    if (!canRunSubscriptionListAction(order, action)) {
+      setError("This subscription action is no longer available.");
+      setSubscriptionActionTarget(null);
+      return;
+    }
+    if (!subscriptionLocalId) {
+      setError("This subscription is missing a local subscription ID.");
+      setSubscriptionActionTarget(null);
+      return;
+    }
+    const reason = subscriptionActionReason.trim();
+    if (action === "cancel_immediately" && !reason) {
+      setError("Immediate cancellation requires an admin action reason.");
+      return;
+    }
+
+    setSubscriptionActionSubmitting(true);
+    setError(null);
+    setSubscriptionActionSuccess(null);
+    try {
+      const token = await getToken();
+      const endpoint = SUBSCRIPTION_LIST_ACTION_ENDPOINTS[action];
+      await api.post(`/admin/subscriptions/${subscriptionLocalId}/${endpoint}`, reason ? { reason } : {}, token);
+      setSubscriptionActionTarget(null);
+      setSubscriptionActionReason("");
+      setSubscriptionActionSuccess(action === "cancel_immediately"
+        ? "Subscription canceled immediately."
+        : "Subscription scheduled to cancel at period end.");
+      await loadOrders({ clearSelection: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Subscription action failed.");
+    } finally {
+      setSubscriptionActionSubmitting(false);
+    }
+  }
+
   async function handleArchiveSelection() {
     if (selectedVisibleOrders.length === 0 || hasMixedArchiveSelection) {
       return;
@@ -336,14 +511,7 @@ export default function Orders() {
         orderIds: selectedVisibleOrders.map((order) => order.id),
         archived: !shouldUnarchiveSelection,
       }, token) as AdminOrderArchiveResponse;
-      setSelectedOrderIds([]);
-      const offset = (page - 1) * PAGE_SIZE;
-      const response = (await api.get(
-        `/admin/orders?limit=${PAGE_SIZE}&offset=${offset}&showArchived=${showArchived ? "true" : "false"}`,
-        token,
-      )) as AdminOrdersResponse;
-      setOrders(response.data);
-      setPagination(response.pagination);
+      await loadOrders();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update archive state.");
     } finally {
@@ -362,14 +530,7 @@ export default function Orders() {
       const token = await getToken();
       await Promise.all(selectedVisibleOrders.map((order) =>
         api.patch(`/admin/mentor-training/${order.source_id}/status`, { status }, token)));
-      setSelectedOrderIds([]);
-      const offset = (page - 1) * PAGE_SIZE;
-      const response = (await api.get(
-        `/admin/orders?limit=${PAGE_SIZE}&offset=${offset}&showArchived=${showArchived ? "true" : "false"}`,
-        token,
-      )) as AdminOrdersResponse;
-      setOrders(response.data);
-      setPagination(response.pagination);
+      await loadOrders();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update mentor training status.");
     } finally {
@@ -425,6 +586,12 @@ export default function Orders() {
         </div>
       ) : null}
 
+      {subscriptionActionSuccess ? (
+        <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+          {subscriptionActionSuccess}
+        </div>
+      ) : null}
+
       {mode === "orders" ? (
         <>
           <div className="flex flex-wrap gap-2">
@@ -434,7 +601,12 @@ export default function Orders() {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setOrderCategory(tab.id === "report" ? "divin8_reports" : "all");
+                    setPage(1);
+                    setSelectedOrderIds([]);
+                  }}
                   className={`rounded-full border px-4 py-2 text-sm transition ${
                     isActive
                       ? "border-accent-cyan/40 bg-accent-cyan/10 text-accent-cyan"
@@ -447,13 +619,49 @@ export default function Orders() {
             })}
           </div>
 
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <label className="block text-sm text-white/60">
+              <span className="mb-1 block">Search Orders</span>
+              <input
+                type="search"
+                value={orderSearchInput}
+                onChange={(event) => setOrderSearchInput(event.target.value)}
+                placeholder="Search by client, email, order ID, or Stripe ID"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-accent-cyan/40"
+              />
+            </label>
+
+            {categoryFilterOptions ? (
+              <label className="block text-sm text-white/60">
+                <span className="mb-1 block">Category</span>
+                <select
+                  value={orderCategory}
+                  onChange={(event) => {
+                    setOrderCategory(event.target.value);
+                    setPage(1);
+                    setSelectedOrderIds([]);
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-[#0f1327] px-3 py-3 text-sm text-white outline-none transition focus:border-accent-cyan/40 lg:min-w-[260px]"
+                >
+                  {categoryFilterOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
           {activeTab === "mentor_training" ? (
             <div className="flex flex-wrap gap-3">
               <label className="text-sm text-white/60">
                 <span className="mb-1 block">Package</span>
                 <select
                   value={trainingPackageFilter}
-                  onChange={(event) => setTrainingPackageFilter(event.target.value as typeof trainingPackageFilter)}
+                  onChange={(event) => {
+                    setTrainingPackageFilter(event.target.value as typeof trainingPackageFilter);
+                    setPage(1);
+                    setSelectedOrderIds([]);
+                  }}
                   className="rounded-xl border border-white/10 bg-[#0f1327] px-3 py-2 text-sm text-white outline-none transition focus:border-accent-cyan/40"
                 >
                   {TRAINING_PACKAGE_FILTERS.map((option) => (
@@ -465,7 +673,11 @@ export default function Orders() {
                 <span className="mb-1 block">Status</span>
                 <select
                   value={trainingStatusFilter}
-                  onChange={(event) => setTrainingStatusFilter(event.target.value as typeof trainingStatusFilter)}
+                  onChange={(event) => {
+                    setTrainingStatusFilter(event.target.value as typeof trainingStatusFilter);
+                    setPage(1);
+                    setSelectedOrderIds([]);
+                  }}
                   className="rounded-xl border border-white/10 bg-[#0f1327] px-3 py-2 text-sm text-white outline-none transition focus:border-accent-cyan/40"
                 >
                   {TRAINING_STATUS_FILTERS.map((option) => (
@@ -484,6 +696,7 @@ export default function Orders() {
                 onChange={(event) => {
                   setShowArchived(event.target.checked);
                   setPage(1);
+                  setSelectedOrderIds([]);
                 }}
               />
               Show Archived
@@ -690,6 +903,62 @@ export default function Orders() {
           </div>
         </Card>
       )}
+
+      {subscriptionActionTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#12172d] p-6 shadow-2xl">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-white">
+                {subscriptionActionTarget.action === "cancel_immediately"
+                  ? "Cancel Subscription Immediately"
+                  : "Cancel Subscription at Period End"}
+              </h3>
+              <p className="text-sm text-white/60">
+                {subscriptionActionTarget.order.client_name} ({subscriptionActionTarget.order.email})
+              </p>
+              <p className="text-sm text-white/60">
+                {SUBSCRIPTION_LIST_ACTIONS.find((action) => action.id === subscriptionActionTarget.action)?.helper}
+              </p>
+            </div>
+
+            <label className="mt-5 block text-sm text-white/60">
+              <span className="mb-1 block">
+                Reason {subscriptionActionTarget.action === "cancel_immediately" ? "(required)" : "(optional)"}
+              </span>
+              <textarea
+                value={subscriptionActionReason}
+                onChange={(event) => setSubscriptionActionReason(event.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-accent-cyan/40"
+                placeholder="Add an admin note for the subscription timeline."
+              />
+            </label>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSubscriptionActionTarget(null);
+                  setSubscriptionActionReason("");
+                }}
+                disabled={subscriptionActionSubmitting}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Keep Subscription
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubscriptionListAction()}
+                disabled={subscriptionActionSubmitting
+                  || (subscriptionActionTarget.action === "cancel_immediately" && !subscriptionActionReason.trim())}
+                className="rounded-xl border border-rose-300/40 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:border-rose-200/70 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {subscriptionActionSubmitting ? "Submitting..." : "Confirm Cancellation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </motion.div>
   );
 }
