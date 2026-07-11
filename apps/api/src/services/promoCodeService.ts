@@ -295,15 +295,11 @@ export function validateBillingScope(appliesToBilling: PromoBillingScope | null,
     return;
   }
   if (!appliesTo || appliesTo.length === 0) {
-    return;
+    throw createHttpError(400, "appliesToBilling requires subscription-specific promo targets");
   }
-  const hasSubscriptionTarget = appliesTo.some((target) => target.startsWith("subscription:"));
-  const hasOneTimeTarget = appliesTo.some((target) => !target.startsWith("subscription:"));
-  if (appliesToBilling === "recurring" && hasOneTimeTarget) {
-    throw createHttpError(400, "Recurring billing scope can only be used for subscription promo targets");
-  }
-  if (appliesToBilling === "one_time" && hasSubscriptionTarget) {
-    throw createHttpError(400, "One-time billing scope can only be used for one-time promo targets");
+  const nonSubscriptionTarget = appliesTo.some((target) => !target.startsWith("subscription:"));
+  if (nonSubscriptionTarget) {
+    throw createHttpError(400, "appliesToBilling can only be used for subscription promo targets");
   }
 }
 

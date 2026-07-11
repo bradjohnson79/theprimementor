@@ -6,7 +6,9 @@ import {
   PROMO_TARGETS,
   PROMO_TARGET_VALUES,
   formatPromoExpirationPacific,
+  normalizePromoBillingScopeForTargets,
   pacificDateTimeToUtcIso,
+  selectedTargetsIncludeSubscription,
   type PromoBillingScope,
   type PromoTarget,
 } from "@wisdom/utils";
@@ -69,7 +71,7 @@ interface PromoFormState {
   expirationTime: string;
   usageLimit: string;
   appliesTo: PromoTarget[];
-  appliesToBilling: PromoBillingScope | "";
+  appliesToBilling: PromoBillingScope | "none";
   minAmountCents: string;
   oncePerCustomer: boolean;
 }
@@ -114,7 +116,7 @@ function createInitialFormState(): PromoFormState {
     expirationTime: "",
     usageLimit: "",
     appliesTo: [],
-    appliesToBilling: "",
+    appliesToBilling: "none",
     minAmountCents: "",
     oncePerCustomer: false,
   };
@@ -149,6 +151,7 @@ function toPacificDateTimeInputs(value: string | null) {
 
 function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
   const expiration = toPacificDateTimeInputs(promo.expiresAt);
+  const appliesTo = promo.appliesTo ?? [];
   return {
     code: promo.code,
     discountType: promo.discountType,
@@ -161,8 +164,8 @@ function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
     expirationDate: expiration.date,
     expirationTime: expiration.time,
     usageLimit: promo.usageLimit == null ? "" : String(promo.usageLimit),
-    appliesTo: promo.appliesTo ?? [],
-    appliesToBilling: promo.appliesToBilling ?? "",
+    appliesTo,
+    appliesToBilling: normalizePromoBillingScopeForTargets(promo.appliesToBilling ?? "none", appliesTo) ?? "none",
     minAmountCents: promo.minAmountCents == null ? "" : String(promo.minAmountCents),
     oncePerCustomer: promo.oncePerCustomer,
   };
@@ -227,6 +230,7 @@ export default function PromoCodes() {
     () => promoCodes.find((promo) => promo.id === editingPromoId) ?? null,
     [editingPromoId, promoCodes],
   );
+  const hasSubscriptionTarget = useMemo(() => selectedTargetsIncludeSubscription(form.appliesTo), [form.appliesTo]);
 
   const metrics = useMemo(() => {
     const activeCount = promoCodes.filter((promo) => promo.lifecycleStatus === "active").length;
@@ -264,12 +268,16 @@ export default function PromoCodes() {
   }
 
   function toggleTarget(target: PromoTarget) {
-    setForm((current) => ({
-      ...current,
-      appliesTo: current.appliesTo.includes(target)
+    setForm((current) => {
+      const appliesTo = current.appliesTo.includes(target)
         ? current.appliesTo.filter((entry) => entry !== target)
-        : [...current.appliesTo, target],
-    }));
+        : [...current.appliesTo, target];
+      return {
+        ...current,
+        appliesTo,
+        appliesToBilling: selectedTargetsIncludeSubscription(appliesTo) ? current.appliesToBilling : "none",
+      };
+    });
   }
 
   function resolveExpirationForSubmit() {
@@ -311,6 +319,7 @@ export default function PromoCodes() {
         setExpirationError(err instanceof Error ? err.message : "Expiration date/time is invalid.");
         return;
       }
+      const appliesToBilling = normalizePromoBillingScopeForTargets(form.appliesToBilling, form.appliesTo);
       const payload = {
         code: form.code,
         discountType: form.discountType,
@@ -320,7 +329,7 @@ export default function PromoCodes() {
         expiresAt,
         usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
         appliesTo: form.appliesTo.length > 0 ? form.appliesTo : null,
-        appliesToBilling: form.appliesToBilling || null,
+        ...(appliesToBilling ? { appliesToBilling } : {}),
         minAmountCents: form.minAmountCents ? Number(form.minAmountCents) : null,
         oncePerCustomer: form.oncePerCustomer,
       };
@@ -527,13 +536,18 @@ export default function PromoCodes() {
               <span className="mb-2 block">Billing Scope</span>
               <select
                 value={form.appliesToBilling}
-                onChange={(event) => setForm((current) => ({ ...current, appliesToBilling: event.target.value as PromoBillingScope | "" }))}
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+                onChange={(event) => setForm((current) => ({ ...current, appliesToBilling: event.target.value as PromoBillingScope | "none" }))}
+                disabled={!hasSubscriptionTarget}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-55"
               >
-                <option value="" className="bg-slate-950">None / one-time products</option>
-                <option value="one_time" className="bg-slate-950">One-time</option>
+                <option value="none" className="bg-slate-950">None / one-time products</option>
                 <option value="recurring" className="bg-slate-950">Recurring</option>
               </select>
+              {!hasSubscriptionTarget ? (
+                <span className="mt-2 block text-xs text-white/45">
+                  Billing scope is only needed for subscription promo targets.
+                </span>
+              ) : null}
             </label>
           </div>
 

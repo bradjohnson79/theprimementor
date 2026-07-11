@@ -60,3 +60,21 @@ export function isPromoTarget(value: unknown): value is PromoTarget {
 export function normalizePromoCode(value: string) {
   return value.trim().toUpperCase();
 }
+
+export function isSubscriptionPromoTarget(target: PromoTarget) {
+  return target.startsWith("subscription:");
+}
+
+export function selectedTargetsIncludeSubscription(targets: PromoTarget[]) {
+  return targets.some(isSubscriptionPromoTarget);
+}
+
+export function normalizePromoBillingScopeForTargets(
+  billingScope: PromoBillingScope | "none",
+  targets: PromoTarget[],
+): PromoBillingScope | null {
+  if (!selectedTargetsIncludeSubscription(targets)) {
+    return null;
+  }
+  return billingScope === "recurring" ? billingScope : null;
+}

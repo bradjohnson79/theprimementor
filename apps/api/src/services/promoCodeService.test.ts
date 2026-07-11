@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PROMO_TARGETS, formatPromoExpirationPacific, pacificDateTimeToUtcIso } from "@wisdom/utils";
+import {
+  PROMO_TARGETS,
+  formatPromoExpirationPacific,
+  normalizePromoBillingScopeForTargets,
+  pacificDateTimeToUtcIso,
+} from "@wisdom/utils";
 import {
   buildStripePromotionCodeCreateParams,
   buildTargetFromReportProduct,
@@ -143,19 +148,23 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
   }), "broken");
 });
 
-test("validateBillingScope allows billing scopes for matching targets", () => {
+test("validateBillingScope allows recurring scope only for subscriptions", () => {
   assert.doesNotThrow(() => validateBillingScope("recurring", [PROMO_TARGETS.SUB_SEEKER]));
-  assert.doesNotThrow(() => validateBillingScope("one_time", [PROMO_TARGETS.QA_SESSION_30, PROMO_TARGETS.REPORT_DEEP_DIVE]));
-  assert.doesNotThrow(() => validateBillingScope("one_time", null));
-  assert.doesNotThrow(() => validateBillingScope("recurring", null));
   assert.throws(
     () => validateBillingScope("recurring", [PROMO_TARGETS.QA_SESSION]),
-    /recurring billing scope can only be used for subscription promo targets/i,
+    /subscription-specific promo targets|only be used for subscription promo targets/i,
   );
   assert.throws(
-    () => validateBillingScope("one_time", [PROMO_TARGETS.SUB_SEEKER]),
-    /one-time billing scope can only be used for one-time promo targets/i,
+    () => validateBillingScope("recurring", null),
+    /requires subscription-specific promo targets/i,
   );
+});
+
+test("normalizePromoBillingScopeForTargets omits scope for one-time promo payloads", () => {
+  assert.equal(normalizePromoBillingScopeForTargets("recurring", [PROMO_TARGETS.QA_SESSION_30]), null);
+  assert.equal(normalizePromoBillingScopeForTargets("none", [PROMO_TARGETS.SUB_SEEKER]), null);
+  assert.equal(normalizePromoBillingScopeForTargets("recurring", [PROMO_TARGETS.SUB_SEEKER]), "recurring");
+  assert.equal(normalizePromoBillingScopeForTargets("recurring", [PROMO_TARGETS.REPORT_DEEP_DIVE]), null);
 });
 
 test("sanitizeCreateInput normalizes promo fields for persistence", () => {
@@ -192,8 +201,8 @@ test("sanitizeCreateInput requires recurring billing for duration months", () =>
       active: true,
       expiresAt: null,
       usageLimit: null,
-      appliesTo: [PROMO_TARGETS.QA_SESSION_30],
-      appliesToBilling: "one_time",
+      appliesTo: [PROMO_TARGETS.SUB_SEEKER],
+      appliesToBilling: null,
       minAmountCents: null,
       firstTimeOnly: false,
       campaign: null,
