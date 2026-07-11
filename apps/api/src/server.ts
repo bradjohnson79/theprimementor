@@ -557,6 +557,7 @@ const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "applies_to_billing",
     "min_amount_cents",
     "first_time_only",
+    "once_per_customer",
     "campaign",
     "stripe_coupon_id",
     "stripe_promotion_code_id",

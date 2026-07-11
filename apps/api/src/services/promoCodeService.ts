@@ -17,6 +17,7 @@ import {
   MENTOR_TRAINING_PACKAGES,
   PROMO_TARGETS,
   PROMO_TARGET_VALUES,
+  logger,
   normalizePromoCode,
   type MentorTrainingPackageType,
   type PromoBillingScope,
@@ -24,7 +25,7 @@ import {
   type ReportProductKey,
   type ReportTierId,
 } from "@wisdom/utils";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
 import { resolveMembershipPriceId } from "../config/membershipBilling.js";
 import { getMentorTrainingStripePriceId } from "../config/mentorTrainingPackages.js";
@@ -77,6 +78,7 @@ interface PromoMutationInput {
   appliesToBilling: PromoBillingScope | null;
   minAmountCents: number | null;
   firstTimeOnly: boolean;
+  oncePerCustomer?: unknown;
   campaign: string | null;
 }
 
@@ -89,6 +91,7 @@ interface PromoUpdateInput {
   appliesToBilling?: PromoBillingScope | null;
   minAmountCents?: number | null;
   firstTimeOnly?: boolean;
+  oncePerCustomer?: unknown;
   campaign?: string | null;
   archive?: boolean;
 }
@@ -140,6 +143,7 @@ export interface PromoCodeListItem {
   appliesToBilling: PromoBillingScope | null;
   minAmountCents: number | null;
   firstTimeOnly: boolean;
+  oncePerCustomer: boolean;
   campaign: string | null;
   stripeCouponId: string;
   stripePromotionCodeId: string;
@@ -184,6 +188,19 @@ export interface PromoCodeTestCheckoutResponse {
   message: string;
 }
 
+export interface ActivePromoVerificationResponse {
+  checked: number;
+  passed: number;
+  failed: number;
+  results: Array<{
+    promoCodeId: string;
+    code: string;
+    success: boolean;
+    status?: PromoSyncStatus;
+    error?: string;
+  }>;
+}
+
 let stripeInstance: Stripe | null = null;
 
 function getStripe() {
@@ -195,10 +212,6 @@ function getStripe() {
     stripeInstance = new Stripe(key);
   }
   return stripeInstance;
-}
-
-function isPromoTargetArray(value: unknown): value is PromoTarget[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && PROMO_TARGET_VALUES.includes(entry as PromoTarget));
 }
 
 function normalizeOptionalText(value: string | null | undefined) {
@@ -265,6 +278,14 @@ function normalizeDurationMonths(value: number | null | undefined) {
   if (value == null) return null;
   if (!Number.isInteger(value) || value <= 0 || value > 36) {
     throw createHttpError(400, "durationMonths must be a positive integer between 1 and 36");
+  }
+  return value;
+}
+
+function normalizeOptionalBoolean(value: unknown, fieldName: string) {
+  if (value === undefined) return false;
+  if (typeof value !== "boolean") {
+    throw createHttpError(400, `${fieldName} must be a boolean`);
   }
   return value;
 }
@@ -342,6 +363,14 @@ function deriveLifecycleStatus(row: PromoRow): PromoCodeListItem["lifecycleStatu
   if (row.expires_at && row.expires_at.getTime() <= Date.now()) return "expired";
   if (!row.active) return "inactive";
   return "active";
+}
+
+export function shouldVerifyActivePromo(row: { active: boolean; archived_at: Date | null; expires_at: Date | null }, now = new Date()) {
+  return row.active && !row.archived_at && (!row.expires_at || row.expires_at.getTime() > now.getTime());
+}
+
+export function shouldCountPromoUsagePaymentStatus(status: string) {
+  return status === "paid";
 }
 
 export function deriveSyncStatus(validation: StripeValidationResult): PromoSyncStatus {
@@ -695,6 +724,20 @@ async function userHasPriorPaidPurchase(db: Database, userId: string) {
   return Boolean(row);
 }
 
+async function userHasSuccessfulPromoUsage(db: Database, promoCodeId: string, userId: string) {
+  const [row] = await db
+    .select({ id: promoCodeUsages.id })
+    .from(promoCodeUsages)
+    .innerJoin(payments, eq(promoCodeUsages.payment_id, payments.id))
+    .where(and(
+      eq(promoCodeUsages.promo_code_id, promoCodeId),
+      eq(payments.user_id, userId),
+      eq(payments.status, "paid"),
+    ))
+    .limit(1);
+  return Boolean(row);
+}
+
 async function fetchStripePromotionSnapshot(promo: PromoRow): Promise<StripePromotionSnapshot> {
   const stripe = getStripe();
   const [couponResult, promotionResult] = await Promise.allSettled([
@@ -1034,6 +1077,7 @@ export function sanitizeCreateInput(input: PromoMutationInput) {
     appliesToBilling,
     minAmountCents: normalizeMinAmountCents(input.minAmountCents),
     firstTimeOnly: input.firstTimeOnly === true,
+    oncePerCustomer: normalizeOptionalBoolean(input.oncePerCustomer, "oncePerCustomer"),
     campaign: normalizeOptionalText(input.campaign),
   };
 }
@@ -1062,6 +1106,7 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
       applies_to_billing: normalized.appliesToBilling,
       min_amount_cents: normalized.minAmountCents,
       first_time_only: normalized.firstTimeOnly,
+      once_per_customer: normalized.oncePerCustomer,
       campaign: normalized.campaign,
       stripe_coupon_id: stripeIds.stripeCouponId,
       stripe_promotion_code_id: stripeIds.stripePromotionCodeId,
@@ -1079,6 +1124,7 @@ export async function createPromoCode(db: Database, input: PromoMutationInput, a
       discountValue: created.discount_value,
       discountCurrency: created.discount_currency,
       durationMonths: created.discount_duration_months,
+      oncePerCustomer: created.once_per_customer,
     },
     changedBy: actorUserId,
   });
@@ -1097,6 +1143,7 @@ function sanitizeUpdateInput(input: PromoUpdateInput) {
   if ("appliesToBilling" in input) patch.applies_to_billing = input.appliesToBilling ?? null;
   if ("minAmountCents" in input) patch.min_amount_cents = normalizeMinAmountCents(input.minAmountCents ?? null);
   if ("firstTimeOnly" in input && typeof input.firstTimeOnly === "boolean") patch.first_time_only = input.firstTimeOnly;
+  if ("oncePerCustomer" in input) patch.once_per_customer = normalizeOptionalBoolean(input.oncePerCustomer, "oncePerCustomer");
   if ("campaign" in input) patch.campaign = normalizeOptionalText(input.campaign ?? null);
   if (input.archive === true) {
     patch.archived_at = new Date();
@@ -1122,7 +1169,6 @@ export async function updatePromoCode(db: Database, promoCodeId: string, input: 
     return getPromoCodeDetail(db, promoCodeId);
   }
 
-  const nextValues = { ...current, ...patch, updated_at: new Date(), sync_status: "needs_sync" as PromoSyncStatus };
   await db
     .update(promoCodes)
     .set({
@@ -1184,6 +1230,7 @@ export async function getPromoCodeDetail(db: Database, promoCodeId: string): Pro
     appliesToBilling: promo.applies_to_billing,
     minAmountCents: promo.min_amount_cents,
     firstTimeOnly: promo.first_time_only,
+    oncePerCustomer: promo.once_per_customer,
     campaign: promo.campaign,
     stripeCouponId: promo.stripe_coupon_id,
     stripePromotionCodeId: promo.stripe_promotion_code_id,
@@ -1212,6 +1259,56 @@ export async function listPromoCodes(db: Database): Promise<PromoCodeListItem[]>
     .from(promoCodes)
     .orderBy(desc(promoCodes.created_at));
   return Promise.all(rows.map((row) => getPromoCodeDetail(db, row.id)));
+}
+
+export async function verifyActivePromoCodes(db: Database): Promise<ActivePromoVerificationResponse> {
+  const rows = await db
+    .select({
+      id: promoCodes.id,
+      code: promoCodes.code,
+    })
+    .from(promoCodes)
+    .where(and(
+      eq(promoCodes.active, true),
+      isNull(promoCodes.archived_at),
+      sql`(${promoCodes.expires_at} IS NULL OR ${promoCodes.expires_at} > now())`,
+    ))
+    .orderBy(desc(promoCodes.created_at));
+
+  const results: ActivePromoVerificationResponse["results"] = [];
+  for (const row of rows) {
+    try {
+      const validation = await verifyPromoCodeWithStripe(db, row.id);
+      const status = deriveSyncStatus(validation);
+      results.push({
+        promoCodeId: row.id,
+        code: row.code,
+        success: validation.issues.length === 0,
+        status,
+        error: validation.issues.length > 0 ? validation.issues.join(" ") : undefined,
+      });
+    } catch (err) {
+      logger.error("promo_active_verification_failed", {
+        promoCodeId: row.id,
+        code: row.code,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      results.push({
+        promoCodeId: row.id,
+        code: row.code,
+        success: false,
+        error: "Verification failed. Check this promo code individually for details.",
+      });
+    }
+  }
+
+  const passed = results.filter((result) => result.success).length;
+  return {
+    checked: results.length,
+    passed,
+    failed: results.length - passed,
+    results,
+  };
 }
 
 export async function validatePromoCodeForCheckout(db: Database, input: PromoValidationInput): Promise<PromoCodeValidationResponse> {
@@ -1254,6 +1351,9 @@ export async function validatePromoCodeForCheckout(db: Database, input: PromoVal
   }
   if (promo.first_time_only && await userHasPriorPaidPurchase(db, input.userId)) {
     return { valid: false, message: "This promo code is only valid for first-time purchases", estimatedDiscount: null, finalEstimate: null, estimatedDiscountCents: null, finalEstimateCents: null, currency: context.currency };
+  }
+  if (promo.once_per_customer && await userHasSuccessfulPromoUsage(db, promo.id, input.userId)) {
+    return { valid: false, message: "This promo code has already been used by this customer.", estimatedDiscount: null, finalEstimate: null, estimatedDiscountCents: null, finalEstimateCents: null, currency: context.currency };
   }
   const promoCurrency = getPromoCurrency(promo);
   if (!promoCurrencyMatchesCheckout(promoCurrency, context.currency)) {

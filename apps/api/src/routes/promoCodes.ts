@@ -10,6 +10,7 @@ import {
   testPromoCodeAgainstPrice,
   updatePromoCode,
   validatePromoCodeForCheckout,
+  verifyActivePromoCodes,
   verifyPromoCodeWithStripe,
 } from "../services/promoCodeService.js";
 
@@ -30,6 +31,7 @@ interface CreatePromoBody {
   appliesToBilling?: PromoBillingScope | null;
   minAmountCents?: number | null;
   firstTimeOnly?: boolean;
+  oncePerCustomer?: unknown;
   campaign?: string | null;
 }
 
@@ -90,6 +92,7 @@ export async function promoCodesRoutes(app: FastifyInstance) {
       appliesToBilling: body.appliesToBilling ?? null,
       minAmountCents: body.minAmountCents ?? null,
       firstTimeOnly: body.firstTimeOnly ?? false,
+      oncePerCustomer: body.oncePerCustomer,
       campaign: body.campaign ?? null,
     }, user.id);
     return ok({ data: created });
@@ -108,6 +111,12 @@ export async function promoCodesRoutes(app: FastifyInstance) {
     requireAdmin(request);
     const validation = await verifyPromoCodeWithStripe(db, request.params.promoCodeId);
     return ok({ data: validation });
+  });
+
+  app.post("/admin/promo-codes/verify-active", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    requireAdmin(request);
+    return ok({ data: await verifyActivePromoCodes(db) });
   });
 
   app.post<{ Params: PromoParams; Body: FixSyncBody }>("/admin/promo-codes/:promoCodeId/fix-sync", { preHandler: requireAuth }, async (request, reply) => {

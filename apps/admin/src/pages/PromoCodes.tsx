@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
 import {
   PROMO_TARGET_LABELS,
   PROMO_TARGETS,
   PROMO_TARGET_VALUES,
+  formatPromoExpirationPacific,
+  pacificDateTimeToUtcIso,
   type PromoBillingScope,
   type PromoTarget,
 } from "@wisdom/utils";
@@ -32,6 +34,7 @@ interface PromoCodeSummary {
   appliesToBilling: PromoBillingScope | null;
   minAmountCents: number | null;
   firstTimeOnly: boolean;
+  oncePerCustomer: boolean;
   campaign: string | null;
   stripeCouponId: string;
   stripePromotionCodeId: string;
@@ -60,16 +63,15 @@ interface PromoFormState {
   discountType: PromoDiscountType;
   discountValue: string;
   discountCurrency: string;
-  durationMonths: string;
   active: boolean;
-  permanent: boolean;
-  expiresAt: string;
+  noExpiration: boolean;
+  expirationDate: string;
+  expirationTime: string;
   usageLimit: string;
   appliesTo: PromoTarget[];
   appliesToBilling: PromoBillingScope | "";
   minAmountCents: string;
-  firstTimeOnly: boolean;
-  campaign: string;
+  oncePerCustomer: boolean;
 }
 
 interface PromoTestResult {
@@ -80,6 +82,19 @@ interface PromoTestResult {
   finalAmount: number | null;
   currency: string | null;
   message: string;
+}
+
+interface ActivePromoCheckResult {
+  checked: number;
+  passed: number;
+  failed: number;
+  results: Array<{
+    promoCodeId: string;
+    code: string;
+    success: boolean;
+    status?: PromoSyncStatus;
+    error?: string;
+  }>;
 }
 
 const LEGACY_PROMO_TARGETS = new Set<PromoTarget>([
@@ -93,16 +108,15 @@ function createInitialFormState(): PromoFormState {
     discountType: "percentage",
     discountValue: "",
     discountCurrency: "cad",
-    durationMonths: "",
     active: true,
-    permanent: true,
-    expiresAt: "",
+    noExpiration: true,
+    expirationDate: "",
+    expirationTime: "",
     usageLimit: "",
     appliesTo: [],
     appliesToBilling: "",
     minAmountCents: "",
-    firstTimeOnly: false,
-    campaign: "",
+    oncePerCustomer: false,
   };
 }
 
@@ -113,22 +127,28 @@ function formatMoney(amountCents: number, currency = "CAD") {
   }).format(amountCents / 100);
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return "Permanent";
-  return new Intl.DateTimeFormat("en-CA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function toDatetimeLocal(value: string | null) {
-  if (!value) return "";
+function toPacificDateTimeInputs(value: string | null) {
+  if (!value) return { date: "", time: "" };
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: "", time: "" };
   const pad = (input: number) => String(input).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${pad(Number(parts.hour))}:${pad(Number(parts.minute))}`,
+  };
 }
 
 function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
+  const expiration = toPacificDateTimeInputs(promo.expiresAt);
   return {
     code: promo.code,
     discountType: promo.discountType,
@@ -136,16 +156,15 @@ function fromPromoToForm(promo: PromoCodeSummary): PromoFormState {
       ? String((promo.amountOffCents ?? promo.discountValue) / 100)
       : String(promo.percentOff ?? promo.discountValue),
     discountCurrency: promo.currency ?? "cad",
-    durationMonths: promo.durationMonths == null ? "" : String(promo.durationMonths),
     active: promo.active,
-    permanent: !promo.expiresAt,
-    expiresAt: toDatetimeLocal(promo.expiresAt),
+    noExpiration: !promo.expiresAt,
+    expirationDate: expiration.date,
+    expirationTime: expiration.time,
     usageLimit: promo.usageLimit == null ? "" : String(promo.usageLimit),
     appliesTo: promo.appliesTo ?? [],
     appliesToBilling: promo.appliesToBilling ?? "",
     minAmountCents: promo.minAmountCents == null ? "" : String(promo.minAmountCents),
-    firstTimeOnly: promo.firstTimeOnly,
-    campaign: promo.campaign ?? "",
+    oncePerCustomer: promo.oncePerCustomer,
   };
 }
 
@@ -200,6 +219,9 @@ export default function PromoCodes() {
   const [testResult, setTestResult] = useState<PromoTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [expirationError, setExpirationError] = useState<string | null>(null);
+  const [checkingActivePromos, setCheckingActivePromos] = useState(false);
+  const [activePromoCheckResult, setActivePromoCheckResult] = useState<ActivePromoCheckResult | null>(null);
 
   const editingPromo = useMemo(
     () => promoCodes.find((promo) => promo.id === editingPromoId) ?? null,
@@ -214,7 +236,7 @@ export default function PromoCodes() {
     return { activeCount, expiredCount, brokenCount, impactedRevenue };
   }, [promoCodes]);
 
-  async function loadPromoCodes(options?: { silent?: boolean }) {
+  const loadPromoCodes = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
       setLoading(true);
     }
@@ -230,11 +252,11 @@ export default function PromoCodes() {
         setLoading(false);
       }
     }
-  }
+  }, [getToken]);
 
   useEffect(() => {
     void loadPromoCodes();
-  }, []);
+  }, [loadPromoCodes]);
 
   function resetForm() {
     setForm(createInitialFormState());
@@ -250,29 +272,57 @@ export default function PromoCodes() {
     }));
   }
 
+  function resolveExpirationForSubmit() {
+    if (form.noExpiration) {
+      return null;
+    }
+    if (!form.expirationDate.trim()) {
+      throw new Error("Expiration date is required.");
+    }
+    if (!form.expirationTime.trim()) {
+      throw new Error("Expiration time is required.");
+    }
+    let expiresAt: string;
+    try {
+      expiresAt = pacificDateTimeToUtcIso(form.expirationDate, form.expirationTime);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : "Expiration date/time is invalid.");
+    }
+    if (new Date(expiresAt).getTime() <= Date.now()) {
+      throw new Error("Expiration must be in the future.");
+    }
+    return expiresAt;
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     setError(null);
+    setExpirationError(null);
     setMessage(null);
     try {
       const token = await getToken();
       const discountValue = form.discountType === "fixed_amount"
         ? amountToCents(form.discountValue)
         : Number(form.discountValue);
+      let expiresAt: string | null;
+      try {
+        expiresAt = resolveExpirationForSubmit();
+      } catch (err) {
+        setExpirationError(err instanceof Error ? err.message : "Expiration date/time is invalid.");
+        return;
+      }
       const payload = {
         code: form.code,
         discountType: form.discountType,
         discountValue,
         discountCurrency: form.discountType === "fixed_amount" ? form.discountCurrency : null,
-        durationMonths: form.durationMonths ? Number(form.durationMonths) : null,
         active: form.active,
-        expiresAt: form.permanent ? null : (form.expiresAt ? new Date(form.expiresAt).toISOString() : null),
+        expiresAt,
         usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
         appliesTo: form.appliesTo.length > 0 ? form.appliesTo : null,
         appliesToBilling: form.appliesToBilling || null,
         minAmountCents: form.minAmountCents ? Number(form.minAmountCents) : null,
-        firstTimeOnly: form.firstTimeOnly,
-        campaign: form.campaign || null,
+        oncePerCustomer: form.oncePerCustomer,
       };
 
       if (editingPromoId) {
@@ -308,6 +358,24 @@ export default function PromoCodes() {
       setError(err instanceof Error ? err.message : "Promo test failed.");
     } finally {
       setTestingPromo(false);
+    }
+  }
+
+  async function handleCheckActivePromos() {
+    setCheckingActivePromos(true);
+    setError(null);
+    setMessage(null);
+    setActivePromoCheckResult(null);
+    try {
+      const token = await getToken();
+      const response = (await api.post("/admin/promo-codes/verify-active", {}, token)) as { data: ActivePromoCheckResult };
+      setActivePromoCheckResult(response.data);
+      setMessage(`Checked ${response.data.checked} active promo codes: ${response.data.passed} passed, ${response.data.failed} needs attention.`);
+      await loadPromoCodes({ silent: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Active promo check failed.");
+    } finally {
+      setCheckingActivePromos(false);
     }
   }
 
@@ -416,100 +484,139 @@ export default function PromoCodes() {
           ) : null}
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Code</span>
-            <input
-              value={form.code}
-              onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
-              disabled={Boolean(editingPromo)}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
-              placeholder="WELCOME20"
-            />
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Discount Type</span>
-            <select
-              value={form.discountType}
-              onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value as PromoDiscountType, discountValue: "" }))}
-              disabled={Boolean(editingPromo)}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
-            >
-              <option value="percentage" className="bg-slate-950">Percentage (%)</option>
-              <option value="fixed_amount" className="bg-slate-950">Fixed Amount ($)</option>
-            </select>
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">
-              {form.discountType === "fixed_amount" ? "Amount Discount (CAD)" : "Discount Percentage"}
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={form.discountType === "percentage" ? 100 : undefined}
-              step={form.discountType === "fixed_amount" ? "0.01" : "1"}
-              value={form.discountValue}
-              onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))}
-              disabled={Boolean(editingPromo)}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
-              placeholder={form.discountType === "fixed_amount" ? "25.00" : "20"}
-            />
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Usage Limit</span>
-            <input
-              type="number"
-              min={1}
-              value={form.usageLimit}
-              onChange={(event) => setForm((current) => ({ ...current, usageLimit: event.target.value }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-              placeholder="Leave blank for unlimited"
-            />
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Minimum Order (cents)</span>
-            <input
-              type="number"
-              min={1}
-              value={form.minAmountCents}
-              onChange={(event) => setForm((current) => ({ ...current, minAmountCents: event.target.value }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-              placeholder="Optional"
-            />
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Campaign</span>
-            <input
-              value={form.campaign}
-              onChange={(event) => setForm((current) => ({ ...current, campaign: event.target.value }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-              placeholder="qa_launch_april"
-            />
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Billing Scope</span>
-            <select
-              value={form.appliesToBilling}
-              onChange={(event) => setForm((current) => ({ ...current, appliesToBilling: event.target.value as PromoBillingScope | "" }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-            >
-              <option value="" className="bg-slate-950">None / one-time products</option>
-              <option value="one_time" className="bg-slate-950">One-time</option>
-              <option value="recurring" className="bg-slate-950">Recurring</option>
-            </select>
-          </label>
-          <label className="text-sm text-white/70">
-            <span className="mb-2 block">Discount Duration (months)</span>
-            <input
-              type="number"
-              min={1}
-              max={36}
-              value={form.durationMonths}
-              onChange={(event) => setForm((current) => ({ ...current, durationMonths: event.target.value }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-              placeholder="Recurring only; blank = forever"
-            />
-          </label>
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">Code</span>
+              <input
+                value={form.code}
+                onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))}
+                disabled={Boolean(editingPromo)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
+                placeholder="WELCOME20"
+              />
+            </label>
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">
+                {form.discountType === "fixed_amount" ? "Amount Discount (CAD)" : "Discount Percentage"}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={form.discountType === "percentage" ? 100 : undefined}
+                step={form.discountType === "fixed_amount" ? "0.01" : "1"}
+                value={form.discountValue}
+                onChange={(event) => setForm((current) => ({ ...current, discountValue: event.target.value }))}
+                disabled={Boolean(editingPromo)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
+                placeholder={form.discountType === "fixed_amount" ? "25.00" : "20"}
+              />
+            </label>
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">Minimum Order (cents)</span>
+              <input
+                type="number"
+                min={1}
+                value={form.minAmountCents}
+                onChange={(event) => setForm((current) => ({ ...current, minAmountCents: event.target.value }))}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+                placeholder="Optional"
+              />
+            </label>
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">Billing Scope</span>
+              <select
+                value={form.appliesToBilling}
+                onChange={(event) => setForm((current) => ({ ...current, appliesToBilling: event.target.value as PromoBillingScope | "" }))}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+              >
+                <option value="" className="bg-slate-950">None / one-time products</option>
+                <option value="one_time" className="bg-slate-950">One-time</option>
+                <option value="recurring" className="bg-slate-950">Recurring</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">Discount Type</span>
+              <select
+                value={form.discountType}
+                onChange={(event) => setForm((current) => ({ ...current, discountType: event.target.value as PromoDiscountType, discountValue: "" }))}
+                disabled={Boolean(editingPromo)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white disabled:opacity-60"
+              >
+                <option value="percentage" className="bg-slate-950">Percentage (%)</option>
+                <option value="fixed_amount" className="bg-slate-950">Fixed Amount ($)</option>
+              </select>
+            </label>
+            <label className="text-sm text-white/70">
+              <span className="mb-2 block">Usage Limit</span>
+              <input
+                type="number"
+                min={1}
+                value={form.usageLimit}
+                onChange={(event) => setForm((current) => ({ ...current, usageLimit: event.target.value }))}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+                placeholder="Leave blank for unlimited"
+              />
+            </label>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-medium text-white">Expiration</p>
+              <div className="mt-3 space-y-3 text-sm text-white/70">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={form.noExpiration}
+                    onChange={() => setForm((current) => ({ ...current, noExpiration: true }))}
+                  />
+                  <span>No expiration</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={!form.noExpiration}
+                    onChange={() => setForm((current) => ({ ...current, noExpiration: false }))}
+                  />
+                  <span>Expires at</span>
+                </label>
+              </div>
+              {!form.noExpiration ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-white/70">
+                    <span className="mb-2 block">Expiration Date</span>
+                    <input
+                      type="date"
+                      value={form.expirationDate}
+                      onChange={(event) => setForm((current) => ({ ...current, expirationDate: event.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-white/70">
+                    <span className="mb-2 block">Expiration Time</span>
+                    <input
+                      type="time"
+                      value={form.expirationTime}
+                      onChange={(event) => setForm((current) => ({ ...current, expirationTime: event.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <p className="mt-3 text-xs text-white/45">Times are interpreted in Pacific Time.</p>
+              {expirationError ? <p className="mt-3 text-sm text-rose-100">{expirationError}</p> : null}
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-white/70">
+              <input
+                type="checkbox"
+                checked={form.oncePerCustomer}
+                onChange={(event) => setForm((current) => ({ ...current, oncePerCustomer: event.target.checked }))}
+              />
+              <span>One-time use per customer</span>
+            </label>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-4 text-sm text-white/70">
@@ -521,35 +628,7 @@ export default function PromoCodes() {
             />
             <span>Active</span>
           </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.permanent}
-              onChange={(event) => setForm((current) => ({ ...current, permanent: event.target.checked }))}
-            />
-            <span>Permanent</span>
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.firstTimeOnly}
-              onChange={(event) => setForm((current) => ({ ...current, firstTimeOnly: event.target.checked }))}
-            />
-            <span>First-time customers only</span>
-          </label>
         </div>
-
-        {!form.permanent ? (
-          <label className="mt-5 block text-sm text-white/70">
-            <span className="mb-2 block">Expires At</span>
-            <input
-              type="datetime-local"
-              value={form.expiresAt}
-              onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white"
-            />
-          </label>
-        ) : null}
 
         <div className="mt-6">
           <p className="text-sm font-medium text-white">Applies To</p>
@@ -673,7 +752,30 @@ export default function PromoCodes() {
             <h3 className="text-lg font-semibold text-white">Promo Inventory</h3>
             <p className="mt-1 text-sm text-white/55">Verify sync, inspect lifecycle state, and repair drift with explicit admin confirmation.</p>
           </div>
+          <button
+            type="button"
+            onClick={() => void handleCheckActivePromos()}
+            disabled={checkingActivePromos}
+            className="rounded-xl bg-accent-teal px-4 py-3 text-sm font-semibold text-navy-deep transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {checkingActivePromos ? "Checking Active Promos..." : "Check Active Promos"}
+          </button>
         </div>
+
+        {activePromoCheckResult?.failed ? (
+          <div className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-50">
+            <p className="font-medium">
+              {activePromoCheckResult.failed} active promo {activePromoCheckResult.failed === 1 ? "needs" : "need"} attention.
+            </p>
+            <ul className="mt-3 space-y-1 text-amber-50/85">
+              {activePromoCheckResult.results.filter((result) => !result.success).map((result) => (
+                <li key={result.promoCodeId}>
+                  {result.code}: {result.error ?? result.status ?? "Verification failed"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="mt-5 text-sm text-white/50">Loading promo codes...</p>
@@ -701,7 +803,7 @@ export default function PromoCodes() {
                         </span>
                       </div>
                       <p className="text-sm text-white/75">
-                        {formatPromoDiscount(promo)} · {promo.expiresAt ? formatDateTime(promo.expiresAt) : "Permanent"} · Used {promo.timesUsed}
+                        {formatPromoDiscount(promo)} · {formatPromoExpirationPacific(promo.expiresAt)} · Used {promo.timesUsed}
                         {promo.usageLimit != null ? ` / ${promo.usageLimit}` : ""}
                       </p>
                       {promo.durationMonths != null ? (

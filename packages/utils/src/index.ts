@@ -7,6 +7,8 @@ export {
   formatPacificMonthDay,
   formatPacificClock,
   formatPacificTimeCompact,
+  formatPromoExpirationPacific,
+  pacificDateTimeToUtcIso,
   toUtcIsoString,
 } from "./datetime.js";
 export {

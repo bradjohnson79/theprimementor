@@ -970,6 +970,7 @@ export const promoCodes = pgTable("promo_codes", {
   applies_to_billing: promoBillingScopeEnum("applies_to_billing").$type<PromoBillingScope | null>(),
   min_amount_cents: integer("min_amount_cents"),
   first_time_only: boolean("first_time_only").default(false).notNull(),
+  once_per_customer: boolean("once_per_customer").default(false).notNull(),
   campaign: text("campaign"),
   stripe_coupon_id: text("stripe_coupon_id").notNull(),
   stripe_promotion_code_id: text("stripe_promotion_code_id").notNull(),

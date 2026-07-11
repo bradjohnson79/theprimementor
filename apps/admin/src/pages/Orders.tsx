@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
@@ -274,14 +274,6 @@ export default function Orders() {
   }, [loadOrders]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setOrderSearch(orderSearchInput.trim());
-      setPage(1);
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [orderSearchInput]);
-
-  useEffect(() => {
     let cancelled = false;
 
     async function loadClients() {
@@ -437,6 +429,13 @@ export default function Orders() {
     if (!createdLink) return;
     await navigator.clipboard.writeText(createdLink);
     setInvoiceSuccess("Payment link copied.");
+  }
+
+  function handleOrderSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setOrderSearch(orderSearchInput.trim());
+    setPage(1);
+    setSelectedOrderIds([]);
   }
 
   function openSubscriptionListAction(order: AdminOrder, action: SubscriptionListAction) {
@@ -620,16 +619,19 @@ export default function Orders() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <label className="block text-sm text-white/60">
-              <span className="mb-1 block">Search Orders</span>
-              <input
-                type="search"
-                value={orderSearchInput}
-                onChange={(event) => setOrderSearchInput(event.target.value)}
-                placeholder="Search by client, email, order ID, or Stripe ID"
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-accent-cyan/40"
-              />
-            </label>
+            <form onSubmit={handleOrderSearchSubmit}>
+              <label className="block text-sm text-white/60">
+                <span className="mb-1 block">Search Orders</span>
+                <input
+                  type="search"
+                  value={orderSearchInput}
+                  onChange={(event) => setOrderSearchInput(event.target.value)}
+                  placeholder="Search by client, email, order ID, or Stripe ID"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-accent-cyan/40"
+                />
+              </label>
+              <p className="mt-1 text-xs text-white/35">Press Enter to search.</p>
+            </form>
 
             {categoryFilterOptions ? (
               <label className="block text-sm text-white/60">

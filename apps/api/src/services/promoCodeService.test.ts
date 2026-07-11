@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PROMO_TARGETS } from "@wisdom/utils";
+import { PROMO_TARGETS, formatPromoExpirationPacific, pacificDateTimeToUtcIso } from "@wisdom/utils";
 import {
   buildStripePromotionCodeCreateParams,
   buildTargetFromReportProduct,
@@ -12,6 +12,8 @@ import {
   deriveSyncStatus,
   promoCurrencyMatchesCheckout,
   sanitizeCreateInput,
+  shouldCountPromoUsagePaymentStatus,
+  shouldVerifyActivePromo,
   validateBillingScope,
 } from "./promoCodeService.js";
 
@@ -202,4 +204,95 @@ test("sanitizeCreateInput supports fixed amount cents and CAD currency", () => {
   assert.equal(sanitized.discountType, "fixed_amount");
   assert.equal(sanitized.discountValue, 2500);
   assert.equal(sanitized.discountCurrency, "cad");
+});
+
+test("pacificDateTimeToUtcIso converts winter PST expiration", () => {
+  assert.equal(pacificDateTimeToUtcIso("2026-01-05", "13:00"), "2026-01-05T21:00:00.000Z");
+});
+
+test("pacificDateTimeToUtcIso converts summer PDT expiration", () => {
+  assert.equal(pacificDateTimeToUtcIso("2026-07-31", "23:59"), "2026-08-01T06:59:00.000Z");
+});
+
+test("pacificDateTimeToUtcIso handles near-midnight Pacific values", () => {
+  assert.equal(pacificDateTimeToUtcIso("2026-03-01", "00:05"), "2026-03-01T08:05:00.000Z");
+});
+
+test("pacificDateTimeToUtcIso rejects nonexistent spring-forward local time", () => {
+  assert.throws(
+    () => pacificDateTimeToUtcIso("2026-03-08", "02:30"),
+    /valid Pacific time/i,
+  );
+});
+
+test("formatPromoExpirationPacific displays stored UTC in Pacific time", () => {
+  assert.equal(formatPromoExpirationPacific("2026-08-01T06:59:00.000Z"), "Jul 31, 2026 at 11:59 PM PDT");
+  assert.equal(formatPromoExpirationPacific(null), "No expiration");
+});
+
+test("sanitizeCreateInput defaults oncePerCustomer to false", () => {
+  const sanitized = sanitizeCreateInput({
+    code: "defaultonce",
+    discountValue: 10,
+    active: true,
+    expiresAt: null,
+    usageLimit: null,
+    appliesTo: null,
+    appliesToBilling: null,
+    minAmountCents: null,
+    firstTimeOnly: false,
+    campaign: null,
+  });
+  assert.equal(sanitized.oncePerCustomer, false);
+});
+
+test("sanitizeCreateInput accepts valid oncePerCustomer boolean", () => {
+  const sanitized = sanitizeCreateInput({
+    code: "once",
+    discountValue: 10,
+    active: true,
+    expiresAt: null,
+    usageLimit: null,
+    appliesTo: null,
+    appliesToBilling: null,
+    minAmountCents: null,
+    firstTimeOnly: false,
+    oncePerCustomer: true,
+    campaign: null,
+  });
+  assert.equal(sanitized.oncePerCustomer, true);
+});
+
+test("sanitizeCreateInput rejects malformed oncePerCustomer values", () => {
+  assert.throws(
+    () => sanitizeCreateInput({
+      code: "badonce",
+      discountValue: 10,
+      active: true,
+      expiresAt: null,
+      usageLimit: null,
+      appliesTo: null,
+      appliesToBilling: null,
+      minAmountCents: null,
+      firstTimeOnly: false,
+      oncePerCustomer: "true",
+      campaign: null,
+    }),
+    /oncePerCustomer must be a boolean/i,
+  );
+});
+
+test("shouldCountPromoUsagePaymentStatus only counts successful payments", () => {
+  assert.equal(shouldCountPromoUsagePaymentStatus("paid"), true);
+  assert.equal(shouldCountPromoUsagePaymentStatus("pending"), false);
+  assert.equal(shouldCountPromoUsagePaymentStatus("failed"), false);
+});
+
+test("shouldVerifyActivePromo selects only active non-expired promos", () => {
+  const now = new Date("2026-07-01T12:00:00.000Z");
+  assert.equal(shouldVerifyActivePromo({ active: true, archived_at: null, expires_at: null }, now), true);
+  assert.equal(shouldVerifyActivePromo({ active: true, archived_at: null, expires_at: new Date("2026-07-01T12:01:00.000Z") }, now), true);
+  assert.equal(shouldVerifyActivePromo({ active: false, archived_at: null, expires_at: null }, now), false);
+  assert.equal(shouldVerifyActivePromo({ active: true, archived_at: new Date("2026-06-01T12:00:00.000Z"), expires_at: null }, now), false);
+  assert.equal(shouldVerifyActivePromo({ active: true, archived_at: null, expires_at: new Date("2026-07-01T11:59:00.000Z") }, now), false);
 });
