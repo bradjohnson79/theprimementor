@@ -23,6 +23,9 @@ const timestamps = {
 
 type PromoTarget =
   | "qa_session"
+  | "qa_session:30"
+  | "qa_session:45"
+  | "qa_session:60"
   | "focus"
   | "mentoring"
   | "mentoring:45"

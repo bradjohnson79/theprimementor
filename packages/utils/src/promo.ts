@@ -1,5 +1,8 @@
 export const PROMO_TARGETS = {
   QA_SESSION: "qa_session",
+  QA_SESSION_30: "qa_session:30",
+  QA_SESSION_45: "qa_session:45",
+  QA_SESSION_60: "qa_session:60",
   FOCUS_SESSION: "focus",
   MENTORING_SESSION: "mentoring",
   MENTORING_SESSION_45: "mentoring:45",
@@ -25,6 +28,9 @@ export const PROMO_TARGET_VALUES: PromoTarget[] = Object.values(PROMO_TARGETS);
 
 export const PROMO_TARGET_LABELS: Record<PromoTarget, string> = {
   [PROMO_TARGETS.QA_SESSION]: "Q&A Session",
+  [PROMO_TARGETS.QA_SESSION_30]: "30 min Q&A Session",
+  [PROMO_TARGETS.QA_SESSION_45]: "45 min Q&A Session",
+  [PROMO_TARGETS.QA_SESSION_60]: "60 min Q&A Session",
   [PROMO_TARGETS.FOCUS_SESSION]: "Focus Session (Legacy)",
   [PROMO_TARGETS.MENTORING_SESSION]: "Mentoring Sessions (45 & 90 min)",
   [PROMO_TARGETS.MENTORING_SESSION_45]: "45 min Mentoring Session",

@@ -437,6 +437,18 @@ export function buildTargetsFromBookingSession(
   durationMinutes: number | null,
 ): PromoTarget[] {
   const targets = buildTargetsFromSessionType(sessionType);
+  if (sessionType === "qa_session") {
+    if (bookingTypeId === "qa-session-30" || durationMinutes === 30) {
+      return [...targets, PROMO_TARGETS.QA_SESSION_30];
+    }
+    if (bookingTypeId === "qa-session-45" || durationMinutes === 45) {
+      return [...targets, PROMO_TARGETS.QA_SESSION_45];
+    }
+    if (bookingTypeId === "qa-session-60" || durationMinutes === 60) {
+      return [...targets, PROMO_TARGETS.QA_SESSION_60];
+    }
+    return targets;
+  }
   if (sessionType === "focus" && (bookingTypeId === "focus-session-45" || durationMinutes === 45)) {
     return [...targets, PROMO_TARGETS.MENTORING_SESSION_45];
   }

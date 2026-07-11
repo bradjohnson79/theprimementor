@@ -24,6 +24,18 @@ test("buildTargetsFromSessionType maps supported session types", () => {
 });
 
 test("buildTargetsFromBookingSession includes mentoring duration targets", () => {
+  assert.deepEqual(buildTargetsFromBookingSession("qa_session", "qa-session-30", 30), [
+    PROMO_TARGETS.QA_SESSION,
+    PROMO_TARGETS.QA_SESSION_30,
+  ]);
+  assert.deepEqual(buildTargetsFromBookingSession("qa_session", "qa-session-45", 45), [
+    PROMO_TARGETS.QA_SESSION,
+    PROMO_TARGETS.QA_SESSION_45,
+  ]);
+  assert.deepEqual(buildTargetsFromBookingSession("qa_session", "qa-session-60", 60), [
+    PROMO_TARGETS.QA_SESSION,
+    PROMO_TARGETS.QA_SESSION_60,
+  ]);
   assert.deepEqual(buildTargetsFromBookingSession("focus", "focus-session-45", 45), [
     PROMO_TARGETS.FOCUS_SESSION,
     PROMO_TARGETS.MENTORING_SESSION_45,
