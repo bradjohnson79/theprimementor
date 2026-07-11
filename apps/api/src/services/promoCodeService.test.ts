@@ -143,11 +143,18 @@ test("deriveSyncStatus distinguishes synced, needs_sync, and broken", () => {
   }), "broken");
 });
 
-test("validateBillingScope allows recurring scope only for subscriptions", () => {
+test("validateBillingScope allows billing scopes for matching targets", () => {
   assert.doesNotThrow(() => validateBillingScope("recurring", [PROMO_TARGETS.SUB_SEEKER]));
+  assert.doesNotThrow(() => validateBillingScope("one_time", [PROMO_TARGETS.QA_SESSION_30, PROMO_TARGETS.REPORT_DEEP_DIVE]));
+  assert.doesNotThrow(() => validateBillingScope("one_time", null));
+  assert.doesNotThrow(() => validateBillingScope("recurring", null));
   assert.throws(
     () => validateBillingScope("recurring", [PROMO_TARGETS.QA_SESSION]),
-    /subscription-specific promo targets|only be used for subscription promo targets/i,
+    /recurring billing scope can only be used for subscription promo targets/i,
+  );
+  assert.throws(
+    () => validateBillingScope("one_time", [PROMO_TARGETS.SUB_SEEKER]),
+    /one-time billing scope can only be used for one-time promo targets/i,
   );
 });
 
@@ -185,7 +192,7 @@ test("sanitizeCreateInput requires recurring billing for duration months", () =>
       active: true,
       expiresAt: null,
       usageLimit: null,
-      appliesTo: [PROMO_TARGETS.SUB_SEEKER],
+      appliesTo: [PROMO_TARGETS.QA_SESSION_30],
       appliesToBilling: "one_time",
       minAmountCents: null,
       firstTimeOnly: false,
