@@ -112,6 +112,7 @@ export default function Settings() {
   const [pauseTarget, setPauseTarget] = useState<MemberRecurringSubscription | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [pausingId, setPausingId] = useState<string | null>(null);
+  const [billingPortalLoading, setBillingPortalLoading] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancellationDetails, setCancellationDetails] = useState("");
   const [retentionAccepted, setRetentionAccepted] = useState(false);
@@ -261,6 +262,27 @@ export default function Settings() {
     }
   }
 
+  async function handleOpenBillingPortal() {
+    setBillingPortalLoading(true);
+    setSubscriptionsError(null);
+    try {
+      const token = await getToken();
+      const response = await api.post("/member/billing-portal", {}, token) as {
+        data?: {
+          url?: string;
+        };
+      };
+      const url = response.data?.url;
+      if (!url) {
+        throw new Error("Stripe did not return a billing portal link.");
+      }
+      window.location.assign(url);
+    } catch (error) {
+      setSubscriptionsError(error instanceof Error ? error.message : "Billing portal could not be opened.");
+      setBillingPortalLoading(false);
+    }
+  }
+
   return (
     <div className="px-8 py-8">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -348,7 +370,22 @@ export default function Settings() {
         </section>
 
         <section className="glass-card rounded-2xl p-6">
-          <h2 className="text-lg font-medium text-white">Subscriptions</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-white">Subscriptions</h2>
+              <p className="mt-2 text-sm text-white/65">
+                Update your saved payment method securely through Stripe.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleOpenBillingPortal()}
+              disabled={billingPortalLoading}
+              className="inline-flex justify-center rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-400/40 disabled:text-white/50"
+            >
+              {billingPortalLoading ? "Opening Stripe..." : "Update Payment Method"}
+            </button>
+          </div>
 
           {subscriptionsLoading ? (
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">

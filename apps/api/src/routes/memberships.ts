@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireDatabase } from "../routeAssertions.js";
+import { requireDatabase, requireDbUser } from "../routeAssertions.js";
+import { createMemberBillingPortalSession } from "../services/memberBillingPortalService.js";
 import { confirmMembershipPurchase, createOrReuseMembershipPurchase } from "../services/membershipPurchaseService.js";
 import {
   cancelMemberRecurringSubscription,
@@ -27,6 +28,17 @@ interface CancelMemberSubscriptionBody {
 }
 
 export async function membershipsRoutes(app: FastifyInstance) {
+  app.post("/member/billing-portal", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    const user = requireDbUser(request);
+    return ok({
+      data: await createMemberBillingPortalSession(db, {
+        userId: user.id,
+        email: user.email,
+      }),
+    });
+  });
+
   app.get("/member/subscriptions", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
     return ok({
