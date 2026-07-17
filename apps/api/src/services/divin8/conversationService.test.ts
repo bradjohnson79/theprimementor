@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { conversationMessages, conversationThreads, conversationTimelineEvents, type Database } from "@wisdom/db";
 import {
+  __conversationServiceTestInternals,
   deleteConversationThread,
+  exportConversation,
   getConversationDetail,
   listConversationThreads,
   renameConversationThread,
@@ -281,6 +283,92 @@ test("renameConversationThread updates only the owned active conversation", asyn
 
   await assert.rejects(
     () => renameConversationThread(db, "thread-b", "Should fail", "user-1"),
+    /Conversation not found/,
+  );
+});
+
+test("first-message title builder strips tags and uses a stable root topic", () => {
+  assert.equal(
+    __conversationServiceTestInternals.buildThreadTitle(
+      "Give me a #VedicAstrology and #Numerology reading for @BradJohnson about finances.",
+    ),
+    "Finance Reading for Brad Johnson",
+  );
+  assert.equal(
+    __conversationServiceTestInternals.buildThreadTitle("#VedicAstrology @BradJohnson"),
+    "Divin8 Reading",
+  );
+});
+
+test("resolveNextThreadTitle preserves manual and non-placeholder titles", () => {
+  assert.equal(
+    __conversationServiceTestInternals.resolveNextThreadTitle(
+      createThread({ id: "thread-a", user_id: "user-1", title: "Manual Title", meta: { titleLocked: true } }),
+      "Tell me about travel timing.",
+    ),
+    "Manual Title",
+  );
+  assert.equal(
+    __conversationServiceTestInternals.resolveNextThreadTitle(
+      createThread({ id: "thread-b", user_id: "user-1", title: "Finance Reading" }),
+      "Tell me about travel timing.",
+    ),
+    "Finance Reading",
+  );
+  assert.equal(
+    __conversationServiceTestInternals.resolveNextThreadTitle(
+      createThread({ id: "thread-c", user_id: "user-1", title: "New Conversation" }),
+      "Tell me about travel timing.",
+    ),
+    "Travel Timing Reading",
+  );
+});
+
+test("renameConversationThread locks the manual title in metadata", async () => {
+  const { db, state } = createFakeDb({
+    threads: [
+      createThread({ id: "thread-a", user_id: "user-1", title: "Original Title", meta: { listPreview: "Preview" } }),
+    ],
+  });
+
+  await renameConversationThread(db, "thread-a", "Manual Finance Reading", "user-1");
+
+  const updated = state.threads.find((thread) => thread.id === "thread-a");
+  assert.equal(updated?.title, "Manual Finance Reading");
+  assert.deepEqual(updated?.meta, {
+    listPreview: "Preview",
+    titleLocked: true,
+    titleSource: "manual",
+  });
+});
+
+test("exportConversation returns markdown for owned conversations only", async () => {
+  const { db } = createFakeDb({
+    threads: [
+      createThread({ id: "thread-a", user_id: "user-1", title: "Finance Reading", created_at: new Date("2026-07-14T00:00:00.000Z") }),
+      createThread({ id: "thread-b", user_id: "user-2", title: "Other User Reading" }),
+    ],
+    messages: [
+      createMessage({ id: "message-1", thread_id: "thread-a", role: "user", content: "Tell me about finances.", created_at: new Date("2026-07-14T00:01:00.000Z") }),
+      createMessage({ id: "message-2", thread_id: "thread-a", role: "assistant", content: "Here is the visible guidance.", created_at: new Date("2026-07-14T00:02:00.000Z"), meta: { telemetry: "hidden" } }),
+    ],
+  });
+
+  const exported = await exportConversation(db, { threadId: "thread-a", format: "md" }, "user-1");
+  const body = exported.buffer.toString("utf8");
+
+  assert.equal(exported.contentType, "text/markdown; charset=utf-8");
+  assert.match(exported.filename, /^divin8-\d{4}-\d{2}-\d{2}-finance-reading\.md$/);
+  assert.match(body, /# Finance Reading/);
+  assert.match(body, /Conversation created: July 14, 2026/);
+  assert.match(body, /## User/);
+  assert.match(body, /Tell me about finances\\\./);
+  assert.match(body, /## Divin8/);
+  assert.match(body, /Here is the visible guidance\./);
+  assert.doesNotMatch(body, /telemetry/);
+
+  await assert.rejects(
+    () => exportConversation(db, { threadId: "thread-b", format: "md" }, "user-1"),
     /Conversation not found/,
   );
 });

@@ -1,6 +1,6 @@
 import { formatPacificMonthDay } from "@wisdom/utils";
 import { useState } from "react";
-import type { Divin8ConversationThread, Divin8Profile } from "./types";
+import type { Divin8ConversationExportFormat, Divin8ConversationThread, Divin8Profile } from "./types";
 import { classNames, darkChatStyles, visuallyHiddenStyle } from "./utils";
 
 interface ConversationListProps {
@@ -21,9 +21,18 @@ interface ConversationListProps {
   onDeleteProfile: (profileId: string) => void;
   onSelect: (threadId: string) => void;
   onRenameRequest: (thread: Divin8ConversationThread, title: string) => void;
+  onExportRequest: (thread: Divin8ConversationThread, format: Divin8ConversationExportFormat) => void;
   onArchiveRequest: (thread: Divin8ConversationThread) => void;
+  onBackupRequest: () => void;
+  isBackingUp: boolean;
   mode?: "all" | "conversations" | "profiles";
 }
+
+const EXPORT_OPTIONS: Array<{ format: Divin8ConversationExportFormat; label: string }> = [
+  { format: "txt", label: "Export TXT" },
+  { format: "md", label: "Export Markdown" },
+  { format: "pdf", label: "Export PDF" },
+];
 
 function formatUpdatedAt(value: string | null) {
   if (!value) {
@@ -50,7 +59,10 @@ export default function ConversationList({
   onDeleteProfile,
   onSelect,
   onRenameRequest,
+  onExportRequest,
   onArchiveRequest,
+  onBackupRequest,
+  isBackingUp,
   mode = "all",
 }: ConversationListProps) {
   const [openMenuThreadId, setOpenMenuThreadId] = useState<string | null>(null);
@@ -95,6 +107,19 @@ export default function ConversationList({
             )}
           >
             {isCreating ? "Creating..." : "New conversation"}
+          </button>
+          <button
+            type="button"
+            onClick={onBackupRequest}
+            disabled={isBackingUp || isLoadingThreads}
+            className={classNames(
+              "mt-2 w-full rounded-xl border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed",
+              isLightTheme
+                ? "border-slate-200 text-slate-600 hover:bg-slate-50 disabled:text-slate-400"
+                : "border-white/10 text-white/65 hover:bg-white/5 disabled:text-white/30",
+            )}
+          >
+            {isBackingUp ? "Preparing backup..." : "Backup all chats"}
           </button>
         </div>
       ) : null}
@@ -243,6 +268,25 @@ export default function ConversationList({
                           >
                             Rename
                           </button>
+                          {EXPORT_OPTIONS.map((option) => (
+                            <button
+                              key={option.format}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenMenuThreadId(null);
+                                onExportRequest(thread, option.format);
+                              }}
+                              className={classNames(
+                                "w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                                isLightTheme
+                                  ? "text-slate-700 hover:bg-slate-100"
+                                  : "text-white/75 hover:bg-white/10",
+                              )}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
                           <button
                             type="button"
                             onClick={(event) => {

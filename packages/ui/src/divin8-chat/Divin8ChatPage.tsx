@@ -94,7 +94,10 @@ export default function Divin8ChatPage({
       }}
       onSelect={chat.handleSelectConversation}
       onRenameRequest={chat.handleRenameConversation}
+      onExportRequest={chat.handleExportConversation}
       onArchiveRequest={chat.setArchiveTarget}
+      onBackupRequest={chat.handleBackupConversations}
+      isBackingUp={chat.isBackingUpConversations}
     />
   );
 
@@ -131,7 +134,10 @@ export default function Divin8ChatPage({
         setMobilePanel("chat");
       }}
       onRenameRequest={chat.handleRenameConversation}
+      onExportRequest={chat.handleExportConversation}
       onArchiveRequest={chat.setArchiveTarget}
+      onBackupRequest={chat.handleBackupConversations}
+      isBackingUp={chat.isBackingUpConversations}
       mode="conversations"
     />
   );
@@ -169,7 +175,10 @@ export default function Divin8ChatPage({
         setMobilePanel("chat");
       }}
       onRenameRequest={chat.handleRenameConversation}
+      onExportRequest={chat.handleExportConversation}
       onArchiveRequest={chat.setArchiveTarget}
+      onBackupRequest={chat.handleBackupConversations}
+      isBackingUp={chat.isBackingUpConversations}
       mode="profiles"
     />
   );

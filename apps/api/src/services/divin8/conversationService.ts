@@ -1,3 +1,6 @@
+import { PassThrough } from "node:stream";
+import { createRequire } from "node:module";
+import type { Archiver } from "archiver";
 import { and, asc, desc, eq, gte, ilike, lt, sql } from "drizzle-orm";
 import {
   conversationMessages,
@@ -41,6 +44,18 @@ const THREAD_LOCK_NAMESPACE = 6418;
 const MAX_THREAD_TITLE_LENGTH = 80;
 const DEFAULT_THREAD_LIST_LIMIT = 50;
 const MAX_THREAD_LIST_LIMIT = 100;
+const MAX_BACKUP_CONVERSATIONS = 500;
+const require = createRequire(import.meta.url);
+const createArchiver = require("archiver") as (format: "zip", options?: { zlib?: { level?: number } }) => Archiver;
+const FALLBACK_MEANINGFUL_THREAD_TITLE = "Divin8 Reading";
+const DEFAULT_TITLE_PLACEHOLDERS = new Set([
+  "",
+  DEFAULT_THREAD_TITLE.toLowerCase(),
+  "untitled",
+  "new chat",
+  "divin8 chat",
+  "divin8 conversation",
+]);
 
 interface ConversationThreadRow {
   id: string;
@@ -62,6 +77,8 @@ interface ConversationMessageRow {
   meta: unknown;
   created_at: Date;
 }
+
+export type Divin8ConversationExportFormat = "md" | "txt" | "pdf" | "docx";
 
 export interface Divin8UsageSummary {
   month_used: number;
@@ -263,9 +280,96 @@ function clipSummary(content: string) {
     : cleaned;
 }
 
+function getTitleMetadata(meta: unknown) {
+  return {
+    titleLocked: isRecord(meta) && meta.titleLocked === true,
+    titleSource: isRecord(meta) && typeof meta.titleSource === "string" ? meta.titleSource : null,
+  };
+}
+
+function isPlaceholderThreadTitle(title: string | null | undefined) {
+  const normalized = (title ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  return DEFAULT_TITLE_PLACEHOLDERS.has(normalized);
+}
+
+function stripTitleUtilitySyntax(message: string) {
+  return message
+    .replace(/@\S+/g, " ")
+    .replace(/#[\p{L}\p{N}_-]+/gu, " ")
+    .replace(/\[[^\]]*(?:timeline|image|upload|attachment)[^\]]*\]/gi, " ")
+    .replace(/\b(?:timeline|image|upload|uploaded|attachment)[_-]?(?:ref|id)?\s*[:=]\s*\S+/gi, " ")
+    .replace(/\b(?:uploaded\s+image|image\s+uploaded|attached\s+image|image\s+attachment)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clampThreadTitle(title: string) {
+  const normalized = title.replace(/\s+/g, " ").trim();
+  return normalized.length > MAX_THREAD_TITLE_LENGTH
+    ? normalized.slice(0, MAX_THREAD_TITLE_LENGTH - 1).trimEnd()
+    : normalized;
+}
+
+function appendReadingSuffix(title: string) {
+  return /\b(reading|guidance|forecast|analysis|report|session)\b/i.test(title)
+    ? title
+    : `${title} Reading`;
+}
+
+function extractProfileNameForTitle(message: string) {
+  const match = message.match(/@([\p{L}\p{N}_-]+)/u);
+  if (!match?.[1]) {
+    return null;
+  }
+  const words = match[1]
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const title = titleCase(words.join(" "));
+  return title || null;
+}
+
 function buildThreadTitle(message: string) {
-  const words = message.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-  return words.length > 0 ? words.join(" ") : DEFAULT_THREAD_TITLE;
+  const profileName = extractProfileNameForTitle(message);
+  const cleaned = stripTitleUtilitySyntax(message)
+    .replace(/[#*_`>-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalized = cleaned.toLowerCase();
+
+  if (!cleaned || cleaned.length < 4) {
+    return FALLBACK_MEANINGFUL_THREAD_TITLE;
+  }
+
+  const topicChecks: Array<[RegExp, string]> = [
+    [/\b(finance|finances|financial|money|wealth|income|career|business)\b/, "Finance Reading"],
+    [/\b(compatibility|relationship|relationships|romance|partner|marriage|love)\b/, "Compatibility Reading"],
+    [/\b(travel|relocation|move|moving|journey|trip)\b/, "Travel Timing Reading"],
+    [/\b(purpose|career|calling|vocation|mission|life path)\b/, "Life Purpose and Career Reading"],
+    [/\b(numerology)\b/, "Numerology Reading"],
+    [/\b(vedic|astrology|birth chart|chart)\b/, "Chart Reading"],
+    [/\b(grounding)\b/, "Grounding Reminder"],
+  ];
+
+  for (const [pattern, title] of topicChecks) {
+    if (pattern.test(normalized)) {
+      return clampThreadTitle(profileName && title.endsWith("Reading")
+        ? `${title} for ${profileName}`
+        : title);
+    }
+  }
+
+  const keywords = extractTitleKeywords(cleaned);
+  if (keywords.length > 0) {
+    const title = appendReadingSuffix(titleCase(Array.from(new Set(keywords)).slice(0, 4).join(" ")));
+    return clampThreadTitle(profileName ? `${title} for ${profileName}` : title);
+  }
+
+  const firstSentence = cleaned.split(/[.!?]/)[0]?.trim() || cleaned;
+  const title = appendReadingSuffix(titleCase(firstSentence.split(/\s+/).slice(0, 5).join(" ")));
+  return clampThreadTitle(title || FALLBACK_MEANINGFUL_THREAD_TITLE);
 }
 
 function normalizeThreadTitle(value: unknown) {
@@ -404,6 +508,30 @@ function buildFallbackTitle(summary: string | null, message: string) {
   const firstSentence = source.split(/[.!?]/)[0]?.trim() || source;
   const words = firstSentence.split(/\s+/).slice(0, 5);
   return words.join(" ") || DEFAULT_THREAD_TITLE;
+}
+
+function resolveNextThreadTitle(thread: ConversationThreadRow, message: string) {
+  const { titleLocked } = getTitleMetadata(thread.meta);
+  if (titleLocked || !isPlaceholderThreadTitle(thread.title)) {
+    return thread.title;
+  }
+
+  return buildThreadTitle(message);
+}
+
+function withManualTitleMetadata(meta: unknown) {
+  return {
+    ...(isRecord(meta) ? meta : {}),
+    titleLocked: true,
+    titleSource: "manual",
+  } as StoredDivin8SessionState;
+}
+
+function withAutoTitleMetadata(meta: unknown) {
+  return {
+    ...(isRecord(meta) ? meta : {}),
+    titleSource: "auto",
+  } as StoredDivin8SessionState;
 }
 
 function buildThreadSearchText(...parts: Array<string | null | undefined>) {
@@ -999,14 +1127,15 @@ export async function renameConversationThread(
   title: unknown,
   userId = ADMIN_DIVIN8_USER_ID,
 ) {
-  await getThreadRow(db, threadId, userId);
+  const thread = await getThreadRow(db, threadId, userId);
   const normalizedTitle = normalizeThreadTitle(title);
   const updatedAt = new Date();
   const [updated] = await db
     .update(conversationThreads)
     .set({
       title: normalizedTitle,
-      search_text: normalizedTitle,
+      search_text: buildThreadSearchText(normalizedTitle, thread.summary, thread.search_text),
+      meta: withManualTitleMetadata(thread.meta),
       updated_at: updatedAt,
     })
     .where(and(
@@ -1137,10 +1266,6 @@ export async function addMessageToConversation(
     });
     const response = orchestration.chat;
     const visibleAssistantMessage = stripVerificationTags(response.message) || response.message;
-    const initialTitle =
-      claimed.thread.title === DEFAULT_THREAD_TITLE && history.length === 0
-        ? buildThreadTitle(request.message)
-        : claimed.thread.title;
 
     const savedAt = new Date();
     const assistantMeta: StoredConversationMessageMeta = {
@@ -1155,8 +1280,11 @@ export async function addMessageToConversation(
     };
 
     const nextSummary = buildDeterministicConversationSummary(orchestration.storedState, visibleAssistantMessage || request.message);
-    const nextTitle = buildFallbackTitle(nextSummary, request.message) || initialTitle;
+    const nextTitle = resolveNextThreadTitle(claimed.thread, request.message);
     const nextSearchText = buildThreadSearchText(nextTitle, nextSummary, request.message);
+    const storedState = isPlaceholderThreadTitle(claimed.thread.title) && nextTitle !== claimed.thread.title
+      ? withAutoTitleMetadata(orchestration.storedState)
+      : orchestration.storedState;
 
     const savedAssistantMessage = await finalizeThreadExecutionSuccess(app, {
       thread: claimed.thread,
@@ -1169,7 +1297,7 @@ export async function addMessageToConversation(
       nextSummary,
       nextSearchText,
       savedAt,
-      storedState: orchestration.storedState,
+      storedState,
     });
     await persistDivin8Memories(db, {
       conversationId: threadId,
@@ -1229,7 +1357,7 @@ export async function addMessageToConversation(
           search_text: nextSearchText,
           updated_at: savedAt,
           meta: {
-            ...withThreadListState(orchestration.storedState, {
+            ...withThreadListState(storedState, {
               preview: visibleAssistantMessage,
               messageCount: history.length + 2,
               lastMessageAt: savedAt,
@@ -1294,43 +1422,267 @@ function escapeMarkdown(text: string) {
   return text.replace(/[\\`*_{}[\]()#+\-.!>]/g, "\\$&");
 }
 
-function conversationMarkdown(title: string, messages: Divin8ConversationMessage[]) {
-  const parts = [`# ${title}`, "", "## Conversation"];
-  for (const message of messages) {
-    if (message.role === "assistant") {
-      parts.push("", "### Divin8", "", message.content.trim() || "_No content_");
-    } else {
-      parts.push("", "### User", "", escapeMarkdown(message.content.trim() || "_No content_"));
-    }
+function formatExportDate(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (!Number.isFinite(date.getTime())) {
+    return "Unknown";
   }
-  return parts.join("\n");
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
-export async function exportConversation(
-  db: Database,
-  input: { threadId: string; format: "pdf" | "docx" },
-  userId = ADMIN_DIVIN8_USER_ID,
+function resolveExportTitle(title: string) {
+  return isPlaceholderThreadTitle(title) ? FALLBACK_MEANINGFUL_THREAD_TITLE : title;
+}
+
+function resolveExportFilenameBase(title: string, exportedAt: Date) {
+  const datePrefix = exportedAt.toISOString().slice(0, 10);
+  const slug = slugForFilename(resolveExportTitle(title)) || "divin8-reading";
+  return `divin8-${datePrefix}-${slug}`;
+}
+
+function conversationMarkdown(
+  title: string,
+  messages: Divin8ConversationMessage[],
+  input: {
+    exportedAt: Date;
+    createdAt: string;
+  },
 ) {
-  const detail = await getConversationDetail(db, input.threadId, userId);
+  const exportTitle = resolveExportTitle(title);
+  const parts = [
+    `# ${escapeMarkdown(exportTitle)}`,
+    "",
+    `Exported: ${formatExportDate(input.exportedAt)}`,
+    `Conversation created: ${formatExportDate(input.createdAt)}`,
+    "",
+    "---",
+  ];
+
+  for (const message of messages) {
+    const label = message.role === "assistant" ? "Divin8" : "User";
+    const content = message.content.trim() || "_No content_";
+    parts.push("", `## ${label}`, "", message.role === "assistant" ? content : escapeMarkdown(content));
+  }
+  return `${parts.join("\n")}\n`;
+}
+
+function conversationText(
+  title: string,
+  messages: Divin8ConversationMessage[],
+  input: {
+    exportedAt: Date;
+    createdAt: string;
+  },
+) {
+  const exportTitle = resolveExportTitle(title);
+  const parts = [
+    exportTitle,
+    "",
+    `Exported: ${formatExportDate(input.exportedAt)}`,
+    `Conversation created: ${formatExportDate(input.createdAt)}`,
+    "",
+    "----------------------------------------",
+  ];
+
+  for (const message of messages) {
+    const label = message.role === "assistant" ? "Divin8" : "User";
+    parts.push("", label, "", message.content.trim() || "No content");
+  }
+  return `${parts.join("\n")}\n`;
+}
+
+function contentTypeForExport(format: Divin8ConversationExportFormat) {
+  switch (format) {
+    case "md":
+      return "text/markdown; charset=utf-8";
+    case "txt":
+      return "text/plain; charset=utf-8";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "pdf":
+      return "application/pdf";
+  }
+}
+
+async function buildConversationExportFromDetail(
+  detail: Divin8ConversationDetail,
+  input: {
+    format: Divin8ConversationExportFormat;
+    exportedAt?: Date;
+  },
+) {
   if (detail.messages.length === 0) {
     throw createHttpError(400, "Conversation is empty and cannot be exported.");
   }
 
-  const title = detail.thread.title === DEFAULT_THREAD_TITLE ? "Divin8 Conversation" : detail.thread.title;
-  const markdown = conversationMarkdown(title, detail.messages);
-  const filenameBase = `divin8-conversation-${slugForFilename(title)}`;
+  const exportedAt = input.exportedAt ?? new Date();
+  const title = resolveExportTitle(detail.thread.title);
+  const markdown = conversationMarkdown(title, detail.messages, {
+    exportedAt,
+    createdAt: detail.thread.created_at,
+  });
+  const filenameBase = resolveExportFilenameBase(title, exportedAt);
+
+  if (input.format === "txt") {
+    return {
+      contentType: contentTypeForExport(input.format),
+      filename: `${filenameBase}.txt`,
+      buffer: Buffer.from(conversationText(title, detail.messages, {
+        exportedAt,
+        createdAt: detail.thread.created_at,
+      }), "utf8"),
+    };
+  }
+
+  if (input.format === "md") {
+    return {
+      contentType: contentTypeForExport(input.format),
+      filename: `${filenameBase}.md`,
+      buffer: Buffer.from(markdown, "utf8"),
+    };
+  }
 
   if (input.format === "docx") {
     return {
-      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentType: contentTypeForExport(input.format),
       filename: `${filenameBase}.docx`,
       buffer: await exportDocxFromMarkdown(title, markdown),
     };
   }
 
   return {
-    contentType: "application/pdf",
+    contentType: contentTypeForExport(input.format),
     filename: `${filenameBase}.pdf`,
     buffer: await exportPdfFromMarkdown(title, markdown),
   };
 }
+
+function resolveBackupConversationPath(
+  usedPaths: Set<string>,
+  input: {
+    title: string;
+    exportedAt: Date;
+  },
+) {
+  const datePrefix = input.exportedAt.toISOString().slice(0, 10);
+  const slug = slugForFilename(resolveExportTitle(input.title)) || "divin8-reading";
+  let candidate = `conversations/${datePrefix}-${slug}.md`;
+  let index = 2;
+  while (usedPaths.has(candidate)) {
+    candidate = `conversations/${datePrefix}-${slug}-${index}.md`;
+    index += 1;
+  }
+  usedPaths.add(candidate);
+  return candidate;
+}
+
+export async function exportConversation(
+  db: Database,
+  input: { threadId: string; format: Divin8ConversationExportFormat },
+  userId = ADMIN_DIVIN8_USER_ID,
+) {
+  const detail = await getConversationDetail(db, input.threadId, userId);
+  return buildConversationExportFromDetail(detail, input);
+}
+
+export async function backupConversationThreads(
+  db: Database,
+  userId = ADMIN_DIVIN8_USER_ID,
+) {
+  const exportedAt = new Date();
+  const threads = (await db
+    .select()
+    .from(conversationThreads)
+    .where(and(
+      eq(conversationThreads.user_id, userId),
+      eq(conversationThreads.is_archived, false),
+    ))
+    .orderBy(asc(conversationThreads.created_at))
+    .limit(MAX_BACKUP_CONVERSATIONS + 1)) as ConversationThreadRow[];
+
+  if (threads.length > MAX_BACKUP_CONVERSATIONS) {
+    throw createHttpError(413, `Conversation backup is limited to ${MAX_BACKUP_CONVERSATIONS} conversations at a time.`);
+  }
+
+  const archive = createArchiver("zip", { zlib: { level: 9 } });
+  const stream = new PassThrough();
+  const usedPaths = new Set<string>();
+  const exportedConversations: Array<{ title: string; path: string; createdAt: string }> = [];
+
+  archive.on("error", (error: Error) => {
+    stream.destroy(error);
+  });
+  archive.pipe(stream);
+
+  for (const thread of threads) {
+    const messages = await getThreadMessages(db, thread.id);
+    if (messages.length === 0) {
+      continue;
+    }
+    const detail: Divin8ConversationDetail = {
+      thread: threadSummaryFromRow(thread, messages.length > 0 ? clipPreview(messages[messages.length - 1].content) : null, messages.length),
+      messages: messages.map((message) => ({
+        id: message.id,
+        role: normalizeRole(message.role),
+        content: message.content,
+        created_at: message.created_at.toISOString(),
+        meta: null,
+      })),
+      timeline: [],
+      last_pipeline_meta: null,
+      active_execution: null,
+    };
+    const path = resolveBackupConversationPath(usedPaths, {
+      title: detail.thread.title,
+      exportedAt,
+    });
+    archive.append(conversationMarkdown(detail.thread.title, detail.messages, {
+      exportedAt,
+      createdAt: detail.thread.created_at,
+    }), { name: path });
+    exportedConversations.push({
+      title: resolveExportTitle(detail.thread.title),
+      path,
+      createdAt: detail.thread.created_at,
+    });
+  }
+
+  const indexMarkdown = [
+    "# Divin8 Chat Backup",
+    "",
+    `Exported: ${formatExportDate(exportedAt)}`,
+    "",
+    "## Conversations",
+    "",
+    ...exportedConversations.map((conversation) => (
+      `- [${escapeMarkdown(conversation.title)}](${conversation.path})`
+    )),
+    "",
+  ].join("\n");
+
+  archive.append(indexMarkdown, { name: "index.md" });
+  archive.append(JSON.stringify({
+    exportedAt: exportedAt.toISOString(),
+    conversationCount: exportedConversations.length,
+    format: "markdown",
+    source: "Divin8 Chat",
+  }, null, 2), { name: "metadata.json" });
+  void archive.finalize();
+
+  return {
+    contentType: "application/zip",
+    filename: `divin8-chat-backup-${exportedAt.toISOString().slice(0, 10)}.zip`,
+    stream,
+  };
+}
+
+export const __conversationServiceTestInternals = {
+  buildThreadTitle,
+  isPlaceholderThreadTitle,
+  resolveNextThreadTitle,
+};

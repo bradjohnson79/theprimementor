@@ -202,13 +202,20 @@ export default function MemberDivin8Chat() {
             </button>
 
             {showExportMenu ? (
-              <div className="absolute right-0 top-[calc(100%+4px)] z-20 min-w-[130px] rounded-lg border border-white/10 bg-slate-950 p-1 shadow-xl">
+              <div className="absolute right-0 top-[calc(100%+4px)] z-20 min-w-[150px] rounded-lg border border-white/10 bg-slate-950 p-1 shadow-xl">
                 <button
                   type="button"
-                  onClick={() => { setShowExportMenu(false); chat.handleExport("docx"); }}
+                  onClick={() => { setShowExportMenu(false); chat.handleExport("txt"); }}
                   className="block w-full rounded-md px-3 py-1.5 text-left text-sm text-white transition-colors hover:bg-white/10"
                 >
-                  Export DOC
+                  Export TXT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowExportMenu(false); chat.handleExport("md"); }}
+                  className="block w-full rounded-md px-3 py-1.5 text-left text-sm text-white transition-colors hover:bg-white/10"
+                >
+                  Export Markdown
                 </button>
                 <button
                   type="button"

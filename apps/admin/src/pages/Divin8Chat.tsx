@@ -186,19 +186,29 @@ export default function Divin8Chat() {
           {showExportMenu ? (
             <div
               className={classNames(
-                "absolute right-0 top-[calc(100%+4px)] z-20 min-w-[130px] rounded-lg border p-1 shadow-xl",
+                "absolute right-0 top-[calc(100%+4px)] z-20 min-w-[150px] rounded-lg border p-1 shadow-xl",
                 isLightTheme ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950",
               )}
             >
               <button
                 type="button"
-                onClick={() => { setShowExportMenu(false); chat.handleExport("docx"); }}
+                onClick={() => { setShowExportMenu(false); chat.handleExport("txt"); }}
                 className={classNames(
                   "block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors",
                   isLightTheme ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10",
                 )}
               >
-                {t("divin8.window.exportDoc")}
+                Export TXT
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowExportMenu(false); chat.handleExport("md"); }}
+                className={classNames(
+                  "block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                  isLightTheme ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10",
+                )}
+              >
+                Export Markdown
               </button>
               <button
                 type="button"

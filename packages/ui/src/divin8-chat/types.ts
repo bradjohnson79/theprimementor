@@ -1,6 +1,7 @@
 import type { Divin8TimelineRequest } from "@wisdom/utils";
 
 export type Divin8ChatTier = "seeker" | "initiate";
+export type Divin8ConversationExportFormat = "txt" | "md" | "pdf" | "docx";
 
 export interface Divin8ServerTimeContext {
   currentDate: string;

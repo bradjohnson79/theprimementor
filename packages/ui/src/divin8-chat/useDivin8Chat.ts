@@ -31,6 +31,7 @@ import type {
   Divin8Profile,
   Divin8ChatTier,
   Divin8ConversationThread,
+  Divin8ConversationExportFormat,
   Divin8RetryPayload,
   Divin8ServerTimeContext,
   Divin8TimelineEvent,
@@ -131,13 +132,17 @@ export interface UseDivin8ChatReturn {
   handleViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
   scrollToBottom: (behavior: ScrollBehavior) => void;
   setSearchQuery: (query: string) => void;
-  handleExport: (format: "pdf" | "docx") => void;
+  handleExport: (format: Divin8ConversationExportFormat) => void;
+  handleExportConversation: (thread: Divin8ConversationThread, format: Divin8ConversationExportFormat) => void;
+  handleBackupConversations: () => void;
 
   messageViewportRef: React.RefObject<HTMLDivElement | null>;
   composerInputRef: React.RefObject<HTMLTextAreaElement | null>;
   activeThreadIdRef: React.RefObject<string | null>;
 
-  isExporting: "pdf" | "docx" | null;
+  isExporting: Divin8ConversationExportFormat | null;
+  exportingThreadId: string | null;
+  isBackingUpConversations: boolean;
   blockMessage: string | null;
 
   clearImageSelection: () => void;
@@ -623,8 +628,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const [archiveTarget, setArchiveTarget] = useState<Divin8ConversationThread | null>(null);
   const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
   const [archiveNotice, setArchiveNotice] = useState<string | null>(null);
-  const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
+  const [exporting, setExporting] = useState<Divin8ConversationExportFormat | null>(null);
   const [exportingThreadId, setExportingThreadId] = useState<string | null>(null);
+  const [isBackingUpConversations, setIsBackingUpConversations] = useState(false);
   const [profiles, setProfiles] = useState<Divin8Profile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -1574,9 +1580,9 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     })();
   }
 
-  function handleExport(format: "pdf" | "docx") {
-    if (!activeThreadId || messages.length === 0 || exporting || !api.downloadBlobPost) return;
-    setExportingThreadId(activeThreadId);
+  function handleExportConversation(thread: Divin8ConversationThread, format: Divin8ConversationExportFormat) {
+    if (exporting || !api.downloadBlobPost) return;
+    setExportingThreadId(thread.id);
     setExporting(format);
     setSendError(null);
     void (async () => {
@@ -1584,7 +1590,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
         const token = await getToken();
         await api.downloadBlobPost!(
           `${basePath}/export`,
-          { threadId: activeThreadId, format },
+          { threadId: thread.id, format },
           token,
           `divin8-conversation.${format}`,
         );
@@ -1595,6 +1601,36 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       } finally {
         setExporting(null);
         setExportingThreadId(null);
+      }
+    })();
+  }
+
+  function handleExport(format: Divin8ConversationExportFormat) {
+    if (!activeThreadId || messages.length === 0) return;
+    const thread = threads.find((item) => item.id === activeThreadId);
+    if (!thread) return;
+    handleExportConversation(thread, format);
+  }
+
+  function handleBackupConversations() {
+    if (isBackingUpConversations || !api.downloadBlobPost) return;
+    setIsBackingUpConversations(true);
+    setSendError(null);
+    void (async () => {
+      try {
+        const token = await getToken();
+        await api.downloadBlobPost!(
+          `${basePath}/conversations/backup`,
+          {},
+          token,
+          "divin8-chat-backup.zip",
+        );
+      } catch (error) {
+        setSendError(error instanceof Error && error.message.trim()
+          ? error.message
+          : "Conversation backup failed. Please try again.");
+      } finally {
+        setIsBackingUpConversations(false);
       }
     })();
   }
@@ -1675,10 +1711,14 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     scrollToBottom,
     setSearchQuery,
     handleExport,
+    handleExportConversation,
+    handleBackupConversations,
     messageViewportRef,
     composerInputRef,
     activeThreadIdRef,
     isExporting,
+    exportingThreadId,
+    isBackingUpConversations,
     blockMessage,
     clearImageSelection,
     imageAttachments,

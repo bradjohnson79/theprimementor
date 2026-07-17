@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { logger } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -20,6 +20,7 @@ import {
 } from "../services/divin8/promptStore.js";
 import {
   addMessageToConversation,
+  backupConversationThreads,
   createConversationThread,
   deleteConversationThread,
   exportConversation,
@@ -28,6 +29,7 @@ import {
   listConversationThreads,
   renameConversationThread,
   searchConversationThreads,
+  type Divin8ConversationExportFormat,
 } from "../services/divin8/conversationService.js";
 
 async function ensureMemberDivin8Access(app: FastifyInstance, userId: string) {
@@ -42,6 +44,20 @@ function parseConversationListQuery(query: { limit?: unknown; cursor?: unknown }
   const limit = typeof query.limit === "string" ? Number(query.limit) : undefined;
   const cursor = typeof query.cursor === "string" && query.cursor.trim() ? query.cursor.trim() : null;
   return { limit, cursor };
+}
+
+function parseConversationExportFormat(value: unknown): Divin8ConversationExportFormat | null {
+  return value === "md" || value === "txt" || value === "pdf" || value === "docx" ? value : null;
+}
+
+function sendConversationExport(reply: FastifyReply, exported: {
+  contentType: string;
+  filename: string;
+  buffer: Buffer;
+}) {
+  reply.header("Content-Type", exported.contentType);
+  reply.header("Content-Disposition", `attachment; filename="${exported.filename}"`);
+  return reply.send(exported.buffer);
 }
 
 export async function divin8Routes(app: FastifyInstance) {
@@ -194,6 +210,32 @@ export async function divin8Routes(app: FastifyInstance) {
     },
   );
 
+  app.get<{ Params: { id: string }; Querystring: { format?: string } }>(
+    "/divin8/conversations/:id/export",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      requireAdmin(request);
+      const format = parseConversationExportFormat(request.query.format);
+      if (!format) {
+        return sendApiError(reply, 400, "format must be md, txt, pdf, or docx");
+      }
+
+      try {
+        return sendConversationExport(reply, await exportConversation(app.db, {
+          threadId: request.params.id,
+          format,
+        }));
+      } catch (error) {
+        if (error instanceof Error && error.message === "PDF_EXPORT_FAILED") {
+          const wrapped = new Error("PDF export temporarily unavailable.");
+          (wrapped as Error & { statusCode?: number }).statusCode = 503;
+          throw wrapped;
+        }
+        throw error;
+      }
+    },
+  );
+
   app.post("/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);
     if (!request.body || typeof request.body !== "object") {
@@ -204,9 +246,9 @@ export async function divin8Routes(app: FastifyInstance) {
 
     const body = request.body as Record<string, unknown>;
     const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
-    const format = body.format;
+    const format = parseConversationExportFormat(body.format);
 
-    if (!threadId || (format !== "pdf" && format !== "docx")) {
+    if (!threadId || !format) {
       const error = new Error("threadId and format are required.");
       (error as Error & { statusCode?: number }).statusCode = 400;
       throw error;
@@ -214,9 +256,7 @@ export async function divin8Routes(app: FastifyInstance) {
 
     try {
       const exported = await exportConversation(app.db, { threadId, format });
-      reply.header("Content-Type", exported.contentType);
-      reply.header("Content-Disposition", `attachment; filename="${exported.filename}"`);
-      return reply.send(exported.buffer);
+      return sendConversationExport(reply, exported);
     } catch (error) {
       if (error instanceof Error && error.message === "PDF_EXPORT_FAILED") {
         const wrapped = new Error("PDF export temporarily unavailable.");
@@ -225,6 +265,14 @@ export async function divin8Routes(app: FastifyInstance) {
       }
       throw error;
     }
+  });
+
+  app.post("/divin8/conversations/backup", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const backup = await backupConversationThreads(app.db);
+    reply.header("Content-Type", backup.contentType);
+    reply.header("Content-Disposition", `attachment; filename="${backup.filename}"`);
+    return reply.send(backup.stream);
   });
 
   // Member-facing Divin8 route surface (same shared pipeline).
@@ -320,6 +368,24 @@ export async function divin8Routes(app: FastifyInstance) {
     },
   );
 
+  app.get<{ Params: { id: string }; Querystring: { format?: string } }>(
+    "/member/divin8/conversations/:id/export",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      await ensureMemberDivin8Access(app, request.dbUser!.id);
+      const format = parseConversationExportFormat(request.query.format);
+      if (!format) {
+        return sendApiError(reply, 400, "format must be md, txt, pdf, or docx");
+      }
+
+      const exported = await exportConversation(app.db, {
+        threadId: request.params.id,
+        format,
+      }, request.dbUser!.id);
+      return sendConversationExport(reply, exported);
+    },
+  );
+
   app.post("/member/divin8/export", { preHandler: requireAuth }, async (request, reply) => {
     await ensureMemberDivin8Access(app, request.dbUser!.id);
     if (!request.body || typeof request.body !== "object") {
@@ -330,17 +396,23 @@ export async function divin8Routes(app: FastifyInstance) {
 
     const body = request.body as Record<string, unknown>;
     const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
-    const format = body.format;
+    const format = parseConversationExportFormat(body.format);
 
-    if (!threadId || (format !== "pdf" && format !== "docx")) {
+    if (!threadId || !format) {
       const error = new Error("threadId and format are required.");
       (error as Error & { statusCode?: number }).statusCode = 400;
       throw error;
     }
 
     const exported = await exportConversation(app.db, { threadId, format }, request.dbUser!.id);
-    reply.header("Content-Type", exported.contentType);
-    reply.header("Content-Disposition", `attachment; filename="${exported.filename}"`);
-    return reply.send(exported.buffer);
+    return sendConversationExport(reply, exported);
+  });
+
+  app.post("/member/divin8/conversations/backup", { preHandler: requireAuth }, async (request, reply) => {
+    await ensureMemberDivin8Access(app, request.dbUser!.id);
+    const backup = await backupConversationThreads(app.db, request.dbUser!.id);
+    reply.header("Content-Type", backup.contentType);
+    reply.header("Content-Disposition", `attachment; filename="${backup.filename}"`);
+    return reply.send(backup.stream);
   });
 }
