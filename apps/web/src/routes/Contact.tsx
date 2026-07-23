@@ -9,6 +9,8 @@ export default function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [company, setCompany] = useState("");
+  const [submittedAt] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,10 +43,13 @@ export default function Contact() {
           name: name.trim(),
           email: email.trim(),
           message: message.trim(),
+          company,
+          submittedAt,
         },
         token,
       );
       setMessage("");
+      setCompany("");
       setSuccess("Your message has been sent.");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -103,6 +108,16 @@ export default function Contact() {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="How can we help?"
+              />
+            </label>
+
+            <label className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden">
+              Company
+              <input
+                tabIndex={-1}
+                autoComplete="off"
+                value={company}
+                onChange={(event) => setCompany(event.target.value)}
               />
             </label>
 

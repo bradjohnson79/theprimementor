@@ -9,5 +9,6 @@ apps/api/uploads/
 .vite
 .vercel/
 reports/
+courses/
 Regen Session Script.docx
 ~$*.docx

@@ -11,6 +11,8 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [company, setCompany] = useState("");
+  const [submittedAt] = useState(() => Date.now());
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,11 +44,12 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
     setIsSubmitting(true);
 
     try {
-      await api.post("/contact", { name, email, message });
+      await api.post("/contact", { name, email, message, company, submittedAt });
       setSubmitted(true);
       setName("");
       setEmail("");
       setMessage("");
+      setCompany("");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to send your message right now.");
     } finally {
@@ -95,6 +98,15 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
           <label className="block text-sm text-white/70">
             Message
             <textarea className={fieldClassName} rows={5} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="How can we help?" required disabled={isSubmitting} />
+          </label>
+          <label className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden">
+            Company
+            <input
+              tabIndex={-1}
+              autoComplete="off"
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+            />
           </label>
           <button
             type="submit"
