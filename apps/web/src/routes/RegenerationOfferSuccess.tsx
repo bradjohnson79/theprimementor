@@ -73,9 +73,9 @@ export default function RegenerationOfferSuccess() {
   }, [checkoutSessionId, getToken, isSignedIn]);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-16 text-white">
-      <section className="rounded-[2rem] border border-white/12 bg-white/[0.055] p-8 shadow-[0_28px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-amber-100/70">
+    <div className="relative mx-auto max-w-3xl px-6 py-16 text-white">
+      <section className="rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.16),_transparent_48%),linear-gradient(180deg,rgba(8,12,24,0.96),rgba(4,6,15,0.94))] p-8 shadow-[0_28px_80px_rgba(0,0,0,0.32)]">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-cyan-200/62">
           Regeneration Q&A Package
         </p>
         <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em]">

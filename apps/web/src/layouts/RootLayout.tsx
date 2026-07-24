@@ -110,6 +110,8 @@ export default function RootLayout() {
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")
     || location.pathname === REGENERATION_LANDING_PATH
+    || location.pathname === "/regeneration-offer"
+    || location.pathname === "/regeneration-offer/success"
     || location.pathname === QA_LANDING_PATH
     || location.pathname === MENTORING_LANDING_PATH;
 
