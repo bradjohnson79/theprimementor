@@ -28,6 +28,8 @@ import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
 import RegenerationSessionPage from "./routes/RegenerationSessionPage";
 import RegenerationSuccess from "./routes/RegenerationSuccess";
+import RegenerationOfferPage from "./routes/RegenerationOfferPage";
+import RegenerationOfferSuccess from "./routes/RegenerationOfferSuccess";
 import QASessionPage from "./routes/QASessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
 import {
@@ -91,6 +93,8 @@ export default function App() {
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
+          <Route path="/regeneration-offer" element={<RegenerationOfferPage />} />
+          <Route path="/regeneration-offer/success" element={<RegenerationOfferSuccess />} />
           <Route path={QA_LANDING_PATH} element={<QASessionPage />} />
           <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#sessions" replace />} />
           <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />

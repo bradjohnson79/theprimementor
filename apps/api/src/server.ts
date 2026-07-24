@@ -14,6 +14,7 @@ import { syncUserRoutes } from "./routes/sync-user.js";
 import { meRoutes } from "./routes/me.js";
 import { mentoringCircleRoutes } from "./routes/mentoring-circle.js";
 import { membershipsRoutes } from "./routes/memberships.js";
+import { regenerationOfferRoutes } from "./routes/regeneration-offer.js";
 import { reportsRoutes } from "./routes/reports.js";
 import { clientRoutes } from "./routes/clients.js";
 import { blueprintRoutes } from "./routes/blueprints.js";
@@ -41,6 +42,7 @@ import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorag
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
 import { assertMentorTrainingStripeConfig } from "./config/mentorTrainingPackages.js";
+import { assertRegenerationOfferStripeConfig } from "./config/regenerationOfferBilling.js";
 import { assertInternalApiEnvelope, fail, isApiResult, shouldBypassApiEnvelope, toLegacyPayload } from "./apiContract.js";
 import {
   canRepairKnownSchemaGaps,
@@ -704,6 +706,7 @@ function startPhysiognomyCleanupLoop() {
 export async function buildApp() {
   assertMembershipStripeConfig();
   assertMentorTrainingStripeConfig();
+  assertRegenerationOfferStripeConfig();
   await initSwissEphemeris();
 
   const app = Fastify({
@@ -834,6 +837,7 @@ export async function buildApp() {
   await app.register(mentoringCircleRoutes, { prefix: "/api" });
   await app.register(membershipsRoutes);
   await app.register(membershipsRoutes, { prefix: "/api" });
+  await app.register(regenerationOfferRoutes, { prefix: "/api" });
   await app.register(reportsRoutes, { prefix: "/api" });
   await app.register(clientRoutes, { prefix: "/api" });
   await app.register(blueprintRoutes, { prefix: "/api" });

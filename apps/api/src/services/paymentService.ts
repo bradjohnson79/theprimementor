@@ -5,6 +5,11 @@ import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
   MENTOR_TRAINING_PACKAGES,
   MEMBER_PRICING,
+  REGENERATION_OFFER_CURRENCY,
+  REGENERATION_OFFER_PRICE_CENTS,
+  REGENERATION_OFFER_TITLE,
+  getRegenerationOfferPackageMetadata,
+  isRegenerationOfferActive,
   getActiveSessionOfferingByBookingTypeId,
   logger,
   REPORT_PRODUCTS,
@@ -26,6 +31,7 @@ import { getReportCheckoutPath } from "../config/reportCheckout.js";
 import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
 import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
+import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOfferBilling.js";
 import {
   buildResonantDowsingCheckoutLineItem,
   getResonantDowsingStripePriceId,
@@ -50,8 +56,12 @@ import {
   mergeStripeMetadata,
   resolveStripeProductNaming,
 } from "./stripe/stripeProductNamingService.js";
+import {
+  attachRegenerationOfferCheckoutSession,
+  createPendingRegenerationOfferOrder,
+} from "./regenerationOfferService.js";
 
-type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course";
+type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer";
 type CheckoutTier = "seeker" | "initiate";
 type CheckoutDiscountConfig = Pick<Stripe.Checkout.SessionCreateParams, "allow_promotion_codes" | "discounts">;
 
@@ -115,6 +125,7 @@ function buildCheckoutMetadata(
     billingInterval?: "monthly" | "annual";
     eventId?: string;
     eventKey?: string;
+    orderId?: string;
     promoCode?: string;
     promoCodeId?: string;
     stripePromotionCodeId?: string;
@@ -196,6 +207,9 @@ function buildCheckoutMetadata(
   }
   if (input.eventKey?.trim()) {
     metadata.eventKey = input.eventKey.trim();
+  }
+  if (input.orderId?.trim()) {
+    metadata.orderId = input.orderId.trim();
   }
   if (input.promoCode?.trim()) {
     metadata.promoCode = input.promoCode.trim();
@@ -306,7 +320,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -970,6 +984,82 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
   return session;
 }
 
+async function createRegenerationOfferCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  if (!isRegenerationOfferActive()) {
+    logger.warn("regeneration_offer_checkout_expired", {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    });
+    throw createHttpError(409, "The Regeneration Q&A Package offer has expired.");
+  }
+
+  const { priceId, envKey } = resolveRegenerationOfferStripePriceId();
+  const pending = await createPendingRegenerationOfferOrder(db, {
+    userId: input.userId,
+    userEmail: input.userEmail,
+  });
+  const stripe = getStripe();
+  const metadata = buildCheckoutMetadata({
+    ...input,
+    type: "regeneration_offer",
+    entityId: pending.orderId,
+    orderId: pending.orderId,
+  });
+  metadata.customer_email = input.userEmail;
+  metadata.offerCode = getRegenerationOfferPackageMetadata().offerCode;
+  metadata.priceCents = String(REGENERATION_OFFER_PRICE_CENTS);
+  metadata.currency = REGENERATION_OFFER_CURRENCY;
+  metadata.product_name = REGENERATION_OFFER_TITLE;
+
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
+  const frontendUrl = getFrontendUrl();
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: pending.orderId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata,
+    payment_intent_data: {
+      description: REGENERATION_OFFER_TITLE,
+      metadata,
+    },
+    success_url: `${frontendUrl}/regeneration-offer/success?checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}/regeneration-offer?checkout=canceled`,
+    customer: stripeCustomerId,
+  });
+
+  await attachRegenerationOfferCheckoutSession(db, {
+    orderId: pending.orderId,
+    paymentId: pending.paymentId,
+    checkoutSessionId: session.id,
+    checkoutUrl: session.url,
+    stripePriceId: priceId,
+    stripePriceEnvKey: envKey,
+    stripeCustomerId,
+  });
+
+  logger.info("regeneration_offer_checkout_created", {
+    checkoutType: "regeneration_offer",
+    orderId: pending.orderId,
+    paymentId: pending.paymentId,
+    sessionId: session.id,
+    priceId,
+    userId: input.userId,
+    clerkId: input.clerkId,
+  });
+
+  return session;
+}
+
 async function createReportCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
   const reportId = input.reportId?.trim();
   if (!reportId) {
@@ -1295,6 +1385,9 @@ export async function createCheckoutSession(
   }
   if (type === "mentoring_circle") {
     return createMentoringCircleCheckoutSession(db, input);
+  }
+  if (type === "regeneration_offer") {
+    return createRegenerationOfferCheckoutSession(db, input);
   }
 
   throw createHttpError(

@@ -40,7 +40,7 @@ interface RefundOrderBody {
   customReason?: string;
 }
 
-const ORDER_TYPES: AdminOrderType[] = ["session", "report", "subscription", "webinar", "mentor_training", "custom"];
+const ORDER_TYPES: AdminOrderType[] = ["session", "report", "subscription", "webinar", "mentor_training", "regeneration_offer", "custom"];
 const TRAINING_PACKAGES = ["entry", "seeker", "initiate"] as const;
 const ORDER_STATUSES: AdminOrderStatus[] = [
   "unpaid",

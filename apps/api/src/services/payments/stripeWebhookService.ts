@@ -56,6 +56,7 @@ import {
   handleRegenerationSubscriptionDeleted,
   handleRegenerationSubscriptionUpdated,
 } from "../regenerationSubscriptionService.js";
+import { handleRegenerationOfferCheckoutSessionCompleted } from "../regenerationOfferService.js";
 import {
   reconcileCanceledPaymentIntent,
   reconcileChargeDispute,
@@ -98,6 +99,7 @@ type StripePaymentType =
   | "mentor_training"
   | "mentoring_circle"
   | "course"
+  | "regeneration_offer"
   | "regeneration_subscription";
 
 interface StandardStripeMetadata {
@@ -383,6 +385,7 @@ function parseMetadata(
       || raw.type === "mentor_training"
       || raw.type === "mentoring_circle"
       || raw.type === "course"
+      || raw.type === "regeneration_offer"
       || raw.type === "regeneration_subscription"
       ? raw.type
       : null,
@@ -423,7 +426,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_subscription"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -447,6 +450,10 @@ function resolvePaymentEntity(
   if (metadata.type === "course") {
     const entityId = metadata.entityId ?? metadata.raw.courseEntitlementId;
     return entityId ? { entityType: "course", entityId } : null;
+  }
+  if (metadata.type === "regeneration_offer") {
+    const entityId = metadata.entityId ?? metadata.raw.orderId;
+    return entityId ? { entityType: "regeneration_offer", entityId } : null;
   }
   if (metadata.type === "regeneration_subscription") {
     const entityId = metadata.entityId ?? metadata.regenerationSubscriptionId;
@@ -632,7 +639,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_subscription" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1349,6 +1356,9 @@ async function handleCheckoutSessionCompleted(
     }
   }
   if (await handleRegenerationCheckoutSessionCompleted(db as Database, session, logger)) {
+    return;
+  }
+  if (await handleRegenerationOfferCheckoutSessionCompleted(db as Database, session, logger)) {
     return;
   }
 

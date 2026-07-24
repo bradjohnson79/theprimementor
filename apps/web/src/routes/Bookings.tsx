@@ -13,11 +13,15 @@ import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
 import ReviewStep from "../components/forms/ReviewStep";
 import PromoCodeInput from "../components/checkout/PromoCodeInput";
+import RegenerationOfferCheckoutButton from "../components/regeneration-offer/RegenerationOfferCheckoutButton";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { usePromoCode } from "../hooks/usePromoCode";
+import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
+import regenerationOfferImage from "../assets/regeneration-qa-package.png";
 import { api } from "../lib/api";
 import { trackEventOnce } from "../lib/analytics";
+import { formatRegenerationOfferPrice } from "../lib/regenerationOffer";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import {
   createValidationResult,
@@ -221,6 +225,49 @@ function RegenerationBillingNotice() {
         .
       </p>
     </div>
+  );
+}
+
+function RegenerationOfferSessionsSpotlight() {
+  const { status } = useRegenerationOfferStatus();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!status?.active) {
+    return null;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-[2rem] border border-amber-200/24 bg-white/[0.055] shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+        <div className="space-y-5 p-6 sm:p-7">
+          <div className="space-y-3">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.32em] text-amber-100/75">Limited-Time Package</p>
+            <h2 className="text-3xl font-semibold tracking-[-0.04em] text-white">Regeneration Q&A Package</h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/66">
+              Includes one Regeneration Session, 30 days of priority email support, and one private 30-minute Q&A for {formatRegenerationOfferPrice(status)} CAD.
+            </p>
+          </div>
+          <p className="text-sm leading-7 text-white/58">
+            Your Q&A must be booked and used within the 30-day support window that begins after your Regeneration Session is completed.
+          </p>
+          <RegenerationOfferCheckoutButton
+            source="sessions_regeneration_offer_spotlight"
+            onError={setError}
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          {error ? <p className="text-sm text-amber-100">{error}</p> : null}
+        </div>
+        <div className="relative min-h-64 border-t border-white/10 lg:border-l lg:border-t-0">
+          <img
+            src={regenerationOfferImage}
+            alt="Regeneration Q&A Package promotional artwork"
+            className="h-full min-h-64 w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1778,6 +1825,10 @@ export default function Bookings() {
             ? "Complete your intake first, then continue to Stripe to begin the Regeneration Monthly Package at $99 CAD / month. Cancel anytime."
             : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
         </p>
+      </div>
+
+      <div className="mt-8">
+        <RegenerationOfferSessionsSpotlight />
       </div>
 
       {error ? (

@@ -8,6 +8,7 @@ export type StripeReferenceEntityType =
   | "mentor_training"
   | "mentoring_circle"
   | "course"
+  | "regeneration_offer"
   | "regeneration_subscription";
 
 export interface StripeReferenceMetadataInput {
@@ -71,6 +72,7 @@ function isEntityType(value: string | null): value is StripeReferenceEntityType 
     || value === "mentor_training"
     || value === "mentoring_circle"
     || value === "course"
+    || value === "regeneration_offer"
     || value === "regeneration_subscription";
 }
 

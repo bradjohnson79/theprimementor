@@ -31,6 +31,7 @@ const PRODUCT_TYPES: Array<{ id: OrderType; label: string }> = [
   { id: "report", label: "Report" },
   { id: "subscription", label: "Subscription" },
   { id: "webinar", label: "Webinar" },
+  { id: "regeneration_offer", label: "Regeneration Offer" },
   { id: "custom", label: "Custom" },
 ];
 const TRAINING_PACKAGE_FILTERS = [

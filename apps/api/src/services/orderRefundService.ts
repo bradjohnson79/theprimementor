@@ -146,6 +146,8 @@ function buildPersistedOrderLabel(order: AdminOrder) {
       return order.metadata.event_name ?? "Webinar";
     case "mentor_training":
       return order.metadata.training_package ?? order.metadata.plan_name ?? "Mentor Training";
+    case "regeneration_offer":
+      return order.metadata.product_name ?? "Regeneration Q&A Package";
     case "custom":
       return order.metadata.invoice_label ?? "Custom";
   }
@@ -295,17 +297,26 @@ async function ensurePersistedOrderRecord(
     return existing;
   }
 
-  const clientId = await getLatestClientIdForUser(db, order.user_id);
-  const paymentReference = order.payment_id ?? order.stripe_payment_id ?? order.source_id;
+  const sourceId = order.source_id?.trim();
+  const userId = order.user_id?.trim();
+  if (!sourceId || !userId) {
+    throw createHttpError(400, "Order is missing a persistable source or user ID.");
+  }
+
+  const clientId = await getLatestClientIdForUser(db, userId);
+  const paymentReference = order.payment_id ?? order.stripe_payment_id ?? sourceId;
+  const refundReason = ADMIN_ORDER_REFUND_REASONS.includes(order.refund_reason as AdminOrderRefundReason)
+    ? order.refund_reason as AdminOrderRefundReason
+    : null;
 
   const [created] = await db
     .insert(orders)
     .values({
-      id: order.source_id,
-      user_id: order.user_id,
+      id: sourceId,
+      user_id: userId,
       client_id: clientId,
-      invoice_id: order.metadata.invoice_id,
-      subscription_id: order.type === "subscription" ? order.source_id : null,
+      invoice_id: order.metadata.invoice_id ?? null,
+      subscription_id: order.type === "subscription" ? sourceId : null,
       type: order.type,
       label: buildPersistedOrderLabel(order),
       amount: Math.round(order.amount * 100),
@@ -313,10 +324,10 @@ async function ensurePersistedOrderRecord(
       status: order.status === "failed" ? "failed" : order.status === "refunded" ? "refunded" : "completed",
       payment_reference: paymentReference,
       stripe_payment_intent_id: order.stripe_payment_id ?? payment?.providerPaymentIntentId ?? null,
-      stripe_subscription_id: order.metadata.stripe_subscription_id,
+      stripe_subscription_id: order.metadata.stripe_subscription_id ?? null,
       refunded_at: order.refunded_at ? new Date(order.refunded_at) : null,
-      refund_reason: order.refund_reason as AdminOrderRefundReason | null,
-      refund_note: order.refund_note,
+      refund_reason: refundReason,
+      refund_note: order.refund_note ?? null,
       metadata: buildPersistedOrderMetadata(order),
     })
     .onConflictDoNothing({ target: orders.payment_reference })

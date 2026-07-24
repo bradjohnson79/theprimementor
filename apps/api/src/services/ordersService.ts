@@ -35,7 +35,7 @@ const PAYMENT_MATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
 const DUPLICATE_PENDING_ATTEMPT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const REGENERATION_ORDER_BOOKING_FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "custom";
+export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "custom";
 export type AdminOrderStatus =
   | "unpaid"
   | "pending_payment"
@@ -638,7 +638,7 @@ function applyPersistedOrderState(candidate: OrderCandidate, persistedOrder: Per
 }
 
 export function parseOrderId(orderId: string): ParsedOrderId {
-  const knownTypes: AdminOrderType[] = ["mentor_training", "subscription", "session", "report", "webinar", "custom"];
+  const knownTypes: AdminOrderType[] = ["regeneration_offer", "mentor_training", "subscription", "session", "report", "webinar", "custom"];
   const matchedType = knownTypes.find((type) => orderId.startsWith(`${type}_`)) ?? null;
   const sourceId = matchedType ? orderId.slice(matchedType.length + 1).trim() : "";
   if (!sourceId) {
@@ -1899,6 +1899,8 @@ function getAvailableActions(type: AdminOrderType, sessionLabel?: string | null)
       return ["open_access_link"];
     case "mentor_training":
       return ["mark_in_progress", "mark_completed"];
+    case "regeneration_offer":
+      return [];
     case "custom":
       return [];
   }
@@ -2612,7 +2614,7 @@ function normalizePersistedOrderType(type: string): AdminOrderType {
   if (type === "subscription" || type === "subscription_initial" || type === "subscription_renewal") {
     return "subscription";
   }
-  if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "custom") {
+  if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "regeneration_offer" || type === "custom") {
     return type;
   }
   logger.warn("orders_unknown_persisted_order_type", { type });

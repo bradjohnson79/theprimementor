@@ -22,9 +22,13 @@ import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
 import aetherxImage from "../assets/aetherx-3x3.png";
+import regenerationOfferImage from "../assets/regeneration-qa-package.png";
 import regenerationMonthlyPackageImage from "../../../../images/regeneration-monthly-package.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
-import { trackCtaClick } from "../lib/analytics";
+import RegenerationOfferCheckoutButton from "../components/regeneration-offer/RegenerationOfferCheckoutButton";
+import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
+import { trackCtaClick, trackEventOnce } from "../lib/analytics";
+import { REGENERATION_OFFER_ROUTE, formatRegenerationOfferPrice } from "../lib/regenerationOffer";
 import {
   GUIDED_SESSION_OPTIONS,
   buildGuidedSessionBookingPath,
@@ -709,6 +713,78 @@ function MentoringCirclePromoBanner() {
   );
 }
 
+function RegenerationOfferHomePanel() {
+  const { status } = useRegenerationOfferStatus();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status?.active) {
+      trackEventOnce("analytics:regeneration-offer:home-impression", "cta_click", {
+        source: "home_regeneration_offer",
+        label: "regeneration_offer_impression",
+      });
+    }
+  }, [status?.active]);
+
+  if (!status?.active) {
+    return null;
+  }
+
+  return (
+    <section className="relative overflow-hidden border-t border-white/8 px-4 py-10 sm:px-6 sm:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_80%_35%,rgba(34,211,238,0.14),transparent_38%)]" />
+      <div className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-amber-200/25 bg-slate-950/72 shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+        <div className="space-y-5 p-6 sm:p-8 lg:p-10">
+          <div className="space-y-3">
+            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-amber-100/75">Limited-Time Offer</p>
+            <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
+              Regeneration Q&A Package
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/68 sm:text-base">
+              One personalized Regeneration Session, 30 days of priority email support, and one private 30-minute Q&A session for {formatRegenerationOfferPrice(status)} CAD.
+            </p>
+          </div>
+
+          <div className="grid gap-3 text-sm text-white/72 sm:grid-cols-3">
+            {["1 Regeneration Session", "30 Days Priority Email", "1 x 30-Min Q&A"].map((item) => (
+              <div key={item} className="border-t border-white/12 pt-3">{item}</div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <RegenerationOfferCheckoutButton
+              source="home_regeneration_offer"
+              onError={setError}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_45px_rgba(251,191,36,0.16)] transition hover:-translate-y-0.5 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <Link
+              to={REGENERATION_OFFER_ROUTE}
+              onClick={() => trackCtaClick("learn_more_regeneration_offer", "home_regeneration_offer", {
+                href: REGENERATION_OFFER_ROUTE,
+              })}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/8"
+            >
+              Learn More
+            </Link>
+          </div>
+          {error ? <p className="text-sm text-amber-100">{error}</p> : null}
+          <p className="text-xs uppercase tracking-[0.24em] text-white/45">Available until August 31, 2026 · One-time purchase · No subscription</p>
+        </div>
+
+        <div className="relative min-h-72 overflow-hidden border-t border-white/10 lg:border-l lg:border-t-0">
+          <img
+            src={regenerationOfferImage}
+            alt="Regeneration Q&A Package limited-time offer"
+            className="h-full min-h-72 w-full object-cover"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
@@ -736,6 +812,7 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+      <RegenerationOfferHomePanel />
 
       <section id="regeneration" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
         <div className="relative mx-auto max-w-6xl px-6">

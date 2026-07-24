@@ -14,6 +14,7 @@ function orderTypeToPaymentEntity(type: AdminOrderType): PaymentEntityType | nul
     || type === "session"
     || type === "subscription"
     || type === "mentor_training"
+    || type === "regeneration_offer"
   ) {
     return type;
   }

@@ -1,6 +1,6 @@
 import { formatPacificTime } from "@wisdom/utils";
 
-export type OrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "custom";
+export type OrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "custom";
 export type OrderStatus =
   | "unpaid"
   | "pending_payment"
@@ -313,6 +313,7 @@ export const ORDER_TYPE_TABS: Array<{ id: "all" | OrderType; label: string }> = 
   { id: "subscription", label: "Subscriptions" },
   { id: "webinar", label: "Webinars" },
   { id: "mentor_training", label: "Mentor Training" },
+  { id: "regeneration_offer", label: "Regeneration Offer" },
 ];
 
 export function formatOrderMoney(amount: number, currency: string) {
@@ -342,6 +343,8 @@ export function getOrderTypeLabel(type: OrderType) {
       return "Webinar";
     case "mentor_training":
       return "Mentor Training";
+    case "regeneration_offer":
+      return "Regeneration Offer";
     case "custom":
       return "Custom";
   }
@@ -390,6 +393,9 @@ export function getOrderServiceLabel(order: AdminOrder) {
       return order.metadata.training_package
         ?? order.metadata.plan_name
         ?? "Mentor Training";
+    case "regeneration_offer":
+      return order.metadata.product_name
+        ?? "Regeneration Q&A Package";
     case "custom":
       return order.metadata.invoice_label
         ?? titleCaseLabel(order.metadata.order_variant)

@@ -110,6 +110,7 @@ export const persistedOrderTypeEnum = pgEnum("persisted_order_type", [
   "subscription_renewal",
   "webinar",
   "mentor_training",
+  "regeneration_offer",
   "custom",
 ]);
 

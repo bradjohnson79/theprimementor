@@ -1,6 +1,6 @@
 import { api } from "./api";
 
-export type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "course";
+export type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "course" | "regeneration_offer";
 
 interface CheckoutSessionSyncInput {
   checkoutSessionId?: string | null;

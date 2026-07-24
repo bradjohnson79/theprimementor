@@ -43,3 +43,4 @@ export * from "./systemSynonyms.js";
 export * from "./seo.js";
 export * from "./promo.js";
 export * from "./sessionOfferings.js";
+export * from "./regenerationOffer.js";
