@@ -51,7 +51,11 @@ export default function RegenerationOfferCheckoutButton({
       });
       await startRegenerationOfferCheckout(token);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to start checkout.";
+      const raw = err instanceof Error ? err.message : "Unable to start checkout.";
+      const looksLikeInternalDbError = /failed query|insert into|select |update |delete from|enum/i.test(raw);
+      const message = looksLikeInternalDbError
+        ? "Unable to start checkout right now. Please try again in a moment."
+        : raw;
       onError?.(message);
     } finally {
       setSubmitting(false);

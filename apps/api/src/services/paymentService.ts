@@ -994,10 +994,20 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
   }
 
   const { priceId, envKey } = resolveRegenerationOfferStripePriceId();
-  const pending = await createPendingRegenerationOfferOrder(db, {
-    userId: input.userId,
-    userEmail: input.userEmail,
-  });
+  let pending: Awaited<ReturnType<typeof createPendingRegenerationOfferOrder>>;
+  try {
+    pending = await createPendingRegenerationOfferOrder(db, {
+      userId: input.userId,
+      userEmail: input.userEmail,
+    });
+  } catch (error) {
+    logger.error("regeneration_offer_pending_order_create_failed", {
+      err: error,
+      userId: input.userId,
+      clerkId: input.clerkId,
+    });
+    throw createHttpError(500, "Unable to start Regeneration Q&A Package checkout. Please try again.");
+  }
   const stripe = getStripe();
   const metadata = buildCheckoutMetadata({
     ...input,
@@ -1022,20 +1032,31 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
   });
   const frontendUrl = getFrontendUrl();
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    mode: "payment",
-    client_reference_id: pending.orderId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    metadata,
-    payment_intent_data: {
-      description: REGENERATION_OFFER_TITLE,
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      client_reference_id: pending.orderId,
+      line_items: [{ price: priceId, quantity: 1 }],
       metadata,
-    },
-    success_url: `${frontendUrl}/regeneration-offer/success?checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}/regeneration-offer?checkout=canceled`,
-    customer: stripeCustomerId,
-  });
+      payment_intent_data: {
+        description: REGENERATION_OFFER_TITLE,
+        metadata,
+      },
+      success_url: `${frontendUrl}/regeneration-offer/success?checkoutSessionId={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/regeneration-offer?checkout=canceled`,
+      customer: stripeCustomerId,
+    });
+  } catch (error) {
+    logger.error("regeneration_offer_stripe_session_create_failed", {
+      err: error,
+      orderId: pending.orderId,
+      priceId,
+      userId: input.userId,
+    });
+    throw createHttpError(502, "Unable to open Stripe checkout for the Regeneration Q&A Package. Please try again.");
+  }
 
   await attachRegenerationOfferCheckoutSession(db, {
     orderId: pending.orderId,

@@ -773,6 +773,7 @@ const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
 
 const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
+  `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'regeneration_offer';`,
   `INSERT INTO "booking_types" (
     "id",
     "name",
