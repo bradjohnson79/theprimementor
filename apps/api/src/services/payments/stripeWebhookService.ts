@@ -56,7 +56,7 @@ import {
   handleRegenerationSubscriptionDeleted,
   handleRegenerationSubscriptionUpdated,
 } from "../regenerationSubscriptionService.js";
-import { handleRegenerationOfferCheckoutSessionCompleted } from "../regenerationOfferService.js";
+import { handleRegenerationOfferCheckoutSessionCompleted, handleRegenerationOfferInvoicePaid } from "../regenerationOfferService.js";
 import {
   reconcileCanceledPaymentIntent,
   reconcileChargeDispute,
@@ -1979,8 +1979,20 @@ async function handleInvoiceStatus(
     return;
   }
 
+  if (status === "active") {
+    const handledOfferInvoice = await handleRegenerationOfferInvoicePaid(db as Database, invoice, logger);
+    if (handledOfferInvoice) {
+      return;
+    }
+  }
+
   if (status === "past_due" && invoice.metadata?.type === "report") {
     logger.info({ invoiceId: invoice.id }, "report_recovery_invoice_payment_failed");
+    return;
+  }
+
+  if (status === "past_due" && invoice.metadata?.type === "regeneration_offer") {
+    logger.info({ invoiceId: invoice.id }, "regeneration_offer_invoice_payment_failed");
     return;
   }
 

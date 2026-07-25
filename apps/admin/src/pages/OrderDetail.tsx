@@ -391,6 +391,7 @@ export default function OrderDetail() {
   const canCreateInvoice = useMemo(() => {
     if (!order) return false;
     const supportsManualInvoice = order.type === "session"
+      || order.type === "regeneration_offer"
       || (order.type === "subscription" && order.subscription?.kind === "membership");
     if (!supportsManualInvoice) return false;
     if (order.metadata.stripe_invoice_id) return false;
@@ -400,9 +401,10 @@ export default function OrderDetail() {
   const createInvoiceUnavailableReason = useMemo(() => {
     if (!order) return "Order is still loading.";
     const supportsManualInvoice = order.type === "session"
+      || order.type === "regeneration_offer"
       || (order.type === "subscription" && order.subscription?.kind === "membership");
     if (!supportsManualInvoice) {
-      return "Manual invoice creation is currently only supported for session orders and recurring membership subscriptions.";
+      return "Manual invoice creation is currently only supported for session orders, Regeneration Q&A Package orders, and recurring membership subscriptions.";
     }
     if (order.metadata.stripe_invoice_id) return "Invoice already exists for this order.";
     if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
@@ -908,7 +910,9 @@ export default function OrderDetail() {
                 {markingPaid ? "Updating…" : "Mark as paid"}
               </button>
             ) : null}
-            {order.type === "session" || (order.type === "subscription" && order.subscription?.kind === "membership") ? (
+            {order.type === "session"
+              || order.type === "regeneration_offer"
+              || (order.type === "subscription" && order.subscription?.kind === "membership") ? (
               <button
                 type="button"
                 onClick={() => void handleCreateInvoice()}

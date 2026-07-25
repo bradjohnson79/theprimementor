@@ -94,10 +94,21 @@ test("assertOrderCanCreateInvoice allows unpaid membership subscription orders",
   })));
 });
 
+test("assertOrderCanCreateInvoice allows unpaid regeneration offer orders", () => {
+  assert.doesNotThrow(() => assertOrderCanCreateInvoice(makeOrder({
+    type: "regeneration_offer",
+    metadata: {
+      ...makeOrder().metadata,
+      product_name: "Regeneration Q&A Package",
+      order_variant: "regeneration_offer",
+    },
+  })));
+});
+
 test("assertOrderCanCreateInvoice rejects unsupported non-session orders", () => {
   assert.throws(
     () => assertOrderCanCreateInvoice(makeOrder({ type: "report" })),
-    /currently only supported for session orders and recurring membership subscriptions/i,
+    /currently only supported for session orders, Regeneration Q&A Package orders, and recurring membership subscriptions/i,
   );
 });
 
@@ -110,7 +121,7 @@ test("assertOrderCanCreateInvoice rejects regeneration subscription orders", () 
         order_variant: "regeneration_monthly_package",
       },
     })),
-    /currently only supported for session orders and recurring membership subscriptions/i,
+    /currently only supported for session orders, Regeneration Q&A Package orders, and recurring membership subscriptions/i,
   );
 });
 

@@ -1900,7 +1900,7 @@ function getAvailableActions(type: AdminOrderType, sessionLabel?: string | null)
     case "mentor_training":
       return ["mark_in_progress", "mark_completed"];
     case "regeneration_offer":
-      return [];
+      return ["create_invoice"];
     case "custom":
       return [];
   }

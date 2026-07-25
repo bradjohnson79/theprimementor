@@ -353,3 +353,106 @@ export async function handleRegenerationOfferCheckoutSessionCompleted(
 
   return true;
 }
+
+export async function handleRegenerationOfferInvoicePaid(
+  db: Database,
+  invoice: Stripe.Invoice,
+  logger: WebhookLogger,
+) {
+  const metadata = invoice.metadata ?? {};
+  if (metadata.type !== "regeneration_offer") {
+    return false;
+  }
+
+  if (invoice.status !== "paid") {
+    return true;
+  }
+
+  const orderId = metadata.persistedOrderId?.trim()
+    || metadata.orderId?.trim()
+    || metadata.entityId?.trim();
+  if (!orderId) {
+    logger.warn({ invoiceId: invoice.id }, "regeneration_offer_invoice_missing_order_id");
+    return true;
+  }
+
+  const providerPaymentIntentId = stripeRef(
+    (invoice as Stripe.Invoice & { payment_intent?: unknown }).payment_intent,
+  );
+  const stripeCustomerId = stripeRef(invoice.customer);
+  const [payment] = await db
+    .select({
+      id: payments.id,
+      status: payments.status,
+      metadata: payments.metadata,
+    })
+    .from(payments)
+    .where(and(
+      eq(payments.entity_type, "regeneration_offer"),
+      eq(payments.entity_id, orderId),
+    ))
+    .orderBy(desc(payments.created_at))
+    .limit(1);
+
+  if (!payment) {
+    logger.warn({ invoiceId: invoice.id, orderId }, "regeneration_offer_invoice_payment_missing");
+    return true;
+  }
+
+  const nextPaymentMetadata = {
+    ...parseObject(payment.metadata),
+    ...metadata,
+    source: "stripe_webhook",
+    stripeInvoiceId: invoice.id,
+    stripeInvoiceStatus: invoice.status,
+    stripeInvoicePaidAt: new Date().toISOString(),
+  };
+
+  if (payment.status !== "paid") {
+    await markPaymentPaidFromWebhook(db, {
+      paymentId: payment.id,
+      providerPaymentIntentId,
+      providerCustomerId: stripeCustomerId,
+      metadata: nextPaymentMetadata,
+    });
+  }
+
+  const [order] = await db
+    .select({ metadata: orders.metadata, status: orders.status })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  const orderMetadata = parseObject(order?.metadata);
+
+  await db
+    .update(orders)
+    .set({
+      status: "completed",
+      payment_reference: invoice.id,
+      stripe_payment_intent_id: providerPaymentIntentId,
+      stripe_invoice_id: invoice.id,
+      stripe_invoice_url: invoice.hosted_invoice_url ?? null,
+      stripe_invoice_status: invoice.status ?? "paid",
+      metadata: buildRegenerationOfferOrderMetadata({
+        ...orderMetadata,
+        source: "stripe_webhook",
+        orderId,
+        stripeInvoiceId: invoice.id,
+        stripeInvoiceStatus: invoice.status,
+        stripePaymentIntentId: providerPaymentIntentId,
+        stripeCustomerId,
+        completedAt: new Date().toISOString(),
+      }),
+      updated_at: new Date(),
+    })
+    .where(eq(orders.id, orderId));
+
+  logger.info({
+    invoiceId: invoice.id,
+    orderId,
+    paymentId: payment.id,
+    alreadyPaid: payment.status === "paid",
+  }, "regeneration_offer_invoice_paid");
+
+  return true;
+}

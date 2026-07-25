@@ -167,8 +167,12 @@ function isRegenerationSubscriptionMetadata(metadata: Awaited<ReturnType<typeof 
 export function assertOrderCanCreateInvoice(order: Pick<Awaited<ReturnType<typeof getAdminOrderById>>, "type" | "status" | "metadata">) {
   const isSupportedMembershipSubscription = order.type === "subscription"
     && !isRegenerationSubscriptionMetadata(order.metadata);
-  if (order.type !== "session" && !isSupportedMembershipSubscription) {
-    throw createHttpError(400, "Manual invoice creation is currently only supported for session orders and recurring membership subscriptions.");
+  const isSupportedOneTimeOrder = order.type === "session" || order.type === "regeneration_offer";
+  if (!isSupportedOneTimeOrder && !isSupportedMembershipSubscription) {
+    throw createHttpError(
+      400,
+      "Manual invoice creation is currently only supported for session orders, Regeneration Q&A Package orders, and recurring membership subscriptions.",
+    );
   }
 
   if (["paid", "completed", "refunded", "cancelled"].includes(order.status)) {
@@ -435,6 +439,21 @@ export async function createAdminOrderInvoice(
       tier: order.membership_tier ?? getString(metadata.tier),
       billingInterval: getString(metadata.billingInterval) ?? getString(metadata.billing_interval),
     })
+    : order.type === "regeneration_offer"
+    ? resolveStripeProductNaming({
+      type: "custom",
+      productName: getString(metadata.product_name)
+        ?? getString(metadata.invoice_label)
+        ?? row.label
+        ?? "Regeneration Q&A Package",
+      description: "Prime Mentor Regeneration Q&A Package — one-time purchase",
+      metadata: {
+        type: "regeneration_offer",
+        order_variant: "regeneration_offer",
+        offerCode: getString(metadata.offerCode) ?? getString(metadata.offer_code),
+        bookingId: getString(metadata.bookingId) ?? getString(metadata.booking_id),
+      },
+    })
     : resolveStripeProductNaming({
       type: "session",
       sessionType: getString(metadata.sessionType) ?? getString(metadata.session_type),
@@ -458,8 +477,10 @@ export async function createAdminOrderInvoice(
     const stripeMetadata = mergeStripeMetadata(naming.metadata, {
       adminOrderId: input.orderId,
       persistedOrderId: row.id,
+      orderId: row.id,
       type: order.type,
       invoice_origin: ADMIN_MANUAL_INVOICE_ORIGIN,
+      bookingId: getString(metadata.bookingId) ?? getString(metadata.booking_id),
     });
 
     const draftInvoice = await stripe.invoices.create({
