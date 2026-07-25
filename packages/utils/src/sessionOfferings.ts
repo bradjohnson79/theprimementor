@@ -154,6 +154,24 @@ export const CANONICAL_SESSION_OFFERINGS = [
     description:
       "A $99 CAD/month subscription with one 15-minute Zoom consultation, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support.",
   },
+  {
+    productKey: "regeneration-qa-package",
+    bookingTypeId: "regeneration-qa-package",
+    sessionType: "regeneration",
+    displayName: "Regeneration Q&A Package",
+    durationMinutes: null,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 14900,
+    stripePriceEnvKey: "STRIPE_PRICE_REGENERATION_OFFER",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_REGENERATION_OFFER",
+    stripeLivePriceFallback: "price_1Twl2LAd5V3LaCqjCuljQ7Xk",
+    active: true,
+    intakeFlow: "regeneration",
+    schedulingRequired: true,
+    description:
+      "A limited-time $149 CAD one-time package with one Regeneration Session, 30 days of priority email support, and one private 30-minute Q&A that must be used within the same 30-day support window.",
+  },
 ] as const satisfies readonly SessionOffering[];
 
 export type CanonicalSessionOffering = typeof CANONICAL_SESSION_OFFERINGS[number];

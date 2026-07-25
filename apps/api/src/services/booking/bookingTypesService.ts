@@ -120,6 +120,18 @@ export async function getBookingTypeForSessionTypeOrThrow(db: Database, sessionT
     throw createHttpError(400, "bookingTypeId is required for sessions with multiple duration options");
   }
 
+  // Multiple regeneration intake products can be active; prefer the monthly package for legacy calls.
+  if (sessionType === "regeneration") {
+    const [monthly] = await db
+      .select()
+      .from(bookingTypes)
+      .where(and(eq(bookingTypes.id, "regeneration-session"), eq(bookingTypes.is_active, true)))
+      .limit(1);
+    if (monthly) {
+      return monthly;
+    }
+  }
+
   const [row] = await db
     .select()
     .from(bookingTypes)

@@ -1,13 +1,15 @@
 import Stripe from "stripe";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { clients, orders, payments, type Database } from "@wisdom/db";
+import { bookings, clients, orders, payments, type Database } from "@wisdom/db";
 import {
+  REGENERATION_OFFER_BOOKING_TYPE_ID,
   REGENERATION_OFFER_CODE,
   REGENERATION_OFFER_CURRENCY,
   REGENERATION_OFFER_PRICE_CENTS,
   REGENERATION_OFFER_TITLE,
   getRegenerationOfferPackageMetadata,
 } from "@wisdom/utils";
+import { createHttpError } from "./booking/errors.js";
 import { createPaymentRecordForEntity, markPaymentPaidFromWebhook } from "./payments/paymentsService.js";
 
 type DbExecutor = Pick<Database, "select" | "insert" | "update">;
@@ -59,11 +61,46 @@ export function buildRegenerationOfferOrderMetadata(extra: Record<string, unknow
   };
 }
 
+export async function getRegenerationOfferIntakeBooking(
+  db: DbExecutor,
+  input: {
+    userId: string;
+    bookingId: string;
+  },
+) {
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      userId: bookings.user_id,
+      sessionType: bookings.session_type,
+      bookingTypeId: bookings.booking_type_id,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (!booking || booking.userId !== input.userId) {
+    throw createHttpError(404, "Regeneration Q&A Package intake record was not found.");
+  }
+
+  if (booking.sessionType !== "regeneration" || booking.bookingTypeId !== REGENERATION_OFFER_BOOKING_TYPE_ID) {
+    throw createHttpError(400, "Checkout requires a Regeneration Q&A Package intake record.");
+  }
+
+  if (!["pending_payment", "paid"].includes(booking.status)) {
+    throw createHttpError(400, "This Regeneration Q&A Package intake is no longer in a payable state.");
+  }
+
+  return booking;
+}
+
 export async function createPendingRegenerationOfferOrder(
   db: Database,
   input: {
     userId: string;
     userEmail: string;
+    bookingId?: string | null;
   },
 ): Promise<PendingRegenerationOfferOrder> {
   return db.transaction(async (tx) => {
@@ -85,6 +122,7 @@ export async function createPendingRegenerationOfferOrder(
         stripe_subscription_id: null,
         metadata: buildRegenerationOfferOrderMetadata({
           userEmail: input.userEmail,
+          bookingId: input.bookingId ?? null,
           createdForCheckoutAt: new Date().toISOString(),
         }),
       })
@@ -94,12 +132,14 @@ export async function createPendingRegenerationOfferOrder(
       userId: input.userId,
       entityType: "regeneration_offer",
       entityId: order.id,
+      bookingId: input.bookingId ?? null,
       amountCents: REGENERATION_OFFER_PRICE_CENTS,
       currency: REGENERATION_OFFER_CURRENCY.toUpperCase(),
       status: "pending",
       metadata: {
         source: "regeneration_offer_checkout_create",
         orderId: order.id,
+        bookingId: input.bookingId ?? null,
         offerCode: REGENERATION_OFFER_CODE,
         product_name: REGENERATION_OFFER_TITLE,
         packageTerms: getRegenerationOfferPackageMetadata(),

@@ -850,6 +850,17 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     10,
     10,
     true
+  ),
+  (
+    'regeneration-qa-package',
+    'Regeneration Q&A Package',
+    'regeneration',
+    0,
+    14900,
+    'CAD',
+    10,
+    10,
+    true
   )
   ON CONFLICT ("id") DO UPDATE
   SET

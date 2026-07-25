@@ -7,6 +7,8 @@ import {
   getActiveSessionOfferingByBookingTypeId,
   getBrowserTimezoneName,
   getSuggestedTimezone,
+  REGENERATION_OFFER_BOOKING_TYPE_ID,
+  isRegenerationOfferActive,
 } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
 import FormField from "../components/forms/FormField";
@@ -38,6 +40,7 @@ import {
   getGuidedSessionDuration,
 } from "../lib/sessionCatalog";
 import { submitRegenerationBooking } from "../lib/submitRegenerationBooking";
+import { submitRegenerationOfferBooking } from "../lib/submitRegenerationOfferBooking";
 import { startSessionCheckout } from "../lib/sessionCheckout";
 import {
   AVAILABILITY_DAYS,
@@ -133,6 +136,16 @@ function resolveBirthTimeInput(value: string) {
 }
 
 function resolveSessionTypeFromPath(pathname: string, bookingTypeId?: string | null): SessionType | null {
+  if (bookingTypeId) {
+    const offeringSessionType = getActiveSessionOfferingByBookingTypeId(bookingTypeId)?.sessionType;
+    if (
+      offeringSessionType === "mentoring"
+      || offeringSessionType === "regeneration"
+      || offeringSessionType === "qa_session"
+    ) {
+      return offeringSessionType;
+    }
+  }
   if (pathname.includes(GUIDED_SESSION_BOOKING_PATH) && bookingTypeId) {
     return getGuidedSessionDuration(bookingTypeId)?.option.sessionType ?? null;
   }
@@ -159,16 +172,26 @@ function formatSessionPrice(priceCents: number, currency: string) {
   }).format(priceCents / 100);
 }
 
+function isRegenerationOfferBookingType(bookingTypeId: string | null | undefined) {
+  return bookingTypeId === REGENERATION_OFFER_BOOKING_TYPE_ID;
+}
+
 function resolveSessionCardPrice(sessionType: SessionType, bookingType: BookingType | null) {
   if (!bookingType) {
     return null;
   }
 
   const formatted = formatSessionPrice(bookingType.price_cents, bookingType.currency);
+  if (isRegenerationOfferBookingType(bookingType.id)) {
+    return `${formatted} · One-time`;
+  }
   return sessionType === "regeneration" ? `${formatted} / month` : formatted;
 }
 
-function formatSessionDuration(sessionType: SessionType, durationMinutes: number | null) {
+function formatSessionDuration(sessionType: SessionType, durationMinutes: number | null, bookingTypeId?: string | null) {
+  if (isRegenerationOfferBookingType(bookingTypeId)) {
+    return "30-Day Package";
+  }
   if (sessionType === "regeneration") {
     return "Monthly 1-to-1";
   }
@@ -179,8 +202,11 @@ function formatSessionDuration(sessionType: SessionType, durationMinutes: number
 }
 
 function formatBookingTypeCardTitle(bookingType: BookingType) {
+  if (isRegenerationOfferBookingType(bookingType.id)) {
+    return "Regeneration Q&A Package";
+  }
   const option = SESSION_TYPE_OPTIONS.find((item) => item.type === bookingType.session_type);
-  const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes);
+  const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes, bookingType.id);
   return [option?.label ?? bookingType.name, bookingType.session_type === "regeneration" ? null : durationLabel]
     .filter(Boolean)
     .join(" — ");
@@ -254,7 +280,9 @@ function RegenerationOfferSessionsSpotlight() {
             source="sessions_regeneration_offer_spotlight"
             onError={setError}
             className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-          />
+          >
+            Begin Intake
+          </RegenerationOfferCheckoutButton>
           {error ? <p className="text-sm text-amber-100">{error}</p> : null}
         </div>
         <div className="relative min-h-64 border-t border-white/10 lg:border-l lg:border-t-0">
@@ -340,7 +368,26 @@ export default function Bookings() {
 
   const requiresAvailabilitySelection = selectedSessionType ? sessionTypeRequiresAvailabilitySelection(selectedSessionType) : false;
   const isRegeneration = selectedSessionType === "regeneration";
+  const isRegenerationOfferPackage = isRegenerationOfferBookingType(selectedBookingTypeId);
+  const isRegenerationMonthly = isRegeneration && !isRegenerationOfferPackage;
   const isQA = selectedSessionType === "qa_session";
+  const { status: regenerationOfferStatus } = useRegenerationOfferStatus();
+  const offerActive = regenerationOfferStatus?.active === true || isRegenerationOfferActive();
+  const intakeBookingTypes = useMemo(() => {
+    const filtered = bookingTypes.filter((bookingType) => {
+      if (!isRegenerationOfferBookingType(bookingType.id)) {
+        return true;
+      }
+      return offerActive;
+    });
+
+    return [...filtered].sort((left, right) => {
+      if (isRegenerationOfferBookingType(left.id)) return -1;
+      if (isRegenerationOfferBookingType(right.id)) return 1;
+      const typeOrder = SESSION_TYPE_ORDER.indexOf(left.session_type) - SESSION_TYPE_ORDER.indexOf(right.session_type);
+      return typeOrder || left.duration_minutes - right.duration_minutes;
+    });
+  }, [bookingTypes, offerActive]);
   const suggestedTimezone = useMemo(
     () =>
       getSuggestedTimezone({
@@ -430,6 +477,16 @@ export default function Bookings() {
   }, [bookingTypes, selectedBookingTypeId, selectedSessionType]);
 
   useEffect(() => {
+    if (!isRegenerationOfferBookingType(selectedBookingTypeId)) {
+      return;
+    }
+    if (!offerActive) {
+      setSelectedBookingTypeId(null);
+      setSelectedSessionType(null);
+    }
+  }, [offerActive, selectedBookingTypeId]);
+
+  useEffect(() => {
     promo.reset();
   }, [promo.reset, selectedSessionType]);
 
@@ -489,13 +546,7 @@ export default function Bookings() {
       try {
         const token = await getToken();
         const response = (await api.get("/booking-types", token)) as { data: BookingType[] };
-        const ordered = [...response.data].sort(
-          (left, right) => {
-            const typeOrder = SESSION_TYPE_ORDER.indexOf(left.session_type) - SESSION_TYPE_ORDER.indexOf(right.session_type);
-            return typeOrder || left.duration_minutes - right.duration_minutes;
-          },
-        );
-        setBookingTypes(ordered);
+        setBookingTypes(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load booking options.");
       } finally {
@@ -738,6 +789,21 @@ export default function Bookings() {
       const bookingPayload = buildBookingPayload(isQA ? null : birthplace);
 
       if (isRegeneration) {
+        if (isRegenerationOfferPackage) {
+          const { bookingId } = await submitRegenerationOfferBooking({
+            token,
+            payload: bookingPayload,
+          });
+
+          trackEventOnce(`analytics:regeneration-offer-booked:${bookingId}`, "session_booked", {
+            source: "regeneration_offer_checkout_create",
+            sessionType: selectedSessionType,
+            bookingId,
+            bookingTypeId: selectedBookingTypeId,
+          });
+          return;
+        }
+
         const { bookingId } = await submitRegenerationBooking({
           token,
           payload: bookingPayload,
@@ -918,7 +984,7 @@ export default function Bookings() {
           {
             label: "Duration",
             value: selectedBookingType
-              ? formatSessionDuration(selectedBookingType.session_type, selectedBookingType.duration_minutes) ?? "Not selected yet"
+              ? formatSessionDuration(selectedBookingType.session_type, selectedBookingType.duration_minutes, selectedBookingType.id) ?? "Not selected yet"
               : "Not selected yet",
           },
           { label: "Pricing", value: selectedSessionType ? resolveSessionCardPrice(selectedSessionType, selectedBookingType) ?? "Available after selection" : "Available after selection" },
@@ -1088,10 +1154,10 @@ export default function Bookings() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              {bookingTypes.map((bookingType) => {
+              {intakeBookingTypes.map((bookingType) => {
                 const isActive = selectedBookingTypeId === bookingType.id;
                 const priceLabel = resolveSessionCardPrice(bookingType.session_type, bookingType);
-                const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes);
+                const durationLabel = formatSessionDuration(bookingType.session_type, bookingType.duration_minutes, bookingType.id);
                 return (
                   <motion.button
                     key={bookingType.id}
@@ -1125,7 +1191,11 @@ export default function Bookings() {
                       <p className="mt-2 flex-1 whitespace-pre-line text-sm leading-6 text-white/60">
                         {getBookingTypeCardDescription(bookingType)}
                       </p>
-                      {bookingType.session_type === "regeneration" ? (
+                      {isRegenerationOfferBookingType(bookingType.id) ? (
+                        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100/75">
+                          Limited-time · One-time purchase
+                        </p>
+                      ) : bookingType.session_type === "regeneration" ? (
                         <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/70">
                           Monthly subscription
                         </p>
@@ -1161,7 +1231,7 @@ export default function Bookings() {
         ),
         render: () => (
           <div className="space-y-4">
-            {isRegeneration ? <RegenerationBillingNotice /> : null}
+            {isRegenerationMonthly ? <RegenerationBillingNotice /> : null}
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 label="Full Name"
@@ -1718,7 +1788,7 @@ export default function Bookings() {
         isComplete: () => form.consentGiven,
         render: ({ goToStep }) => (
           <div className="space-y-4">
-            {isRegeneration ? <RegenerationBillingNotice /> : null}
+            {isRegenerationMonthly ? <RegenerationBillingNotice /> : null}
             <ReviewStep
               sections={reviewSections.map((section) => {
                 const targetStepId = section.id === "selected-services" || section.id === "manifestation-enhancement"
@@ -1799,6 +1869,9 @@ export default function Bookings() {
     form,
     isPlaceSelected,
     isRegeneration,
+    isRegenerationMonthly,
+    isRegenerationOfferPackage,
+    intakeBookingTypes,
     loadingTypes,
     placeSuggestions,
     fieldErrors.qaTopics,
@@ -1818,12 +1891,18 @@ export default function Bookings() {
     <div className="mx-auto max-w-5xl px-6 py-12">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-white">
-          {isRegeneration ? "Regeneration Monthly Package" : "Sessions"}
+          {isRegenerationOfferPackage
+            ? "Regeneration Q&A Package"
+            : isRegeneration
+              ? "Regeneration Monthly Package"
+              : "Sessions"}
         </h1>
         <p className="max-w-2xl text-white/60">
-          {isRegeneration
-            ? "Complete your intake first, then continue to Stripe to begin the Regeneration Monthly Package at $99 CAD / month. Cancel anytime."
-            : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
+          {isRegenerationOfferPackage
+            ? "Complete your intake first, then continue to Stripe for the limited-time Regeneration Q&A Package at $149 CAD one-time."
+            : isRegeneration
+              ? "Complete your intake first, then continue to Stripe to begin the Regeneration Monthly Package at $99 CAD / month. Cancel anytime."
+              : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
         </p>
       </div>
 

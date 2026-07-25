@@ -1,12 +1,8 @@
-import { useState } from "react";
 import type React from "react";
 import { useAuth } from "@clerk/react";
 import { useNavigate } from "react-router-dom";
-import { trackCtaClick, trackEvent } from "../../lib/analytics";
-import {
-  REGENERATION_OFFER_ROUTE,
-  startRegenerationOfferCheckout,
-} from "../../lib/regenerationOffer";
+import { REGENERATION_OFFER_BOOKING_PATH } from "@wisdom/utils";
+import { trackCtaClick } from "../../lib/analytics";
 
 interface RegenerationOfferCheckoutButtonProps {
   source: string;
@@ -23,53 +19,40 @@ export default function RegenerationOfferCheckoutButton({
   children = "Order Now",
   onError,
 }: RegenerationOfferCheckoutButtonProps) {
-  const { isSignedIn, getToken } = useAuth();
+  const { isSignedIn } = useAuth();
   const navigate = useNavigate();
-  const [submitting, setSubmitting] = useState(false);
 
-  async function handleClick() {
-    if (disabled || submitting) {
+  function handleClick() {
+    if (disabled) {
       return;
     }
 
     trackCtaClick("order_regeneration_offer", source, {
-      href: REGENERATION_OFFER_ROUTE,
+      href: REGENERATION_OFFER_BOOKING_PATH,
       title: "Regeneration Q&A Package",
     });
 
-    if (!isSignedIn) {
-      navigate(`/sign-up?redirect_url=${encodeURIComponent(REGENERATION_OFFER_ROUTE)}`);
-      return;
-    }
-
-    setSubmitting(true);
     try {
-      const token = await getToken();
-      trackEvent("cta_click", {
-        source,
-        label: "regeneration_offer_checkout_initiated",
-      });
-      await startRegenerationOfferCheckout(token);
+      if (!isSignedIn) {
+        navigate(`/sign-up?redirect_url=${encodeURIComponent(REGENERATION_OFFER_BOOKING_PATH)}`);
+        return;
+      }
+
+      navigate(REGENERATION_OFFER_BOOKING_PATH);
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "Unable to start checkout.";
-      const looksLikeInternalDbError = /failed query|insert into|select |update |delete from|enum/i.test(raw);
-      const message = looksLikeInternalDbError
-        ? "Unable to start checkout right now. Please try again in a moment."
-        : raw;
+      const message = err instanceof Error ? err.message : "Unable to start intake.";
       onError?.(message);
-    } finally {
-      setSubmitting(false);
     }
   }
 
   return (
     <button
       type="button"
-      disabled={disabled || submitting}
-      onClick={() => void handleClick()}
+      disabled={disabled}
+      onClick={handleClick}
       className={className}
     >
-      {submitting ? "Redirecting..." : children}
+      {children}
     </button>
   );
 }

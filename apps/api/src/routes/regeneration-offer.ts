@@ -13,15 +13,17 @@ interface PurchaseStatusQuery {
 export async function regenerationOfferRoutes(app: FastifyInstance) {
   app.get("/regeneration-offer", async () => ok(getRegenerationOfferStatus()));
 
-  app.post("/member/regeneration-offer/checkout", { preHandler: requireAuth }, async (request) => {
+  app.post<{ Body: { bookingId?: string } }>("/member/regeneration-offer/checkout", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
     const user = requireDbUser(request);
     const clerkId = requireClerkId(request);
+    const bookingId = typeof request.body?.bookingId === "string" ? request.body.bookingId.trim() : "";
     const session = await createCheckoutSession(db, {
       type: "regeneration_offer",
       userId: user.id,
       userEmail: user.email,
       clerkId,
+      bookingId: bookingId || undefined,
     });
 
     return ok({

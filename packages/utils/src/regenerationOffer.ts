@@ -6,6 +6,8 @@ export const REGENERATION_OFFER_CURRENCY = "cad";
 export const REGENERATION_OFFER_TIMEZONE = "America/Vancouver";
 export const REGENERATION_OFFER_ENDS_AT = "2026-08-31T23:59:59-07:00";
 export const REGENERATION_OFFER_PATH = "/regeneration-offer";
+export const REGENERATION_OFFER_BOOKING_TYPE_ID = "regeneration-qa-package";
+export const REGENERATION_OFFER_BOOKING_PATH = `/sessions?bookingTypeId=${REGENERATION_OFFER_BOOKING_TYPE_ID}`;
 
 export interface RegenerationOfferStatus {
   active: boolean;

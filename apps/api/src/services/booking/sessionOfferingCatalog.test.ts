@@ -19,6 +19,7 @@ const expected = [
   ["mentoring-session-45", "mentoring", 45, 19900, "price_1TILliAd5V3LaCqjidvbVLrl"],
   ["wisdom-mentoring-90", "mentoring", 90, 29900, "price_1TILnFAd5V3LaCqjkR9tAMuC"],
   ["regeneration-session", "regeneration", null, 9900, "price_1TSOy3Ad5V3LaCqjBkFRd1IL"],
+  ["regeneration-qa-package", "regeneration", null, 14900, "price_1Twl2LAd5V3LaCqjCuljQ7Xk"],
 ] as const;
 
 function rowForOffering(offering: typeof CANONICAL_SESSION_OFFERINGS[number]): BookingTypeSummary {

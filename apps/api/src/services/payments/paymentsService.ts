@@ -231,7 +231,8 @@ async function applyPaidStatusToLinkedEntity(db: Database, current: PaymentRow) 
   if (
     (current.entityType === "session"
       || current.entityType === "mentoring_circle"
-      || current.entityType === "regeneration_subscription")
+      || current.entityType === "regeneration_subscription"
+      || current.entityType === "regeneration_offer")
     && current.bookingId
   ) {
     await db

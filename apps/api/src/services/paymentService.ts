@@ -59,6 +59,7 @@ import {
 import {
   attachRegenerationOfferCheckoutSession,
   createPendingRegenerationOfferOrder,
+  getRegenerationOfferIntakeBooking,
 } from "./regenerationOfferService.js";
 
 type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer";
@@ -993,18 +994,30 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
     throw createHttpError(409, "The Regeneration Q&A Package offer has expired.");
   }
 
+  const bookingId = input.bookingId?.trim() || null;
+  if (!bookingId) {
+    throw createHttpError(400, "Complete the Regeneration Q&A Package intake before checkout.");
+  }
+
+  const booking = await getRegenerationOfferIntakeBooking(db, {
+    userId: input.userId,
+    bookingId,
+  });
+
   const { priceId, envKey } = resolveRegenerationOfferStripePriceId();
   let pending: Awaited<ReturnType<typeof createPendingRegenerationOfferOrder>>;
   try {
     pending = await createPendingRegenerationOfferOrder(db, {
       userId: input.userId,
       userEmail: input.userEmail,
+      bookingId: booking.id,
     });
   } catch (error) {
     logger.error("regeneration_offer_pending_order_create_failed", {
       err: error,
       userId: input.userId,
       clerkId: input.clerkId,
+      bookingId: booking.id,
     });
     throw createHttpError(500, "Unable to start Regeneration Q&A Package checkout. Please try again.");
   }
@@ -1014,12 +1027,14 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
     type: "regeneration_offer",
     entityId: pending.orderId,
     orderId: pending.orderId,
+    bookingId: booking.id,
   });
   metadata.customer_email = input.userEmail;
   metadata.offerCode = getRegenerationOfferPackageMetadata().offerCode;
   metadata.priceCents = String(REGENERATION_OFFER_PRICE_CENTS);
   metadata.currency = REGENERATION_OFFER_CURRENCY;
   metadata.product_name = REGENERATION_OFFER_TITLE;
+  metadata.bookingId = booking.id;
 
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -1031,6 +1046,7 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
     },
   });
   const frontendUrl = getFrontendUrl();
+  const bookingQuery = `&bookingId=${encodeURIComponent(booking.id)}`;
 
   let session: Stripe.Checkout.Session;
   try {
@@ -1044,8 +1060,8 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
         description: REGENERATION_OFFER_TITLE,
         metadata,
       },
-      success_url: `${frontendUrl}/regeneration-offer/success?checkoutSessionId={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${frontendUrl}/regeneration-offer?checkout=canceled`,
+      success_url: `${frontendUrl}/regeneration-offer/success?checkoutSessionId={CHECKOUT_SESSION_ID}${bookingQuery}`,
+      cancel_url: `${frontendUrl}/sessions?bookingTypeId=regeneration-qa-package&checkout=canceled${bookingQuery}`,
       customer: stripeCustomerId,
     });
   } catch (error) {
@@ -1054,6 +1070,7 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
       orderId: pending.orderId,
       priceId,
       userId: input.userId,
+      bookingId: booking.id,
     });
     throw createHttpError(502, "Unable to open Stripe checkout for the Regeneration Q&A Package. Please try again.");
   }
@@ -1076,6 +1093,7 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
     priceId,
     userId: input.userId,
     clerkId: input.clerkId,
+    bookingId: booking.id,
   });
 
   return session;

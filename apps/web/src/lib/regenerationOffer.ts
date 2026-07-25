@@ -33,10 +33,10 @@ export async function fetchRegenerationOfferStatus() {
   return (await api.get("/regeneration-offer")) as RegenerationOfferStatus;
 }
 
-export async function startRegenerationOfferCheckout(token: string | null) {
+export async function startRegenerationOfferCheckout(token: string | null, bookingId?: string | null) {
   const data = (await api.post(
     "/member/regeneration-offer/checkout",
-    {},
+    bookingId ? { bookingId } : {},
     token,
   )) as RegenerationOfferCheckoutResponse;
 
