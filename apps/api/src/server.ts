@@ -43,6 +43,7 @@ import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.j
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
 import { assertMentorTrainingStripeConfig } from "./config/mentorTrainingPackages.js";
 import { assertRegenerationOfferStripeConfig } from "./config/regenerationOfferBilling.js";
+import { assertMentoringCircleStripeConfig } from "./config/mentoringCircleBilling.js";
 import { assertInternalApiEnvelope, fail, isApiResult, shouldBypassApiEnvelope, toLegacyPayload } from "./apiContract.js";
 import {
   canRepairKnownSchemaGaps,
@@ -707,6 +708,7 @@ export async function buildApp() {
   assertMembershipStripeConfig();
   assertMentorTrainingStripeConfig();
   assertRegenerationOfferStripeConfig();
+  assertMentoringCircleStripeConfig();
   await initSwissEphemeris();
 
   const app = Fastify({

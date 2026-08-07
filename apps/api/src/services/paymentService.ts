@@ -32,6 +32,7 @@ import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
 import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOfferBilling.js";
+import { resolveMentoringCircleStripePriceId } from "../config/mentoringCircleBilling.js";
 import {
   buildResonantDowsingCheckoutLineItem,
   getResonantDowsingStripePriceId,
@@ -884,6 +885,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
   }
 
   const stripe = getStripe();
+  const { priceId } = resolveMentoringCircleStripePriceId(event);
   const promo = await validatePromoForCheckout(db, {
     code: input.promoCode ?? "",
     type: "mentoring_circle",
@@ -907,6 +909,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     stripePromotionCodeId: promo?.stripePromotionCodeId,
   }), naming.metadata, {
     customer_email: input.userEmail,
+    stripe_price_id: priceId,
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,
@@ -923,31 +926,21 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     eventId: event.eventId,
     bookingId: booking.id,
     paymentId: payment.id,
+    priceId,
   });
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     mode: "payment",
     client_reference_id: booking.id,
-    line_items: [{
-      price_data: {
-        currency: event.currency.toLowerCase(),
-        product_data: {
-          name: naming.productName,
-          description: naming.description,
-          metadata,
-        },
-        unit_amount: event.priceCents,
-      },
-      quantity: 1,
-    }],
+    line_items: [{ price: priceId, quantity: 1 }],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
     payment_intent_data: {
       description: naming.description,
       metadata,
     },
-    success_url: `${frontendUrl}/mentoring-circle?checkout=success&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    success_url: `${frontendUrl}/mentoring-circle?checkout=success&redirect=zoom&eventId=${encodeURIComponent(event.eventId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/mentoring-circle?checkout=canceled&eventId=${encodeURIComponent(event.eventId)}`,
     customer: stripeCustomerId,
   });
@@ -957,7 +950,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     stripeCheckoutSessionId: session.id,
     stripeCheckoutMode: session.mode,
     stripeCheckoutUrl: session.url,
-    stripePriceId: null,
+    stripePriceId: priceId,
     stripeProductId: null,
     stripeProductName: naming.productName,
     eventId: event.eventId,
@@ -975,6 +968,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
     bookingId: booking.id,
     paymentId: payment.id,
     sessionId: session.id,
+    priceId,
     productName: naming.productName,
     userId: input.userId,
     clerkId: input.clerkId,

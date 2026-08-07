@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { useSearchParams } from "react-router-dom";
 import { formatPacificTime } from "@wisdom/utils";
@@ -9,7 +9,11 @@ import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startMentoringCircleCheckout } from "../lib/mentoringCircleCheckout";
-import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
+import {
+  MENTORING_CIRCLE_ACTIVE_EVENT_ID,
+  MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
+  MENTORING_CIRCLE_ZOOM_REGISTER_URL,
+} from "../lib/mentoringCircleConstants";
 
 interface MentoringCircleEventState {
   eventId: string;
@@ -39,7 +43,17 @@ interface MentoringCircleState {
   requestedEvent: MentoringCircleEventState | null;
 }
 
-const MENTORING_CIRCLE_POSTER_SRC = "/images/mentoring-circle-april-26.webp";
+const MENTORING_CIRCLE_POSTER_FALLBACK_SRC = "/images/mentoring-circle-banner-aug16.jpg";
+
+function resolveJoinEligibleEvent(state: MentoringCircleState | null) {
+  const candidates = [
+    state?.requestedEvent,
+    state?.currentEvent,
+    state?.nextEvent,
+    state?.activeEventForPurchase,
+  ];
+  return candidates.find((event) => event?.joinEligible) ?? null;
+}
 
 function formatPrice(cents: number, currency = "CAD") {
   const amount = new Intl.NumberFormat("en-CA", {
@@ -72,19 +86,15 @@ export default function MentoringCircle() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const promo = usePromoCode(getToken);
+  const autocheckoutStartedRef = useRef(false);
 
   const requestedEventId = searchParams.get("eventId");
+  const shouldAutocheckout = searchParams.get("autocheckout") === "1";
+  const shouldRedirectToZoom = searchParams.get("redirect") === "zoom";
 
   const purchasableEvent = circleState?.activeEventForPurchase ?? circleState?.currentEvent ?? circleState?.nextEvent ?? null;
-  const accessibleEvent = circleState?.requestedEvent?.joinEligible
-    ? circleState.requestedEvent
-    : circleState?.currentEvent?.joinEligible
-    ? circleState.currentEvent
-    : circleState?.nextEvent?.joinEligible
-      ? circleState.nextEvent
-      : circleState?.activeEventForPurchase?.joinEligible
-        ? circleState.activeEventForPurchase
-        : null;
+  const accessibleEvent = resolveJoinEligibleEvent(circleState);
+  const posterSrc = purchasableEvent?.posterPath || MENTORING_CIRCLE_POSTER_FALLBACK_SRC;
 
   useEffect(() => {
     let cancelled = false;
@@ -139,7 +149,9 @@ export default function MentoringCircle() {
     }
 
     setError(null);
-    setSuccess("Payment received. Confirming your access...");
+    setSuccess(shouldRedirectToZoom
+      ? "Payment received. Confirming access and opening Zoom registration..."
+      : "Payment received. Confirming your access...");
     setPollingForAccess(true);
 
     void (async () => {
@@ -165,22 +177,25 @@ export default function MentoringCircle() {
           }
         }
 
-        if (
-          state?.requestedEvent?.joinEligible
-          || state?.currentEvent?.joinEligible
-          || state?.nextEvent?.joinEligible
-          || state?.activeEventForPurchase?.joinEligible
-        ) {
+        const confirmedEvent = resolveJoinEligibleEvent(state);
+        if (confirmedEvent) {
           trackEventOnce(`analytics:mentoring-circle:${requestedEventId ?? "success"}`, "purchase", {
             source: "mentoring_circle_checkout_success",
             productType: "mentoring_circle",
             eventId: requestedEventId ?? null,
           });
-          setSuccess("Registration confirmed. Your Zoom link is ready.");
+          setSuccess("Registration confirmed. Opening Zoom registration...");
           setPollingForAccess(false);
           const next = new URLSearchParams(searchParams);
           next.delete("checkout");
+          next.delete("redirect");
           setSearchParams(next, { replace: true });
+          if (shouldRedirectToZoom) {
+            const zoomUrl = confirmedEvent.joinUrl || MENTORING_CIRCLE_ZOOM_REGISTER_URL;
+            window.setTimeout(() => {
+              window.location.assign(zoomUrl);
+            }, 400);
+          }
           return;
         }
         await new Promise((resolve) => window.setTimeout(resolve, 1500));
@@ -188,6 +203,11 @@ export default function MentoringCircle() {
 
       if (!cancelled) {
         setPollingForAccess(false);
+        if (shouldRedirectToZoom) {
+          setSuccess("Payment completed. Opening Zoom registration while access finishes syncing...");
+          window.location.assign(MENTORING_CIRCLE_ZOOM_REGISTER_URL);
+          return;
+        }
         setSuccess("Payment completed. Access is still syncing and should appear shortly.");
       }
     })();
@@ -195,7 +215,57 @@ export default function MentoringCircle() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, requestedEventId, searchParams, setSearchParams]);
+  }, [getToken, requestedEventId, searchParams, setSearchParams, shouldRedirectToZoom]);
+
+  useEffect(() => {
+    if (
+      !shouldAutocheckout
+      || autocheckoutStartedRef.current
+      || loadingCircle
+      || startingCheckout
+      || accessibleEvent?.joinEligible
+    ) {
+      return;
+    }
+
+    const eventId = purchasableEvent?.eventId ?? requestedEventId ?? MENTORING_CIRCLE_ACTIVE_EVENT_ID;
+    autocheckoutStartedRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete("autocheckout");
+    setSearchParams(next, { replace: true });
+
+    void (async () => {
+      setError(null);
+      setSuccess(null);
+      setStartingCheckout(true);
+      try {
+        const token = await getToken();
+        trackEvent("cta_click", {
+          source: "mentoring_circle_autocheckout",
+          label: "reserve_spot",
+          eventId,
+        });
+        await startMentoringCircleCheckout(eventId, {
+          token,
+          promoCode: promo.validation?.code ?? null,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to reserve your spot.");
+        setStartingCheckout(false);
+      }
+    })();
+  }, [
+    accessibleEvent?.joinEligible,
+    getToken,
+    loadingCircle,
+    promo.validation?.code,
+    purchasableEvent?.eventId,
+    requestedEventId,
+    searchParams,
+    setSearchParams,
+    shouldAutocheckout,
+    startingCheckout,
+  ]);
 
   useEffect(() => {
     if (!copied) return;
@@ -265,13 +335,15 @@ export default function MentoringCircle() {
                     <span className="inline-flex w-fit rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-amber-100">
                       Live Event
                     </span>
-                    <h1 className="mt-4 text-3xl font-semibold text-white">Mentoring Circle: The Prime Law</h1>
+                    <h1 className="mt-4 text-3xl font-semibold text-white">
+                      {purchasableEvent?.eventTitle ?? "Mentoring Circle: The Prime State"}
+                    </h1>
                     <p className="mt-2 text-sm text-white/70">{eventDateLabel}</p>
                   </div>
                 </div>
               ) : (
                 <img
-                  src={MENTORING_CIRCLE_POSTER_SRC}
+                  src={posterSrc}
                   alt="Mentoring Circle Poster"
                   className="relative z-10 block aspect-[16/9] w-full object-cover"
                   onLoad={() => setPosterFailed(false)}
@@ -290,7 +362,7 @@ export default function MentoringCircle() {
                   }) : "Live Event"}
                 </div>
                 <h2 className="mt-4 text-3xl font-semibold text-white">
-                  {purchasableEvent?.eventTitle ?? "Mentoring Circle: The Prime Law"}
+                  {purchasableEvent?.eventTitle ?? "Mentoring Circle: The Prime State"}
                 </h2>
                 <p className="mt-2 text-sm text-white/60">{eventDateLabel}</p>
               </div>
@@ -332,34 +404,31 @@ export default function MentoringCircle() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">Prime Law Teachings</h3>
+                <h3 className="text-base font-medium text-white">The Prime State</h3>
                 <p className="mt-3 text-sm text-white/70">
-                  Explore practical teachings through the Prime Law with a focus on integration, clarity, and inner alignment.
+                  Go beyond surface-level understanding and embody deeper Prime State teachings with Brad.
                 </p>
               </section>
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">REP: Rest Energy Practice</h3>
+                <h3 className="text-base font-medium text-white">Manifestation</h3>
                 <ul className="mt-3 space-y-2 text-sm text-white/70">
-                  <li>Learn the new alternative to Trauma Transcendence Technique</li>
-                  <li>Use the practice to clear physical and energetic areas</li>
+                  <li>Align, create, and call in your highest reality</li>
+                  <li>Learn how to safeguard your manifestation with sacred offerings</li>
                 </ul>
               </section>
               <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-base font-medium text-white">Divin8 Chart Review</h3>
+                <h3 className="text-base font-medium text-white">Giveaway + Open Q&A</h3>
                 <ul className="mt-3 space-y-2 text-sm text-white/70">
-                  <li>Volunteer chart reviews by permission</li>
-                  <li>Life path questions, goals, giveaway, and Q&A</li>
+                  <li>Enter for a 1-on-1 Mentoring Session with Brad</li>
+                  <li>Bring your questions and get real answers live</li>
                 </ul>
               </section>
             </div>
 
             <p className="mt-6 text-sm text-white/70">
-              The Mentoring Circle webinar provides various teachings through the Prime Law. For this upcoming Mentoring
-              Circle, we will explore REP - Rest Energy Practice, a new alternative to the Trauma Transcendence Technique,
-              and use this practice to clear a variety of areas from ourselves on both a physical and energetic level.
-              We will also explore volunteers who submit their Divin8 Charts by permission for review. Through attendee
-              review, Brad explores your chart and helps answer questions on your life path and achieving desired goals.
-              We will have a giveaway for a free mentoring session and a Q&A period near the end of the webinar.
+              Join us Sunday, August 16th for the next Mentoring Circle Webinar. We&apos;ll go deeper into the Prime State,
+              explore manifestation, and share offerings to help safeguard what you are calling in. There will also be a
+              Mentoring Session giveaway and an open Q&A with Brad Johnson.
             </p>
 
             {error ? (

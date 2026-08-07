@@ -18,6 +18,8 @@ export interface MentoringCircleEventDefinition {
   currency: string;
   posterPath: string;
   zoomLink: string;
+  /** Stripe Price ID used for Checkout when env overrides are not set. */
+  stripePriceId?: string;
   legacyEventKeys?: string[];
 }
 
@@ -107,6 +109,20 @@ const MENTORING_CIRCLE_EVENTS: MentoringCircleEventDefinition[] = [
     posterPath: "/images/mentoring-circle-april-26.png",
     zoomLink: "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g",
     legacyEventKeys: ["2026-05-31"],
+  },
+  {
+    eventId: "2026-08-16",
+    eventKey: "2026-08-16",
+    eventTitle: "Mentoring Circle: The Prime State",
+    eventStartAt: "2026-08-16T09:30:00-07:00",
+    salesOpenAt: "2026-05-30T12:00:00-07:00",
+    timezone: MENTORING_CIRCLE_TIMEZONE,
+    durationMinutes: 90,
+    priceCents: 2900,
+    currency: "CAD",
+    posterPath: "/images/mentoring-circle-banner-aug16.jpg",
+    zoomLink: "https://us02web.zoom.us/meeting/register/B0evn6u1QMWwqKc-tWIXZw",
+    stripePriceId: "price_1U1crjAd5V3LaCqjFeK5s5oK",
   },
 ].sort((left, right) => new Date(left.eventStartAt).getTime() - new Date(right.eventStartAt).getTime());
 

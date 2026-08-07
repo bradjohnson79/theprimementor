@@ -26,6 +26,15 @@ test("mentoring circle sales switch to may after april sales window opens", () =
   assert.equal(activeEvent?.zoomLink, "https://us02web.zoom.us/meeting/register/BA4QQLJyRtifARkT0kpk9g");
 });
 
+test("mentoring circle sales switch to august after may sales window opens", () => {
+  const activeEvent = getActiveMentoringCirclePurchaseEvent(new Date("2026-05-30T12:05:00-07:00"));
+
+  assert.equal(activeEvent?.eventId, "2026-08-16");
+  assert.equal(activeEvent?.eventStartAt, "2026-08-16T09:30:00-07:00");
+  assert.equal(activeEvent?.zoomLink, "https://us02web.zoom.us/meeting/register/B0evn6u1QMWwqKc-tWIXZw");
+  assert.equal(activeEvent?.stripePriceId, "price_1U1crjAd5V3LaCqjFeK5s5oK");
+});
+
 test("mentoring circle rejects unknown event ids", () => {
   assert.throws(
     () => getMentoringCircleEventOrThrow("not-a-real-event"),
