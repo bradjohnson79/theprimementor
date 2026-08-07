@@ -194,7 +194,10 @@ function getInvoiceProductType(metadata: StandardStripeMetadata) {
 }
 
 function isManagedInvoiceMetadata(metadata: StandardStripeMetadata) {
-  return Boolean(getInvoiceMetadataId(metadata) || getInvoiceProductType(metadata) || getInvoiceBillingMode(metadata));
+  // Managed admin invoices always include invoice_id and/or billing_mode.
+  // Do NOT treat generic Stripe product naming fields (e.g. product_type=event on Mentoring Circle)
+  // as invoice metadata — that previously short-circuited checkout fulfillment and emails.
+  return Boolean(getInvoiceMetadataId(metadata) || getInvoiceBillingMode(metadata));
 }
 
 async function resolveManagedInvoice(
@@ -868,7 +871,8 @@ async function handleManagedInvoiceCheckoutSessionCompleted(
       },
       "invoice_checkout_session_unresolved",
     );
-    return true;
+    // Not an invoice checkout we can resolve — fall through to normal entity fulfillment.
+    return false;
   }
 
   if (invoice.status === "paid" && invoice.consumed_at) {
