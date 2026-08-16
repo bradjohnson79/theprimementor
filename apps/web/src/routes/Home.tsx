@@ -25,7 +25,6 @@ import aetherxImage from "../assets/aetherx-3x3.png";
 import regenerationOfferImage from "../assets/regeneration-qa-package.png";
 import regenerationMonthlyPackageImage from "../../../../images/regeneration-monthly-package.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
-import MentoringCircleCheckoutButton from "../components/mentoring-circle/MentoringCircleCheckoutButton";
 import RegenerationOfferCheckoutButton from "../components/regeneration-offer/RegenerationOfferCheckoutButton";
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
@@ -220,8 +219,6 @@ const PRIME_MENTOR_FACEBOOK_URL = "https://www.facebook.com/primementorfacebook"
 const PRIME_MENTOR_YOUTUBE_URL = "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA";
 const PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL = "https://www.youtube.com/embed/Gs_LDlzSwEw?rel=0&modestbranding=1";
 const TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC = "/images/Trauma-Transcendence-Technique-banner.png";
-const MENTORING_CIRCLE_PROMO_BANNER_SRC = "/images/mentoring-circle-banner-aug16.jpg";
-const MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS = Date.parse("2026-08-16T16:30:00.000Z");
 
 interface LandingSectionProps {
   id: string;
@@ -672,47 +669,6 @@ function InlineBackToTop() {
   );
 }
 
-function MentoringCirclePromoBanner() {
-  const [isVisible, setIsVisible] = useState(() => Date.now() < MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isVisible) return;
-    const delay = MENTORING_CIRCLE_PROMO_EXPIRES_AT_MS - Date.now();
-    const timeout = window.setTimeout(() => setIsVisible(false), Math.max(0, Math.min(delay, 2_147_483_647)));
-    return () => window.clearTimeout(timeout);
-  }, [isVisible]);
-
-  if (!isVisible) return null;
-
-  return (
-    <section className="relative border-t border-white/8 px-4 py-10 sm:px-6 sm:py-12">
-      <div className="mx-auto max-w-6xl overflow-hidden rounded-[1.75rem] border border-amber-200/25 bg-white/[0.045] p-3 shadow-[0_26px_90px_rgba(0,0,0,0.34),0_0_44px_rgba(251,191,36,0.10)] backdrop-blur-xl sm:p-4">
-        <img
-          src={MENTORING_CIRCLE_PROMO_BANNER_SRC}
-          alt="Mentoring Circle Webinar on Sunday, August 16th with Brad Johnson — Prime State teachings, manifestation, safeguarded offerings, mentoring session giveaway, and open Q&A."
-          className="block w-full rounded-[1.25rem] border border-white/10 object-cover"
-          loading="eager"
-          decoding="async"
-        />
-        <div className="flex flex-col items-center gap-3 px-2 py-5 text-center sm:flex-row sm:justify-between sm:px-4">
-          <p className="text-sm leading-6 text-white/68">
-            Sunday, August 16th — deeper Prime State teachings, manifestation, safeguarded offerings, a Mentoring Session giveaway, and open Q&A with Brad.
-          </p>
-          <MentoringCircleCheckoutButton
-            source="home_promo_banner"
-            onError={setCheckoutError}
-            className="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_24px_rgba(251,191,36,0.22)] transition hover:scale-[1.01] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-          >
-            Reserve Spot — Pay with Stripe
-          </MentoringCircleCheckoutButton>
-        </div>
-        {checkoutError ? <p className="px-2 pb-3 text-center text-sm text-amber-100 sm:px-4">{checkoutError}</p> : null}
-      </div>
-    </section>
-  );
-}
-
 function RegenerationOfferHomePanel() {
   const { status } = useRegenerationOfferStatus();
   const [error, setError] = useState<string | null>(null);
@@ -812,7 +768,6 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
-      <MentoringCirclePromoBanner />
       <RegenerationOfferHomePanel />
 
       <section id="regeneration" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
