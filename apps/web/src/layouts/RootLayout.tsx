@@ -11,6 +11,8 @@ import {
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import { api } from "../lib/api";
+import { unwrapShopProducts } from "../lib/shop";
 
 interface NavItem {
   label: string;
@@ -23,6 +25,15 @@ interface NavGroup {
   href: string;
   items?: NavItem[];
 }
+
+const SHOP_NAV_FALLBACK: NavItem[] = [
+  { label: "Remote Source Bed Kit", href: "/shop/remote-source-bed-kit" },
+  { label: "Digital Safeguard Kit", href: "/shop/digital-safeguard-kit" },
+  { label: "Healing Code Cards: Source Deck — Body Set", href: "/shop/healing-code-cards-source-deck-body-set" },
+  { label: "Healing Code Cards: Body Deck", href: "/shop/healing-code-cards-body-deck" },
+  { label: "Healing Code Cards: Mind Deck", href: "/shop/healing-code-cards-mind-deck" },
+  { label: "Healing Code Cards: Energy Deck", href: "/shop/healing-code-cards-energy-deck" },
+];
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -49,12 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Shop",
     href: "/shop",
-    items: [
-      { label: "Healing Code Cards: Body Deck", href: "/shop/healing-code-cards-body-deck" },
-      { label: "Healing Code Cards: Mind Deck", href: "/shop/healing-code-cards-mind-deck" },
-      { label: "Healing Code Cards: Energy Deck", href: "/shop/healing-code-cards-energy-deck" },
-      { label: "Healing Code Cards: Source Deck — Body Set", href: "/shop/healing-code-cards-source-deck-body-set" },
-    ],
+    items: SHOP_NAV_FALLBACK,
   },
   {
     label: "Subscriptions",
@@ -112,6 +118,7 @@ export default function RootLayout() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileDropdown, setMobileDropdown] = useState<string | null>(null);
+  const [shopItems, setShopItems] = useState<NavItem[]>(SHOP_NAV_FALLBACK);
   const isMarketingSurface =
     location.pathname === "/"
     || location.pathname === "/about"
@@ -128,6 +135,27 @@ export default function RootLayout() {
     || location.pathname === MENTORING_LANDING_PATH;
 
   useUserSync();
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/shop/products?featured=true")
+      .then((payload) => {
+        const products = unwrapShopProducts(payload);
+        if (cancelled || products.length === 0) return;
+        setShopItems(products.map((product) => ({
+          label: product.name,
+          href: `/shop/${product.slug}`,
+        })));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const navGroups = NAV_GROUPS.map((group) => (
+    group.label === "Shop" ? { ...group, items: shopItems } : group
+  ));
 
   useEffect(() => {
     const scriptId = "prime-mentor-umami";
@@ -224,7 +252,7 @@ export default function RootLayout() {
             <div className="flex min-w-0 items-center justify-center">
               <nav className="hidden lg:block" aria-label="Primary navigation">
                 <ul className="flex items-center gap-1">
-                  {NAV_GROUPS.map((group) => (
+                  {navGroups.map((group) => (
                     <li key={group.label} className="relative group">
                       <div className="flex items-center">
                         {renderNavLink(
@@ -251,7 +279,10 @@ export default function RootLayout() {
                       </div>
                       {group.items?.length ? (
                         <div
-                          className="invisible absolute left-0 top-full z-50 min-w-[15rem] pt-2 opacity-0 transition group-hover:visible group-hover:opacity-100"
+                          data-nav-dropdown={group.label}
+                          className={`invisible absolute left-0 top-full z-50 pt-2 opacity-0 transition group-hover:visible group-hover:opacity-100 ${
+                            group.label === "Shop" ? "min-w-[22rem] max-w-[26rem]" : "min-w-[15rem]"
+                          }`}
                         >
                           <div
                             className={`rounded-2xl border py-2 shadow-2xl ${
@@ -264,7 +295,7 @@ export default function RootLayout() {
                               <div key={`${group.label}-${item.label}`}>
                                 {renderNavLink(
                                   item,
-                                  `block px-4 py-2.5 text-[13px] transition ${
+                                  `block whitespace-normal px-4 py-2.5 text-[13px] leading-snug transition ${
                                     isMarketingSurface
                                       ? "text-white/72 hover:bg-white/8 hover:text-white"
                                       : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -306,7 +337,7 @@ export default function RootLayout() {
                 {mobileMenuOpen ? (
                   <div
                     id="mobile-primary-nav"
-                    className={`absolute left-1/2 top-full z-50 mt-3 w-[min(92vw,24rem)] -translate-x-1/2 rounded-2xl border p-3 shadow-2xl ${
+                    className={`absolute left-1/2 top-full z-50 mt-3 max-h-[min(70dvh,36rem)] w-[min(92vw,24rem)] -translate-x-1/2 overflow-y-auto rounded-2xl border p-3 shadow-2xl ${
                       isMarketingSurface
                         ? "border-white/10 bg-[#090d19]/96 backdrop-blur-2xl"
                         : "border-gray-200 bg-white"
@@ -354,7 +385,7 @@ export default function RootLayout() {
                         )}
                       </div>
                       <ul className="space-y-2">
-                        {NAV_GROUPS.map((group) => (
+                        {navGroups.map((group) => (
                           <li key={group.label} className="rounded-xl border border-transparent">
                             <div className="flex items-center justify-between gap-2">
                               {renderNavLink(
@@ -373,11 +404,12 @@ export default function RootLayout() {
                                 <button
                                   type="button"
                                   onClick={() => toggleMobileDropdown(group.label)}
-                                  className={`rounded-lg px-3 py-2 text-sm transition ${
+                                  className={`relative z-10 shrink-0 rounded-lg px-3 py-2 text-sm transition ${
                                     isMarketingSurface
                                       ? "text-white/70 hover:bg-white/8 hover:text-white"
                                       : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                                   }`}
+                                  aria-label={mobileDropdown === group.label ? `Collapse ${group.label}` : `Expand ${group.label}`}
                                   aria-expanded={mobileDropdown === group.label}
                                 >
                                   {mobileDropdown === group.label ? "−" : "+"}
@@ -386,6 +418,7 @@ export default function RootLayout() {
                             </div>
                             {group.items?.length && mobileDropdown === group.label ? (
                               <div
+                                data-nav-dropdown={group.label}
                                 className={`mt-2 rounded-xl border py-2 ${
                                   isMarketingSurface ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-gray-50"
                                 }`}

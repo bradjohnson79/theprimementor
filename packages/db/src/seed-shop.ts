@@ -561,7 +561,7 @@ const bodyStripe = await retrieveStripePrice(bodyPriceId);
 const bodyProduct = await upsertShopProduct({
   name: "Healing Code Cards: Body Deck",
   slug: BODY_DECK_SLUG,
-  sortOrder: 1,
+  sortOrder: 4,
   stripePriceId: bodyPriceId,
   priceCents: bodyStripe.unitAmount ?? 2499,
   currency: bodyStripe.currency === "CAD" ? "CAD" : "CAD",
@@ -665,7 +665,7 @@ async function upsertTestimonial(input: {
 const mindProduct = await upsertShopProduct({
   name: "Healing Code Cards: Mind Deck",
   slug: MIND_DECK_SLUG,
-  sortOrder: 2,
+  sortOrder: 5,
   stripePriceId: MIND_DECK_DEFAULT_PRICE_ID,
   priceCents: mindStripe.unitAmount,
   currency: "CAD",
@@ -696,7 +696,7 @@ if (!energyStripe.unitAmount) {
 const energyProduct = await upsertShopProduct({
   name: "Healing Code Cards: Energy Deck",
   slug: ENERGY_DECK_SLUG,
-  sortOrder: 3,
+  sortOrder: 6,
   stripePriceId: ENERGY_DECK_DEFAULT_PRICE_ID,
   priceCents: energyStripe.unitAmount,
   currency: "CAD",
@@ -749,7 +749,7 @@ if (!sourceStripe.unitAmount) {
 const sourceProduct = await upsertShopProduct({
   name: "Healing Code Cards: Source Deck — Body Set",
   slug: SOURCE_DECK_SLUG,
-  sortOrder: 4,
+  sortOrder: 3,
   stripePriceId: SOURCE_DECK_DEFAULT_PRICE_ID,
   priceCents: sourceStripe.unitAmount,
   currency: "CAD",
@@ -786,7 +786,7 @@ if (!safeguardStripe.unitAmount) {
 const safeguardKit = await upsertShopProduct({
   name: "Digital Safeguard Kit",
   slug: SAFEGUARD_KIT_SLUG,
-  sortOrder: 5,
+  sortOrder: 2,
   stripePriceId: SAFEGUARD_KIT_DEFAULT_PRICE_ID,
   priceCents: safeguardStripe.unitAmount,
   currency: "CAD",
@@ -825,7 +825,7 @@ if (!sourceBedStripe.unitAmount) {
 const sourceBedKit = await upsertShopProduct({
   name: "Remote Source Bed Kit",
   slug: SOURCE_BED_KIT_SLUG,
-  sortOrder: 6,
+  sortOrder: 1,
   stripePriceId: SOURCE_BED_KIT_DEFAULT_PRICE_ID,
   priceCents: sourceBedStripe.unitAmount,
   currency: "CAD",

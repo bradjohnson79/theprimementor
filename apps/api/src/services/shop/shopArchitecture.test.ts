@@ -267,6 +267,10 @@ describe("Shop catalog architecture", () => {
     assert.match(gallery, /unwrapShopProducts/);
     assert.match(gallery, /Previous products/);
     assert.match(gallery, /Next products/);
+    assert.match(gallery, /useAuth/);
+    assert.match(gallery, /data-shop-gallery-auth-note/);
+    assert.match(gallery, /\/sign-up/);
+    assert.match(gallery, /\/sign-in/);
     assert.equal(combined.includes("healing-code-cards-body-deck"), false);
     assert.equal(combined.includes("healing-code-cards-mind-deck"), false);
     assert.equal(combined.includes("healing-code-cards-energy-deck"), false);
@@ -282,6 +286,16 @@ describe("Shop catalog architecture", () => {
     assert.match(editor, /Featured on Homepage/);
     assert.match(editor, /product\.featured/);
     assert.equal(editor.includes("featuredOnHomepage"), false);
+  });
+
+  it("shop nav dropdown reads the featured catalog and widens the Shop panel", () => {
+    const layout = read("apps/web/src/layouts/RootLayout.tsx");
+    assert.match(layout, /\/shop\/products\?featured=true/);
+    assert.match(layout, /unwrapShopProducts/);
+    assert.match(layout, /min-w-\[22rem\]/);
+    assert.match(layout, /max-w-\[26rem\]/);
+    assert.match(layout, /whitespace-normal/);
+    assert.match(layout, /href: "\/shop"/);
   });
 
   it("keeps Shop tables out of startup schema repair", () => {

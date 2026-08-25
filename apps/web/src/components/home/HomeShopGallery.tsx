@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@clerk/react";
 import { api } from "../../lib/api";
 import type { ShopPublicProduct } from "../../lib/shop";
 import { shopMediaSrc, unwrapShopProducts } from "../../lib/shop";
@@ -61,6 +62,7 @@ function GallerySkeleton() {
 }
 
 export default function HomeShopGallery() {
+  const { isSignedIn } = useAuth();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [products, setProducts] = useState<ShopPublicProduct[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -126,6 +128,18 @@ export default function HomeShopGallery() {
           </h2>
           <p className="max-w-3xl text-base leading-8 text-white/66">
             Discover digital tools, Healing Code Cards, and spiritual wellness resources available through The Prime Mentor.
+          </p>
+          <p data-shop-gallery-auth-note className="max-w-3xl text-base leading-8 text-white/70">
+            {isSignedIn ? (
+              "Browse the Prime Mentor Shop and access your digital products anytime from your account."
+            ) : (
+              <>
+                <Link to="/sign-up" className="font-medium text-cyan-200 underline underline-offset-4 hover:text-cyan-100">Create a free account</Link>
+                {" or "}
+                <Link to="/sign-in" className="font-medium text-cyan-200 underline underline-offset-4 hover:text-cyan-100">sign in</Link>
+                {" to purchase from the Prime Mentor Shop."}
+              </>
+            )}
           </p>
         </div>
 

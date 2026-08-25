@@ -1,7 +1,17 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { getShopLocalhostDb, setShopProductFeatured } from "./helpers/shopFeaturedToggle";
+import { cleanupEphemeralGalleryProducts, getShopLocalhostDb, insertEphemeralGalleryProduct } from "./helpers/shopFeaturedToggle";
 
 const API_BASE = process.env.SHOP_API_BASE_URL?.trim() || "http://127.0.0.1:3001";
+const AGAINST_PRODUCTION = Boolean(process.env.PLAYWRIGHT_BASE_URL?.includes("theprimementor.com") || process.env.SHOP_SKIP_FEATURED_MUTATION === "1");
+
+const EXPECTED_GALLERY_SLUGS = [
+  "remote-source-bed-kit",
+  "digital-safeguard-kit",
+  "healing-code-cards-source-deck-body-set",
+  "healing-code-cards-body-deck",
+  "healing-code-cards-mind-deck",
+  "healing-code-cards-energy-deck",
+];
 
 type CatalogProduct = {
   slug?: string;
@@ -62,12 +72,19 @@ test.describe("Homepage featured product gallery", () => {
     expect(galleryBox && heroBox, "Gallery must render immediately under the hero").toBeTruthy();
     expect(galleryBox!.y).toBeGreaterThan(heroBox!.y);
     await expect(gallery.getByRole("heading", { name: "Explore the Prime Mentor Shop" })).toBeVisible();
+    const authNote = gallery.locator("[data-shop-gallery-auth-note]");
+    await expect(authNote).toBeVisible();
+    await expect(authNote.getByRole("link", { name: "Create a free account" })).toHaveAttribute("href", "/sign-up");
+    await expect(authNote.getByRole("link", { name: "sign in" })).toHaveAttribute("href", "/sign-in");
 
-    const expectedNames = [
-      "Healing Code Cards: Body Deck",
-      "Digital Safeguard Kit",
-      "Remote Source Bed Kit",
-    ];
+    const liveCatalog = catalog.filter((item) => EXPECTED_GALLERY_SLUGS.includes(item.slug || ""));
+    expect(liveCatalog.map((item) => item.slug)).toEqual(EXPECTED_GALLERY_SLUGS);
+    await expect.poll(async () => {
+      const names = await gallery.locator("[data-shop-gallery-card] h3").allTextContents();
+      return names.filter((name) => liveCatalog.some((item) => item.name === name));
+    }).toEqual(liveCatalog.map((item) => item.name));
+
+    const expectedNames = liveCatalog.map((item) => item.name!);
     for (const name of expectedNames) {
       const product = catalog.find((item) => item.name === name);
       expect(product, `${name} must come from the featured catalog`).toBeTruthy();
@@ -83,16 +100,18 @@ test.describe("Homepage featured product gallery", () => {
     }
 
     const scroller = gallery.locator("[data-shop-gallery-scroller]");
+    const orderBefore = await scroller.locator("[data-shop-gallery-card] h3").allTextContents();
     const before = await scroller.evaluate((node) => node.scrollLeft);
     await gallery.getByRole("button", { name: "Next products" }).click();
     await expect.poll(async () => scroller.evaluate((node) => node.scrollLeft)).toBeGreaterThan(before);
     await gallery.getByRole("button", { name: "Previous products" }).click();
     await expect.poll(async () => scroller.evaluate((node) => node.scrollLeft)).toBeLessThan(80);
+    await expect(scroller.locator("[data-shop-gallery-card] h3")).toHaveText(orderBefore);
 
-    const firstProduct = catalog[0];
+    const firstProduct = liveCatalog[0];
     await gallery.getByRole("link", { name: `View ${firstProduct.name}` }).click();
     await expect(page).toHaveURL(new RegExp(`/shop/${firstProduct.slug}$`));
-    await expect(page.getByRole("heading", { name: firstProduct.name! })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: firstProduct.name! })).toBeVisible();
     await page.goBack();
     await expect(page.locator("#home-shop-gallery")).toBeVisible();
   });
@@ -105,6 +124,10 @@ test.describe("Homepage featured product gallery", () => {
     await openHomepageGallery(page);
     const gallery = page.locator("#home-shop-gallery");
     await expect(gallery.getByRole("heading", { name: "Explore the Prime Mentor Shop" })).toBeVisible();
+    const authNote = gallery.locator("[data-shop-gallery-auth-note]");
+    await expect(authNote).toBeVisible();
+    await expect(authNote.getByRole("link", { name: "Create a free account" })).toHaveAttribute("href", "/sign-up");
+    await expect(authNote.getByRole("link", { name: "sign in" })).toHaveAttribute("href", "/sign-in");
     const scroller = gallery.locator("[data-shop-gallery-scroller]");
     const visible = await visibleCardCount(scroller);
     if (testInfo.project.name === "mobile") {
@@ -114,6 +137,17 @@ test.describe("Homepage featured product gallery", () => {
       expect(visible).toBeGreaterThanOrEqual(2);
       expect(visible).toBeLessThanOrEqual(3);
     }
+    const liveCatalog = catalog.filter((item) => EXPECTED_GALLERY_SLUGS.includes(item.slug || ""));
+    await expect.poll(async () => {
+      const names = await scroller.locator("[data-shop-gallery-card] h3").allTextContents();
+      return names.filter((name) => liveCatalog.some((item) => item.name === name));
+    }).toEqual(liveCatalog.map((item) => item.name));
+    expect(liveCatalog[0]?.name).toBe("Remote Source Bed Kit");
+    await scroller.evaluate((node) => node.scrollBy({ left: 160 }));
+    await expect.poll(async () => {
+      const names = await scroller.locator("[data-shop-gallery-card] h3").allTextContents();
+      return names.filter((name) => liveCatalog.some((item) => item.name === name));
+    }).toEqual(liveCatalog.map((item) => item.name));
     const firstCard = scroller.locator("[data-shop-gallery-card]").first();
     await expect(firstCard.getByText("View Product")).toBeVisible();
     const summary = firstCard.locator("[data-shop-gallery-summary]");
@@ -139,34 +173,52 @@ test.describe("Homepage featured product gallery", () => {
     await page.keyboard.press("Tab");
     await expect(gallery.getByRole("button", { name: "Next products" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(gallery.getByRole("link").first()).toBeFocused();
+    await expect(gallery.locator("[data-shop-gallery-card]").first()).toBeFocused();
   });
 
-  test("featured persist removes and restores a catalog product on the homepage", async ({ page, request }, testInfo) => {
+  test("featured persist removes and restores a catalog product on the homepage", async ({ page }, testInfo) => {
+    test.skip(AGAINST_PRODUCTION, "Do not mutate featured flags on production");
     test.skip(testInfo.project.name !== "desktop", "Persist proof once on desktop");
-    const catalog = await loadFeaturedCatalog(request);
-    const persistProduct = catalog.find((item) => item.slug === "healing-code-cards-body-deck");
-    test.skip(!persistProduct, "Body Deck is not in the featured catalog");
     if (!getShopLocalhostDb()) {
       test.skip(true, "DATABASE_URL is unavailable; Admin Playwright UI stays Clerk-gated and was not bypassed.");
       return;
     }
 
-    await openHomepageGallery(page);
-    const gallery = page.locator("#home-shop-gallery");
-    await expect(gallery.getByRole("link", { name: `View ${persistProduct!.name}` })).toHaveCount(1);
+    const persistName = "Ephemeral Gallery Persist Product";
+    await cleanupEphemeralGalleryProducts();
+    const created = await insertEphemeralGalleryProduct({
+      slug: "persist-card",
+      name: persistName,
+      featured: true,
+      isActive: true,
+    });
+    expect(created).toBeTruthy();
 
     try {
-      const updated = await setShopProductFeatured(persistProduct!.slug!, false);
-      expect(updated).toBeTruthy();
-      await page.reload();
-      await expect(page.locator("#home-shop-gallery").getByRole("link", { name: `View ${persistProduct!.name}` })).toHaveCount(0);
-    } finally {
-      await setShopProductFeatured(persistProduct!.slug!, true);
-    }
+      await openHomepageGallery(page);
+      const gallery = page.locator("#home-shop-gallery");
+      await expect(gallery.getByRole("link", { name: `View ${persistName}` })).toHaveCount(1);
 
-    await page.reload();
-    await expect(page.locator("#home-shop-gallery").getByRole("link", { name: `View ${persistProduct!.name}` })).toHaveCount(1);
+      await insertEphemeralGalleryProduct({
+        slug: "persist-card",
+        name: persistName,
+        featured: false,
+        isActive: true,
+      });
+      await page.reload();
+      await expect(page.locator("#home-shop-gallery").getByRole("link", { name: `View ${persistName}` })).toHaveCount(0);
+
+      await insertEphemeralGalleryProduct({
+        slug: "persist-card",
+        name: persistName,
+        featured: true,
+        isActive: true,
+      });
+      await page.reload();
+      await expect(page.locator("#home-shop-gallery").getByRole("link", { name: `View ${persistName}` })).toHaveCount(1);
+    } finally {
+      await cleanupEphemeralGalleryProducts();
+    }
   });
 
   test("captures homepage gallery screenshots for visual review", async ({ page, request }, testInfo) => {

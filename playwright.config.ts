@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL?.trim() || "http://localhost:3000",
     trace: "off",
   },
   projects: [
@@ -16,10 +16,14 @@ export default defineConfig({
     { name: "tablet", use: { ...devices["Desktop Chrome"], viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },
     { name: "mobile", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
-  webServer: {
-    command: "pnpm --filter @wisdom/web dev -- --host 127.0.0.1 --port 3000",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  ...(process.env.PLAYWRIGHT_BASE_URL?.includes("theprimementor.com")
+    ? {}
+    : {
+      webServer: {
+        command: "pnpm --filter @wisdom/web dev -- --host 127.0.0.1 --port 3000",
+        url: "http://localhost:3000",
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
+    }),
 });
