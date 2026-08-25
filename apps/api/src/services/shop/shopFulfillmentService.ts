@@ -283,8 +283,8 @@ export async function getShopOrderSuccessView(
     throw createHttpError(403, "Checkout session does not belong to the authenticated user");
   }
 
-  if (session.status === "expired" || session.status === "canceled" || session.payment_status === "unpaid") {
-    const canceled = session.status === "expired" || session.status === "canceled";
+  if (session.status === "expired" || session.payment_status === "unpaid") {
+    const canceled = session.status === "expired";
     return emptySuccess(
       canceled ? "canceled" : "unpaid",
       canceled

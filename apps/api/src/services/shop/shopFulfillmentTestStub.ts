@@ -88,8 +88,8 @@ export function retrieveStubbedShopCheckoutSession(
   const kind = SESSION_KIND[sessionId];
   if (!kind) return null;
 
-  const status = kind === "canceled" ? "canceled" : "complete";
-  const paymentStatus = kind === "paid" ? "paid" : kind === "canceled" ? "unpaid" : "unpaid";
+  const status = kind === "canceled" ? "expired" : "complete";
+  const paymentStatus = kind === "paid" ? "paid" : "unpaid";
 
   return {
     id: sessionId,
@@ -105,5 +105,5 @@ export function retrieveStubbedShopCheckoutSession(
       userEmail: owner?.userEmail ?? "",
       clerkId: owner?.clerkId ?? "",
     },
-  } as Stripe.Checkout.Session;
+  } as unknown as Stripe.Checkout.Session;
 }
