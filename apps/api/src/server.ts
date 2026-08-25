@@ -38,6 +38,7 @@ import { adminNotificationRoutes } from "./routes/admin-notifications.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { seoRoutes } from "./routes/seo.js";
 import { promoCodesRoutes } from "./routes/promoCodes.js";
+import { shopRoutes } from "./routes/shop.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
@@ -671,6 +672,8 @@ function buildAllowedOrigins() {
     [
       "http://localhost:3000",
       "http://127.0.0.1:3000",
+      "http://localhost:3002",
+      "http://127.0.0.1:3002",
       "http://localhost:5173",
       "http://localhost:5174",
       "http://localhost:5175",
@@ -863,6 +866,7 @@ export async function buildApp() {
   await app.register(analyticsRoutes, { prefix: "/api" });
   await app.register(seoRoutes, { prefix: "/api" });
   await app.register(promoCodesRoutes, { prefix: "/api" });
+  await app.register(shopRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 

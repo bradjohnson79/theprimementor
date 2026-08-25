@@ -11,6 +11,7 @@ const REQUIRED_ENV: Record<string, string> = {
   STRIPE_PRICE_TRAINING_ENTRY: "price_test_training_entry",
   STRIPE_PRICE_TRAINING_SEEKER: "price_test_training_seeker",
   STRIPE_PRICE_TRAINING_INITIATE: "price_test_training_initiate",
+  STRIPE_PRICE_REGENERATION_OFFER: "price_test_regeneration_offer",
 };
 
 function applyRequiredEnv() {

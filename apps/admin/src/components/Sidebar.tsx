@@ -18,6 +18,8 @@ const navItems: NavItem[] = [
   { to: "/services", label: "Services", icon: "◫" },
   { to: "/events", label: "Events", icon: "◌" },
   { to: "/admin/courses", label: "Courses", icon: "◎", matchPrefix: "/admin/courses" },
+  { to: "/admin/shop", label: "Shop", icon: "◈", matchPrefix: "/admin/shop" },
+  { to: "/admin/shop/testimonials", label: "Testimonials", icon: "↳", indent: true, matchPrefix: "/admin/shop/testimonials" },
   { to: "/bookings", label: "Bookings", icon: "▦" },
   { to: "/payments", label: "Payments", icon: "▣" },
   { to: "/reports", label: "Reports", icon: "▤" },
@@ -74,6 +76,8 @@ function navLabelKey(label: string) {
       return "nav.seo";
     case "Promo Codes":
       return "nav.promoCodes";
+    case "Testimonials":
+      return "nav.testimonials";
     case "Knowledge Base":
       return "nav.knowledgeBase";
     default:

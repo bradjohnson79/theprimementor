@@ -19,6 +19,10 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Seo from "./pages/Seo";
 import PromoCodes from "./pages/PromoCodes";
+import ShopList from "./pages/shop/ShopList";
+import ShopProductEditor from "./pages/shop/ShopProductEditor";
+import ShopTestimonialList from "./pages/shop/ShopTestimonialList";
+import ShopTestimonialEditor from "./pages/shop/ShopTestimonialEditor";
 import ResonantDowsingCourse from "./pages/ResonantDowsingCourse";
 import Divin8Chat from "./pages/Divin8Chat";
 import Divin8Prompt from "./pages/Divin8Prompt";
@@ -45,6 +49,10 @@ export default function App() {
             <Route path="services" element={<Services />} />
             <Route path="events" element={<Events />} />
             <Route path="admin/courses" element={<Courses />} />
+            <Route path="admin/shop" element={<ShopList />} />
+            <Route path="admin/shop/testimonials" element={<ShopTestimonialList />} />
+            <Route path="admin/shop/testimonials/:id" element={<ShopTestimonialEditor />} />
+            <Route path="admin/shop/:id" element={<ShopProductEditor />} />
             <Route path="admin/courses/ttt" element={<CourseTTT />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="payments" element={<Payments />} />

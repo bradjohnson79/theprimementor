@@ -320,6 +320,7 @@ export default function OrderDetail() {
   const [subscriptionActionProcessing, setSubscriptionActionProcessing] = useState(false);
   const [subscriptionNote, setSubscriptionNote] = useState("");
   const [savingSubscriptionNote, setSavingSubscriptionNote] = useState(false);
+  const [resendingFulfillment, setResendingFulfillment] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) {
@@ -1242,6 +1243,27 @@ export default function OrderDetail() {
               </>
             ) : null}
 
+            {order.type === "shop" ? (
+              <>
+                <div>
+                  <dt className="text-xs text-white/40">Fulfillment type</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.fulfillment_type)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Fulfillment email</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.fulfillment_email_status)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Email sent</dt>
+                  <dd className="text-white/85">{order.metadata.fulfillment_email_sent_at ? formatOrderDate(order.metadata.fulfillment_email_sent_at) : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Resend message ID</dt>
+                  <dd className="break-all text-white/85">{renderValue(order.metadata.fulfillment_email_message_id)}</dd>
+                </div>
+              </>
+            ) : null}
+
             {order.type === "custom" ? (
               <>
                 <div>
@@ -1257,6 +1279,46 @@ export default function OrderDetail() {
           </dl>
         </Card>
       </div>
+
+      {order.type === "shop" ? (
+        <Card>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Shop fulfillment</h3>
+              <p className="mt-2 text-sm text-white/65">
+                Resending the fulfillment email does not create another order or entitlement.
+              </p>
+              {order.metadata.fulfillment_email_error ? (
+                <p className="mt-2 text-sm text-amber-100">{order.metadata.fulfillment_email_error}</p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              disabled={resendingFulfillment}
+              onClick={() => {
+                void (async () => {
+                  setResendingFulfillment(true);
+                  setActionError(null);
+                  setActionSuccess(null);
+                  try {
+                    const token = await getToken();
+                    await api.post(`/admin/shop/orders/${order.id}/resend-fulfillment-email`, {}, token);
+                    setActionSuccess("Fulfillment email resent.");
+                    await loadOrder();
+                  } catch (err) {
+                    setActionError(err instanceof Error ? err.message : "Unable to resend fulfillment email.");
+                  } finally {
+                    setResendingFulfillment(false);
+                  }
+                })();
+              }}
+              className="rounded-xl bg-accent-cyan px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
+            >
+              {resendingFulfillment ? "Resending..." : "Resend fulfillment email"}
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       {isRegenerationOrder ? (
         <Card>

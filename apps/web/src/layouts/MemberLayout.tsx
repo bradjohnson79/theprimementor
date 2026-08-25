@@ -55,6 +55,7 @@ export default function MemberLayout() {
     { to: "/dashboard", label: "Dashboard", icon: "◆", end: true },
     ...(isTierLoading || tierState === "free" ? [] : [{ to: "/dashboard/divin8", label: "Divin8 Chat", icon: "✺" }]),
     { to: "/dashboard/recordings", label: "Recordings", icon: "◉" },
+    { to: "/dashboard/purchases", label: "Purchases", icon: "▣" },
     { to: "/sessions", label: "Sessions", icon: "◌" },
     { to: "/dashboard/reports/intro", label: "Reports", icon: "▤" },
     { to: "/mentoring-circle", label: "Mentoring Circle", icon: "◎" },

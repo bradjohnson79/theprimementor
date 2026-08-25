@@ -12,8 +12,9 @@ import {
   type CreateInvoicePaymentLinkInput,
 } from "../services/payments/invoiceService.js";
 import { processStripeWebhookEvent, syncCheckoutSessionCompleted } from "../services/payments/stripeWebhookService.js";
+import { retrieveShopCheckoutSession } from "../services/shop/shopCheckoutSessionRetrieve.js";
 
-type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "subscription" | "course" | "regeneration_offer";
+type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "subscription" | "course" | "shop" | "regeneration_offer";
 
 interface CheckoutSessionSyncBody {
   checkoutSessionId?: string;
@@ -62,6 +63,8 @@ export async function stripeRoutes(app: FastifyInstance) {
         reportId: request.body?.reportId,
         membershipId: request.body?.membershipId,
         trainingOrderId: request.body?.trainingOrderId,
+        courseEntitlementId: request.body?.courseEntitlementId,
+        shopEntitlementId: request.body?.shopEntitlementId,
         eventId: request.body?.eventId,
         promoCode: request.body?.promoCode,
         userId: user.id,
@@ -122,8 +125,11 @@ export async function stripeRoutes(app: FastifyInstance) {
         }
       }
 
-      const stripe = new Stripe(stripeKey);
-      const session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
+      const session = await retrieveShopCheckoutSession(checkoutSessionId, {
+        userId: user.id,
+        userEmail: user.email,
+        clerkId,
+      });
 
       if (!sessionBelongsToUser({
         session,

@@ -1,6 +1,6 @@
 import { formatPacificTime } from "@wisdom/utils";
 
-export type OrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "custom";
+export type OrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "shop" | "custom";
 export type OrderStatus =
   | "unpaid"
   | "pending_payment"
@@ -202,6 +202,11 @@ export interface AdminOrder {
     payment_source?: string | null;
     payment_sync_status?: string | null;
     stripe_checkout_session_id?: string | null;
+    fulfillment_type?: string | null;
+    fulfillment_email_status?: string | null;
+    fulfillment_email_sent_at?: string | null;
+    fulfillment_email_message_id?: string | null;
+    fulfillment_email_error?: string | null;
     manual_paid?: boolean | null;
     recovery_invoice_id: string | null;
     recovery_invoice_sent_at: string | null;
@@ -314,6 +319,7 @@ export const ORDER_TYPE_TABS: Array<{ id: "all" | OrderType; label: string }> = 
   { id: "webinar", label: "Webinars" },
   { id: "mentor_training", label: "Mentor Training" },
   { id: "regeneration_offer", label: "Regeneration Offer" },
+  { id: "shop", label: "Shop" },
 ];
 
 export function formatOrderMoney(amount: number, currency: string) {
@@ -345,6 +351,8 @@ export function getOrderTypeLabel(type: OrderType) {
       return "Mentor Training";
     case "regeneration_offer":
       return "Regeneration Offer";
+    case "shop":
+      return "Shop";
     case "custom":
       return "Custom";
   }
@@ -396,6 +404,10 @@ export function getOrderServiceLabel(order: AdminOrder) {
     case "regeneration_offer":
       return order.metadata.product_name
         ?? "Regeneration Q&A Package";
+    case "shop":
+      return order.metadata.product_name
+        ?? order.product_name
+        ?? "Shop purchase";
     case "custom":
       return order.metadata.invoice_label
         ?? titleCaseLabel(order.metadata.order_variant)

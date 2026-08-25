@@ -11,6 +11,7 @@
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
     "seed-admin": "tsx src/seed-admin.ts",
+    "seed-shop": "tsx src/seed-shop.ts",
     "check-drift": "tsx check-drift.ts"
   },
   "dependencies": {

@@ -40,6 +40,9 @@ import {
 } from "../config/courseBilling.js";
 import { createHttpError } from "./booking/errors.js";
 import { RESONANT_DOWSING_COURSE_SLUG } from "./courses/courseEntitlementService.js";
+import { getShopProductById, isPurchasableShopProduct } from "./shop/shopCatalog.js";
+import { getShopEntitlementById, hasActiveShopEntitlement } from "./shop/shopEntitlementService.js";
+import { getShopStripe, retrieveAndVerifyShopPrice } from "./shop/shopStripe.js";
 import {
   RESONANT_DOWSING_CURRENCY,
   RESONANT_DOWSING_PRICE_CENTS,
@@ -63,7 +66,7 @@ import {
   getRegenerationOfferIntakeBooking,
 } from "./regenerationOfferService.js";
 
-type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer";
+type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer";
 type CheckoutTier = "seeker" | "initiate";
 type CheckoutDiscountConfig = Pick<Stripe.Checkout.SessionCreateParams, "allow_promotion_codes" | "discounts">;
 
@@ -104,6 +107,7 @@ export interface CreateCheckoutSessionInput {
   membershipId?: string;
   trainingOrderId?: string;
   courseEntitlementId?: string;
+  shopEntitlementId?: string;
   eventId?: string;
   promoCode?: string;
 }
@@ -124,6 +128,8 @@ function buildCheckoutMetadata(
     trainingOrderId?: string;
     packageType?: MentorTrainingPackageType;
     courseSlug?: string;
+    shopProductId?: string;
+    shopEntitlementId?: string;
     billingInterval?: "monthly" | "annual";
     eventId?: string;
     eventKey?: string;
@@ -200,6 +206,13 @@ function buildCheckoutMetadata(
     metadata.courseSlug = input.courseSlug.trim();
     metadata.course_slug = input.courseSlug.trim();
     metadata.purchase_type = "course";
+  }
+  if (input.shopProductId?.trim()) {
+    metadata.shopProductId = input.shopProductId.trim();
+    metadata.purchase_type = "shop";
+  }
+  if (input.shopEntitlementId?.trim()) {
+    metadata.shopEntitlementId = input.shopEntitlementId.trim();
   }
   if (input.billingInterval) {
     metadata.billingInterval = input.billingInterval;
@@ -322,7 +335,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -819,6 +832,137 @@ async function createCourseCheckoutSession(db: Database, input: CreateCheckoutSe
     sessionId: session.id,
     priceId,
     productName,
+    userId: input.userId,
+    clerkId: input.clerkId,
+    customerId: stripeCustomerId,
+    environment: metadata.environment,
+  });
+
+  return session;
+}
+
+async function createShopCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  const shopEntitlementId = input.shopEntitlementId?.trim();
+  if (!shopEntitlementId) {
+    throw createHttpError(400, "shopEntitlementId is required for Shop checkout.");
+  }
+
+  const entitlement = await getShopEntitlementById(db, shopEntitlementId);
+  if (!entitlement || entitlement.userId !== input.userId) {
+    throw createHttpError(404, "Shop checkout could not be prepared.");
+  }
+  if (hasActiveShopEntitlement(entitlement)) {
+    throw createHttpError(409, "This digital product has already been purchased.");
+  }
+
+  const product = await getShopProductById(db, entitlement.productId);
+  if (!product || !isPurchasableShopProduct(product)) {
+    throw createHttpError(409, "This Shop product is not available for purchase.");
+  }
+  const priceId = product.stripe_price_id?.trim();
+  if (!priceId) {
+    throw createHttpError(503, "This Shop product does not have an active Stripe Price.");
+  }
+
+  await retrieveAndVerifyShopPrice(getShopStripe(), {
+    priceId,
+    expectedCents: product.price_cents,
+    expectedCurrency: product.currency,
+    expectedProductId: product.stripe_product_id,
+  });
+
+  let payment = await getLatestPaymentForEntity(db, { entityType: "shop", entityId: shopEntitlementId });
+  if (!payment) {
+    const created = await createPaymentRecordForEntity(db, {
+      userId: input.userId,
+      entityType: "shop",
+      entityId: shopEntitlementId,
+      amountCents: product.price_cents,
+      currency: product.currency,
+      status: "pending",
+      metadata: {
+        source: "shop_checkout",
+        purchase_type: "shop",
+        shopProductId: product.id,
+        shopEntitlementId,
+      },
+    });
+    payment = await getLatestPaymentForEntity(db, { entityType: "shop", entityId: shopEntitlementId });
+    if (!payment) {
+      payment = {
+        id: created.id,
+        entityType: "shop",
+        entityId: shopEntitlementId,
+        status: "pending",
+        providerPaymentIntentId: null,
+        providerCustomerId: null,
+        metadata: null,
+      };
+    }
+  }
+  if (payment.status === "paid") {
+    throw createHttpError(409, "This digital product has already been purchased.");
+  }
+  if (payment.status === "refunded") {
+    throw createHttpError(400, "Refunded Shop purchases require manual support before checkout can restart.");
+  }
+
+  const stripe = getStripe();
+  const metadata = buildCheckoutMetadata({
+    ...input,
+    type: "shop",
+    entityId: shopEntitlementId,
+    shopProductId: product.id,
+    shopEntitlementId,
+  });
+  metadata.customer_email = input.userEmail;
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
+  const frontendUrl = getFrontendUrl();
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: shopEntitlementId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata,
+    payment_intent_data: {
+      description: product.name,
+      metadata,
+    },
+    success_url: `${frontendUrl}/shop/order/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}/shop/${product.slug}?checkout=canceled`,
+    customer: stripeCustomerId,
+  });
+
+  await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
+    source: "shop_checkout_create",
+    stripeCheckoutSessionId: session.id,
+    stripeCheckoutMode: session.mode,
+    stripeCheckoutUrl: session.url,
+    stripePriceId: priceId,
+    stripeProductId: product.stripe_product_id,
+    stripeProductName: product.name,
+    purchase_type: "shop",
+    shopProductId: product.id,
+    shopEntitlementId,
+    environment: metadata.environment,
+  });
+
+  logger.info("shop_checkout_created", {
+    checkoutType: "shop",
+    productId: product.id,
+    shopEntitlementId,
+    paymentId: payment.id,
+    sessionId: session.id,
+    priceId,
+    productName: product.name,
     userId: input.userId,
     clerkId: input.clerkId,
     customerId: stripeCustomerId,
@@ -1415,6 +1559,9 @@ export async function createCheckoutSession(
   }
   if (type === "course") {
     return createCourseCheckoutSession(db, input);
+  }
+  if (type === "shop") {
+    return createShopCheckoutSession(db, input);
   }
   if (type === "mentoring_circle") {
     return createMentoringCircleCheckoutSession(db, input);

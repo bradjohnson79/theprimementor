@@ -14,6 +14,7 @@ import {
   renderPaymentFailedTemplate,
   renderPaymentSucceededTemplate,
   renderReportGeneratedTemplate,
+  renderShopDigitalFulfillmentTemplate,
 } from "./userTemplates.js";
 
 export interface NotificationTemplate {
@@ -33,6 +34,7 @@ const TEMPLATE_RESOLVERS: { [TEvent in NotificationEvent]: TemplateResolver<TEve
   "mentoring_circle.reminder_24h": renderMentoringCircleReminder24hTemplate,
   "mentoring_circle.reminder_1h": renderMentoringCircleReminder1hTemplate,
   "report.generated": renderReportGeneratedTemplate,
+  "shop.digital_fulfillment": renderShopDigitalFulfillmentTemplate,
   "admin.payment.received": renderAdminPaymentReceivedTemplate,
   "admin.new.booking": renderAdminNewBookingTemplate,
   "admin.new.user": renderAdminNewUserTemplate,

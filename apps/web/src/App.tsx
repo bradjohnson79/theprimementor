@@ -23,6 +23,10 @@ import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
 import ReportOrder from "./routes/ReportOrder";
 import ReportsLanding from "./routes/ReportsLanding";
+import ShopLanding from "./routes/ShopLanding";
+import ShopProduct from "./routes/ShopProduct";
+import ShopSuccess from "./routes/ShopSuccess";
+import MemberPurchases from "./routes/MemberPurchases";
 import MembershipSignup from "./routes/MembershipSignup";
 import WebsiteErrorPage from "./routes/WebsiteErrorPage";
 import SupportWidget from "./components/support/SupportWidget";
@@ -87,6 +91,10 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/reports" element={<ReportsLanding />} />
+          <Route path="/shop" element={<ShopLanding />} />
+          <Route path="/shop/order/success" element={<ShopSuccess />} />
+          <Route path="/shop/success" element={<ShopSuccess />} />
+          <Route path="/shop/:slug" element={<ShopProduct />} />
           <Route path="/error" element={<WebsiteErrorPage />} />
           <Route path="/membership-signup" element={<MembershipSignup />} />
           <Route path="/subscriptions" element={<Navigate to="/subscriptions/seeker" replace />} />
@@ -106,6 +114,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/divin8" element={<MemberDivin8Chat />} />
             <Route path="/dashboard/recordings" element={<Recordings />} />
+            <Route path="/dashboard/purchases" element={<MemberPurchases />} />
             <Route path="/sessions" element={<Bookings />} />
             <Route path="/sessions/live/book" element={<Bookings />} />
             <Route path={REGENERATION_BOOKING_PATH} element={<Bookings />} />

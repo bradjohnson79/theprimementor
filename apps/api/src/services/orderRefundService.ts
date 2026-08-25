@@ -148,6 +148,8 @@ function buildPersistedOrderLabel(order: AdminOrder) {
       return order.metadata.training_package ?? order.metadata.plan_name ?? "Mentor Training";
     case "regeneration_offer":
       return order.metadata.product_name ?? "Regeneration Q&A Package";
+    case "shop":
+      return order.metadata.product_name ?? order.product_name ?? "Shop purchase";
     case "custom":
       return order.metadata.invoice_label ?? "Custom";
   }

@@ -33,6 +33,15 @@ async function upsertStripeCustomerId(
     });
 }
 
+async function getUserIdForStripeCustomer(db: DbExecutor, stripeCustomerId: string) {
+  const [mapping] = await db
+    .select({ userId: stripeCustomers.user_id })
+    .from(stripeCustomers)
+    .where(eq(stripeCustomers.stripe_customer_id, stripeCustomerId))
+    .limit(1);
+  return mapping?.userId ?? null;
+}
+
 async function findStripeCustomerIdByEmail(stripe: Stripe, email: string) {
   const normalizedEmail = email.trim();
   if (!normalizedEmail) {
@@ -86,8 +95,11 @@ export async function ensureStripeCustomerId(
 
   const existingByEmail = await findStripeCustomerIdByEmail(input.stripe, input.email);
   if (existingByEmail) {
-    await upsertStripeCustomerId(db, input.userId, existingByEmail);
-    return existingByEmail;
+    const ownerId = await getUserIdForStripeCustomer(db, existingByEmail);
+    if (!ownerId || ownerId === input.userId) {
+      await upsertStripeCustomerId(db, input.userId, existingByEmail);
+      return existingByEmail;
+    }
   }
 
   const created = await input.stripe.customers.create({

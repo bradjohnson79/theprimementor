@@ -9,6 +9,7 @@ import {
   type ReportProductKey,
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
+import HomeShopGallery from "../components/home/HomeShopGallery";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
 import TestimonialsSlider from "../components/public/TestimonialsSlider";
@@ -768,6 +769,7 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+      <HomeShopGallery />
       <RegenerationOfferHomePanel />
 
       <section id="regeneration" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">

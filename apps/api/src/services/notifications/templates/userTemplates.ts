@@ -42,6 +42,47 @@ function formatMentoringCircleTimezone(timezone: string) {
   return text(timezone, "America/Vancouver");
 }
 
+export function renderShopDigitalFulfillmentTemplate(
+  payload: NotificationPayloadMap["shop.digital_fulfillment"],
+): RenderedTemplate {
+  const product = text(payload.productName, "your digital product");
+  const greeting = payload.firstName
+    ? `Hi ${payload.firstName},`
+    : "Hi,";
+  return {
+    subject: `Your ${product} Is Ready`,
+    templateVersion: "shop-digital-fulfillment-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Digital Purchase",
+      title: "Thank You for Your Order",
+      intro: `${greeting} thank you for purchasing ${product}. Your digital product is ready to access.`,
+      sections: [
+        renderInfoCard(
+          "Your download",
+          [
+            renderParagraph(`${product} is ready. Keep this email so you can return to your download later.`),
+            payload.instructions ? renderParagraph(payload.instructions) : "",
+          ].join(""),
+        ),
+        renderInfoCard(
+          "Having trouble finding this email?",
+          renderParagraph("If you use another device or need to locate this message again, please check your inbox as well as your junk or spam folder."),
+        ),
+      ],
+      callToAction: {
+        label: text(payload.downloadLabel, "Download Your Product"),
+        url: payload.downloadUrl,
+        note: product,
+      },
+      secondaryCallToAction: {
+        label: "Contact support",
+        url: buildFrontendUrl("/contact"),
+      },
+      footerNote: "Need help? Reply to this email or use the Prime Mentor contact page. Thank you, The Prime Mentor — Brad Johnson.",
+    }),
+  };
+}
+
 export function renderPaymentSucceededTemplate(
   payload: NotificationPayloadMap["payment.succeeded"],
 ): RenderedTemplate {

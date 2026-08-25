@@ -22,6 +22,12 @@ import {
   invoices,
   orders,
   mentoringCircleRegistrations,
+  shopProducts,
+  shopProductImages,
+  shopProductFiles,
+  shopEntitlements,
+  shopTestimonials,
+  shopProductTestimonials,
   conversationThreads,
   conversationMessages,
   conversationTimelineEvents,
@@ -47,6 +53,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   courseEntitlements: many(courseEntitlements),
   courseLessonProgress: many(courseLessonProgress),
   mentoringCircleRegistrations: many(mentoringCircleRegistrations),
+  shopEntitlements: many(shopEntitlements),
   memberEntitlements: many(memberEntitlements),
   memberUsage: many(memberUsage),
   memberUsageEvents: many(memberUsageEvents),
@@ -290,5 +297,56 @@ export const recordingsRelations = relations(recordings, ({ one }) => ({
   booking: one(bookings, {
     fields: [recordings.booking_id],
     references: [bookings.id],
+  }),
+}));
+
+export const shopProductsRelations = relations(shopProducts, ({ many }) => ({
+  images: many(shopProductImages),
+  files: many(shopProductFiles),
+  entitlements: many(shopEntitlements),
+  testimonialAssociations: many(shopProductTestimonials),
+}));
+
+export const shopProductImagesRelations = relations(shopProductImages, ({ one }) => ({
+  product: one(shopProducts, {
+    fields: [shopProductImages.product_id],
+    references: [shopProducts.id],
+  }),
+}));
+
+export const shopProductFilesRelations = relations(shopProductFiles, ({ one }) => ({
+  product: one(shopProducts, {
+    fields: [shopProductFiles.product_id],
+    references: [shopProducts.id],
+  }),
+}));
+
+export const shopEntitlementsRelations = relations(shopEntitlements, ({ one }) => ({
+  user: one(users, {
+    fields: [shopEntitlements.user_id],
+    references: [users.id],
+  }),
+  product: one(shopProducts, {
+    fields: [shopEntitlements.product_id],
+    references: [shopProducts.id],
+  }),
+  order: one(orders, {
+    fields: [shopEntitlements.order_id],
+    references: [orders.id],
+  }),
+}));
+
+export const shopTestimonialsRelations = relations(shopTestimonials, ({ many }) => ({
+  productAssociations: many(shopProductTestimonials),
+}));
+
+export const shopProductTestimonialsRelations = relations(shopProductTestimonials, ({ one }) => ({
+  testimonial: one(shopTestimonials, {
+    fields: [shopProductTestimonials.testimonial_id],
+    references: [shopTestimonials.id],
+  }),
+  product: one(shopProducts, {
+    fields: [shopProductTestimonials.product_id],
+    references: [shopProducts.id],
   }),
 }));

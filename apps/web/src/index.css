@@ -673,3 +673,29 @@ section[id],
 }
 .chat-typing-dot:nth-child(2) { animation-delay: 0.16s; }
 .chat-typing-dot:nth-child(3) { animation-delay: 0.32s; }
+
+#home-shop-gallery [data-shop-gallery-card] {
+  flex: 0 0 min(18.75rem, 78vw);
+  width: min(18.75rem, 78vw);
+}
+#home-shop-gallery [data-shop-gallery-summary] {
+  min-height: 4.5rem;
+}
+@media (min-width: 768px) {
+  #home-shop-gallery [data-shop-gallery-card] {
+    flex-basis: calc((100% - 1rem) / 2);
+    width: calc((100% - 1rem) / 2);
+  }
+}
+@media (min-width: 1024px) {
+  #home-shop-gallery [data-shop-gallery-card] {
+    flex-basis: calc((100% - 2rem) / 3);
+    width: calc((100% - 2rem) / 3);
+  }
+}
+@media (min-width: 1280px) {
+  #home-shop-gallery [data-shop-gallery-card] {
+    flex-basis: calc((100% - 3rem) / 4);
+    width: calc((100% - 3rem) / 4);
+  }
+}

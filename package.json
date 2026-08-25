@@ -12,12 +12,15 @@
     "db:migrate": "pnpm --filter @wisdom/db migrate",
     "db:studio": "pnpm --filter @wisdom/db studio",
     "db:seed-admin": "pnpm --filter @wisdom/db seed-admin --",
+    "db:seed-shop": "pnpm --filter @wisdom/db seed-shop",
     "stripe:backfill": "pnpm --filter @wisdom/api stripe:backfill --",
     "stripe:backfill:dry-run": "pnpm --filter @wisdom/api stripe:backfill:dry-run",
     "reconcile:stripe": "pnpm --filter @wisdom/api reconcile:stripe --",
     "validate:session-catalog": "pnpm --filter @wisdom/api validate:session-catalog",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:e2e:shop": "playwright test",
+    "test:e2e:shop-success": "playwright test -c playwright.shop-success.config.ts"
   },
   "engines": {
     "node": "22.x"
@@ -27,6 +30,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.3",
     "prettier": "^3.8.1",
+    "@playwright/test": "^1.55.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1"
   }

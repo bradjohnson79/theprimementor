@@ -47,6 +47,16 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Shop",
+    href: "/shop",
+    items: [
+      { label: "Healing Code Cards: Body Deck", href: "/shop/healing-code-cards-body-deck" },
+      { label: "Healing Code Cards: Mind Deck", href: "/shop/healing-code-cards-mind-deck" },
+      { label: "Healing Code Cards: Energy Deck", href: "/shop/healing-code-cards-energy-deck" },
+      { label: "Healing Code Cards: Source Deck — Body Set", href: "/shop/healing-code-cards-source-deck-body-set" },
+    ],
+  },
+  {
     label: "Subscriptions",
     href: "/subscriptions/seeker",
     items: [
@@ -107,6 +117,8 @@ export default function RootLayout() {
     || location.pathname === "/about"
     || location.pathname === "/media"
     || location.pathname === "/reports"
+    || location.pathname === "/shop"
+    || location.pathname.startsWith("/shop/")
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")
     || location.pathname === REGENERATION_LANDING_PATH

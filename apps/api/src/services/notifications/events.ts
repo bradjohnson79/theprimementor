@@ -7,6 +7,7 @@ export type NotificationEvent =
   | "mentoring_circle.reminder_24h"
   | "mentoring_circle.reminder_1h"
   | "report.generated"
+  | "shop.digital_fulfillment"
   | "admin.payment.received"
   | "admin.new.booking"
   | "admin.new.user"
@@ -115,6 +116,15 @@ export interface NotificationPayloadMap {
     fullName?: string | null;
     email?: string | null;
   };
+  "shop.digital_fulfillment": {
+    entityId: string;
+    orderId: string;
+    productName: string;
+    downloadUrl: string;
+    downloadLabel: string;
+    firstName?: string | null;
+    instructions?: string | null;
+  };
   "admin.payment.received": {
     entityId: string;
     paymentId: string;
@@ -170,6 +180,7 @@ export const USER_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "report.generated",
+  "shop.digital_fulfillment",
 ] as const satisfies readonly NotificationEvent[];
 
 export const ADMIN_NOTIFICATION_EVENTS = [
@@ -205,6 +216,7 @@ export function isNotificationConfigurable(event: NotificationEvent) {
 export const ALL_NOTIFICATION_EVENTS = [
   ...CONFIGURABLE_NOTIFICATION_EVENTS,
   ...OWNER_GUARDED_NOTIFICATION_EVENTS,
+  "shop.digital_fulfillment",
   "admin.test",
 ] as const satisfies readonly NotificationEvent[];
 

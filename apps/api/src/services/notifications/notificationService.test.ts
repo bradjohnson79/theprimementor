@@ -24,7 +24,9 @@ test("notification events map to the correct recipient types", () => {
   assert.equal(getNotificationRecipientType("mentoring_circle.confirmed"), "user");
   assert.equal(getNotificationRecipientType("admin.payment.received"), "admin");
   assert.equal(getNotificationRecipientType("admin.test"), "admin");
+  assert.equal(getNotificationRecipientType("shop.digital_fulfillment"), "user");
   assert.equal(ALL_NOTIFICATION_EVENTS.includes("admin.test"), true);
+  assert.equal(ALL_NOTIFICATION_EVENTS.includes("shop.digital_fulfillment"), true);
 });
 
 test("notification previews expose template metadata", () => {

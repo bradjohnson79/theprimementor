@@ -111,7 +111,21 @@ export const persistedOrderTypeEnum = pgEnum("persisted_order_type", [
   "webinar",
   "mentor_training",
   "regeneration_offer",
+  "shop",
   "custom",
+]);
+
+export const shopProductStatusEnum = pgEnum("shop_product_status", [
+  "draft",
+  "active",
+  "archived",
+]);
+
+export const shopProductFileKindEnum = pgEnum("shop_product_file_kind", [
+  "deck",
+  "booklet",
+  "manual",
+  "other",
 ]);
 
 export const persistedOrderStatusEnum = pgEnum("persisted_order_status", [
@@ -1310,5 +1324,130 @@ export const recordings = pgTable("recordings", {
     .references(() => bookings.id)
     .notNull(),
   file_url: text("file_url"),
+  ...timestamps,
+});
+
+export const shopProducts = pgTable("shop_products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  status: shopProductStatusEnum("status").default("draft").notNull(),
+  is_active: boolean("is_active").default(false).notNull(),
+  featured: boolean("featured").default(false).notNull(),
+  sort_order: integer("sort_order").default(0).notNull(),
+  price_cents: integer("price_cents").notNull(),
+  currency: text("currency").default("CAD").notNull(),
+  stripe_product_id: text("stripe_product_id"),
+  stripe_price_id: text("stripe_price_id"),
+  format_label: text("format_label").default("Digital Edition").notNull(),
+  subtitle: text("subtitle"),
+  quick_summary: text("quick_summary"),
+  full_description: text("full_description"),
+  included_items: text("included_items"),
+  video_url: text("video_url"),
+  video_heading: text("video_heading"),
+  video_intro: text("video_intro"),
+  wellness_notice: text("wellness_notice"),
+  collection: text("collection"),
+  fulfillment_type: text("fulfillment_type"),
+  fulfillment_download_url: text("fulfillment_download_url"),
+  fulfillment_download_label: text("fulfillment_download_label"),
+  fulfillment_email_enabled: boolean("fulfillment_email_enabled").default(true).notNull(),
+  fulfillment_instructions: text("fulfillment_instructions"),
+  ...timestamps,
+}, (table) => ({
+  slugUnique: uniqueIndex("shop_products_slug_uidx").on(table.slug),
+  activeSortIdx: index("shop_products_active_sort_idx").on(table.is_active, table.sort_order, table.created_at),
+  statusSortIdx: index("shop_products_status_sort_idx").on(table.status, table.sort_order),
+  collectionIdx: index("shop_products_collection_idx").on(table.collection),
+}));
+
+export const shopProductImages = pgTable("shop_product_images", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  product_id: uuid("product_id")
+    .references(() => shopProducts.id, { onDelete: "cascade" })
+    .notNull(),
+  storage_key: text("storage_key").notNull(),
+  alt_text: text("alt_text"),
+  sort_order: integer("sort_order").default(0).notNull(),
+  is_primary: boolean("is_primary").default(false).notNull(),
+  mime_type: text("mime_type"),
+  size_bytes: integer("size_bytes"),
+  ...timestamps,
+}, (table) => ({
+  productSortIdx: index("shop_product_images_product_sort_idx").on(table.product_id, table.sort_order),
+}));
+
+export const shopProductFiles = pgTable("shop_product_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  product_id: uuid("product_id")
+    .references(() => shopProducts.id, { onDelete: "cascade" })
+    .notNull(),
+  storage_key: text("storage_key").notNull(),
+  display_name: text("display_name").notNull(),
+  mime_type: text("mime_type"),
+  size_bytes: integer("size_bytes"),
+  kind: shopProductFileKindEnum("kind").default("other").notNull(),
+  is_available: boolean("is_available").default(true).notNull(),
+  ...timestamps,
+}, (table) => ({
+  productKindIdx: index("shop_product_files_product_kind_idx").on(table.product_id, table.kind),
+}));
+
+export const shopEntitlements = pgTable("shop_entitlements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  product_id: uuid("product_id")
+    .references(() => shopProducts.id, { onDelete: "cascade" })
+    .notNull(),
+  stripe_checkout_session_id: text("stripe_checkout_session_id"),
+  stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  order_id: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+  purchased_at: timestamp("purchased_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  ...timestamps,
+}, (table) => ({
+  userProductUnique: uniqueIndex("shop_entitlements_user_product_uidx").on(table.user_id, table.product_id),
+  userActiveIdx: index("shop_entitlements_user_active_idx").on(table.user_id, table.revoked_at),
+  productPurchasedIdx: index("shop_entitlements_product_purchased_idx").on(table.product_id, table.purchased_at),
+  checkoutSessionIdx: index("shop_entitlements_checkout_session_idx").on(table.stripe_checkout_session_id),
+  paymentIntentIdx: index("shop_entitlements_payment_intent_idx").on(table.stripe_payment_intent_id),
+}));
+
+export const shopTestimonials = pgTable("shop_testimonials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customer_name: text("customer_name").notNull(),
+  location: text("location"),
+  title: text("title"),
+  testimonial_text: text("testimonial_text").notNull(),
+  source_label: text("source_label"),
+  context_label: text("context_label"),
+  is_active: boolean("is_active").default(true).notNull(),
+  sort_order: integer("sort_order").default(0).notNull(),
+  ...timestamps,
+}, (table) => ({
+  activeSortIdx: index("shop_testimonials_active_sort_idx").on(table.is_active, table.sort_order, table.created_at),
+}));
+
+export const shopProductTestimonials = pgTable("shop_product_testimonials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  testimonial_id: uuid("testimonial_id")
+    .references(() => shopTestimonials.id, { onDelete: "cascade" })
+    .notNull(),
+  product_id: uuid("product_id")
+    .references(() => shopProducts.id, { onDelete: "cascade" }),
+  product_slug: text("product_slug").notNull(),
+  ...timestamps,
+}, (table) => ({
+  testimonialSlugUnique: uniqueIndex("shop_product_testimonials_testimonial_slug_uidx").on(table.testimonial_id, table.product_slug),
+  productIdx: index("shop_product_testimonials_product_idx").on(table.product_id),
+  slugIdx: index("shop_product_testimonials_slug_idx").on(table.product_slug),
+}));
+
+export const shopSettings = pgTable("shop_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
   ...timestamps,
 });

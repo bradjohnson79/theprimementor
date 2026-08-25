@@ -100,6 +100,15 @@ const SAMPLE_PAYLOAD_FACTORIES: SamplePayloadFactoryMap = {
     fullName: "Brad",
     email: "brad@example.com",
   }),
+  "shop.digital_fulfillment": () => ({
+    entityId: "shop_fulfillment_sample",
+    orderId: "order_shop_fulfillment_sample",
+    productName: "Healing Code Cards: Body Deck",
+    downloadUrl: "https://drive.google.com/drive/folders/1SJw4BK9jWK0yzSol9bdNc6EiVTALMWJK?usp=sharing",
+    downloadLabel: "Download Your Product",
+    firstName: "Brad",
+    instructions: null,
+  }),
   "admin.payment.received": () => ({
     entityId: "admin_payment_sample",
     paymentId: "pay_admin_sample",

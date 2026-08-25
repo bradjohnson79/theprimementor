@@ -47,6 +47,10 @@ import {
   markCourseEntitlementPurchased,
   RESONANT_DOWSING_COURSE_SLUG,
 } from "../courses/courseEntitlementService.js";
+import { fulfillShopPurchase } from "../shop/shopOrderService.js";
+import { sendShopDigitalFulfillmentEmail } from "../shop/shopFulfillmentService.js";
+import { getShopEntitlementById } from "../shop/shopEntitlementService.js";
+import { getShopProductById } from "../shop/shopCatalog.js";
 import { normalizePaymentFailure } from "./paymentErrorNormalizer.js";
 import {
   handleRegenerationCheckoutSessionCompleted,
@@ -99,6 +103,7 @@ type StripePaymentType =
   | "mentor_training"
   | "mentoring_circle"
   | "course"
+  | "shop"
   | "regeneration_offer"
   | "regeneration_subscription";
 
@@ -291,10 +296,11 @@ async function emitPaymentSucceededNotifications(
     currency: string;
     product: string;
     orderId?: string | null;
+    skipUserNotification?: boolean;
   },
 ) {
   const userEmail = input.userEmail ?? await getUserEmail(db, input.userId);
-  if (input.userId) {
+  if (input.userId && !input.skipUserNotification) {
     queueNotification(db as Database, logger, {
       event: "payment.succeeded",
       userId: input.userId,
@@ -388,6 +394,7 @@ function parseMetadata(
       || raw.type === "mentor_training"
       || raw.type === "mentoring_circle"
       || raw.type === "course"
+      || raw.type === "shop"
       || raw.type === "regeneration_offer"
       || raw.type === "regeneration_subscription"
       ? raw.type
@@ -429,7 +436,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -453,6 +460,10 @@ function resolvePaymentEntity(
   if (metadata.type === "course") {
     const entityId = metadata.entityId ?? metadata.raw.courseEntitlementId;
     return entityId ? { entityType: "course", entityId } : null;
+  }
+  if (metadata.type === "shop") {
+    const entityId = metadata.entityId ?? metadata.raw.shopEntitlementId;
+    return entityId ? { entityType: "shop", entityId } : null;
   }
   if (metadata.type === "regeneration_offer") {
     const entityId = metadata.entityId ?? metadata.raw.orderId;
@@ -642,7 +653,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "regeneration_offer" | "regeneration_subscription" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1481,6 +1492,18 @@ async function handleCheckoutSessionCompleted(
     }
   }
 
+  if (entity.entityType === "shop" && session.payment_status !== "paid") {
+    logger.warn(
+      {
+        checkoutSessionId: session.id,
+        paymentStatus: session.payment_status,
+        entitlementId: entity.entityId,
+      },
+      "stripe_shop_checkout_not_paid_ignored",
+    );
+    return;
+  }
+
   if (existingPayment?.status === "paid") {
     if (entity.entityType === "session" && bookingId) {
       await ensurePersistedSessionOrder(db, bookingId);
@@ -1500,6 +1523,31 @@ async function handleCheckoutSessionCompleted(
         stripeCheckoutSessionId: session.id,
         stripePaymentIntentId: providerPaymentIntentId,
       });
+    }
+    if (entity.entityType === "shop") {
+      const order = await fulfillShopPurchase(db as Database, {
+        entitlementId: entity.entityId,
+        userId,
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: providerPaymentIntentId,
+        amountCents: session.amount_total ?? 0,
+        currency: (session.currency ?? "cad").toUpperCase(),
+      });
+      const entitlement = await getShopEntitlementById(db as Database, entity.entityId);
+      if (entitlement && userId) {
+        await sendShopDigitalFulfillmentEmail(db as Database, {
+          orderId: order.id,
+          userId,
+          productId: entitlement.productId,
+          recipientEmail: metadata.userEmail,
+        }).catch((error) => {
+          logger.error({
+            checkoutSessionId: session.id,
+            orderId: order.id,
+            error: error instanceof Error ? error.message : error,
+          }, "shop_fulfillment_email_failed");
+        });
+      }
     }
     logger.info(
       {
@@ -1552,6 +1600,55 @@ async function handleCheckoutSessionCompleted(
       currency: paidPayment.currency,
       product: "The Resonant Dowsing Course",
       orderId: entity.entityId,
+    });
+    return;
+  }
+
+  if (entity.entityType === "shop") {
+    const order = await fulfillShopPurchase(db as Database, {
+      entitlementId: entity.entityId,
+      userId,
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId: providerPaymentIntentId,
+      amountCents: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+    });
+    const entitlement = await getShopEntitlementById(db as Database, entity.entityId);
+    const product = entitlement
+      ? await getShopProductById(db as Database, entitlement.productId)
+      : null;
+    logger.info({
+      eventType: "checkout.session.completed",
+      checkoutSessionId: session.id,
+      paymentId: paidPayment.id,
+      entitlementId: entity.entityId,
+      productId: product?.id,
+      userId,
+    }, "stripe_shop_entitlement_granted");
+    if (product) {
+      await sendShopDigitalFulfillmentEmail(db as Database, {
+        orderId: order.id,
+        userId,
+        productId: product.id,
+        recipientEmail: metadata.userEmail,
+      }).catch((error) => {
+        logger.error({
+          checkoutSessionId: session.id,
+          orderId: order.id,
+          error: error instanceof Error ? error.message : error,
+        }, "shop_fulfillment_email_failed");
+      });
+    }
+    await emitPaymentSucceededNotifications(db, logger, {
+      userId,
+      userEmail: metadata.userEmail,
+      entityId: entity.entityId,
+      paymentId: paidPayment.id,
+      amount: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+      product: product?.name ?? "Shop purchase",
+      orderId: order.id,
+      skipUserNotification: product?.fulfillment_email_enabled !== false,
     });
     return;
   }

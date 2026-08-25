@@ -12,6 +12,7 @@
     "build": "tsc",
     "start": "tsx dist/index.js",
     "membership:test-user": "tsx src/scripts/bootstrapMembershipTestUser.ts",
+    "test:shop-fulfillment-api": "tsx src/scripts/startShopFulfillmentTestApi.ts",
     "test": "SKIP_SCHEMA_VERIFY=true OPENAI_API_KEY=test node --test --import tsx $(rg --files src -g '*.test.ts' -g '!src/services/divin8/divin8Orchestrator.test.ts')",
     "test:divin8:live": "node --test --import tsx src/services/divin8/divin8Orchestrator.test.ts",
     "test:enforce": "SKIP_SCHEMA_VERIFY=true tsx src/scripts/enforceRouteInvariants.ts",

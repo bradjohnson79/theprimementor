@@ -42,7 +42,17 @@ export default function AdminGuard() {
   const [state, setState] = useState<GuardState>("loading");
   const [attempt, setAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [clerkTimedOut, setClerkTimedOut] = useState(false);
   const clientDashboardHref = useMemo(() => getClientDashboardHref(), []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      setClerkTimedOut(false);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setClerkTimedOut(true), 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [isLoaded]);
 
   /** Avoid full-screen loading + outlet unmount when Clerk refetches `user` with the same id. */
   const verifiedAdminRef = useRef(false);
@@ -130,6 +140,30 @@ export default function AdminGuard() {
   }, [attempt, isLoaded, isSignedIn, getToken, user?.id]);
 
   if (state === "loading") {
+    if (clerkTimedOut && !isLoaded) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center bg-navy text-center">
+          <div className="aurora-bg" />
+          <div className="glass-card relative z-10 max-w-md p-8">
+            <h1 className="text-2xl font-bold text-white">Sign-in could not start</h1>
+            <p className="mt-3 text-white/60">
+              Clerk did not finish loading on this origin. Open Admin at http://127.0.0.1:5174/ in Chrome,
+              and confirm that address is allowed on the live Clerk instance.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setClerkTimedOut(false);
+                window.location.reload();
+              }}
+              className="mt-6 rounded-lg bg-accent-cyan/20 px-6 py-2.5 text-sm font-medium text-accent-cyan transition-colors hover:bg-accent-cyan/30"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-screen items-center justify-center bg-navy">
         <div className="aurora-bg" />

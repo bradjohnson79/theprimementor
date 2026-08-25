@@ -35,7 +35,7 @@ const PAYMENT_MATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
 const DUPLICATE_PENDING_ATTEMPT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const REGENERATION_ORDER_BOOKING_FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "custom";
+export type AdminOrderType = "session" | "report" | "subscription" | "webinar" | "mentor_training" | "regeneration_offer" | "shop" | "custom";
 export type AdminOrderStatus =
   | "unpaid"
   | "pending_payment"
@@ -241,6 +241,11 @@ export interface AdminOrder {
     payment_source?: string | null;
     payment_sync_status?: string | null;
     stripe_checkout_session_id?: string | null;
+    fulfillment_type?: string | null;
+    fulfillment_email_status?: string | null;
+    fulfillment_email_sent_at?: string | null;
+    fulfillment_email_message_id?: string | null;
+    fulfillment_email_error?: string | null;
     manual_paid?: boolean | null;
     /** From payment.metadata when admin sent a Stripe recovery invoice (report checkout fallback). */
     recovery_invoice_id: string | null;
@@ -638,7 +643,7 @@ function applyPersistedOrderState(candidate: OrderCandidate, persistedOrder: Per
 }
 
 export function parseOrderId(orderId: string): ParsedOrderId {
-  const knownTypes: AdminOrderType[] = ["regeneration_offer", "mentor_training", "subscription", "session", "report", "webinar", "custom"];
+  const knownTypes: AdminOrderType[] = ["regeneration_offer", "mentor_training", "subscription", "session", "report", "webinar", "shop", "custom"];
   const matchedType = knownTypes.find((type) => orderId.startsWith(`${type}_`)) ?? null;
   const sourceId = matchedType ? orderId.slice(matchedType.length + 1).trim() : "";
   if (!sourceId) {
@@ -1901,6 +1906,8 @@ function getAvailableActions(type: AdminOrderType, sessionLabel?: string | null)
       return ["mark_in_progress", "mark_completed"];
     case "regeneration_offer":
       return ["create_invoice"];
+    case "shop":
+      return ["resend_fulfillment_email"];
     case "custom":
       return [];
   }
@@ -2614,7 +2621,7 @@ function normalizePersistedOrderType(type: string): AdminOrderType {
   if (type === "subscription" || type === "subscription_initial" || type === "subscription_renewal") {
     return "subscription";
   }
-  if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "regeneration_offer" || type === "custom") {
+  if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "regeneration_offer" || type === "shop" || type === "custom") {
     return type;
   }
   logger.warn("orders_unknown_persisted_order_type", { type });
@@ -2863,6 +2870,11 @@ function createPersistedAdminOrder(
       payment_source: persistedPaymentSource,
       payment_sync_status: persistedPaymentSource,
       stripe_checkout_session_id: row.paymentReference?.startsWith("cs_") ? row.paymentReference : invoice?.stripeCheckoutSessionId ?? null,
+      fulfillment_type: getString(orderMetadata?.fulfillmentType),
+      fulfillment_email_status: getString(orderMetadata?.fulfillmentEmailStatus),
+      fulfillment_email_sent_at: getString(orderMetadata?.fulfillmentEmailSentAt),
+      fulfillment_email_message_id: getString(orderMetadata?.fulfillmentEmailMessageId),
+      fulfillment_email_error: getString(orderMetadata?.fulfillmentEmailError),
       manual_paid: persistedPaymentSource === "manual_paid",
     },
   };
