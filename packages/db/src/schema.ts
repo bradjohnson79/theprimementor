@@ -42,7 +42,13 @@ type PromoTarget =
   | "mentor_training:entry"
   | "mentor_training:seeker"
   | "mentor_training:initiate"
-  | "mentoring_circle";
+  | "mentoring_circle"
+  | "shop:remote-source-bed-kit"
+  | "shop:digital-safeguard-kit"
+  | "shop:healing-code-cards-source-deck-body-set"
+  | "shop:healing-code-cards-body-deck"
+  | "shop:healing-code-cards-mind-deck"
+  | "shop:healing-code-cards-energy-deck";
 
 type PromoBillingScope = "one_time" | "recurring";
 

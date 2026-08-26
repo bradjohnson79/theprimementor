@@ -294,6 +294,7 @@ describe("Shop catalog architecture", () => {
 
   it("wires the six Shop products into promo targets, validation, and checkout", () => {
     const promo = read("packages/utils/src/promo.ts");
+    const schema = read("packages/db/src/schema.ts");
     const promoService = read("apps/api/src/services/promoCodeService.ts");
     const payment = read("apps/api/src/services/paymentService.ts");
     const shopCheckout = payment.slice(payment.indexOf("async function createShopCheckoutSession"));
@@ -303,6 +304,12 @@ describe("Shop catalog architecture", () => {
     assert.match(promo, /shop:healing-code-cards-body-deck/);
     assert.match(promo, /shop:healing-code-cards-mind-deck/);
     assert.match(promo, /shop:healing-code-cards-energy-deck/);
+    assert.match(schema, /shop:remote-source-bed-kit/);
+    assert.match(schema, /shop:digital-safeguard-kit/);
+    assert.match(schema, /shop:healing-code-cards-source-deck-body-set/);
+    assert.match(schema, /shop:healing-code-cards-body-deck/);
+    assert.match(schema, /shop:healing-code-cards-mind-deck/);
+    assert.match(schema, /shop:healing-code-cards-energy-deck/);
     assert.match(promoService, /buildShopPromoTarget/);
     assert.match(promoService, /type === "shop"/);
     assert.match(promoService, /addShopProductsToPromoTargetIndex/);
