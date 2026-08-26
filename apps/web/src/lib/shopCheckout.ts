@@ -30,13 +30,17 @@ export function shopCheckoutErrorMessage(error: unknown): string {
 export async function startShopCheckout(
   productId: string,
   token: string | null,
+  promoCode?: string | null,
 ): Promise<{ alreadyPaid: boolean }> {
   if (!token?.trim()) {
     const error = new Error("Please sign in to continue checkout.") as Error & { status?: number };
     error.status = 401;
     throw error;
   }
-  const data = (await api.post("/shop/checkout", { productId }, token)) as ShopCheckoutResponse;
+  const data = (await api.post("/shop/checkout", {
+    productId,
+    ...(promoCode?.trim() ? { promoCode: promoCode.trim() } : {}),
+  }, token)) as ShopCheckoutResponse;
   if (data.alreadyPaid || data.data?.alreadyPaid) {
     return { alreadyPaid: true };
   }

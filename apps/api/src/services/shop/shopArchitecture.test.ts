@@ -151,6 +151,8 @@ describe("Shop catalog architecture", () => {
     const productPage = read("apps/web/src/routes/ShopProduct.tsx");
     const checkout = read("apps/web/src/lib/shopCheckout.ts");
     assert.match(productPage, /startShopCheckout/);
+    assert.match(productPage, /PromoCodeInput/);
+    assert.match(productPage, /type: "shop"/);
     assert.match(productPage, /Preparing Checkout/);
     assert.match(productPage, /shopPurchaseReturnPath/);
     assert.ok(
@@ -159,6 +161,7 @@ describe("Shop catalog architecture", () => {
     );
     assert.match(checkout, /\/shop\/\$\{slug\}\?purchase=1/);
     assert.match(checkout, /Please sign in to continue checkout/);
+    assert.match(checkout, /promoCode/);
     assert.equal(checkout.includes("amount"), false);
     assert.equal(checkout.includes("stripePriceId"), false);
     assert.match(checkout, /checkout\.stripe\.com/);
@@ -167,8 +170,9 @@ describe("Shop catalog architecture", () => {
 
   it("checkout route accepts productId only and ignores client amount", () => {
     const routes = read("apps/api/src/routes/shop.ts");
-    const checkout = routes.slice(routes.indexOf('app.post<{ Body: { productId?: string } }>("/shop/checkout"'));
+    const checkout = routes.slice(routes.indexOf('app.post<{ Body: { productId?: string; promoCode?: string } }>("/shop/checkout"'));
     assert.match(checkout, /productId is required/);
+    assert.match(checkout, /promoCode: request.body\?\.promoCode/);
     assert.equal(checkout.includes("request.body?.amount"), false);
     assert.equal(checkout.includes("request.body?.priceId"), false);
     assert.equal(checkout.includes("request.body?.stripePriceId"), false);
@@ -286,6 +290,25 @@ describe("Shop catalog architecture", () => {
     assert.match(editor, /Featured on Homepage/);
     assert.match(editor, /product\.featured/);
     assert.equal(editor.includes("featuredOnHomepage"), false);
+  });
+
+  it("wires the six Shop products into promo targets, validation, and checkout", () => {
+    const promo = read("packages/utils/src/promo.ts");
+    const promoService = read("apps/api/src/services/promoCodeService.ts");
+    const payment = read("apps/api/src/services/paymentService.ts");
+    const shopCheckout = payment.slice(payment.indexOf("async function createShopCheckoutSession"));
+    assert.match(promo, /shop:remote-source-bed-kit/);
+    assert.match(promo, /shop:digital-safeguard-kit/);
+    assert.match(promo, /shop:healing-code-cards-source-deck-body-set/);
+    assert.match(promo, /shop:healing-code-cards-body-deck/);
+    assert.match(promo, /shop:healing-code-cards-mind-deck/);
+    assert.match(promo, /shop:healing-code-cards-energy-deck/);
+    assert.match(promoService, /buildShopPromoTarget/);
+    assert.match(promoService, /type === "shop"/);
+    assert.match(promoService, /addShopProductsToPromoTargetIndex/);
+    assert.match(shopCheckout, /validatePromoForCheckout/);
+    assert.match(shopCheckout, /type: "shop"/);
+    assert.match(shopCheckout, /buildCheckoutDiscountConfig\(promo\)/);
   });
 
   it("shop nav dropdown reads the featured catalog and widens the Shop panel", () => {

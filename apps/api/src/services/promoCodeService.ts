@@ -8,6 +8,7 @@ import {
   promoCodes,
   promoCodeUsages,
   reports,
+  shopProducts,
   subscriptions,
   type Database,
 } from "@wisdom/db";
@@ -17,6 +18,7 @@ import {
   MENTOR_TRAINING_PACKAGES,
   PROMO_TARGETS,
   PROMO_TARGET_VALUES,
+  buildShopPromoTarget,
   logger,
   normalizePromoCode,
   type MentorTrainingPackageType,
@@ -38,7 +40,7 @@ import { getActiveMentoringCirclePurchaseEvent, getMentoringCircleEventOrThrow }
 // Checkout validation returns local estimates, while paymentService still passes
 // the Stripe promotion code to Checkout so Stripe executes the actual discount.
 // Webhook redemption tracking remains recordPromoUsage below.
-type CheckoutType = "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
+type CheckoutType = "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "shop";
 type SyncDirection = "db_to_stripe" | "stripe_to_db";
 type PromoSyncStatus = "synced" | "needs_sync" | "broken";
 type PromoDiscountType = "percentage" | "fixed_amount";
@@ -54,6 +56,8 @@ interface PromoContextInput {
   membershipId?: string;
   trainingOrderId?: string;
   eventId?: string;
+  shopProductId?: string;
+  shopSlug?: string;
   sessionType?: string | null;
   reportTier?: ReportTierId | null;
   membershipTier?: "seeker" | "initiate" | null;
@@ -708,12 +712,48 @@ async function resolvePromoCheckoutContext(db: Database, input: PromoContextInpu
     };
   }
 
+  if (type === "shop") {
+    const productId = input.shopProductId?.trim();
+    const slug = input.shopSlug?.trim();
+    if (!productId && !slug) {
+      throw createHttpError(400, "shopProductId or shopSlug is required");
+    }
+    const [row] = await db
+      .select({
+        id: shopProducts.id,
+        slug: shopProducts.slug,
+        priceCents: shopProducts.price_cents,
+        currency: shopProducts.currency,
+        isActive: shopProducts.is_active,
+        status: shopProducts.status,
+      })
+      .from(shopProducts)
+      .where(productId ? eq(shopProducts.id, productId) : eq(shopProducts.slug, slug!))
+      .limit(1);
+    if (!row || !row.isActive || row.status !== "active") {
+      throw createHttpError(404, "Shop product not found");
+    }
+    const target = buildShopPromoTarget(row.slug);
+    if (!target) {
+      throw createHttpError(400, "This Shop product does not support promo codes yet.");
+    }
+    return {
+      type,
+      amountCents: row.priceCents,
+      currency: row.currency,
+      targets: [target],
+      billingScope: "one_time",
+      userId: input.userId,
+    };
+  }
+
   const event = input.eventId?.trim()
     ? getMentoringCircleEventOrThrow(input.eventId.trim())
     : getActiveMentoringCirclePurchaseEvent();
   if (!event) {
     throw createHttpError(409, "No Mentoring Circle event is currently available for purchase.");
   }
+
   return {
     type: "mentoring_circle",
     amountCents: event.priceCents,
@@ -1536,7 +1576,32 @@ async function addPriceToPromoTargetIndex(
   }
 }
 
-async function buildPromoCatalogTargetIndex(stripe: Stripe): Promise<PromoCatalogTargetIndex> {
+async function addShopProductsToPromoTargetIndex(
+  db: Database,
+  stripe: Stripe,
+  index: PromoCatalogTargetIndex,
+) {
+  const products = await db
+    .select({
+      slug: shopProducts.slug,
+      stripePriceId: shopProducts.stripe_price_id,
+    })
+    .from(shopProducts)
+    .where(eq(shopProducts.is_active, true));
+
+  for (const product of products) {
+    const target = buildShopPromoTarget(product.slug);
+    const priceId = product.stripePriceId?.trim();
+    if (!target || !priceId) continue;
+    try {
+      await addPriceToPromoTargetIndex(stripe, index, priceId, [target]);
+    } catch {
+      // Ignore optional catalog gaps.
+    }
+  }
+}
+
+async function buildPromoCatalogTargetIndex(db: Database, stripe: Stripe): Promise<PromoCatalogTargetIndex> {
   const index: PromoCatalogTargetIndex = new Map();
   const bookingMappings: Array<{ bookingTypeId: string; sessionType: string; durationMinutes: number | null }> = [
     { bookingTypeId: "qa-session-30", sessionType: "qa_session", durationMinutes: 30 },
@@ -1602,6 +1667,7 @@ async function buildPromoCatalogTargetIndex(stripe: Stripe): Promise<PromoCatalo
     }
   }
 
+  await addShopProductsToPromoTargetIndex(db, stripe, index);
   return index;
 }
 
@@ -1642,7 +1708,7 @@ export async function testPromoCodeAgainstPrice(db: Database, input: {
 
   const appliesTo = (promo.applies_to as PromoTarget[] | null) ?? null;
   if (appliesTo?.length) {
-    const targetIndex = await buildPromoCatalogTargetIndex(stripe);
+    const targetIndex = await buildPromoCatalogTargetIndex(db, stripe);
     const priceTargets = [
       ...(targetIndex.get(price.id) ?? []),
       ...(catalogEntry.productId ? targetIndex.get(catalogEntry.productId) ?? [] : []),

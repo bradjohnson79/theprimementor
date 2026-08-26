@@ -41,13 +41,15 @@ interface UpdatePromoBody extends Partial<CreatePromoBody> {
 
 interface ValidatePromoBody {
   code?: string;
-  type?: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle";
+  type?: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "shop";
   bookingId?: string;
   bookingTypeId?: string;
   reportId?: string;
   membershipId?: string;
   trainingOrderId?: string;
   eventId?: string;
+  shopProductId?: string;
+  shopSlug?: string;
   sessionType?: string | null;
   reportTier?: ReportTierId | null;
   membershipTier?: "seeker" | "initiate" | null;
@@ -160,6 +162,8 @@ export async function promoCodesRoutes(app: FastifyInstance) {
       membershipId: body.membershipId,
       trainingOrderId: body.trainingOrderId,
       eventId: body.eventId,
+      shopProductId: body.shopProductId,
+      shopSlug: body.shopSlug,
       sessionType: body.sessionType,
       reportTier: body.reportTier ?? null,
       membershipTier: body.membershipTier ?? null,

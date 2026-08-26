@@ -123,7 +123,7 @@ export async function shopRoutes(app: FastifyInstance) {
     return ok(await listMemberShopPurchases(db, user.id));
   });
 
-  app.post<{ Body: { productId?: string } }>("/shop/checkout", { preHandler: requireAuth }, async (request) => {
+  app.post<{ Body: { productId?: string; promoCode?: string } }>("/shop/checkout", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);
     const user = requireDbUser(request);
     const clerkId = requireClerkId(request);
@@ -153,6 +153,7 @@ export async function shopRoutes(app: FastifyInstance) {
       userId: user.id,
       userEmail: user.email,
       clerkId,
+      promoCode: request.body?.promoCode,
     });
 
     return ok({

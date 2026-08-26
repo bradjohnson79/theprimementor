@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   PROMO_TARGETS,
+  PROMO_TARGET_LABELS,
+  buildShopPromoTarget,
   formatPromoExpirationPacific,
   normalizePromoBillingScopeForTargets,
   pacificDateTimeToUtcIso,
@@ -57,6 +59,18 @@ test("buildTargetsFromBookingSession includes mentoring duration targets", () =>
 
 test("buildTargetFromReportTier maps deep dive reports", () => {
   assert.equal(buildTargetFromReportTier("deep_dive"), PROMO_TARGETS.REPORT_DEEP_DIVE);
+});
+
+test("buildShopPromoTarget maps the six Shop digital products", () => {
+  assert.equal(buildShopPromoTarget("remote-source-bed-kit"), PROMO_TARGETS.SHOP_REMOTE_SOURCE_BED_KIT);
+  assert.equal(buildShopPromoTarget("digital-safeguard-kit"), PROMO_TARGETS.SHOP_DIGITAL_SAFEGUARD_KIT);
+  assert.equal(buildShopPromoTarget("healing-code-cards-source-deck-body-set"), PROMO_TARGETS.SHOP_SOURCE_DECK_BODY_SET);
+  assert.equal(buildShopPromoTarget("healing-code-cards-body-deck"), PROMO_TARGETS.SHOP_BODY_DECK);
+  assert.equal(buildShopPromoTarget("healing-code-cards-mind-deck"), PROMO_TARGETS.SHOP_MIND_DECK);
+  assert.equal(buildShopPromoTarget("healing-code-cards-energy-deck"), PROMO_TARGETS.SHOP_ENERGY_DECK);
+  assert.equal(buildShopPromoTarget("unknown-product"), null);
+  assert.equal(PROMO_TARGET_LABELS[PROMO_TARGETS.SHOP_BODY_DECK], "Healing Code Cards: Body Deck");
+  assert.equal(PROMO_TARGET_LABELS[PROMO_TARGETS.SHOP_REMOTE_SOURCE_BED_KIT], "Remote Source Bed Kit");
 });
 
 test("buildTargetFromReportProduct maps casual report products", () => {

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import WebsiteStatusPage from "../components/public/WebsiteStatusPage";
+import PromoCodeInput from "../components/checkout/PromoCodeInput";
+import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
 import type { ShopPublicProduct, ShopPurchase } from "../lib/shop";
 import { shopMediaSrc } from "../lib/shop";
@@ -46,6 +48,7 @@ export default function ShopProduct() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isSignedIn, getToken } = useAuth();
+  const promo = usePromoCode(getToken);
   const [product, setProduct] = useState<ShopPublicProduct | null>(null);
   const [purchased, setPurchased] = useState(false);
   const [missing, setMissing] = useState(false);
@@ -86,6 +89,10 @@ export default function ShopProduct() {
   }, [getToken, isSignedIn, product]);
 
   useEffect(() => {
+    promo.reset();
+  }, [product?.id, promo.reset]);
+
+  useEffect(() => {
     if (missing) return;
     if (searchParams.get("purchase") !== "1") return;
     if (!product || !isSignedIn || purchased || product.purchased || product.canPurchase === false) return;
@@ -115,7 +122,7 @@ export default function ShopProduct() {
         setError("Please sign in to continue checkout.");
         return;
       }
-      const result = await startShopCheckout(product.id, token);
+      const result = await startShopCheckout(product.id, token, promo.validation?.code);
       if (result.alreadyPaid) {
         navigate("/dashboard/purchases");
       }
@@ -178,6 +185,28 @@ export default function ShopProduct() {
             </p>
           ) : null}
           {error ? <p role="alert" className="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
+          {product && !purchased && !product.purchased && product.canPurchase !== false ? (
+            <div className="mt-6 max-w-xl">
+              <PromoCodeInput
+                code={promo.code}
+                onCodeChange={promo.setCode}
+                onApply={() => {
+                  void promo.apply({
+                    type: "shop",
+                    shopProductId: product.id,
+                    shopSlug: product.slug,
+                  });
+                }}
+                onRemove={promo.clear}
+                applying={promo.applying}
+                error={promo.error}
+                appliedCode={promo.validation?.code ?? null}
+                estimatedDiscount={promo.validation?.estimatedDiscount ?? null}
+                finalEstimate={promo.validation?.finalEstimate ?? null}
+                currency={promo.validation?.currency ?? null}
+              />
+            </div>
+          ) : null}
           <div className="mt-8 flex flex-wrap items-center gap-3">
             {purchased || product?.purchased ? (
               <Link to="/dashboard/purchases" className="inline-flex min-h-12 rounded-xl bg-accent-cyan px-5 py-3 text-sm font-semibold text-slate-950">

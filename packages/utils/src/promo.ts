@@ -20,6 +20,12 @@ export const PROMO_TARGETS = {
   MENTOR_TRAINING_SEEKER: "mentor_training:seeker",
   MENTOR_TRAINING_INITIATE: "mentor_training:initiate",
   MENTORING_CIRCLE: "mentoring_circle",
+  SHOP_REMOTE_SOURCE_BED_KIT: "shop:remote-source-bed-kit",
+  SHOP_DIGITAL_SAFEGUARD_KIT: "shop:digital-safeguard-kit",
+  SHOP_SOURCE_DECK_BODY_SET: "shop:healing-code-cards-source-deck-body-set",
+  SHOP_BODY_DECK: "shop:healing-code-cards-body-deck",
+  SHOP_MIND_DECK: "shop:healing-code-cards-mind-deck",
+  SHOP_ENERGY_DECK: "shop:healing-code-cards-energy-deck",
 } as const;
 
 export type PromoTarget = typeof PROMO_TARGETS[keyof typeof PROMO_TARGETS];
@@ -48,6 +54,12 @@ export const PROMO_TARGET_LABELS: Record<PromoTarget, string> = {
   [PROMO_TARGETS.MENTOR_TRAINING_SEEKER]: "Mentor Training Seeker Package",
   [PROMO_TARGETS.MENTOR_TRAINING_INITIATE]: "Mentor Training Initiate Package",
   [PROMO_TARGETS.MENTORING_CIRCLE]: "Mentoring Circle",
+  [PROMO_TARGETS.SHOP_REMOTE_SOURCE_BED_KIT]: "Remote Source Bed Kit",
+  [PROMO_TARGETS.SHOP_DIGITAL_SAFEGUARD_KIT]: "Digital Safeguard Kit",
+  [PROMO_TARGETS.SHOP_SOURCE_DECK_BODY_SET]: "Healing Code Cards: Source Deck — Body Set",
+  [PROMO_TARGETS.SHOP_BODY_DECK]: "Healing Code Cards: Body Deck",
+  [PROMO_TARGETS.SHOP_MIND_DECK]: "Healing Code Cards: Mind Deck",
+  [PROMO_TARGETS.SHOP_ENERGY_DECK]: "Healing Code Cards: Energy Deck",
 };
 
 export const PROMO_BILLING_SCOPES = ["one_time", "recurring"] as const;
@@ -55,6 +67,11 @@ export type PromoBillingScope = typeof PROMO_BILLING_SCOPES[number];
 
 export function isPromoTarget(value: unknown): value is PromoTarget {
   return typeof value === "string" && PROMO_TARGET_VALUES.includes(value as PromoTarget);
+}
+
+export function buildShopPromoTarget(slug: string): PromoTarget | null {
+  const target = `shop:${slug.trim()}`;
+  return isPromoTarget(target) ? target : null;
 }
 
 export function normalizePromoCode(value: string) {

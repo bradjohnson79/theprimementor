@@ -908,12 +908,22 @@ async function createShopCheckoutSession(db: Database, input: CreateCheckoutSess
   }
 
   const stripe = getStripe();
+  const promo = await validatePromoForCheckout(db, {
+    code: input.promoCode ?? "",
+    type: "shop",
+    shopProductId: product.id,
+    shopSlug: product.slug,
+    userId: input.userId,
+  });
   const metadata = buildCheckoutMetadata({
     ...input,
     type: "shop",
     entityId: shopEntitlementId,
     shopProductId: product.id,
     shopEntitlementId,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
   });
   metadata.customer_email = input.userEmail;
   const stripeCustomerId = await ensureStripeCustomerId(db, {
@@ -931,6 +941,7 @@ async function createShopCheckoutSession(db: Database, input: CreateCheckoutSess
     mode: "payment",
     client_reference_id: shopEntitlementId,
     line_items: [{ price: priceId, quantity: 1 }],
+    ...buildCheckoutDiscountConfig(promo),
     metadata,
     payment_intent_data: {
       description: product.name,
@@ -952,6 +963,9 @@ async function createShopCheckoutSession(db: Database, input: CreateCheckoutSess
     purchase_type: "shop",
     shopProductId: product.id,
     shopEntitlementId,
+    promoCode: promo?.code,
+    promoCodeId: promo?.promoCodeId,
+    stripePromotionCodeId: promo?.stripePromotionCodeId,
     environment: metadata.environment,
   });
 
