@@ -13,7 +13,7 @@ apps/api/uploads/
 /blob-report/
 /playwright/.cache/
 /e2e/.auth/
-reports/
+/reports/
 courses/
 Regen Session Script.docx
 ~$*.docx

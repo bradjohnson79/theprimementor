@@ -4,7 +4,7 @@ import {
   DIVIN8_REPORT_PRICE_CENTS_BY_TIER,
   REPORT_PRODUCTS,
   formatZodIssues,
-  getReportTierDefinition,
+  getSystemsForReportType,
   isPremiumReportProduct,
   parseReportIntake,
   resolveReportProductKey,
@@ -17,7 +17,10 @@ import { createHttpError } from "./booking/errors.js";
 import { assertValidTimeZone } from "./booking/timezoneService.js";
 import { resolveFullMarkdown } from "./reportFormat.js";
 import { normalizeStructuredBirthplace } from "./intake/placeSelection.js";
-import { createPaymentRecordForEntity, getReusablePaymentForEntity } from "./payments/paymentsService.js";
+import {
+  createPaymentRecordForEntity,
+  getReusablePaymentForEntity,
+} from "./payments/paymentsService.js";
 
 export interface MemberReportSummary {
   id: string;
@@ -91,7 +94,8 @@ function normalizeEmail(value: unknown): string | null {
 }
 
 function normalizeReportType(input: CreateMemberReportInput): ReportProductKey {
-  const reportType = resolveReportProductKey(input.reportType) ?? resolveReportProductKey(input.tier);
+  const reportType =
+    resolveReportProductKey(input.reportType) ?? resolveReportProductKey(input.tier);
   if (!reportType) {
     throw createHttpError(
       400,
@@ -111,14 +115,6 @@ function getDisplayTitle(
 function getReportAmountCents(reportType: ReportProductKey) {
   const product = REPORT_PRODUCTS[reportType];
   return isPremiumReportProduct(product) ? DIVIN8_REPORT_PRICE_CENTS_BY_TIER[product.tier] : 0;
-}
-
-function getSystemsForReportType(reportType: ReportProductKey) {
-  const product = REPORT_PRODUCTS[reportType];
-  if (isPremiumReportProduct(product)) {
-    return getReportTierDefinition(product.tier).includeSystems;
-  }
-  return getReportTierDefinition(reportType === "annual_12_month" ? "deep_dive" : "intro").includeSystems;
 }
 
 function buildRawIntake(input: CreateMemberReportInput) {
@@ -155,15 +151,28 @@ function parseIntakeOrThrow(reportType: ReportProductKey, input: CreateMemberRep
   try {
     return parseReportIntake(reportType, buildRawIntake(input));
   } catch (error) {
-    if (error && typeof error === "object" && "issues" in error && Array.isArray((error as { issues?: unknown }).issues)) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "issues" in error &&
+      Array.isArray((error as { issues?: unknown }).issues)
+    ) {
       throw createHttpError(400, formatZodIssues(error as Parameters<typeof formatZodIssues>[0]));
     }
     throw error;
   }
 }
 
-function getPrimaryBirthplace(reportType: ReportProductKey, intake: ReturnType<typeof parseIntakeOrThrow>) {
-  function normalizeOrFallback(input: { birthPlaceName?: unknown; birthLat?: unknown; birthLng?: unknown; birthTimezone?: unknown }) {
+function getPrimaryBirthplace(
+  reportType: ReportProductKey,
+  intake: ReturnType<typeof parseIntakeOrThrow>,
+) {
+  function normalizeOrFallback(input: {
+    birthPlaceName?: unknown;
+    birthLat?: unknown;
+    birthLng?: unknown;
+    birthTimezone?: unknown;
+  }) {
     try {
       return normalizeStructuredBirthplace(input);
     } catch (error) {
@@ -207,10 +216,11 @@ export async function createMemberReportOrder(
   const product = REPORT_PRODUCTS[reportType];
   const parsedIntake = parseIntakeOrThrow(reportType, input);
   const email = normalizeEmail((parsedIntake as { email?: unknown }).email);
-  const timezoneSource = (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "suggested"
-    || (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "fallback"
-    ? (parsedIntake as { timezoneSource: "suggested" | "fallback" }).timezoneSource
-    : "user";
+  const timezoneSource =
+    (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "suggested" ||
+    (parsedIntake as { timezoneSource?: unknown }).timezoneSource === "fallback"
+      ? (parsedIntake as { timezoneSource: "suggested" | "fallback" }).timezoneSource
+      : "user";
   const birthplace = getPrimaryBirthplace(reportType, parsedIntake);
 
   const [dbUser] = await db
@@ -250,12 +260,14 @@ export async function createMemberReportOrder(
       updated_at: reports.updated_at,
     })
     .from(reports)
-    .where(and(
-      eq(reports.user_id, input.userId),
-      eq(reports.interpretation_tier, reportType),
-      eq(reports.member_status, "pending_payment"),
-      eq(reports.archived, false),
-    ))
+    .where(
+      and(
+        eq(reports.user_id, input.userId),
+        eq(reports.interpretation_tier, reportType),
+        eq(reports.member_status, "pending_payment"),
+        eq(reports.archived, false),
+      ),
+    )
     .orderBy(desc(reports.created_at))
     .limit(1);
 
@@ -289,13 +301,15 @@ export async function createMemberReportOrder(
         archived_at: new Date(),
         updated_at: new Date(),
       })
-      .where(and(
-        eq(reports.user_id, input.userId),
-        eq(reports.interpretation_tier, reportType),
-        eq(reports.member_status, "pending_payment"),
-        eq(reports.archived, false),
-        ne(reports.id, reusable.id),
-      ));
+      .where(
+        and(
+          eq(reports.user_id, input.userId),
+          eq(reports.interpretation_tier, reportType),
+          eq(reports.member_status, "pending_payment"),
+          eq(reports.archived, false),
+          ne(reports.id, reusable.id),
+        ),
+      );
 
     const existingPayment = await getReusablePaymentForEntity(db, {
       entityType: "report",
@@ -323,7 +337,10 @@ export async function createMemberReportOrder(
       interpretation_tier: resolveReportProductKey(reusable.interpretation_tier) ?? "intro",
       member_status: reusable.member_status,
       status: reusable.status,
-      display_title: getDisplayTitle(resolveReportProductKey(reusable.interpretation_tier) ?? "intro", reusable.display_title),
+      display_title: getDisplayTitle(
+        resolveReportProductKey(reusable.interpretation_tier) ?? "intro",
+        reusable.display_title,
+      ),
       created_at: reusable.created_at.toISOString(),
       updated_at: reusable.updated_at?.toISOString() ?? null,
       viewable: false,
@@ -373,8 +390,8 @@ export async function createMemberReportOrder(
       metadata: {
         source: "report_create",
         reportId: inserted.id,
-          reportType,
-          tier: isPremiumReportProduct(product) ? product.tier : reportType,
+        reportType,
+        tier: isPremiumReportProduct(product) ? product.tier : reportType,
       },
     });
 
@@ -386,7 +403,10 @@ export async function createMemberReportOrder(
     interpretation_tier: resolveReportProductKey(created.interpretation_tier) ?? "intro",
     member_status: created.member_status,
     status: created.status,
-    display_title: getDisplayTitle(resolveReportProductKey(created.interpretation_tier) ?? "intro", created.display_title),
+    display_title: getDisplayTitle(
+      resolveReportProductKey(created.interpretation_tier) ?? "intro",
+      created.display_title,
+    ),
     created_at: created.created_at.toISOString(),
     updated_at: created.updated_at?.toISOString() ?? null,
     viewable: false,
@@ -405,10 +425,7 @@ export async function listMemberReports(db: Database, userId: string): Promise<M
       updated_at: reports.updated_at,
     })
     .from(reports)
-    .where(and(
-      eq(reports.user_id, userId),
-      eq(reports.archived, false),
-    ))
+    .where(and(eq(reports.user_id, userId), eq(reports.archived, false)))
     .orderBy(desc(reports.created_at));
 
   const summaries = rows.map((row) => {
@@ -479,7 +496,8 @@ export async function getMemberReportDetail(
     .orderBy(desc(reportTierOutputs.updated_at), desc(reportTierOutputs.created_at));
 
   const requestedReportType = resolveReportProductKey(report.interpretation_tier) ?? "intro";
-  const activeTierOutput = tierRows.find((row) => row.tier === requestedReportType) ?? tierRows[0] ?? null;
+  const activeTierOutput =
+    tierRows.find((row) => row.tier === requestedReportType) ?? tierRows[0] ?? null;
   const markdown = resolveFullMarkdown(
     activeTierOutput?.full_markdown ?? report.full_markdown,
     activeTierOutput?.generated_report ?? report.generated_report,

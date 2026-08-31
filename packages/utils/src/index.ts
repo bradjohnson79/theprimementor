@@ -28,6 +28,7 @@ export * from "./reportTiers.js";
 export * from "./reportProducts.js";
 export * from "./reportIntakeSchemas.js";
 export * from "./reportPricing.js";
+export * from "./reportSystems.js";
 export * from "./reportHtml.js";
 export * from "./reportSanitize.js";
 export * from "./divin8.js";
