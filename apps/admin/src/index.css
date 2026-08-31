@@ -111,6 +111,62 @@ html.theme-light .aurora-bg::before {
 .modal-overlay-enter { animation: modal-overlay-in 150ms ease-out both; }
 .modal-panel-enter { animation: modal-scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .drawer-panel-enter { animation: drawer-slide-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ads-drawer-enter { animation: drawer-slide-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.ads-agent-prose {
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.ads-agent-prose > :first-child { margin-top: 0; }
+.ads-agent-prose > :last-child { margin-bottom: 0; }
+.ads-agent-prose p { margin: 0.55em 0; }
+.ads-agent-prose strong { font-weight: 600; }
+.ads-agent-prose em { font-style: italic; }
+.ads-agent-prose h1,
+.ads-agent-prose h2,
+.ads-agent-prose h3 {
+  font-weight: 600;
+  margin: 0.85em 0 0.35em;
+  line-height: 1.35;
+}
+.ads-agent-prose h1 { font-size: 1rem; }
+.ads-agent-prose h2 { font-size: 0.95rem; }
+.ads-agent-prose h3 { font-size: 0.9rem; }
+.ads-agent-prose ul,
+.ads-agent-prose ol {
+  margin: 0.5em 0 0.5em 1.15rem;
+  padding-left: 0.25rem;
+}
+.ads-agent-prose ul { list-style: disc; }
+.ads-agent-prose ol { list-style: decimal; }
+.ads-agent-prose li { margin: 0.2em 0; }
+.ads-agent-prose li > p { margin: 0.2em 0; }
+.ads-agent-prose blockquote {
+  margin: 0.65em 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid currentColor;
+  opacity: 0.85;
+}
+.ads-agent-prose a { text-decoration: underline; }
+.ads-agent-prose code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.ads-agent-prose pre {
+  margin: 0.65em 0;
+  padding: 0.65rem 0.75rem;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  font-size: 0.8rem;
+}
+.ads-agent-prose--light a { color: #0e7490; }
+.ads-agent-prose--light code { background: rgb(241 245 249); }
+.ads-agent-prose--light pre { background: rgb(15 23 42); color: rgb(241 245 249); }
+.ads-agent-prose--dark a { color: rgb(103 232 249); }
+.ads-agent-prose--dark strong { color: rgba(255, 255, 255, 0.95); }
+.ads-agent-prose--dark code { background: rgba(255, 255, 255, 0.1); }
+.ads-agent-prose--dark pre { background: rgba(15, 23, 42, 0.8); }
 
 /* ── Typing-indicator dots ── */
 @keyframes chat-bounce {

@@ -32,6 +32,8 @@ const navItems: NavItem[] = [
   { to: "/admin/analytics", label: "Analytics", icon: "↳", indent: true, matchPrefix: "/admin/analytics" },
   { to: "/admin/seo", label: "SEO", icon: "↳", indent: true, matchPrefix: "/admin/seo" },
   { to: "/admin/promo-codes", label: "Promo Codes", icon: "↳", indent: true, matchPrefix: "/admin/promo-codes" },
+  { to: "/admin/emails", label: "Emails", icon: "↳", indent: true, matchPrefix: "/admin/emails" },
+  { to: "/admin/ads", label: "Ads", icon: "◉", matchPrefix: "/admin/ads" },
 ];
 
 function SidebarToggleButton({
@@ -76,6 +78,8 @@ function navLabelKey(label: string) {
       return "nav.seo";
     case "Promo Codes":
       return "nav.promoCodes";
+    case "Emails":
+      return "nav.emails";
     case "Testimonials":
       return "nav.testimonials";
     case "Knowledge Base":

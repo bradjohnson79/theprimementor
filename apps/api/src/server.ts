@@ -39,6 +39,8 @@ import { analyticsRoutes } from "./routes/analytics.js";
 import { seoRoutes } from "./routes/seo.js";
 import { promoCodesRoutes } from "./routes/promoCodes.js";
 import { shopRoutes } from "./routes/shop.js";
+import { adminEmailsRoutes } from "./routes/adminEmails.js";
+import { adminAdsRoutes } from "./routes/adminAds.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
@@ -715,7 +717,18 @@ export async function buildApp() {
   await initSwissEphemeris();
 
   const app = Fastify({
-    logger: true,
+    logger: {
+      serializers: {
+        req(request) {
+          const url = typeof request.url === "string"
+            ? request.url
+              .replace(/([?&]code=)[^&]+/gi, "$1[redacted]")
+              .replace(/([?&]state=)[^&]+/gi, "$1[redacted]")
+            : request.url;
+          return { method: request.method, url };
+        },
+      },
+    },
     // Enforce 2MB JSON body limit — images must use /api/images/upload (multipart)
     bodyLimit: 2 * 1024 * 1024,
   });
@@ -867,6 +880,8 @@ export async function buildApp() {
   await app.register(seoRoutes, { prefix: "/api" });
   await app.register(promoCodesRoutes, { prefix: "/api" });
   await app.register(shopRoutes, { prefix: "/api" });
+  await app.register(adminEmailsRoutes, { prefix: "/api" });
+  await app.register(adminAdsRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
 

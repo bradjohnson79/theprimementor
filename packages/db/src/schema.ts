@@ -1457,3 +1457,257 @@ export const shopSettings = pgTable("shop_settings", {
   value: text("value").notNull(),
   ...timestamps,
 });
+
+export const emailContacts = pgTable("email_contacts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  first_name: text("first_name"),
+  email: text("email").notNull(),
+  email_normalized: text("email_normalized").notNull(),
+  source: text("source").notNull(),
+  source_reference: text("source_reference"),
+  imported_by_user_id: uuid("imported_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  emailNormalizedUnique: uniqueIndex("email_contacts_email_normalized_uidx").on(table.email_normalized),
+  sourceCreatedIdx: index("email_contacts_source_created_idx").on(table.source, table.created_at),
+  importedByIdx: index("email_contacts_imported_by_idx").on(table.imported_by_user_id),
+}));
+
+export const gmailConnections = pgTable("gmail_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  gmail_address: text("gmail_address").notNull(),
+  encrypted_tokens: text("encrypted_tokens").notNull(),
+  token_expires_at: timestamp("token_expires_at", { withTimezone: true }),
+  granted_scope: text("granted_scope").notNull(),
+  status: text("status").default("connected").notNull(),
+  connected_at: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  userUnique: uniqueIndex("gmail_connections_user_uidx").on(table.user_id),
+}));
+
+export const gmailSearchProfiles = pgTable("gmail_search_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  query: text("query").notNull(),
+  ...timestamps,
+}, (table) => ({
+  userNameUnique: uniqueIndex("gmail_search_profiles_user_name_uidx").on(table.user_id, table.name),
+  userCreatedIdx: index("gmail_search_profiles_user_created_idx").on(table.user_id, table.created_at),
+}));
+
+export const emailContactGmailEvidence = pgTable("email_contact_gmail_evidence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contact_id: uuid("contact_id")
+    .references(() => emailContacts.id, { onDelete: "cascade" })
+    .notNull(),
+  search_profile_id: uuid("search_profile_id").references(() => gmailSearchProfiles.id, { onDelete: "set null" }),
+  query: text("query").notNull(),
+  thread_ids: jsonb("thread_ids").$type<string[]>().default([]).notNull(),
+  message_ids: jsonb("message_ids").$type<string[]>().default([]).notNull(),
+  first_matched_at: timestamp("first_matched_at", { withTimezone: true }),
+  last_matched_at: timestamp("last_matched_at", { withTimezone: true }),
+  match_count: integer("match_count").default(0).notNull(),
+  two_way: boolean("two_way").default(false).notNull(),
+  imported_by_user_id: uuid("imported_by_user_id")
+    .references(() => users.id, { onDelete: "set null" })
+    .notNull(),
+  imported_at: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+}, (table) => ({
+  contactIdx: index("email_contact_gmail_evidence_contact_idx").on(table.contact_id),
+  importedByIdx: index("email_contact_gmail_evidence_imported_by_idx").on(table.imported_by_user_id),
+}));
+
+export const gmailOauthStates = pgTable("gmail_oauth_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: text("state").notNull(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  code_verifier: text("code_verifier").notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  stateUnique: uniqueIndex("gmail_oauth_states_state_uidx").on(table.state),
+  expiresIdx: index("gmail_oauth_states_expires_idx").on(table.expires_at),
+}));
+
+export const gmailSearchSessions = pgTable("gmail_search_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  query: text("query").notNull(),
+  profile_id: uuid("profile_id").references(() => gmailSearchProfiles.id, { onDelete: "set null" }),
+  gmail_page_token: text("gmail_page_token"),
+  candidates: jsonb("candidates").$type<Record<string, unknown>[]>().default([]).notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  userIdx: index("gmail_search_sessions_user_idx").on(table.user_id, table.expires_at),
+}));
+
+export const emailCsvImportSessions = pgTable("email_csv_import_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  column_map: jsonb("column_map").$type<Record<string, string>>().notNull(),
+  rows: jsonb("rows").$type<Record<string, unknown>[]>().notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index("email_csv_import_sessions_user_idx").on(table.user_id, table.expires_at),
+}));
+
+export const emailExclusionRules = pgTable("email_exclusion_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: text("kind").notNull(),
+  value: text("value").notNull(),
+  pattern: text("pattern").notNull(),
+  created_by_user_id: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  kindValueUnique: uniqueIndex("email_exclusion_rules_kind_value_uidx").on(table.kind, table.value),
+}));
+
+export const adsAgentSettings = pgTable("ads_agent_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ollama_url: text("ollama_url").notNull(),
+  preferred_model: text("preferred_model").notNull(),
+  ...timestamps,
+});
+
+export const adsAgentConversations = pgTable("ads_agent_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  title: text("title"),
+  model: text("model"),
+  summary: text("summary"),
+  context: jsonb("context").$type<Record<string, unknown>>(),
+  ...timestamps,
+}, (table) => ({
+  userUpdatedIdx: index("ads_agent_conversations_user_updated_idx").on(table.user_id, table.updated_at),
+}));
+
+export const adsAgentMessages = pgTable("ads_agent_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversation_id: uuid("conversation_id")
+    .references(() => adsAgentConversations.id, { onDelete: "cascade" })
+    .notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  model: text("model"),
+  context: jsonb("context").$type<Record<string, unknown>>(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  conversationCreatedIdx: index("ads_agent_messages_conversation_created_idx").on(table.conversation_id, table.created_at),
+}));
+
+export const adsAgentMemories = pgTable("ads_agent_memories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  kind: text("kind").notNull(),
+  content: text("content").notNull(),
+  source: text("source"),
+  ...timestamps,
+}, (table) => ({
+  userKindIdx: index("ads_agent_memories_user_kind_idx").on(table.user_id, table.kind, table.created_at),
+}));
+
+export const adsDivin8KnowledgeEntries = pgTable("ads_divin8_knowledge_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  category: text("category").notNull(),
+  created_by_user_id: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  categoryUpdatedIdx: index("ads_divin8_knowledge_entries_category_updated_idx").on(table.category, table.updated_at),
+}));
+
+export const adsCampaignProposals = pgTable("ads_campaign_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  status: text("status").default("draft").notNull(),
+  objective: text("objective"),
+  campaign_type: text("campaign_type"),
+  geography: text("geography"),
+  audience: text("audience"),
+  budget: text("budget"),
+  landing_page: text("landing_page"),
+  strategy_notes: text("strategy_notes"),
+  experiment_hypothesis: text("experiment_hypothesis"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  userUpdatedIdx: index("ads_campaign_proposals_user_updated_idx").on(table.user_id, table.updated_at),
+}));
+
+export const adsGoogleOauthStates = pgTable("ads_google_oauth_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: text("state").notNull(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  code_verifier: text("code_verifier").notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  stateUnique: uniqueIndex("ads_google_oauth_states_state_uidx").on(table.state),
+  expiresIdx: index("ads_google_oauth_states_expires_idx").on(table.expires_at),
+}));
+
+export const adsPmaProjects = pgTable("ads_pma_projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  offer_key: text("offer_key").default("divin8_reports").notNull(),
+  ...timestamps,
+}, (table) => ({
+  slugUnique: uniqueIndex("ads_pma_projects_slug_uidx").on(table.slug),
+}));
+
+export const adsPmaAnalyses = pgTable("ads_pma_analyses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  project_id: uuid("project_id")
+    .references(() => adsPmaProjects.id, { onDelete: "cascade" })
+    .notNull(),
+  status: text("status").default("queued").notNull(),
+  stage: text("stage"),
+  seeds: jsonb("seeds").$type<string[]>().default([]).notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+  error: text("error"),
+  created_by_user_id: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  projectCreatedIdx: index("ads_pma_analyses_project_created_idx").on(table.project_id, table.created_at),
+}));
+
+export const adsGoogleConnections = pgTable("ads_google_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  account_key: text("account_key").notNull(),
+  encrypted_tokens: text("encrypted_tokens").notNull(),
+  token_expires_at: timestamp("token_expires_at", { withTimezone: true }),
+  granted_scope: text("granted_scope").notNull(),
+  status: text("status").default("connected").notNull(),
+  validated_at: timestamp("validated_at", { withTimezone: true }),
+  connected_by_user_id: uuid("connected_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  accountKeyUnique: uniqueIndex("ads_google_connections_account_key_uidx").on(table.account_key),
+}));

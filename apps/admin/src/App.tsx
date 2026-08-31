@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AdminGuard from "./guards/AdminGuard";
 import AdminLayout from "./layouts/AdminLayout";
+import AdsLayout from "./layouts/AdsLayout";
 import FullBleedAdminLayout from "./layouts/FullBleedAdminLayout";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
@@ -19,6 +20,21 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Seo from "./pages/Seo";
 import PromoCodes from "./pages/PromoCodes";
+import Emails from "./pages/Emails";
+import AdsCommandCenter from "./pages/ads/CommandCenter";
+import AdsSettings from "./pages/ads/Settings";
+import AdsDivin8Intelligence from "./pages/ads/Divin8Intelligence";
+import AdsCampaignLab from "./pages/ads/CampaignLab";
+import AdsCampaigns from "./pages/ads/Campaigns";
+import AdsKeywordStrategy from "./pages/ads/KeywordStrategy";
+import {
+  AdsAdCopy,
+  AdsAdGroups,
+  AdsConversions,
+  AdsKeywords,
+  AdsOpportunities,
+  AdsSearchTerms,
+} from "./pages/ads/placeholders";
 import ShopList from "./pages/shop/ShopList";
 import ShopProductEditor from "./pages/shop/ShopProductEditor";
 import ShopTestimonialList from "./pages/shop/ShopTestimonialList";
@@ -39,6 +55,20 @@ export default function App() {
         <Route element={<AdminGuard />}>
           <Route element={<FullBleedAdminLayout />}>
             <Route path="admin/divin8-chat" element={<Divin8Chat />} />
+          </Route>
+          <Route element={<AdsLayout />}>
+            <Route path="admin/ads" element={<AdsCommandCenter />} />
+            <Route path="admin/ads/campaigns" element={<AdsCampaigns />} />
+            <Route path="admin/ads/ad-groups" element={<AdsAdGroups />} />
+            <Route path="admin/ads/ad-copy" element={<AdsAdCopy />} />
+            <Route path="admin/ads/keywords" element={<AdsKeywords />} />
+            <Route path="admin/ads/keyword-strategy" element={<AdsKeywordStrategy />} />
+            <Route path="admin/ads/search-terms" element={<AdsSearchTerms />} />
+            <Route path="admin/ads/conversions" element={<AdsConversions />} />
+            <Route path="admin/ads/opportunities" element={<AdsOpportunities />} />
+            <Route path="admin/ads/campaign-lab" element={<AdsCampaignLab />} />
+            <Route path="admin/ads/divin8-intelligence" element={<AdsDivin8Intelligence />} />
+            <Route path="admin/ads/settings" element={<AdsSettings />} />
           </Route>
           <Route element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
@@ -63,6 +93,7 @@ export default function App() {
             <Route path="admin/analytics" element={<Analytics />} />
             <Route path="admin/seo" element={<Seo />} />
             <Route path="admin/promo-codes" element={<PromoCodes />} />
+            <Route path="admin/emails" element={<Emails />} />
             <Route path="admin/courses/resonant-dowsing" element={<ResonantDowsingCourse />} />
             <Route path="admin/divin8-chat/prompt" element={<Divin8Prompt />} />
             <Route path="admin/divin8-chat/knowledge-base" element={<Divin8KnowledgeBase />} />
