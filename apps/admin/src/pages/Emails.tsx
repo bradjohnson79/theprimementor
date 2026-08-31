@@ -80,7 +80,7 @@ const SEARCH_YEAR_OPTIONS = Array.from(
   (_, index) => new Date().getFullYear() - index,
 );
 const COMPLIANCE_NOTICE =
-  "This tool recovers correspondence from your connected Gmail mailbox and maintains a shared master list for AWeber import. It does not send mail, subscribe contacts automatically, or store message bodies.";
+  "This tool recovers correspondence from your connected Gmail mailbox and maintains a shared master list for Brevo import. It does not send mail, subscribe contacts automatically, or store message bodies.";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -632,7 +632,7 @@ export default function Emails() {
     >
       <div>
         <h2 className="text-2xl font-bold text-white">Emails</h2>
-        <p className="mt-1 text-white/55">Search Gmail by keyword, skip filtered addresses, and export the shared AWeber-ready list.</p>
+        <p className="mt-1 text-white/55">Search Gmail by keyword, skip filtered addresses, and export the shared Brevo-ready list.</p>
       </div>
 
       <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-3 text-sm text-white/70" data-emails-compliance-notice>

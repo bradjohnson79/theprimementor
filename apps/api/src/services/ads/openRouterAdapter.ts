@@ -22,7 +22,8 @@ export const ADS_AGENT_ERROR_MESSAGES = {
 
 const HEALTH_CACHE_MS = 30_000;
 const HEALTH_TIMEOUT_MS = 8_000;
-const CHAT_TIMEOUT_MS = 90_000;
+/** Stay under typical Render/proxy request limits so Fastify can return JSON + CORS. */
+export const CHAT_TIMEOUT_MS = 20_000;
 
 export type OpenRouterFetch = typeof fetch;
 
@@ -193,6 +194,7 @@ export async function completeOpenRouterChatTurn(input: {
   messages: OpenRouterChatMessage[];
   tools?: OpenRouterToolDefinition[];
   fetcher?: OpenRouterFetch;
+  timeoutMs?: number;
 }): Promise<OpenRouterChatTurn> {
   const apiKey = openRouterApiKey();
   const model = configuredAdsAgentModel();
@@ -216,7 +218,7 @@ export async function completeOpenRouterChatTurn(input: {
           ...(input.tools?.length ? { tools: input.tools } : {}),
         }),
       },
-      CHAT_TIMEOUT_MS,
+      input.timeoutMs ?? CHAT_TIMEOUT_MS,
       input.fetcher ?? fetch,
     );
     if (!response.ok) {

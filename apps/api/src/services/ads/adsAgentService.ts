@@ -26,6 +26,18 @@ import { analyzeAdsScreenshots, formatVisionForStrategist, pmaFromScreenshotTerm
 import { ADS_PMA_OPENROUTER_TOOLS } from "./adsAgentTools.js";
 
 const MAX_TOOL_ROUNDS = 4;
+/** Whole HTTP handler must finish before the reverse proxy closes the socket (~30s). */
+const ADS_AGENT_HTTP_DEADLINE_MS = 28_000;
+
+function remainingChatMs(startedAt: number) {
+  return Math.max(1_000, ADS_AGENT_HTTP_DEADLINE_MS - (Date.now() - startedAt));
+}
+
+function throwIfChatDeadline(startedAt: number) {
+  if (Date.now() - startedAt >= ADS_AGENT_HTTP_DEADLINE_MS) {
+    throw createHttpError(503, "The Ads Agent timed out before it could finish. Try a shorter question.");
+  }
+}
 
 function adsAgentHttpError(status: AdsAgentHealthStatus, fallback: string) {
   const error = createHttpError(503, fallback);
@@ -60,6 +72,7 @@ export async function chatWithAdsAgent(input: {
     throw createHttpError(400, "Message is too long");
   }
 
+  const startedAt = Date.now();
   const settings = await getAdsAgentSettings(input.db);
   const health = await probeOpenRouterHealth({
     fetcher: input.fetcher,
@@ -90,6 +103,7 @@ export async function chatWithAdsAgent(input: {
     ? sanitizeVisionImages(input.images.map((image) => ({ mimeType: image.mimeType ?? "", data: image.data ?? "" })))
     : [];
   if (images.length) {
+    throwIfChatDeadline(startedAt);
     const vision = await analyzeAdsScreenshots({ images, prompt: message, fetcher: input.fetcher });
     visionBrief = formatVisionForStrategist(vision);
     if (vision.extractedTerms.length) {
@@ -141,10 +155,12 @@ export async function chatWithAdsAgent(input: {
 
   let reply = "";
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    throwIfChatDeadline(startedAt);
     const turn = await completeOpenRouterChatTurn({
       fetcher: input.fetcher,
       messages,
       tools: [...ADS_PMA_OPENROUTER_TOOLS, ...(mode === "READ_ONLY" ? ADS_AGENT_OPENROUTER_TOOLS : [])],
+      timeoutMs: remainingChatMs(startedAt),
     });
     if (turn.toolCalls.length === 0) {
       reply = turn.content ?? "";

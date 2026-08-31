@@ -56,7 +56,7 @@ The connected Gmail address plus `GMAIL_OWNER_ALIASES` are excluded from candida
 2. Domain filters match that domain only. `@google.com` skips `ads@google.com` and does not skip `person@gmail.com`.
 3. Enter a keyword such as `Adronis`, optionally pick a year, and click **Load 1,000 matches**. A year limits Gmail to that calendar year (`after:YYYY/01/01 before:YYYY+1/01/01`). Leave **All years** to search the whole mailbox. Up to 1,000 unique correspondents fill Candidate preview (100 per page). Addresses already on Contacts and exclusion-filter matches are omitted automatically. Use **Continue** for the next 1,000, then select one, the current page, or all loaded rows and **Add selected to Contacts**. **Remove** drops a row from this preview.
 4. **Import matching contacts** still auto-saves eligible new addresses from the same 1,000-address batch and also fills the preview.
-5. **Export CSV** downloads `email,first_name` only for AWeber.
+5. **Export CSV** downloads `email,first_name` only for Brevo.
 
 Candidate preview and CSV import collapse the same address to one row (`Jane@X.com` and `jane@x.com` count as the same). CSV preview keeps only unique new addresses. Rows already on Contacts, repeats in the file, and exclusion-filter matches are omitted and are not imported again. The contacts table has a unique index on the normalized email.
 

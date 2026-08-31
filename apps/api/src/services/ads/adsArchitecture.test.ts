@@ -25,6 +25,8 @@ describe("Ads Intelligence architecture", () => {
     assert.doesNotMatch(service, /ollama|openai|anthropic|gemini/i);
     assert.match(adapter, /https:\/\/openrouter\.ai\/api\/v1/);
     assert.match(adapter, /z-ai\/glm-5\.3-flash/);
+    assert.match(adapter, /export const CHAT_TIMEOUT_MS = 20_000/);
+    assert.match(service, /ADS_AGENT_HTTP_DEADLINE_MS = 28_000/);
     assert.doesNotMatch(adapter, /ollama|openai\.com|anthropic|generativelanguage\.googleapis/i);
     assert.doesNotMatch(prompt, /ollama|openai|anthropic|gemini/i);
     assert.equal(existsSync(path.join(repoRoot, "apps/api/src/services/ads/ollamaAdapter.ts")), false);
