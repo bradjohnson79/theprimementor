@@ -22,11 +22,15 @@ describe("Ads Intelligence architecture", () => {
     const prompt = read("apps/api/src/services/ads/adsAgentPrompt.ts");
     assert.match(service, /completeOpenRouterChat/);
     assert.match(service, /probeOpenRouterHealth/);
+    assert.match(service, /enqueueAdsAgentChat/);
+    assert.match(service, /generateAdsAgentReply/);
+    assert.match(service, /GENERATION_DEADLINE_MS = 90_000/);
+    assert.match(service, /ads_agent_timing/);
     assert.doesNotMatch(service, /ollama|openai|anthropic|gemini/i);
     assert.match(adapter, /https:\/\/openrouter\.ai\/api\/v1/);
     assert.match(adapter, /z-ai\/glm-5\.3-flash/);
     assert.match(adapter, /export const CHAT_TIMEOUT_MS = 20_000/);
-    assert.match(service, /ADS_AGENT_HTTP_DEADLINE_MS = 28_000/);
+    assert.doesNotMatch(service, /ADS_AGENT_HTTP_DEADLINE_MS/);
     assert.doesNotMatch(adapter, /ollama|openai\.com|anthropic|generativelanguage\.googleapis/i);
     assert.doesNotMatch(prompt, /ollama|openai|anthropic|gemini/i);
     assert.equal(existsSync(path.join(repoRoot, "apps/api/src/services/ads/ollamaAdapter.ts")), false);
@@ -70,6 +74,22 @@ describe("Ads Intelligence architecture", () => {
     const provider = read("apps/admin/src/context/AdsAgentProvider.tsx");
     assert.match(provider, /\/admin\/ads\/agent\/conversations/);
     assert.match(provider, /setMessages\(detail\.messages\)/);
+    assert.match(provider, /status: "generating"/);
+    assert.match(provider, /adsAgentUserError/);
+  });
+
+  it("registers layered Ads memory without schema-repair tables", () => {
+    const inventory = read("apps/api/src/routeInventory.ts");
+    const memory = read("apps/api/src/services/ads/adsMemoryService.ts");
+    const settings = read("apps/admin/src/pages/ads/Settings.tsx");
+    assert.match(inventory, /\/api\/admin\/ads\/agent\/memory/);
+    assert.match(inventory, /\/api\/admin\/ads\/agent\/memory\/clear-workspace/);
+    assert.match(memory, /owner_decision/);
+    assert.match(memory, /workspace/);
+    assert.match(memory, /screenshot/);
+    assert.match(memory, /performance/);
+    assert.match(settings, /data-ads-memory/);
+    assert.match(settings, /View Ads Memory/);
   });
 
   it("does not expose Google Ads secret fields in Settings UI", () => {
@@ -78,6 +98,7 @@ describe("Ads Intelligence architecture", () => {
     assert.match(settings, /Not Connected/);
     assert.match(settings, /Test Connection/);
     assert.match(settings, /Connect Google Ads/);
+    assert.match(settings, /Validate API access/);
     assert.match(settings, /OpenRouter/);
     assert.match(settings, /GLM 5\.3 Flash/);
     const labels = read("apps/admin/src/pages/ads/adsApi.ts");
@@ -94,7 +115,10 @@ describe("Ads Intelligence architecture", () => {
     const adsEnv = env.slice(env.indexOf("Admin Ads Intelligence"));
     assert.match(inventory, /\/api\/admin\/ads\/status/);
     assert.match(inventory, /\/api\/admin\/ads\/agent\/chat/);
+    assert.match(read("apps/api/src/routes/adminAds.ts"), /status\(202\)/);
+    assert.match(inventory, /\/api\/admin\/ads\/agent\/memory/);
     assert.match(inventory, /\/api\/admin\/ads\/google\/oauth\/start/);
+    assert.match(inventory, /\/api\/admin\/ads\/google\/validate/);
     assert.match(inventory, /\/api\/admin\/ads\/google\/oauth\/callback/);
     assert.match(inventory, /\/api\/admin\/ads\/reporting\/campaigns/);
     assert.match(inventory, /\/api\/admin\/ads\/pma\/analyze/);

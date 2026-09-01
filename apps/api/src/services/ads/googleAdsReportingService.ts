@@ -33,6 +33,26 @@ export async function validateStoredGoogleAdsConnection(store: AdsGoogleStore, f
   return validated;
 }
 
+export async function retryStoredGoogleAdsValidation(store: AdsGoogleStore, fetcher?: GoogleAdsFetch) {
+  try {
+    return await validateStoredGoogleAdsConnection(store, fetcher);
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : "";
+    const status = code === "GOOGLE_ADS_OAUTH_INVALID"
+      ? "auth_error"
+      : code === "GOOGLE_ADS_DEVELOPER_TOKEN_ERROR"
+        ? "developer_token_error"
+        : code === "GOOGLE_ADS_CUSTOMER_ACCESS_ERROR"
+          ? "access_error"
+          : "api_error";
+    const connection = await store.getConnection();
+    if (connection) {
+      await store.upsertConnection({ ...connection, status, validated_at: null });
+    }
+    throw error;
+  }
+}
+
 export async function loadCampaignPerformance(input: {
   store: AdsGoogleStore;
   range?: { from?: string; to?: string };

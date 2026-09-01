@@ -2,13 +2,19 @@ import type { FastifyInstance } from "fastify";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
-import { chatWithAdsAgent, getAdsAgentHealth } from "../services/ads/adsAgentService.js";
+import { enqueueAdsAgentChat, getAdsAgentHealth } from "../services/ads/adsAgentService.js";
 import {
   clearAdsConversation,
   createAdsConversation,
   getAdsConversation,
   listAdsConversations,
 } from "../services/ads/adsConversationService.js";
+import {
+  adsMemoryStatus,
+  clearAdsWorkspaceMemory,
+  deleteAdsMemory,
+  listAdsMemories,
+} from "../services/ads/adsMemoryService.js";
 import { getDivin8AdvertisingKnowledge } from "../services/ads/adsKnowledgeService.js";
 import { updateAdsAgentSettings } from "../services/ads/adsSettingsService.js";
 import { assertNoGoogleAdsSecrets, serializeGoogleAdsStatus } from "../services/ads/googleAdsConnectionService.js";
@@ -22,7 +28,7 @@ import {
   startGoogleAdsOAuth,
 } from "../services/ads/googleAdsOAuthService.js";
 import { providerForDatabase } from "../services/ads/googleAdsProvider.js";
-import { validateStoredGoogleAdsConnection } from "../services/ads/googleAdsReportingService.js";
+import { retryStoredGoogleAdsValidation } from "../services/ads/googleAdsReportingService.js";
 import { createDbAdsGoogleStore } from "../services/ads/googleAdsStore.js";
 import { clearOpenRouterHealthCache } from "../services/ads/openRouterAdapter.js";
 import { sanitizeAdsAgentContext } from "../services/ads/types.js";
@@ -63,24 +69,12 @@ export async function adminAdsRoutes(app: FastifyInstance) {
         const url = await completeGoogleAdsOAuth(store, request.query ?? {});
         if (url.includes("ads=connected")) {
           try {
-            await validateStoredGoogleAdsConnection(store);
+            await retryStoredGoogleAdsValidation(store);
           } catch (error) {
-            const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : "";
-            const status = code === "GOOGLE_ADS_OAUTH_INVALID"
-              ? "auth_error"
-              : code === "GOOGLE_ADS_DEVELOPER_TOKEN_ERROR"
-                ? "developer_token_error"
-                : code === "GOOGLE_ADS_CUSTOMER_ACCESS_ERROR"
-                  ? "access_error"
-                  : "api_error";
             request.log.warn({
-              adsCode: code || "GOOGLE_ADS_API_ERROR",
+              adsCode: error instanceof Error && "code" in error ? String((error as { code?: string }).code) : "GOOGLE_ADS_API_ERROR",
               adsMessage: error instanceof Error ? error.message : "Google Ads validation failed",
             }, "ads_google_validate_failed");
-            const connection = await store.getConnection();
-            if (connection) {
-              await store.upsertConnection({ ...connection, status });
-            }
             return reply.redirect(adminAdsSettingsRedirectUrl("?ads=error"));
           }
         }
@@ -90,6 +84,29 @@ export async function adminAdsRoutes(app: FastifyInstance) {
       }
     },
   );
+
+  app.post("/admin/ads/google/validate", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    const store = createDbAdsGoogleStore(db);
+    try {
+      await retryStoredGoogleAdsValidation(store);
+      const status = await serializeGoogleAdsStatus(store);
+      assertNoGoogleAdsSecrets(status);
+      return ok(status);
+    } catch (error) {
+      const status = typeof (error as { statusCode?: number }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 502;
+      const code = typeof (error as { code?: string }).code === "string" ? (error as { code: string }).code : undefined;
+      return sendApiError(
+        reply,
+        status,
+        error instanceof Error ? error.message : "Google Ads API validation failed",
+        code ? { code } : undefined,
+      );
+    }
+  });
 
   app.post("/admin/ads/google/disconnect", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);
@@ -176,14 +193,15 @@ export async function adminAdsRoutes(app: FastifyInstance) {
       images?: unknown;
     };
     try {
-      return ok(await chatWithAdsAgent({
+      const queued = await enqueueAdsAgentChat({
         db,
         userId: user.id,
         message: typeof body.message === "string" ? body.message : "",
         conversationId: typeof body.conversationId === "string" ? body.conversationId : undefined,
         context: sanitizeAdsAgentContext(body.context),
         images: Array.isArray(body.images) ? body.images as Array<{ mimeType?: string; data?: string }> : undefined,
-      }));
+      });
+      return reply.status(202).send(ok(queued));
     } catch (error) {
       const status = typeof (error as { statusCode?: number }).statusCode === "number"
         ? (error as { statusCode: number }).statusCode
@@ -197,6 +215,43 @@ export async function adminAdsRoutes(app: FastifyInstance) {
         error instanceof Error ? error.message : "Ads Agent chat failed",
         code ? { code } : undefined,
       );
+    }
+  });
+
+  app.get<{ Querystring: { q?: string; layer?: string } }>("/admin/ads/agent/memory", { preHandler: requireAuth }, async (request, reply) => {
+    const user = requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      const [status, memories] = await Promise.all([
+        adsMemoryStatus(db, user.id),
+        listAdsMemories(db, user.id, { q: request.query.q, layer: request.query.layer }),
+      ]);
+      return ok({ ...status, memories });
+    } catch {
+      return sendApiError(reply, 500, "Ads memory could not be loaded.");
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/admin/ads/agent/memory/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const user = requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      const deleted = await deleteAdsMemory(db, user.id, request.params.id);
+      if (!deleted) return sendApiError(reply, 404, "Ads memory entry not found.");
+      return ok({ deleted: true });
+    } catch (error) {
+      return sendApiError(reply, 500, error instanceof Error ? error.message : "Unable to delete Ads memory");
+    }
+  });
+
+  app.post("/admin/ads/agent/memory/clear-workspace", { preHandler: requireAuth }, async (request, reply) => {
+    const user = requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      await clearAdsWorkspaceMemory(db, user.id);
+      return ok({ cleared: true });
+    } catch (error) {
+      return sendApiError(reply, 500, error instanceof Error ? error.message : "Unable to clear Ads workspace memory");
     }
   });
 

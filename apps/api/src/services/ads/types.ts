@@ -70,6 +70,16 @@ export type AdsAgentConversationSummary = {
   updatedAt: string;
 };
 
+export const ADS_MEMORY_LAYERS = [
+  "workspace",
+  "owner_decision",
+  "campaign",
+  "knowledge",
+  "screenshot",
+  "performance",
+] as const;
+export type AdsMemoryLayer = (typeof ADS_MEMORY_LAYERS)[number];
+
 export const ADS_MEMORY_KINDS = [
   "rejected_angle",
   "approved_positioning",
@@ -78,8 +88,37 @@ export const ADS_MEMORY_KINDS = [
   "keyword_lesson",
   "audience_observation",
   "landing_page_observation",
+  "owner_decision",
+  "workspace_preference",
+  "campaign_state",
+  "screenshot_fact",
+  "performance_observation",
 ] as const;
 export type AdsMemoryKind = (typeof ADS_MEMORY_KINDS)[number];
+
+export type AdsAgentGenerationStatus = "idle" | "generating" | "failed";
+
+export type AdsAgentGeneration = {
+  status: AdsAgentGenerationStatus;
+  startedAt?: string;
+  error?: string;
+  errorCode?: string;
+};
+
+export type AdsMemoryRecord = {
+  id: string;
+  layer: AdsMemoryLayer;
+  kind: string;
+  category: string | null;
+  entityKey: string | null;
+  content: string;
+  source: string | null;
+  authority: number;
+  conversationId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export function isAdsSection(value: unknown): value is AdsSection {
   return typeof value === "string" && (ADS_SECTIONS as readonly string[]).includes(value);

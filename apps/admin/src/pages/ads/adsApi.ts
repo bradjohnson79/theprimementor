@@ -107,6 +107,48 @@ export type AdsAgentMessage = {
   createdAt: string;
 };
 
+export type AdsAgentGeneration = {
+  status: "idle" | "generating" | "failed";
+  startedAt?: string;
+  error?: string;
+  errorCode?: string;
+};
+
+export type AdsMemoryRecord = {
+  id: string;
+  layer: string;
+  kind: string;
+  category: string | null;
+  entityKey: string | null;
+  content: string;
+  authority: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function adsAgentUserError(error: unknown) {
+  const status = error && typeof error === "object" && "status" in error
+    ? Number((error as { status?: number }).status)
+    : 0;
+  const code = error && typeof error === "object" && "code" in error
+    ? String((error as { code?: string }).code || "")
+    : "";
+  const message = error instanceof Error ? error.message : "";
+  if (status === 401 || status === 403) return "Your session expired. Please sign in again.";
+  if (code === "OPENROUTER_UNAVAILABLE" || code === "OPENROUTER_AUTH_ERROR" || code === "OPENROUTER_NOT_CONFIGURED") {
+    return "OpenRouter is temporarily unavailable.";
+  }
+  if (code === "ADS_AGENT_TIMEOUT" || /timed out/i.test(message)) {
+    return "Ads Agent provider timed out. Please retry.";
+  }
+  if (/failed to fetch|networkerror|err_failed|524|502|503|cors/i.test(message)) {
+    return "Ads Agent API is unavailable.";
+  }
+  if (/memory/i.test(message)) return "Ads memory could not be loaded.";
+  if (message && !/failed to fetch/i.test(message)) return message;
+  return "Ads Agent API is unavailable.";
+}
+
 export type Divin8AdsCatalogEntry = {
   key: string;
   displayName: string;

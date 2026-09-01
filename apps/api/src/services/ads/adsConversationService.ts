@@ -5,9 +5,16 @@ import {
 import type { Database } from "@wisdom/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { createHttpError } from "../booking/errors.js";
-import type { AdsAgentContext, AdsAgentConversationSummary, AdsAgentMessage } from "./types.js";
+import type {
+  AdsAgentContext,
+  AdsAgentConversationSummary,
+  AdsAgentGeneration,
+  AdsAgentMessage,
+} from "./types.js";
 
-const HISTORY_LIMIT = 40;
+const HISTORY_LIMIT = 16;
+const GENERATION_STALE_MS = 2 * 60_000;
+const GENERATION_KEY = "_generation";
 
 function mapMessage(row: {
   id: string;
@@ -80,7 +87,66 @@ export async function getAdsConversation(
     model: conversation.model,
     summary: conversation.summary,
     messages: messages.map(mapMessage),
+    generation: readGeneration(conversation.context),
   };
+}
+
+function asContextRecord(value: Record<string, unknown> | null | undefined) {
+  return value && typeof value === "object" ? { ...value } : {};
+}
+
+function readGeneration(context: Record<string, unknown> | null | undefined): AdsAgentGeneration {
+  const raw = context && typeof context === "object" ? context[GENERATION_KEY] : null;
+  if (!raw || typeof raw !== "object") return { status: "idle" };
+  const value = raw as Record<string, unknown>;
+  const startedAt = typeof value.startedAt === "string" ? value.startedAt : undefined;
+  const stale = startedAt ? Date.now() - Date.parse(startedAt) > GENERATION_STALE_MS : false;
+  if (value.status === "generating" && stale) {
+    return {
+      status: "failed",
+      startedAt,
+      error: "Ads Agent provider timed out. Please retry.",
+      errorCode: "ADS_AGENT_TIMEOUT",
+    };
+  }
+  if (value.status === "generating" || value.status === "failed" || value.status === "idle") {
+    return {
+      status: value.status,
+      startedAt,
+      error: typeof value.error === "string" ? value.error : undefined,
+      errorCode: typeof value.errorCode === "string" ? value.errorCode : undefined,
+    };
+  }
+  return { status: "idle" };
+}
+
+export async function patchAdsConversationContext(
+  db: Database,
+  conversationId: string,
+  patch: Record<string, unknown>,
+) {
+  const [row] = await db
+    .select({ context: adsAgentConversations.context })
+    .from(adsAgentConversations)
+    .where(eq(adsAgentConversations.id, conversationId))
+    .limit(1);
+  const current = asContextRecord(row?.context);
+  await db.update(adsAgentConversations).set({
+    context: { ...current, ...patch },
+    updated_at: new Date(),
+  }).where(eq(adsAgentConversations.id, conversationId));
+}
+
+export async function setAdsConversationGeneration(
+  db: Database,
+  conversationId: string,
+  generation: AdsAgentGeneration,
+) {
+  await patchAdsConversationContext(db, conversationId, { [GENERATION_KEY]: generation });
+}
+
+export function conversationIsGenerating(generation: AdsAgentGeneration | undefined | null) {
+  return generation?.status === "generating";
 }
 
 export async function appendAdsMessage(

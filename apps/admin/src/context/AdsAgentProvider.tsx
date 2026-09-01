@@ -12,14 +12,19 @@ import {
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import {
+  adsAgentUserError,
   agentStatusLabel,
   unwrapData,
   type AdsAgentContext,
+  type AdsAgentGeneration,
   type AdsAgentHealth,
   type AdsAgentMessage,
 } from "../pages/ads/adsApi";
 import { adsSectionFromPath, adsSectionLabel, type AdsSection } from "../pages/ads/adsNav";
 import { getPmaAgentFilters } from "../pages/ads/pmaAgentContext";
+
+const POLL_MS = 1_000;
+const POLL_TIMEOUT_MS = 105_000;
 
 type AdsAgentStore = {
   open: boolean;
@@ -49,6 +54,10 @@ function pageContext(section: AdsSection): AdsAgentContext {
   return { section, ...(filters && Object.keys(filters).length ? { filters } : {}) };
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function AdsAgentProvider({ children }: { children: ReactNode }) {
   const { getToken } = useAuth();
   const location = useLocation();
@@ -64,6 +73,8 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
   const lastHealthAt = useRef(0);
   const restoredRef = useRef(false);
   const restoreDoneRef = useRef(false);
+  const pollSeq = useRef(0);
+  const abortPoll = useRef<AbortController | null>(null);
 
   const refreshHealth = useCallback(async (test = false) => {
     try {
@@ -83,7 +94,7 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
         modelLabel: "GLM 5.3 Flash",
         apiKeyConfigured: false,
         reachable: false,
-        message: loadError instanceof Error ? loadError.message : "Ads Agent health failed",
+        message: adsAgentUserError(loadError),
       });
       return null;
     }
@@ -118,6 +129,49 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
     })();
   }, [getToken]);
 
+  useEffect(() => () => {
+    abortPoll.current?.abort();
+    pollSeq.current += 1;
+  }, []);
+
+  const pollConversation = useCallback(async (
+    token: string | null,
+    id: string,
+    afterUserId: string | null,
+    seq: number,
+  ) => {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (pollSeq.current !== seq) return;
+      await sleep(POLL_MS);
+      if (pollSeq.current !== seq) return;
+      const detail = unwrapData<{
+        id: string;
+        messages: AdsAgentMessage[];
+        generation?: AdsAgentGeneration;
+      }>(await api.get(`/admin/ads/agent/conversations/${id}`, token));
+      setMessages(detail.messages);
+      const assistant = [...detail.messages].reverse().find((item) => item.role === "assistant");
+      const user = afterUserId
+        ? detail.messages.find((item) => item.id === afterUserId)
+        : [...detail.messages].reverse().find((item) => item.role === "user");
+      const assistantAfterUser = assistant && user
+        ? new Date(assistant.createdAt).getTime() >= new Date(user.createdAt).getTime()
+        : Boolean(assistant);
+      if (detail.generation?.status === "failed") {
+        throw Object.assign(new Error(detail.generation.error || "Ads Agent provider timed out. Please retry."), {
+          code: detail.generation.errorCode,
+        });
+      }
+      if (detail.generation?.status !== "generating" && assistantAfterUser) {
+        return;
+      }
+    }
+    throw Object.assign(new Error("Ads Agent provider timed out. Please retry."), {
+      code: "ADS_AGENT_TIMEOUT",
+    });
+  }, []);
+
   const sendMessage = useCallback(async (message: string, images?: Array<{ mimeType: string; data: string }>) => {
     const trimmed = message.trim();
     if ((!trimmed && !images?.length) || sending) return;
@@ -125,14 +179,27 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
       setError("Ads Agent is still loading the previous conversation.");
       return;
     }
+    abortPoll.current?.abort();
+    const seq = ++pollSeq.current;
+    abortPoll.current = new AbortController();
     setSending(true);
     setError(null);
     setLastPrompt(trimmed);
+    const optimistic: AdsAgentMessage = {
+      id: `local-user-${Date.now()}`,
+      conversationId: conversationId || "pending",
+      role: "user",
+      content: trimmed,
+      model: null,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((current) => [...current, optimistic]);
     try {
       const token = await getToken();
       const response = unwrapData<{
         conversationId: string;
-        message: AdsAgentMessage;
+        status: "generating";
+        message: AdsAgentMessage | null;
       }>(await api.post("/admin/ads/agent/chat", {
         message: trimmed || "Analyze the attached screenshot.",
         conversationId,
@@ -140,33 +207,31 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
         ...(images?.length ? { images } : {}),
       }, token));
       setConversationId(response.conversationId);
-      setMessages((current) => [
-        ...current,
-        {
-          id: `local-user-${Date.now()}`,
-          conversationId: response.conversationId,
-          role: "user",
-          content: trimmed,
-          model: null,
-          createdAt: new Date().toISOString(),
-        },
-        response.message,
-      ]);
+      if (response.message) {
+        setMessages((current) => current.map((item) => (
+          item.id === optimistic.id ? response.message as AdsAgentMessage : item
+        )));
+      }
+      await pollConversation(token, response.conversationId, response.message?.id ?? null, seq);
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Ads Agent generation failed.");
+      if (pollSeq.current !== seq) return;
+      setError(adsAgentUserError(sendError));
     } finally {
-      setSending(false);
+      if (pollSeq.current === seq) setSending(false);
     }
-  }, [conversationId, getToken, section, sending]);
+  }, [conversationId, getToken, pollConversation, section, sending]);
 
   const retryLast = useCallback(async () => {
     if (lastPrompt) await sendMessage(lastPrompt);
   }, [lastPrompt, sendMessage]);
 
   const newConversation = useCallback(async () => {
+    pollSeq.current += 1;
+    abortPoll.current?.abort();
     setMessages([]);
     setError(null);
     setLastPrompt(null);
+    setSending(false);
     try {
       const token = await getToken();
       const created = unwrapData<{ id: string }>(await api.post("/admin/ads/agent/conversations", {
@@ -179,6 +244,8 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
   }, [getToken, section]);
 
   const clearConversation = useCallback(async () => {
+    pollSeq.current += 1;
+    abortPoll.current?.abort();
     if (!conversationId) {
       setMessages([]);
       return;
@@ -187,6 +254,7 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
     await api.post(`/admin/ads/agent/conversations/${conversationId}/clear`, {}, token);
     setMessages([]);
     setError(null);
+    setSending(false);
   }, [conversationId, getToken]);
 
   const value = useMemo<AdsAgentStore>(() => ({

@@ -11,6 +11,7 @@ export function AdsAgentMarkdown({
   const html = useMemo(() => renderReportMarkdownToSafeHtml(markdown), [markdown]);
   return (
     <div
+      data-ads-agent-assistant
       className={`ads-agent-prose ${isLightTheme ? "ads-agent-prose--light" : "ads-agent-prose--dark"}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />

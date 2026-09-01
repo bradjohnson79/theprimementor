@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAdsAgent } from "../../context/AdsAgentProvider";
 import { useAdminSettings } from "../../context/AdminSettingsContext";
 import { api } from "../../lib/api";
-import { unwrapData, type AdsAgentHealth, type GoogleAdsStatus } from "./adsApi";
+import { adsAgentUserError, unwrapData, type AdsAgentHealth, type AdsMemoryRecord, type GoogleAdsStatus } from "./adsApi";
 import { adsCardClass, adsMutedClass, adsTitleClass } from "./adsTheme";
 
 function flagLabel(value: boolean) {
@@ -34,6 +34,11 @@ export default function AdsSettings() {
   const [status, setStatus] = useState<GoogleAdsStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memories, setMemories] = useState<AdsMemoryRecord[]>([]);
+  const [memoryCount, setMemoryCount] = useState(0);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [selectedMemoryIds, setSelectedMemoryIds] = useState<string[]>([]);
 
   const loadStatus = useCallback(async () => {
     const token = await getToken();
@@ -41,9 +46,26 @@ export default function AdsSettings() {
     setStatus(next);
   }, [getToken]);
 
+  const loadMemory = useCallback(async (q = "") => {
+    try {
+      const token = await getToken();
+      const next = unwrapData<{ enabled: boolean; count: number; memories: AdsMemoryRecord[] }>(
+        await api.get(`/admin/ads/agent/memory${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`, token),
+      );
+      setMemories(next.memories);
+      setMemoryCount(next.count);
+    } catch (loadError) {
+      setError(adsAgentUserError(loadError));
+    }
+  }, [getToken]);
+
   useEffect(() => {
     void loadStatus().catch(() => setStatus(null));
   }, [loadStatus]);
+
+  useEffect(() => {
+    void loadMemory("").catch(() => undefined);
+  }, [loadMemory]);
 
   useEffect(() => {
     const ads = searchParams.get("ads");
@@ -65,6 +87,24 @@ export default function AdsSettings() {
       return;
     }
     setMessage(health.message || `Status: ${health.status}`);
+  }
+
+  async function validateGoogleAds() {
+    setError(null);
+    setMessage(null);
+    try {
+      const token = await getToken();
+      const next = unwrapData<GoogleAdsStatus>(await api.post("/admin/ads/google/validate", {}, token));
+      setStatus(next);
+      if (next.mode === "READ_ONLY") {
+        setMessage("Google Ads API access is validated. Command Center can load live metrics.");
+        return;
+      }
+      setError(next.lastError || "Google Ads API validation did not complete.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google Ads API validation failed.");
+      await loadStatus();
+    }
   }
 
   async function connectGoogleAds() {
@@ -143,6 +183,11 @@ export default function AdsSettings() {
         </dl>
         {status?.lastError ? <p className="mt-3 text-sm text-rose-400">{status.lastError}</p> : null}
         <div className="mt-4 flex flex-wrap gap-3">
+          {authorized && !connected ? (
+            <button type="button" onClick={() => void validateGoogleAds()} className="rounded-lg border border-accent-cyan/30 px-4 py-2 text-sm text-accent-cyan">
+              Validate API access
+            </button>
+          ) : null}
           <button type="button" onClick={() => void connectGoogleAds()} className="rounded-lg border border-accent-cyan/30 px-4 py-2 text-sm text-accent-cyan">
             {connected ? "Reconnect Google Ads" : "Connect Google Ads"}
           </button>
@@ -185,6 +230,99 @@ export default function AdsSettings() {
         </div>
         {message ? <p className="mt-3 text-sm text-accent-cyan">{message}</p> : null}
         {error ? <p className="mt-3 text-sm text-rose-400">{error}</p> : null}
+      </section>
+
+      <section data-ads-memory className={adsCardClass(isLightTheme)}>
+        <h2 className={`text-xl font-semibold ${adsTitleClass(isLightTheme)}`}>Ads Agent Memory</h2>
+        <p className={`mt-2 text-sm ${adsMutedClass(isLightTheme)}`}>
+          Persistent Prime Mentor Ads memory survives new conversations. Chat transcripts stay conversation-local.
+        </p>
+        <p className={`mt-3 text-sm ${adsTitleClass(isLightTheme)}`}>Memory status: On · {memoryCount} stored facts</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setMemoryOpen((open) => !open);
+              if (!memoryOpen) void loadMemory();
+            }}
+            className="rounded-lg border border-accent-cyan/30 px-4 py-2 text-sm text-accent-cyan"
+          >
+            View Ads Memory
+          </button>
+          <button
+            type="button"
+            onClick={() => void agent.clearConversation()}
+            className="rounded-lg border border-white/20 px-4 py-2 text-sm"
+          >
+            Clear current conversation
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!window.confirm("Clear Ads workspace memory? Owner decisions stay unless you delete them individually.")) return;
+              const token = await getToken();
+              await api.post("/admin/ads/agent/memory/clear-workspace", {}, token);
+              await loadMemory("");
+            }}
+            className="rounded-lg border border-white/20 px-4 py-2 text-sm"
+          >
+            Clear workspace memory
+          </button>
+        </div>
+        {memoryOpen ? (
+          <div className="mt-4 space-y-3">
+            <div className="flex gap-2">
+              <input
+                value={memoryQuery}
+                onChange={(event) => setMemoryQuery(event.target.value)}
+                placeholder="Search memory"
+                className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                  isLightTheme ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-white/5 text-white"
+                }`}
+              />
+              <button type="button" onClick={() => void loadMemory(memoryQuery)} className="rounded-lg border border-accent-cyan/30 px-3 py-2 text-sm text-accent-cyan">
+                Search
+              </button>
+            </div>
+            {selectedMemoryIds.length ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const token = await getToken();
+                  await Promise.all(selectedMemoryIds.map((id) => api.delete(`/admin/ads/agent/memory/${id}`, token)));
+                  setSelectedMemoryIds([]);
+                  await loadMemory();
+                }}
+                className="rounded-lg border border-rose-400/40 px-3 py-1.5 text-sm text-rose-300"
+              >
+                Delete selected memory
+              </button>
+            ) : null}
+            <ul className="space-y-2">
+              {memories.length === 0 ? (
+                <li className={adsMutedClass(isLightTheme)}>No Ads memory stored yet.</li>
+              ) : memories.map((item) => (
+                <li key={item.id} className={`rounded-xl border px-3 py-2 text-sm ${isLightTheme ? "border-slate-200" : "border-white/10"}`}>
+                  <label className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedMemoryIds.includes(item.id)}
+                      onChange={(event) => {
+                        setSelectedMemoryIds((current) => (
+                          event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)
+                        ));
+                      }}
+                    />
+                    <span>
+                      <span className="uppercase tracking-wide text-[11px] text-accent-cyan">{item.layer}{item.category ? ` / ${item.category}` : ""}</span>
+                      <span className={`mt-1 block ${adsTitleClass(isLightTheme)}`}>{item.content}</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
     </div>
   );

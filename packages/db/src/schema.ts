@@ -1622,9 +1622,18 @@ export const adsAgentMemories = pgTable("ads_agent_memories", {
   kind: text("kind").notNull(),
   content: text("content").notNull(),
   source: text("source"),
+  layer: text("layer").notNull().default("workspace"),
+  category: text("category"),
+  entity_key: text("entity_key"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  authority: integer("authority").notNull().default(0),
+  conversation_id: uuid("conversation_id").references(() => adsAgentConversations.id, { onDelete: "set null" }),
   ...timestamps,
 }, (table) => ({
   userKindIdx: index("ads_agent_memories_user_kind_idx").on(table.user_id, table.kind, table.created_at),
+  userLayerIdx: index("ads_agent_memories_user_layer_idx").on(table.user_id, table.layer, table.created_at),
+  userEntityIdx: index("ads_agent_memories_user_entity_idx").on(table.user_id, table.entity_key, table.created_at),
+  userLayerEntityUid: uniqueIndex("ads_agent_memories_user_layer_entity_uidx").on(table.user_id, table.layer, table.entity_key),
 }));
 
 export const adsDivin8KnowledgeEntries = pgTable("ads_divin8_knowledge_entries", {

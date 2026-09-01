@@ -167,10 +167,12 @@ export default function AdsAgentDrawer() {
             </div>
           )}
           {agent.sending ? (
-            <p className="mt-3 text-xs text-accent-cyan">Ads Agent is thinking…</p>
+            <p data-ads-agent-progress className="mt-3 text-xs text-accent-cyan">Ads Agent is thinking…</p>
           ) : null}
           {agent.error ? (
-            <div className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
+            <div
+              data-ads-agent-error
+              className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
               isLightTheme ? "border-rose-200 bg-rose-50 text-rose-700" : "border-rose-400/25 bg-rose-400/10 text-rose-100"
             }`}>
               <p>{agent.error}</p>

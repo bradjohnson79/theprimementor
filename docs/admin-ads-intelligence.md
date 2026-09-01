@@ -1,6 +1,6 @@
 # Admin Ads Intelligence
 
-Local-first Ads Command Center and Ads Agent for Prime Mentor Admin. Do not deploy this or register a production Google redirect until it is explicitly ordered.
+Admin Ads Command Center and Ads Agent for Prime Mentor Admin. Production API is Render; Admin is Vercel.
 
 ## What this includes
 
@@ -15,8 +15,14 @@ Local-first Ads Command Center and Ads Agent for Prime Mentor Admin. Do not depl
 The browser never talks to OpenRouter. There is no Ollama, OpenAI, Anthropic, or Gemini fallback.
 
 ```text
-Ads Drawer → Prime Mentor API → adsAgentService → openRouterAdapter → OpenRouter → z-ai/glm-5.3-flash
+Ads Drawer → POST /api/admin/ads/agent/chat (202 enqueue)
+  → background generateAdsAgentReply → OpenRouter z-ai/glm-5.3-flash
+  → GET conversation poll until assistant message
 ```
+
+The HTTP request does not wait for the model. That avoids Cloudflare 524s and the secondary missing-CORS error on timed-out origin responses.
+
+Layered Ads memory lives in `ads_agent_memories` (workspace, owner decisions, campaign, screenshot, performance). New conversation clears the transcript only.
 
 When Google Ads is `READ_ONLY`, the agent may call controlled read-only tools. It never receives refresh tokens, access tokens, or the developer token.
 
@@ -36,7 +42,7 @@ Exact local redirect URI (never taken from the request Host header):
 http://127.0.0.1:3001/api/admin/ads/google/oauth/callback
 ```
 
-Production (document only — do not register or deploy until ordered):
+Production redirect URI (must be registered on the Google Cloud web client and set as `GOOGLE_ADS_REDIRECT_URI` on Render):
 
 ```text
 https://api.theprimementor.com/api/admin/ads/google/oauth/callback
@@ -74,8 +80,9 @@ Apply locally only:
 
 - `packages/db/drizzle/20260831_ads_intelligence.sql`
 - `packages/db/drizzle/20260901_ads_google_oauth.sql`
+- `packages/db/drizzle/20260903_ads_agent_memory.sql`
 
-Do not add these tables to `schemaRepairService.ts`. Do not migrate production until ordered.
+Do not add these tables to `schemaRepairService.ts`. Apply the SQL files on the target Neon branch before relying on Ads Agent memory.
 
 The `ads_agent_settings.ollama_url` column is leftover from the first local-AI pass and is no longer the authority for inference.
 

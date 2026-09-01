@@ -43,6 +43,7 @@ test("Admin Ads routes reject missing bearer auth", async (t) => {
     "/api/admin/ads/reporting/campaigns",
     "/api/admin/ads/agent/health",
     "/api/admin/ads/agent/conversations",
+    "/api/admin/ads/agent/memory",
     "/api/admin/ads/divin8-knowledge",
     "/api/admin/ads/pma/workspace",
     "/api/admin/ads/pma/projects",
@@ -58,6 +59,12 @@ test("Admin Ads routes reject missing bearer auth", async (t) => {
     payload: { message: "What is CTR in Google Ads?" },
   });
   assert.equal(chat.statusCode, 401);
+
+  const validate = await app.inject({
+    method: "POST",
+    url: "/api/admin/ads/google/validate",
+  });
+  assert.equal(validate.statusCode, 401);
 
   for (const [method, url] of [
     ["GET", "/api/admin/ads/pma/campaigns"],
