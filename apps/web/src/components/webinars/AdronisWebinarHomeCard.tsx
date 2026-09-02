@@ -75,15 +75,15 @@ export default function AdronisWebinarHomeCard() {
         initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.45 }}
-        className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/20 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(0,0.45fr)_minmax(0,0.55fr)]"
+        className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/20 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(16rem,26rem)_minmax(0,1fr)]"
       >
         <div className="relative bg-slate-950">
           <img
             src={catalog.posterPath}
             alt={catalog.posterAlt}
-            width={1024}
-            height={576}
-            className="h-auto w-full object-contain"
+            width={576}
+            height={1024}
+            className="mx-auto h-auto w-full max-w-[26rem] object-contain"
             loading="eager"
             decoding="async"
           />

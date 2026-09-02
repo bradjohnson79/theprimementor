@@ -71,7 +71,7 @@ test.describe("Adronis webinar homepage card", () => {
       const img = node as HTMLImageElement;
       return { width: img.naturalWidth, height: img.naturalHeight };
     });
-    expect(natural.width / natural.height).toBeCloseTo(16 / 9, 1);
+    expect(natural.width / natural.height).toBeCloseTo(9 / 16, 1);
   });
 
   test("mobile card stacks without horizontal overflow", async ({ page }, testInfo) => {
