@@ -18,6 +18,9 @@ export interface AdminOrderIntakeUpdateInput {
   other?: unknown;
   submitted_questions?: unknown;
   notes?: unknown;
+  delivery_format?: unknown;
+  healing_areas?: unknown;
+  concerns?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -96,6 +99,9 @@ function normalizeIntakeInput(input: AdminOrderIntakeUpdateInput) {
     other: normalizeNullableText(input.other),
     submittedQuestions: normalizeStringArray(input.submitted_questions),
     notes: normalizeNullableText(input.notes),
+    deliveryFormat: normalizeNullableText(input.delivery_format),
+    healingAreas: normalizeStringArray(input.healing_areas),
+    concerns: normalizeNullableText(input.concerns),
   };
 }
 
@@ -135,6 +141,11 @@ export async function updateAdminOrderIntake(
       healthFocusAreas: normalized.healthFocusAreas,
       other: normalized.other ?? undefined,
       notes: normalized.notes ?? undefined,
+      deliveryFormat: normalized.deliveryFormat === "live" || normalized.deliveryFormat === "prerecorded" || normalized.deliveryFormat === "scan"
+        ? normalized.deliveryFormat
+        : undefined,
+      healingAreas: normalized.healingAreas,
+      concerns: normalized.concerns ?? undefined,
     };
     const nextSnapshot = {
       ...parseStoredObject(booking.intakeSnapshot),

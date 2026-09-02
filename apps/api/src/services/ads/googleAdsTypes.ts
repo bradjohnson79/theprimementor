@@ -23,6 +23,8 @@ export type AdsKeyword = {
   id: string;
   keyword: string;
   matchType: string;
+  status: string;
+  negative: boolean;
   campaignId: string;
   campaignName: string;
   adGroupId: string;
@@ -33,6 +35,14 @@ export type AdsKeyword = {
   cost: number | null;
   conversions: number | null;
   costPerConversion: number | null;
+};
+
+export type AdsKeywordInventory = {
+  uniquePositiveKeywords: number;
+  rawRowCount: number;
+  excludedRemoved: number;
+  excludedNegatives: number;
+  definition: string;
 };
 
 export type AdsAccountSummary = {

@@ -1,4 +1,4 @@
-import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm, CampaignHealth } from "./googleAdsTypes.js";
+import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsKeywordInventory, AdsRecommendation, AdsSearchTerm, CampaignHealth } from "./googleAdsTypes.js";
 import { configuredCustomerId, configuredLoginCustomerId, displayCustomerId } from "./googleAdsIds.js";
 
 export function microsToAmount(value: unknown): number | null {
@@ -27,11 +27,22 @@ export function last30DayRange(now = new Date()) {
   return { from: iso(from), to: iso(to), label: "Last 30 Days" };
 }
 
-function campaignHealth(input: { ctr: number | null; conversions: number | null; cost: number | null }): CampaignHealth | null {
-  if (input.ctr == null && input.conversions == null && input.cost == null) return null;
-  if ((input.conversions ?? 0) > 0 && (input.ctr ?? 0) >= 0.03) return "Excellent";
-  if ((input.conversions ?? 0) > 0 || (input.ctr ?? 0) >= 0.02) return "Healthy";
-  if ((input.cost ?? 0) > 0 && (input.conversions ?? 0) === 0) return "Needs Attention";
+function campaignHealth(input: {
+  impressions: number | null;
+  ctr: number | null;
+  conversions: number | null;
+  cost: number | null;
+}): CampaignHealth | null {
+  const impressions = input.impressions ?? 0;
+  const cost = input.cost ?? 0;
+  const conversions = input.conversions ?? 0;
+  const ctr = input.ctr;
+  if (impressions === 0 && cost === 0 && conversions === 0 && (ctr == null || ctr === 0)) {
+    return null;
+  }
+  if (conversions > 0 && (ctr ?? 0) >= 0.03) return "Excellent";
+  if (conversions > 0 || (ctr ?? 0) >= 0.02) return "Healthy";
+  if (cost > 0 && conversions === 0) return "Needs Attention";
   return "Poor";
 }
 
@@ -65,7 +76,7 @@ export function normalizeCampaign(row: Record<string, unknown>): AdsCampaign {
     costPerConversion,
     conversionValue,
     roas,
-    health: campaignHealth({ ctr, conversions, cost }),
+    health: campaignHealth({ impressions, ctr, conversions, cost }),
   };
 }
 
@@ -113,6 +124,8 @@ export function normalizeKeyword(row: Record<string, unknown>): AdsKeyword {
     id: String(criterion.criterionId ?? criterion.criterion_id ?? keyword.text ?? ""),
     keyword: String(keyword.text ?? ""),
     matchType: String(keyword.matchType ?? keyword.match_type ?? "UNKNOWN"),
+    status: String(criterion.status ?? "UNKNOWN"),
+    negative: criterion.negative === true || criterion.negative === "true",
     campaignId: String(campaign.id ?? ""),
     campaignName: String(campaign.name ?? ""),
     adGroupId: String(adGroup.id ?? ""),
@@ -123,6 +136,51 @@ export function normalizeKeyword(row: Record<string, unknown>): AdsKeyword {
     cost,
     conversions,
     costPerConversion: safeRate(cost, conversions),
+  };
+}
+
+function addNullable(left: number | null, right: number | null) {
+  if (left == null && right == null) return null;
+  return (left ?? 0) + (right ?? 0);
+}
+
+export function collapseKeywordRows(rows: AdsKeyword[]): AdsKeyword[] {
+  const byId = new Map<string, AdsKeyword>();
+  for (const row of rows) {
+    const key = row.id || `${row.adGroupId}:${row.keyword}:${row.matchType}`;
+    const current = byId.get(key);
+    if (!current) {
+      byId.set(key, { ...row, id: key });
+      continue;
+    }
+    const impressions = addNullable(current.impressions, row.impressions);
+    const clicks = addNullable(current.clicks, row.clicks);
+    const cost = addNullable(current.cost, row.cost);
+    const conversions = addNullable(current.conversions, row.conversions);
+    byId.set(key, {
+      ...current,
+      impressions,
+      clicks,
+      cost,
+      conversions,
+      ctr: safeRate(clicks, impressions),
+      costPerConversion: safeRate(cost, conversions),
+    });
+  }
+  return [...byId.values()];
+}
+
+export function summarizeKeywordInventory(rows: AdsKeyword[], rawRowCount = rows.length): AdsKeywordInventory {
+  const collapsed = collapseKeywordRows(rows);
+  const excludedNegatives = collapsed.filter((item) => item.negative).length;
+  const excludedRemoved = collapsed.filter((item) => !item.negative && item.status === "REMOVED").length;
+  const uniquePositive = collapsed.filter((item) => !item.negative && item.status !== "REMOVED");
+  return {
+    uniquePositiveKeywords: uniquePositive.length,
+    rawRowCount,
+    excludedRemoved,
+    excludedNegatives,
+    definition: "Unique non-removed positive ad-group keywords. Date-segmented keyword_view rows are collapsed by criterion id so daily metric rows do not inflate the count.",
   };
 }
 

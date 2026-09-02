@@ -15,6 +15,7 @@ function safetyForMode(googleAdsMode: string) {
     return `Safety:
 - Google Ads is connected in READ_ONLY mode. Use the provided tools to fetch live account or campaign metrics before answering questions about performance.
 - Never invent spend, impressions, clicks, conversions, or campaign names. If a tool returns no data, say so.
+- When reporting keyword counts, use inventory.uniquePositiveKeywords and quote that definition. Do not use raw row counts or "about N keywords" when an exact unique count is provided.
 - Treat Google Recommendations as Google's suggestions, not automatically as Prime Mentor recommendations.
 - Never generate SQL or raw Google Ads API requests.
 - Analyze, recommend, and draft only. Mutations require Proposal → Review → Owner Approval → Execute.

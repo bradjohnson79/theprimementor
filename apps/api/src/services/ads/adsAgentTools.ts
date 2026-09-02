@@ -1,6 +1,7 @@
 import type { Database } from "@wisdom/db";
 import { getDivin8AdvertisingCatalog } from "./divin8AdsCatalog.js";
 import { hasMutationAdsTool } from "./googleAdsConnectionService.js";
+import { summarizeKeywordInventory } from "./googleAdsNormalize.js";
 import { createDisconnectedGoogleAdsProvider, providerForDatabase } from "./googleAdsProvider.js";
 import { getPmaWorkspace, summarizePmaForAgent } from "./pma/pmaService.js";
 import type { AdsAgentContext } from "./types.js";
@@ -210,8 +211,14 @@ export async function invokeAdsAgentTool(
       }));
     case "getAdGroupPerformance":
       return sanitizeToolPayload(await provider.reporting.getAdGroupPerformance());
-    case "getKeywordPerformance":
-      return sanitizeToolPayload(await provider.reporting.getKeywordPerformance());
+    case "getKeywordPerformance": {
+      const result = await provider.reporting.getKeywordPerformance();
+      if (!result.available) return sanitizeToolPayload(result);
+      return sanitizeToolPayload({
+        ...result,
+        inventory: summarizeKeywordInventory(result.data),
+      });
+    }
     case "getSearchTerms":
       return sanitizeToolPayload(await provider.reporting.getSearchTerms());
     case "getConversionPerformance":

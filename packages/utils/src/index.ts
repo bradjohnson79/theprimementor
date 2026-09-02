@@ -45,4 +45,5 @@ export * from "./seo.js";
 export * from "./promo.js";
 export * from "./sessionOfferings.js";
 export * from "./regenerationOffer.js";
+export * from "./webinarEvents.js";
 export * from "./shopPricing.js";

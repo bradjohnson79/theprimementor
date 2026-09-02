@@ -375,6 +375,9 @@ export default function Bookings() {
   const offerActive = regenerationOfferStatus?.active === true || isRegenerationOfferActive();
   const intakeBookingTypes = useMemo(() => {
     const filtered = bookingTypes.filter((bookingType) => {
+      if (!SESSION_TYPE_ORDER.includes(bookingType.session_type)) {
+        return false;
+      }
       if (!isRegenerationOfferBookingType(bookingType.id)) {
         return true;
       }

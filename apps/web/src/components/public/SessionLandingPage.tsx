@@ -125,6 +125,22 @@ const themeStyles = {
     ctaPanel:
       "bg-[radial-gradient(circle_at_top,_rgba(168,85,247,0.2),_transparent_46%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.95))]",
   },
+  prime_body_healing: {
+    eyebrow: "text-amber-200/72",
+    sectionEyebrow: "text-violet-200/68",
+    heroGlowPrimary: "bg-amber-400/14",
+    heroGlowSecondary: "bg-violet-500/16",
+    heroPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.14),_transparent_48%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.96))]",
+    cta:
+      "bg-gradient-to-r from-amber-400 via-violet-500 to-cyan-400 text-slate-950 hover:from-amber-300 hover:via-violet-400 hover:to-cyan-300",
+    statement:
+      "border-amber-300/18 bg-amber-300/8 text-amber-50",
+    imageFrame:
+      "bg-[radial-gradient(circle_at_top,_rgba(167,139,250,0.16),_transparent_44%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.95))]",
+    ctaPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_46%),linear-gradient(180deg,rgba(10,8,24,0.98),rgba(5,4,15,0.95))]",
+  },
 } as const;
 
 function densityClass(theme: LandingTheme, density: SessionLandingSection["density"]) {

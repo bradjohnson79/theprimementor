@@ -255,6 +255,39 @@ export function renderBookingCreatedTemplate(
   if (payload.purchaseConfirmed && payload.sessionType === "mentoring") {
     return renderMentoringSessionBookingCreatedTemplate(payload);
   }
+  if (payload.purchaseConfirmed && payload.sessionType === "prime_body_healing") {
+    return {
+      subject: "Prime Body Healing purchase confirmed",
+      templateVersion: "prime-body-healing-confirmed-v1",
+      html: renderPrimeMentorEmail({
+        eyebrow: "Purchase Confirmed",
+        title: "Your Prime Body Healing order is confirmed",
+        intro: "Your Prime Body Healing purchase and intake have been received. Brad will review your details and email a booking window for Level 1 Live, or a delivery turnaround based on available dates for Level 1 Pre-Recorded and Level 2.",
+        sections: [
+          renderInfoCard(
+            "Order details",
+            renderKeyValueTable([
+              { label: "Client", value: payload.fullName ?? undefined },
+              { label: "Email", value: payload.email ?? undefined },
+              { label: "Service", value: payload.bookingType ?? "Prime Body Healing" },
+              { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+              { label: "Purchase", value: "Confirmed" },
+            ]),
+          ),
+          renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
+        ],
+        callToAction: {
+          label: "Contact Support",
+          url: buildFrontendUrl("/contact"),
+        },
+        secondaryCallToAction: {
+          label: "Return to Dashboard",
+          url: buildFrontendUrl("/dashboard"),
+        },
+        footerNote: SESSION_24H_FOOTER,
+      }),
+    };
+  }
 
   const bookingLabel = text(payload.eventTitle ?? payload.bookingType, "your booking");
   return {
@@ -451,6 +484,52 @@ export function renderMentoringCircleReminder1hTemplate(
     templateVersion: "mentoring-circle-reminder-1h-v1",
     footerNote: "If you have trouble opening the Zoom link, reply to this email before the event begins and we will help.",
   });
+}
+
+export function renderWebinarConfirmedTemplate(
+  payload: NotificationPayloadMap["webinar.confirmed"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Adronis: From Disclosure to Contact");
+  const greeting = payload.firstName
+    ? `Hi ${payload.firstName},`
+    : "Hi,";
+  const amount = `$${((payload.amountCents ?? 1499) / 100).toFixed(2)} ${(payload.currency ?? "CAD").toUpperCase()}`;
+  return {
+    subject: "Your Adronis Webinar Registration — From Disclosure to Contact",
+    templateVersion: "webinar-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Webinar Registration Confirmed",
+      title: "Thank You for Registering",
+      intro: `${greeting} your purchase through The Prime Mentor is complete. Complete Zoom attendee registration next so you can receive Zoom’s meeting access details.`,
+      sections: [
+        renderInfoCard(
+          "Event details",
+          renderKeyValueTable([
+            { label: "Webinar", value: eventTitle },
+            { label: "Presenter", value: text(payload.presenter, "Brad Johnson") },
+            { label: "Date", value: text(payload.displayDate, "Saturday, September 12, 2026") },
+            { label: "Time", value: text(payload.displayTime, "10:00 AM Pacific / 1:00 PM Eastern") },
+            { label: "Price paid", value: amount },
+            { label: "Name", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+          ]),
+        ),
+        renderParagraph("Purchasing through The Prime Mentor grants access to the Zoom registration link. It does not automatically register you as a Zoom attendee or issue a Zoom join link."),
+        renderParagraph("Please complete Zoom registration before the event. Zoom will send its own meeting-access details after you register there."),
+        renderParagraph(`Zoom registration URL: ${payload.zoomRegistrationUrl}`),
+      ],
+      callToAction: {
+        label: "Complete Your Zoom Registration",
+        url: payload.zoomRegistrationUrl,
+        note: "Opens Zoom’s attendee registration page in a new window.",
+      },
+      secondaryCallToAction: {
+        label: "Open Your Webinar Access Page",
+        url: buildFrontendUrl(payload.accessPagePath || "/webinars/adronis-disclosure-to-contact/thank-you"),
+      },
+      footerNote: "Need help? Visit theprimementor.com/contact or reply to this email. The Prime Mentor support team can resend your registration details if needed.",
+    }),
+  };
 }
 
 export function renderReportGeneratedTemplate(

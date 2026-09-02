@@ -55,6 +55,14 @@ test("buildTargetsFromBookingSession includes mentoring duration targets", () =>
     PROMO_TARGETS.MENTORING_SESSION,
     PROMO_TARGETS.MENTORING_SESSION_90,
   ]);
+  assert.deepEqual(buildTargetsFromBookingSession("prime_body_healing", "prime-body-healing-level-1-live", 15), [
+    PROMO_TARGETS.PRIME_BODY_HEALING,
+    PROMO_TARGETS.PRIME_BODY_HEALING_LEVEL_1,
+  ]);
+  assert.deepEqual(buildTargetsFromBookingSession("prime_body_healing", "prime-body-healing-level-2", 0), [
+    PROMO_TARGETS.PRIME_BODY_HEALING,
+    PROMO_TARGETS.PRIME_BODY_HEALING_LEVEL_2,
+  ]);
 });
 
 test("buildTargetFromReportTier maps deep dive reports", () => {

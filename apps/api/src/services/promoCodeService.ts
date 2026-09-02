@@ -430,6 +430,8 @@ export function buildTargetsFromSessionType(sessionType: string): PromoTarget[] 
       return [PROMO_TARGETS.MENTORING_SESSION];
     case "regeneration":
       return [PROMO_TARGETS.REGEN_SESSION];
+    case "prime_body_healing":
+      return [PROMO_TARGETS.PRIME_BODY_HEALING];
     default:
       throw createHttpError(400, "Unsupported session type for promo validation");
   }
@@ -455,6 +457,18 @@ export function buildTargetsFromBookingSession(
   }
   if (sessionType === "focus" && (bookingTypeId === "focus-session-45" || durationMinutes === 45)) {
     return [...targets, PROMO_TARGETS.MENTORING_SESSION_45];
+  }
+  if (sessionType === "prime_body_healing") {
+    if (
+      bookingTypeId === "prime-body-healing-level-1-live"
+      || bookingTypeId === "prime-body-healing-level-1-prerecorded"
+    ) {
+      return [...targets, PROMO_TARGETS.PRIME_BODY_HEALING_LEVEL_1];
+    }
+    if (bookingTypeId === "prime-body-healing-level-2") {
+      return [...targets, PROMO_TARGETS.PRIME_BODY_HEALING_LEVEL_2];
+    }
+    return targets;
   }
   if (sessionType !== "mentoring") {
     return targets;
@@ -1611,6 +1625,9 @@ async function buildPromoCatalogTargetIndex(db: Database, stripe: Stripe): Promi
     { bookingTypeId: "mentoring-session-45", sessionType: "mentoring", durationMinutes: 45 },
     { bookingTypeId: "wisdom-mentoring-90", sessionType: "mentoring", durationMinutes: 90 },
     { bookingTypeId: "regeneration-session", sessionType: "regeneration", durationMinutes: null },
+    { bookingTypeId: "prime-body-healing-level-1-live", sessionType: "prime_body_healing", durationMinutes: 15 },
+    { bookingTypeId: "prime-body-healing-level-1-prerecorded", sessionType: "prime_body_healing", durationMinutes: 0 },
+    { bookingTypeId: "prime-body-healing-level-2", sessionType: "prime_body_healing", durationMinutes: 0 },
   ];
 
   for (const mapping of bookingMappings) {

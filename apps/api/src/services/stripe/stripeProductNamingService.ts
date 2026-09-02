@@ -99,6 +99,12 @@ function resolveSessionName(input: Extract<StripeNamedProduct, { type: "session"
   if (sessionType === "regeneration") {
     return REGENERATION_PLAN_NAME;
   }
+  if (sessionType === "prime_body_healing") {
+    const fallback = input.fallbackName?.trim();
+    if (fallback) return fallback;
+    if (duration === 15) return "Prime Body Healing Level 1 — Live";
+    return "Prime Body Healing";
+  }
   return input.fallbackName?.trim() || (duration ? `${duration} Minute Session` : "Prime Mentor Session");
 }
 

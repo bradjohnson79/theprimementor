@@ -1,6 +1,6 @@
 import type { Database } from "@wisdom/db";
 import { getValidAdsAccessToken } from "./googleAdsOAuthService.js";
-import { last30DayRange, normalizeCampaign, normalizeKeyword, normalizeRecommendation, normalizeSearchTerm, summarizeCampaigns } from "./googleAdsNormalize.js";
+import { collapseKeywordRows, last30DayRange, normalizeCampaign, normalizeKeyword, normalizeRecommendation, normalizeSearchTerm, summarizeCampaigns } from "./googleAdsNormalize.js";
 import { searchGoogleAds, validateGoogleAdsAccess, type GoogleAdsFetch } from "./googleAdsRestClient.js";
 import { createDbAdsGoogleStore, type AdsGoogleStore } from "./googleAdsStore.js";
 import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm } from "./googleAdsTypes.js";
@@ -53,12 +53,25 @@ export async function retryStoredGoogleAdsValidation(store: AdsGoogleStore, fetc
   }
 }
 
+const campaignSnapshotTtlMs = 45_000;
+const campaignSnapshots = new Map<string, { expires: number; campaigns: AdsCampaign[] }>();
+
+function campaignSnapshotKey(input: {
+  range?: { from?: string; to?: string };
+  campaignId?: string;
+}) {
+  return `${input.campaignId || "all"}:${dateClause(input.range)}`;
+}
+
 export async function loadCampaignPerformance(input: {
   store: AdsGoogleStore;
   range?: { from?: string; to?: string };
   campaignId?: string;
   fetcher?: GoogleAdsFetch;
 }): Promise<AdsCampaign[]> {
+  const key = campaignSnapshotKey(input);
+  const cached = campaignSnapshots.get(key);
+  if (cached && cached.expires > Date.now()) return cached.campaigns;
   const { accessToken } = await getValidAdsAccessToken(input.store);
   const filters = [dateClause(input.range)];
   if (input.campaignId && /^\d+$/.test(input.campaignId)) {
@@ -85,7 +98,9 @@ export async function loadCampaignPerformance(input: {
       WHERE ${filters.join(" AND ")}
     `.replace(/\s+/g, " ").trim(),
   });
-  return rows.map((row) => normalizeCampaign(row));
+  const campaigns = rows.map((row) => normalizeCampaign(row));
+  campaignSnapshots.set(key, { expires: Date.now() + campaignSnapshotTtlMs, campaigns });
+  return campaigns;
 }
 
 export async function loadAccountSummary(input: {
@@ -94,17 +109,9 @@ export async function loadAccountSummary(input: {
   fetcher?: GoogleAdsFetch;
 }): Promise<AdsAccountSummary> {
   const campaigns = await loadCampaignPerformance(input);
-  const summary = summarizeCampaigns(campaigns, input.range?.from && input.range.to
+  return summarizeCampaigns(campaigns, input.range?.from && input.range.to
     ? { from: input.range.from, to: input.range.to, label: `${input.range.from} to ${input.range.to}` }
     : last30DayRange());
-  try {
-    const { accessToken } = await getValidAdsAccessToken(input.store);
-    const validated = await validateGoogleAdsAccess({ accessToken, fetcher: input.fetcher });
-    summary.descriptiveName = validated.descriptiveName;
-  } catch {
-    // Summary metrics still stand if the lightweight customer lookup fails after campaigns loaded.
-  }
-  return summary;
 }
 
 export async function loadKeywordPerformance(input: {
@@ -121,6 +128,8 @@ export async function loadKeywordPerformance(input: {
         ad_group_criterion.criterion_id,
         ad_group_criterion.keyword.text,
         ad_group_criterion.keyword.match_type,
+        ad_group_criterion.status,
+        ad_group_criterion.negative,
         campaign.id,
         campaign.name,
         ad_group.id,
@@ -134,7 +143,7 @@ export async function loadKeywordPerformance(input: {
       WHERE ${dateClause(input.range)}
     `.replace(/\s+/g, " ").trim(),
   });
-  return rows.map((row) => normalizeKeyword(row));
+  return collapseKeywordRows(rows.map((row) => normalizeKeyword(row)));
 }
 
 export async function loadSearchTerms(input: {

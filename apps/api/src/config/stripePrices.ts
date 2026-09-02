@@ -26,9 +26,13 @@ const SESSION_PRICE_ENV_KEYS: Record<SessionCheckoutType, { standard: string; li
     standard: "STRIPE_PRICE_QA_SESSION",
     live: "STRIPE_LIVE_PRICE_QA_SESSION",
   },
+  prime_body_healing: {
+    standard: "STRIPE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+    live: "STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+  },
 };
 
-const LIVE_SESSION_PRICE_FALLBACKS: Record<SessionCheckoutType, string> = {
+const LIVE_SESSION_PRICE_FALLBACKS: Partial<Record<SessionCheckoutType, string>> = {
   focus: "price_1TILliAd5V3LaCqjidvbVLrl",
   mentoring: "price_1TILnFAd5V3LaCqjkR9tAMuC",
   regeneration: "price_1TKj0yAd5V3LaCqjQC6LV0k2",
@@ -41,7 +45,7 @@ const CANONICAL_BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePri
     {
       standard: offering.stripePriceEnvKey ?? "",
       live: offering.stripeLivePriceEnvKey ?? "",
-      liveFallback: offering.stripeLivePriceFallback,
+      liveFallback: "stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined,
       ...(offering.bookingTypeId === "qa-session-30"
         ? { legacyStandard: "STRIPE_PRICE_QA_SESSION", legacyLive: "STRIPE_LIVE_PRICE_QA_SESSION" }
         : {}),

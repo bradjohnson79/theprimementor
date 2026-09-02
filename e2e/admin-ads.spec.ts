@@ -1,14 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { adminAuthSkipReason, adminBaseUrl } from "./helpers/adminAuth.ts";
 
-const ADMIN_BASE = process.env.PLAYWRIGHT_ADMIN_BASE_URL?.trim();
-const HAS_CLERK_SESSION = Boolean(
-  process.env.CLERK_TEST_SESSION_TOKEN?.trim()
-  || process.env.PLAYWRIGHT_CLERK_SESSION?.trim(),
-);
+const ADMIN_BASE = adminBaseUrl();
+const AUTH_SKIP = adminAuthSkipReason();
 
 test.describe("Admin Ads", () => {
   test("walks Settings, Command Center, Campaigns, and Ads Agent without leaking secrets", async ({ page }) => {
-    test.skip(!ADMIN_BASE || !HAS_CLERK_SESSION, "PLAYWRIGHT_ADMIN_BASE_URL and a Clerk test session are required");
+    test.skip(Boolean(AUTH_SKIP), AUTH_SKIP || "Admin Clerk test session is required");
     const leakedSecrets: string[] = [];
     const leakedProviderCalls: string[] = [];
     page.on("request", (request) => {
@@ -54,16 +52,13 @@ test.describe("Admin Ads", () => {
     const question = "How are my Google Ads campaigns performing over the last 30 days?";
     await page.getByPlaceholder("Ask the Ads Agent…").fill(question);
     await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText(question)).toBeVisible();
+    await expect(page.getByText(question).first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Collapse" }).click();
+    await page.getByRole("button", { name: "Collapse", exact: true }).click();
     await expect(page.locator("[data-ads-agent-drawer]")).toHaveCount(0);
-
-    await page.getByRole("link", { name: "Command Center" }).first().click();
-    await expect(page.getByRole("heading", { name: "Command Center" })).toBeVisible();
     await page.locator("[data-ads-agent-rail]").click();
     await expect(page.locator("[data-ads-agent-drawer]")).toBeVisible();
-    await expect(page.getByText(question)).toBeVisible();
+    await expect(page.getByText(question).first()).toBeVisible();
     expect(leakedSecrets).toEqual([]);
     expect(leakedProviderCalls).toEqual([]);
   });

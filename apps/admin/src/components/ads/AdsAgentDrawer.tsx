@@ -142,13 +142,15 @@ export default function AdsAgentDrawer() {
           </div>
           {agent.messages.length === 0 ? (
             <p className={`text-sm ${isLightTheme ? "text-slate-500" : "text-white/50"}`}>
-              Ask about Google Ads or Divin8 strategy. Live account metrics are unavailable until Google Ads is connected.
+              Ask about Google Ads or Divin8 strategy. When Google Ads is connected in Settings, the agent can read live account metrics.
             </p>
           ) : (
             <div className="space-y-3">
               {agent.messages.map((message) => (
                 <div
                   key={message.id}
+                  data-ads-agent-message={message.role}
+                  data-ads-agent-assistant={message.role === "assistant" ? "true" : undefined}
                   className={`rounded-2xl px-3 py-2 text-sm ${
                     message.role === "user"
                       ? "bg-accent-cyan/10 text-accent-cyan"

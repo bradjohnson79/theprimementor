@@ -60,6 +60,7 @@ export function classifyAdsMemoryIntent(message: string): AdsMemoryIntent {
   if (/\b(screenshot|upload|visible|ctr|impression)\b/i.test(message)) topics.push("screenshot");
   if (/\b(divin8|report|catalog|price|landing)\b/i.test(message)) topics.push("knowledge");
   if (/\b(performance|converting|paused|changed|last time)\b/i.test(message)) topics.push("performance");
+  if (/approval|automatic|execution|governance|owner approval/i.test(message)) topics.push("execution");
   const wantsRecall = /\b(what|which|remind|recall|remember|did i|have we|last time|already)\b/i.test(lower);
   const campaign = message.match(/\b(divin8[^\n,]{0,40}|campaign [a-z0-9-]{2,40})\b/i);
   return {
@@ -72,7 +73,25 @@ export function classifyAdsMemoryIntent(message: string): AdsMemoryIntent {
 
 export function isDurableAdsStatement(message: string) {
   if (HYPOTHESIS.test(message)) return false;
-  return /\b(is|are|our|approved|rejected|choose|chose|decided|decision|only|do not|don't|budget|ceiling|priority)\b/i.test(message);
+  return /\b(is|are|our|approved|rejected|choose|chose|decided|decision|only|do not|don't|budget|ceiling|priority|prioritized|approval|automatic)\b/i.test(message);
+}
+
+export function isBlanketAuthorizationAttempt(message: string) {
+  return /approved forever|without asking(?: me)?|make whatever(?: google ads)? changes|operate autonomously|blanket (?:approval|authorization)/i.test(message)
+    && !/without explicit(?: owner)? approval|no automatic/.test(message);
+}
+
+export function extractGeographyDecision(message: string): string | null {
+  const hasUsFollowOn = /\b(us|u\.s\.|united states)\b/i.test(message)
+    && /\b(after|subsequent|later|validat|may test|expansion)\b/i.test(message);
+  if (/\bcanada\b/i.test(message) && hasUsFollowOn) {
+    return "Canada primary, US expansion after Canadian validation";
+  }
+  if (/\bcanada\s+only\b|\bonly\s+canada\b/i.test(message)) return "Canada only";
+  if (/\bcanada\s+(prioritized|primary|first)\b|\bprioritize[d]?\s+canada\b|\bcanada\s+remains\s+primary\b/i.test(message)) {
+    return "Canada primary";
+  }
+  return null;
 }
 
 export function extractDurableAdsMemories(input: {
@@ -81,7 +100,7 @@ export function extractDurableAdsMemories(input: {
   context?: AdsAgentContext;
 }): AdsMemoryDraft[] {
   const message = input.message.trim();
-  if (!message || !isDurableAdsStatement(message)) return [];
+  if (!message || !isDurableAdsStatement(message) || isBlanketAuthorizationAttempt(message)) return [];
 
   const drafts: AdsMemoryDraft[] = [];
   const conversationId = input.conversationId ?? null;
@@ -117,27 +136,40 @@ export function extractDurableAdsMemories(input: {
     });
   }
 
-  if (/\bcanada\s+only\b|\bonly\s+canada\b/i.test(message)) {
-    const value = "Canada only";
+  const geography = extractGeographyDecision(message);
+  if (geography) {
     drafts.push({
       layer: "owner_decision",
       kind: "owner_decision",
       category: "geography",
       entityKey: `${ADS_MEMORY_SCOPE}:geography`,
-      content: `Initial Divin8 Ads geography is ${value}.`,
+      content: `Initial Divin8 Ads geography is ${geography}.`,
       authority: OWNER_DECISION_AUTHORITY,
       conversationId,
-      metadata: { ...baseMeta, category: "geography", value },
+      metadata: { ...baseMeta, category: "geography", value: geography },
     });
     drafts.push({
       layer: "workspace",
       kind: "workspace_preference",
       category: "geography",
       entityKey: `${ADS_MEMORY_SCOPE}:workspace:geography`,
-      content: `Preferred geography: ${value}.`,
+      content: `Preferred geography: ${geography}.`,
       authority: WORKSPACE_AUTHORITY,
       conversationId,
-      metadata: { scope: ADS_MEMORY_SCOPE, category: "geography", value },
+      metadata: { scope: ADS_MEMORY_SCOPE, category: "geography", value: geography },
+    });
+  }
+
+  if (/no automatic(?: campaign)? changes|without explicit(?: owner)? approval|do not want automatic|don't want automatic/i.test(message)) {
+    drafts.push({
+      layer: "owner_decision",
+      kind: "owner_decision",
+      category: "execution",
+      entityKey: `${ADS_MEMORY_SCOPE}:execution`,
+      content: "No automatic production campaign changes without explicit owner approval.",
+      authority: OWNER_DECISION_AUTHORITY,
+      conversationId,
+      metadata: { ...baseMeta, category: "execution", value: "owner_approval_required" },
     });
   }
 
@@ -335,7 +367,7 @@ export async function retrieveAdsMemories(db: Database, userId: string, query: s
   const rest = mapped.filter((item) => item.layer !== "owner_decision");
   const scored = rest
     .map((item) => ({ item, score: scoreMemory(item, intent, query, context) }))
-    .filter((entry) => entry.score > 0 || intent.wantsRecall)
+    .filter((entry) => entry.score >= 1.5)
     .sort((a, b) => b.score - a.score || b.item.authority - a.item.authority)
     .slice(0, MAX_RETRIEVED - owner.length)
     .map((entry) => entry.item);

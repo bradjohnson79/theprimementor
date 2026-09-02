@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAdsAgent } from "../../context/AdsAgentProvider";
 import { useAdminSettings } from "../../context/AdminSettingsContext";
@@ -66,6 +66,14 @@ export default function AdsSettings() {
   useEffect(() => {
     void loadMemory("").catch(() => undefined);
   }, [loadMemory]);
+
+  const wasSending = useRef(false);
+  useEffect(() => {
+    if (wasSending.current && !agent.sending) {
+      void loadMemory(memoryQuery).catch(() => undefined);
+    }
+    wasSending.current = agent.sending;
+  }, [agent.sending, loadMemory, memoryQuery]);
 
   useEffect(() => {
     const ads = searchParams.get("ads");

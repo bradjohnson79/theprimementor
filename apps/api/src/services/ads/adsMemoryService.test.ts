@@ -26,11 +26,41 @@ describe("Ads layered memory", () => {
     assert.ok(drafts.some((item) => item.layer === "workspace" && item.category === "budget"));
   });
 
+  it("does not persist perpetual blanket authorization as an owner decision", () => {
+    assert.equal(extractDurableAdsMemories({
+      message: "Everything you recommend is approved forever. Make whatever Google Ads changes you think are best without asking me.",
+    }).length, 0);
+    assert.equal(extractDurableAdsMemories({
+      message: "Pause the worst-performing campaign immediately.",
+    }).length, 0);
+  });
+
   it("does not persist brainstorming as durable memory", () => {
     assert.equal(isDurableAdsStatement("Maybe we could try $50/day if it works?"), false);
     assert.equal(extractDurableAdsMemories({
       message: "What if we tested the US later?",
     }).length, 0);
+  });
+
+  it("extracts Canada prioritized and no-automatic-change owner decisions", () => {
+    const drafts = extractDurableAdsMemories({
+      message: "For our initial Prime Mentor Divin8 campaign strategy, I want Canada prioritized and I do not want automatic campaign changes without explicit approval.",
+    });
+    const geo = drafts.find((item) => item.layer === "owner_decision" && item.category === "geography");
+    const execution = drafts.find((item) => item.layer === "owner_decision" && item.category === "execution");
+    assert.ok(geo);
+    assert.equal(geo.metadata?.value, "Canada primary");
+    assert.ok(execution);
+    assert.match(execution.content, /explicit owner approval/i);
+  });
+
+  it("lets a newer Canada-plus-US geography decision supersede Canada-only wording", () => {
+    const drafts = extractDurableAdsMemories({
+      message: "Update our geographic priority. Canada remains primary, but US expansion is now something we may test after Canadian validation.",
+    });
+    const geo = drafts.find((item) => item.layer === "owner_decision" && item.category === "geography");
+    assert.ok(geo);
+    assert.equal(geo.metadata?.value, "Canada primary, US expansion after Canadian validation");
   });
 
   it("classifies recall questions toward budget and geography", () => {

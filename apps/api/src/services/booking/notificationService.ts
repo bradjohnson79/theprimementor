@@ -23,6 +23,11 @@ export interface BookingNotificationPayload {
   durationMinutes?: number | null;
   intakeSummaryLines?: string[];
   purchaseConfirmed?: boolean;
+  amountCents?: number | null;
+  currency?: string | null;
+  presenter?: string | null;
+  displayDate?: string | null;
+  displayTime?: string | null;
 }
 
 interface BookingNotificationContactInput {
@@ -137,6 +142,17 @@ function summarizeIntake(intake: unknown) {
   if (typeof intake.notes === "string" && intake.notes.trim()) {
     lines.push(`Notes: ${intake.notes.trim()}`);
   }
+  if (typeof intake.deliveryFormat === "string" && intake.deliveryFormat.trim()) {
+    lines.push(`Delivery format: ${intake.deliveryFormat.trim()}`);
+  }
+  const healingAreas = intake.healingAreas;
+  if (Array.isArray(healingAreas) && healingAreas.length > 0) {
+    const areaText = healingAreas.filter((item) => typeof item === "string" && item.trim()).join(", ");
+    if (areaText) lines.push(`Healing areas: ${areaText}`);
+  }
+  if (typeof intake.concerns === "string" && intake.concerns.trim()) {
+    lines.push(`Concerns: ${intake.concerns.trim()}`);
+  }
 
   return lines.filter(Boolean).slice(0, 8);
 }
@@ -173,7 +189,11 @@ export async function sendSessionPurchaseConfirmedNotification(
     return;
   }
 
-  if (booking.sessionType !== "qa_session" && booking.sessionType !== "mentoring") {
+  if (
+    booking.sessionType !== "qa_session"
+    && booking.sessionType !== "mentoring"
+    && booking.sessionType !== "prime_body_healing"
+  ) {
     return;
   }
 
@@ -241,6 +261,44 @@ export async function sendBookingConfirmedNotification(
       eventId: payload.eventId ?? null,
       eventTitle: payload.eventTitle ?? null,
       joinUrl: payload.joinUrl ?? null,
+      accessPagePath: payload.accessPagePath ?? null,
+    },
+  });
+}
+
+export async function sendWebinarConfirmedNotification(
+  db: Database,
+  payload: BookingNotificationPayload,
+): Promise<void> {
+  if (!payload.eventId || !payload.eventTitle || !payload.joinUrl) {
+    logger.warn("webinar_notification_missing_event", {
+      bookingId: payload.bookingId,
+      eventId: payload.eventId ?? null,
+    });
+    return;
+  }
+
+  const contact = await getBookingNotificationContact(db, payload);
+  const firstName = contact.fullName?.trim().split(/\s+/)[0] || null;
+  await sendNotification(db, {
+    event: "webinar.confirmed",
+    userId: payload.userId,
+    payload: {
+      entityId: payload.entityId ?? payload.bookingId,
+      bookingId: payload.bookingId,
+      eventId: payload.eventId,
+      eventTitle: payload.eventTitle,
+      presenter: payload.presenter ?? "Brad Johnson",
+      displayDate: payload.displayDate ?? "",
+      displayTime: payload.displayTime ?? "",
+      startTimeUtc: payload.startTimeUtc ?? "",
+      timezone: payload.timezone,
+      fullName: contact.fullName,
+      firstName,
+      email: contact.email,
+      amountCents: payload.amountCents ?? 1499,
+      currency: payload.currency ?? "CAD",
+      zoomRegistrationUrl: payload.joinUrl,
       accessPagePath: payload.accessPagePath ?? null,
     },
   });

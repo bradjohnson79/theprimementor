@@ -22,12 +22,17 @@ import {
   sendAdminNewBookingNotification,
   sendMentoringCircleConfirmedNotification,
   sendSessionPurchaseConfirmedNotification,
+  sendWebinarConfirmedNotification,
 } from "../booking/notificationService.js";
-import { confirmMentoringCircleBooking } from "../booking/bookingService.js";
+import { confirmMentoringCircleBooking, confirmWebinarBooking } from "../booking/bookingService.js";
 import {
   getMentoringCircleEventOrThrow,
   upsertMentoringCircleRegistrationProjection,
 } from "../mentoringCircleService.js";
+import {
+  getWebinarEventOrThrow,
+  upsertWebinarRegistrationProjection,
+} from "../webinarEventService.js";
 import { recordPromoUsage } from "../promoCodeService.js";
 import {
   createPersistedOrderFromInvoice,
@@ -436,7 +441,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -444,6 +449,10 @@ function resolvePaymentEntity(
   if (metadata.type === "mentoring_circle") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "mentoring_circle", entityId } : null;
+  }
+  if (metadata.type === "webinar") {
+    const entityId = metadata.entityId ?? metadata.bookingId;
+    return entityId ? { entityType: "webinar", entityId } : null;
   }
   if (metadata.type === "report") {
     const entityId = metadata.entityId ?? metadata.reportId;
@@ -653,7 +662,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1351,6 +1360,72 @@ async function finalizeMentoringCircleAccess(
   return { booking, event };
 }
 
+async function finalizeWebinarAccess(
+  db: DbExecutor,
+  logger: WebhookLogger,
+  input: {
+    bookingId: string;
+    userId: string;
+    userEmail?: string | null;
+    eventId?: string | null;
+    amountCents?: number | null;
+    currency?: string | null;
+  },
+) {
+  const event = getWebinarEventOrThrow(input.eventId);
+  const booking = await confirmWebinarBooking(db as Database, {
+    bookingId: input.bookingId,
+    eventId: event.eventId,
+  });
+  await upsertWebinarRegistrationProjection(db as Database, { bookingId: booking.id });
+
+  void sendWebinarConfirmedNotification(db as Database, {
+    bookingId: booking.id,
+    userId: input.userId,
+    bookingType: event.eventTitle,
+    timezone: event.timezone,
+    startTimeUtc: booking.start_time_utc ?? toUtcIsoString(new Date(event.eventStartAt)),
+    endTimeUtc: booking.end_time_utc
+      ?? toUtcIsoString(new Date(new Date(event.eventStartAt).getTime() + event.durationMinutes * 60_000)),
+    eventId: event.eventId,
+    eventTitle: event.eventTitle,
+    joinUrl: event.zoomRegistrationUrl,
+    accessPagePath: event.thankYouPath,
+    amountCents: input.amountCents ?? event.priceCents,
+    currency: input.currency ?? event.currency,
+    presenter: event.presenter,
+    displayDate: event.displayDate,
+    displayTime: event.displayTime,
+  }).catch((error) => {
+    logger.error({
+      bookingId: booking.id,
+      userId: input.userId,
+      eventId: event.eventId,
+      error: error instanceof Error ? error.message : error,
+    }, "webinar_confirmation_notification_failed");
+  });
+
+  void sendAdminNewBookingNotification(db as Database, {
+    bookingId: booking.id,
+    userId: input.userId,
+    bookingType: event.eventTitle,
+    email: input.userEmail ?? null,
+    timezone: event.timezone,
+    startTimeUtc: booking.start_time_utc ?? undefined,
+    eventId: event.eventId,
+    eventTitle: event.eventTitle,
+  }).catch((error) => {
+    logger.error({
+      bookingId: booking.id,
+      userId: input.userId,
+      eventId: event.eventId,
+      error: error instanceof Error ? error.message : error,
+    }, "webinar_admin_notification_failed");
+  });
+
+  return { booking, event };
+}
+
 async function handleCheckoutSessionCompleted(
   db: DbExecutor,
   session: Stripe.Checkout.Session,
@@ -1406,7 +1481,9 @@ async function handleCheckoutSessionCompleted(
   const providerPaymentIntentId = stripeRef(session.payment_intent);
   const entity = resolvePaymentEntity(metadata);
   const autoExecutionOrderId = resolveAutoExecutionOrderId(metadata);
-  const bookingId = entity?.entityType === "session" || entity?.entityType === "mentoring_circle"
+  const bookingId = entity?.entityType === "session"
+    || entity?.entityType === "mentoring_circle"
+    || entity?.entityType === "webinar"
     ? entity.entityId
     : metadata.bookingId;
 
@@ -1513,6 +1590,16 @@ async function handleCheckoutSessionCompleted(
         bookingId,
         userId,
         eventId: metadata.eventId ?? metadata.eventKey,
+      });
+    }
+    if (entity.entityType === "webinar" && bookingId) {
+      await finalizeWebinarAccess(db, logger, {
+        bookingId,
+        userId,
+        userEmail: metadata.userEmail,
+        eventId: metadata.eventId ?? metadata.eventKey,
+        amountCents: session.amount_total ?? 1499,
+        currency: (session.currency ?? "cad").toUpperCase(),
       });
     }
     if (entity.entityType === "course") {
@@ -1685,6 +1772,27 @@ async function handleCheckoutSessionCompleted(
       product: finalized.event.eventTitle,
       orderId: bookingId,
     });
+    return;
+  }
+
+  if (entity.entityType === "webinar" && bookingId) {
+    const finalized = await finalizeWebinarAccess(db, logger, {
+      bookingId,
+      userId,
+      userEmail: metadata.userEmail,
+      eventId: metadata.eventId ?? metadata.eventKey,
+      amountCents: paidPayment.amount_cents,
+      currency: paidPayment.currency,
+    });
+
+    logger.info({
+      eventType: "checkout.session.completed",
+      checkoutSessionId: session.id,
+      paymentId: paidPayment.id,
+      eventId: finalized.event.eventId,
+      bookingId,
+      userId,
+    }, "stripe_webinar_entitlement_granted");
     return;
   }
 

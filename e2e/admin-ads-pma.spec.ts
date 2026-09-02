@@ -1,14 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { adminAuthSkipReason, adminBaseUrl } from "./helpers/adminAuth.ts";
 
-const ADMIN_BASE = process.env.PLAYWRIGHT_ADMIN_BASE_URL?.trim();
-const HAS_CLERK_SESSION = Boolean(
-  process.env.CLERK_TEST_SESSION_TOKEN?.trim()
-  || process.env.PLAYWRIGHT_CLERK_SESSION?.trim(),
-);
+const ADMIN_BASE = adminBaseUrl();
+const AUTH_SKIP = adminAuthSkipReason();
 
 test.describe("Admin PMA Keyword Strategy", () => {
   test("discovers Divin8 opportunities and stays proposal-only", async ({ page }) => {
-    test.skip(!ADMIN_BASE || !HAS_CLERK_SESSION, "PLAYWRIGHT_ADMIN_BASE_URL and a Clerk test session are required");
+    test.skip(Boolean(AUTH_SKIP), AUTH_SKIP || "Admin Clerk test session is required");
     const leakedProviderCalls: string[] = [];
     page.on("request", (request) => {
       const url = request.url();

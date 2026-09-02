@@ -14,7 +14,7 @@ import {
 import { processStripeWebhookEvent, syncCheckoutSessionCompleted } from "../services/payments/stripeWebhookService.js";
 import { retrieveShopCheckoutSession } from "../services/shop/shopCheckoutSessionRetrieve.js";
 
-type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "mentor_training" | "subscription" | "course" | "shop" | "regeneration_offer";
+type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "webinar" | "mentor_training" | "subscription" | "course" | "shop" | "regeneration_offer";
 
 interface CheckoutSessionSyncBody {
   checkoutSessionId?: string;

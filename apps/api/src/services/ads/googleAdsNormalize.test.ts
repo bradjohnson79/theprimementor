@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { last30DayRange, microsToAmount, normalizeCampaign, safeRate, summarizeCampaigns } from "./googleAdsNormalize.js";
+import { collapseKeywordRows, last30DayRange, microsToAmount, normalizeCampaign, normalizeKeyword, safeRate, summarizeCampaigns, summarizeKeywordInventory } from "./googleAdsNormalize.js";
 
 describe("Google Ads reporting normalization", () => {
   it("converts micros to currency units and keeps missing metrics null", () => {
@@ -35,6 +35,14 @@ describe("Google Ads reporting normalization", () => {
     assert.equal(empty.impressions, null);
     assert.equal(empty.cost, null);
     assert.equal(empty.health, null);
+    const pausedZero = normalizeCampaign({
+      campaign: { id: "23816909676", name: "Prime-Mentor-Reports", status: "PAUSED", advertisingChannelType: "SEARCH" },
+      campaignBudget: { amountMicros: "10000000" },
+      metrics: { impressions: "0", clicks: "0", costMicros: "0", conversions: "0" },
+    });
+    assert.equal(pausedZero.cost, 0);
+    assert.equal(pausedZero.impressions, 0);
+    assert.equal(pausedZero.health, null);
   });
 
   it("summarizes campaigns and keeps a last-30-days range", () => {
@@ -50,5 +58,29 @@ describe("Google Ads reporting normalization", () => {
     assert.equal(summary.impressions, 100);
     assert.equal(summary.spend, 5);
     assert.equal(summary.ctr, 0.1);
+  });
+
+  it("collapses date-segmented keyword rows into a unique positive count", () => {
+    const first = normalizeKeyword({
+      adGroupCriterion: { criterionId: "11", status: "ENABLED", negative: false, keyword: { text: "birth chart", matchType: "BROAD" } },
+      metrics: { impressions: "1", clicks: "0", costMicros: "0" },
+    });
+    const secondDay = normalizeKeyword({
+      adGroupCriterion: { criterionId: "11", status: "ENABLED", negative: false, keyword: { text: "birth chart", matchType: "BROAD" } },
+      metrics: { impressions: "2", clicks: "1", costMicros: "0" },
+    });
+    const removed = normalizeKeyword({
+      adGroupCriterion: { criterionId: "12", status: "REMOVED", negative: false, keyword: { text: "old", matchType: "BROAD" } },
+      metrics: { impressions: "0" },
+    });
+    const collapsed = collapseKeywordRows([first, secondDay, removed]);
+    assert.equal(collapsed.length, 2);
+    const birth = collapsed.find((item) => item.id === "11");
+    assert.equal(birth?.impressions, 3);
+    assert.equal(birth?.clicks, 1);
+    const inventory = summarizeKeywordInventory([first, secondDay, removed], 3);
+    assert.equal(inventory.uniquePositiveKeywords, 1);
+    assert.equal(inventory.rawRowCount, 3);
+    assert.equal(inventory.excludedRemoved, 1);
   });
 });

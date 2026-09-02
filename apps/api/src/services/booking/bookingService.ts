@@ -36,6 +36,11 @@ import {
   type BookingAvailabilityDay,
   sessionTypeRequiresAvailabilitySelection,
   sessionTypeRequiresSchedule,
+  bookingRequiresNatalFields,
+  bookingRequiresPhone,
+  normalizeHealingAreas,
+  validatePrimeBodyHealingIntake,
+  isPrimeBodyHealingDeliveryFormat,
   type BookingClientGender,
   type BookingIntakePayload,
   type BookingSessionType,
@@ -46,6 +51,10 @@ import {
   MENTORING_CIRCLE_BOOKING_TYPE_ID,
   getMentoringCircleEventOrThrow,
 } from "../mentoringCircleService.js";
+import {
+  WEBINAR_EVENT_BOOKING_TYPE_ID,
+  getWebinarEventOrThrow,
+} from "../webinarEventService.js";
 
 interface BookingRow {
   id: string;
@@ -526,12 +535,26 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   const manifestationEnhancement = type === "regeneration"
     ? normalizeManifestationEnhancement(raw.manifestationEnhancement)
     : null;
+  const healingAreas = type === "prime_body_healing"
+    ? normalizeHealingAreas(raw.healingAreas, { requireAtLeastOne: false })
+    : [];
+  const deliveryFormat = isPrimeBodyHealingDeliveryFormat(raw.deliveryFormat) ? raw.deliveryFormat : undefined;
+  const concerns = normalizeText(raw.concerns);
+  const birthDate = normalizeBirthDate(raw.birthDate);
+  const birthTime = normalizeText(raw.birthTime);
+  const birthPlace = normalizeText(raw.birthPlace);
 
   if (gender) intake.gender = gender;
   if (topics && (typeof topics === "string" ? Boolean(topics) : topics.length > 0)) intake.topics = topics;
   if (goals.length > 0) intake.goals = goals;
   if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
   if (manifestationEnhancement) intake.manifestationEnhancement = manifestationEnhancement;
+  if (deliveryFormat) intake.deliveryFormat = deliveryFormat;
+  if (healingAreas.length > 0) intake.healingAreas = healingAreas;
+  if (concerns) intake.concerns = concerns;
+  if (birthDate) intake.birthDate = birthDate;
+  if (birthTime) intake.birthTime = birthTime;
+  if (birthPlace) intake.birthPlace = birthPlace;
   if (other) intake.other = other;
   if (notes) intake.notes = notes;
 
@@ -613,6 +636,7 @@ function normalizeSharedFields(
   input: CreateBookingInput,
   fallbackEmail: string | null,
   allowAdminFallbacks: boolean,
+  bookingTypeId?: string,
 ) {
   const email = normalizeEmail(input.email ?? fallbackEmail ?? undefined);
   const fullName = normalizeText(input.fullName) ?? (allowAdminFallbacks ? getFallbackNameFromEmail(email) : null);
@@ -620,7 +644,8 @@ function normalizeSharedFields(
   const gender = normalizeClientGender(input.gender);
   const birthDate = normalizeBirthDate(input.birthDate);
   const birthTime = normalizeBirthTime(input.birthTime);
-  const birthplace = sessionType === "qa_session"
+  const requiresNatal = bookingRequiresNatalFields(sessionType, bookingTypeId);
+  const birthplace = sessionType === "qa_session" || (sessionType === "prime_body_healing" && !requiresNatal)
     ? null
     : normalizeStructuredBirthplace({
       birthPlaceName: input.birthPlaceName ?? input.birthPlace,
@@ -640,14 +665,17 @@ function normalizeSharedFields(
     if (!email) {
       throw createHttpError(400, "email is required");
     }
-    if (!phone && sessionType !== "qa_session") {
+    if (!phone && bookingRequiresPhone(sessionType)) {
       throw createHttpError(400, "phone is required");
     }
     if (!gender) {
       throw createHttpError(400, "gender is required");
     }
-    if (!birthDate && sessionType !== "qa_session") {
+    if (!birthDate && requiresNatal) {
       throw createHttpError(400, "birthDate is required");
+    }
+    if (requiresNatal && !birthplace) {
+      throw createHttpError(400, "birthPlace is required");
     }
     if (!consentGiven) {
       throw createHttpError(400, "consentGiven must be true");
@@ -673,6 +701,7 @@ function buildNormalizedIntake(
   rawIntake: unknown,
   legacyNotes: string | undefined,
   allowAdminFallbacks: boolean,
+  bookingTypeId?: string,
 ) {
   const intake = parseStoredIntake(rawIntake) ?? { type: sessionType };
   if (intake.type !== sessionType) {
@@ -753,6 +782,25 @@ function buildNormalizedIntake(
       normalized.healthFocusAreas = healthFocusAreas;
     }
     normalized.manifestationEnhancement = normalizeManifestationEnhancement(intake.manifestationEnhancement);
+  }
+
+  if (sessionType === "prime_body_healing") {
+    if (!bookingTypeId) {
+      throw createHttpError(400, "bookingTypeId is required for Prime Body Healing");
+    }
+    try {
+      const pbh = validatePrimeBodyHealingIntake({
+        bookingTypeId,
+        deliveryFormat: intake.deliveryFormat,
+        healingAreas: intake.healingAreas,
+        concerns: intake.concerns,
+      });
+      normalized.deliveryFormat = pbh.deliveryFormat;
+      if (pbh.healingAreas.length > 0) normalized.healingAreas = pbh.healingAreas;
+      if (pbh.concerns) normalized.concerns = pbh.concerns;
+    } catch (error) {
+      throw createHttpError(400, error instanceof Error ? error.message : "Invalid Prime Body Healing intake");
+    }
   }
 
   return {
@@ -1069,6 +1117,196 @@ export async function confirmMentoringCircleBooking(
   return serializeBooking(summary, now);
 }
 
+async function getWebinarBookingRow(
+  db: Database,
+  input: { userId: string; eventKey: string },
+) {
+  const [row] = await db
+    .select({
+      id: bookings.id,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(and(
+      eq(bookings.user_id, input.userId),
+      eq(bookings.booking_type_id, WEBINAR_EVENT_BOOKING_TYPE_ID),
+      eq(bookings.session_type, "mentoring_circle"),
+      eq(bookings.event_key, input.eventKey),
+    ))
+    .orderBy(desc(bookings.created_at))
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function createOrReuseWebinarBooking(
+  db: Database,
+  input: { userId: string; eventId?: string | null; now?: Date },
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const event = getWebinarEventOrThrow(input.eventId);
+  const existing = await getWebinarBookingRow(db, {
+    userId: input.userId,
+    eventKey: event.eventKey,
+  });
+
+  if (existing) {
+    if (existing.status === "cancelled") {
+      throw createHttpError(400, "Cancelled webinar purchases require manual support before repurchase.");
+    }
+
+    const reusablePayment = await getReusablePaymentForEntity(db, {
+      entityType: "webinar",
+      entityId: existing.id,
+    });
+    if (!reusablePayment && existing.status === "pending_payment") {
+      await createPaymentRecordForEntity(db, {
+        userId: input.userId,
+        entityType: "webinar",
+        entityId: existing.id,
+        bookingId: existing.id,
+        amountCents: event.priceCents,
+        currency: event.currency,
+        status: "pending",
+        metadata: {
+          source: "webinar_reuse",
+          purchaseType: "webinar_event",
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          bookingTypeId: WEBINAR_EVENT_BOOKING_TYPE_ID,
+        },
+      });
+    }
+
+    const existingSummary = await getBookingSummaryById(db, existing.id);
+    if (!existingSummary) {
+      throw createHttpError(500, "Webinar booking could not be loaded");
+    }
+
+    return serializeBooking(existingSummary, now);
+  }
+
+  const eventStartUtc = new Date(event.eventStartAt);
+  const eventEndUtc = addMinutes(eventStartUtc, event.durationMinutes);
+  const [user] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+
+  if (!user) {
+    throw createHttpError(404, "User not found");
+  }
+
+  const inserted = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(bookings)
+      .values({
+        user_id: input.userId,
+        booking_type_id: WEBINAR_EVENT_BOOKING_TYPE_ID,
+        session_type: "mentoring_circle",
+        event_key: event.eventKey,
+        start_time_utc: eventStartUtc,
+        end_time_utc: eventEndUtc,
+        timezone: event.timezone,
+        status: "pending_payment",
+        availability: null,
+        full_name: null,
+        email: user.email,
+        phone: null,
+        birth_date: null,
+        birth_time: "00:00",
+        birth_place: null,
+        birth_place_name: null,
+        birth_lat: null,
+        birth_lng: null,
+        birth_timezone: event.timezone,
+        consent_given: true,
+        intake: {
+          type: "webinar",
+          purchaseType: "webinar_event",
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          eventTitle: event.eventTitle,
+        },
+        intake_snapshot: {
+          eventId: event.eventId,
+          eventKey: event.eventKey,
+          eventTitle: event.eventTitle,
+          eventStartAt: event.eventStartAt,
+        },
+        join_url: null,
+        notes: null,
+      })
+      .returning({ id: bookings.id });
+
+    await createPaymentRecordForEntity(tx, {
+      userId: input.userId,
+      entityType: "webinar",
+      entityId: created.id,
+      bookingId: created.id,
+      amountCents: event.priceCents,
+      currency: event.currency,
+      status: "pending",
+      metadata: {
+        source: "webinar_create",
+        purchaseType: "webinar_event",
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+        bookingTypeId: WEBINAR_EVENT_BOOKING_TYPE_ID,
+      },
+    });
+
+    return created;
+  });
+
+  const summary = await getBookingSummaryById(db, inserted.id);
+  if (!summary) {
+    throw createHttpError(500, "Webinar booking created but could not be loaded");
+  }
+
+  return serializeBooking(summary, now);
+}
+
+export async function confirmWebinarBooking(
+  db: Database,
+  input: { bookingId: string; eventId?: string | null; now?: Date },
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const event = getWebinarEventOrThrow(input.eventId);
+  const booking = await getBookingSummaryById(db, input.bookingId);
+  if (!booking) {
+    throw createHttpError(404, "Booking not found");
+  }
+
+  if (booking.bookingTypeId !== WEBINAR_EVENT_BOOKING_TYPE_ID || booking.eventKey !== event.eventKey) {
+    throw createHttpError(400, "Booking is not a webinar purchase");
+  }
+
+  if (!["paid", "scheduled", "completed"].includes(booking.status)) {
+    throw createHttpError(400, "Booking payment must be settled before access is confirmed");
+  }
+
+  await db
+    .update(bookings)
+    .set({
+      start_time_utc: new Date(event.eventStartAt),
+      end_time_utc: addMinutes(new Date(event.eventStartAt), event.durationMinutes),
+      timezone: event.timezone,
+      status: "scheduled",
+      join_url: event.zoomRegistrationUrl,
+      updated_at: new Date(),
+    })
+    .where(eq(bookings.id, booking.id));
+
+  const summary = await getBookingSummaryById(db, booking.id);
+  if (!summary) {
+    throw createHttpError(500, "Webinar booking confirmed but could not be loaded");
+  }
+
+  return serializeBooking(summary, now);
+}
+
 export async function createBooking(db: Database, input: CreateBookingInput): Promise<BookingSummary> {
   const now = input.now ?? new Date();
   const bookingUserId = input.actorRole === "admin" && input.userId ? input.userId : input.actorUserId;
@@ -1084,8 +1322,15 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const sessionDurationMinutes = getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
   const sessionMetadata = getSessionMetadataTags(sessionType);
   const timezone = assertValidTimeZone(input.timezone ?? "");
-  const sharedFields = normalizeSharedFields(sessionType, input, targetUser.email, allowAdminFallbacks);
-  const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks);
+  const sharedFields = normalizeSharedFields(sessionType, input, targetUser.email, allowAdminFallbacks, bookingType.id);
+  const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks, bookingType.id);
+  if (sessionType === "prime_body_healing") {
+    if (sharedFields.birthDate && !intake.birthDate) intake.birthDate = sharedFields.birthDate;
+    if (sharedFields.birthTime && sharedFields.birthTime !== "00:00" && !intake.birthTime) {
+      intake.birthTime = sharedFields.birthTime;
+    }
+    if (sharedFields.birthPlace && !intake.birthPlace) intake.birthPlace = sharedFields.birthPlace;
+  }
   if (sharedFields.gender && !intake.gender) {
     intake.gender = sharedFields.gender;
   }

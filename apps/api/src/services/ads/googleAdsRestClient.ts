@@ -58,6 +58,12 @@ export function classifyGoogleAdsError(status: number, body: Record<string, unkn
   return adsError(status >= 400 && status < 500 ? status : 502, googleMessage || "The Google Ads API is unavailable.", "GOOGLE_ADS_API_ERROR");
 }
 
+const resolvedLoginByCustomer = new Map<string, string>();
+
+export function resetGoogleAdsLoginCustomerCache() {
+  resolvedLoginByCustomer.clear();
+}
+
 export async function searchGoogleAds(input: {
   accessToken: string;
   query: string;
@@ -93,18 +99,24 @@ export async function searchGoogleAds(input: {
     return Array.isArray(body.results) ? body.results as GoogleAdsSearchRow[] : [];
   };
 
+  const cachedLogin = resolvedLoginByCustomer.get(customerId);
+  const firstLogin = cachedLogin || preferredLogin;
   try {
-    return await attempt(preferredLogin);
+    const rows = await attempt(firstLogin);
+    resolvedLoginByCustomer.set(customerId, firstLogin);
+    return rows;
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : "";
-    if (code !== "GOOGLE_ADS_CUSTOMER_ACCESS_ERROR" || preferredLogin === customerId) {
+    if (code !== "GOOGLE_ADS_CUSTOMER_ACCESS_ERROR" || firstLogin === customerId) {
       throw error;
     }
     logger.info("ads_google_direct_customer_fallback", {
       advertisingAccount: displayCustomerId(customerId),
       managerAccount: displayCustomerId(preferredLogin),
     });
-    return attempt(customerId);
+    const rows = await attempt(customerId);
+    resolvedLoginByCustomer.set(customerId, customerId);
+    return rows;
   }
 }
 

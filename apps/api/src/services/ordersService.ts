@@ -6,6 +6,7 @@ import {
   memberEntitlements,
   mentorTrainingOrders,
   mentoringCircleRegistrations,
+  notificationEvents,
   orders as persistedOrdersTable,
   payments,
   regenerationSubscriptions,
@@ -17,7 +18,7 @@ import {
   type Database,
 } from "@wisdom/db";
 import { desc, eq, inArray, or, sql } from "drizzle-orm";
-import { getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
 import { logger } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import { getSectionsFromStoredReport } from "./reportFormat.js";
@@ -199,6 +200,9 @@ export interface AdminOrder {
       manifestation_enhancement: AdminOrderManifestationEnhancement | null;
       other: string | null;
       notes: string | null;
+      delivery_format: string | null;
+      healing_areas: string[];
+      concerns: string | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;
@@ -328,6 +332,7 @@ interface BookingSourceRow {
   startUrl: string | null;
   notes: string | null;
   createdAt: Date;
+  bookingTypeId: string;
   bookingTypeName: string;
   bookingDurationMinutes: number;
   bookingPriceCents: number;
@@ -568,6 +573,9 @@ function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
     manifestation_enhancement: null,
     other: null,
     notes: null,
+    delivery_format: null,
+    healing_areas: [],
+    concerns: null,
   };
 }
 
@@ -839,6 +847,9 @@ function formatSessionTypeLabel(value: string | null, fallbackName?: string | nu
   }
   if (value === "qa_session") {
     return "Q&A Session";
+  }
+  if (value === "prime_body_healing") {
+    return "Prime Body Healing";
   }
   return titleCase(value);
 }
@@ -1846,6 +1857,9 @@ function parseBookingIntake(value: unknown) {
     manifestationEnhancement: parseBookingManifestationEnhancement(value.manifestationEnhancement),
     other: getString(value.other),
     notes: getString(value.notes),
+    deliveryFormat: getString(value.deliveryFormat),
+    healingAreas: getStringArray(value.healingAreas),
+    concerns: getString(value.concerns),
   };
 }
 
@@ -2034,6 +2048,7 @@ async function fetchSourceData(db: Database, options: { showArchived?: boolean }
         startUrl: bookings.start_url,
         notes: bookings.notes,
         createdAt: bookings.created_at,
+        bookingTypeId: bookings.booking_type_id,
         bookingTypeName: bookingTypes.name,
         bookingDurationMinutes: bookingTypes.duration_minutes,
         bookingPriceCents: bookingTypes.price_cents,
@@ -2254,6 +2269,9 @@ function createSessionCandidate(
         manifestation_enhancement: manifestationEnhancement,
         other,
         notes: intakeSnapshot?.notes ?? intake?.notes ?? row.notes,
+        delivery_format: intakeSnapshot?.intake?.deliveryFormat ?? intake?.deliveryFormat ?? null,
+        healing_areas: intakeSnapshot?.intake?.healingAreas ?? intake?.healingAreas ?? [],
+        concerns: intakeSnapshot?.intake?.concerns ?? intake?.concerns ?? null,
       },
       availability,
       report_type: null,
@@ -2552,6 +2570,12 @@ function createWebinarCandidate(
   usersById: Map<string, UserRow>,
   clientsByUserId: Map<string, ClientRow>,
   entitlementsByUserId: Map<string, EntitlementRow>,
+  confirmationEmail?: {
+    status?: string | null;
+    sentAt?: Date | null;
+    messageId?: string | null;
+    error?: string | null;
+  } | null,
 ): OrderCandidate | null {
   const user = usersById.get(row.userId);
   if (!user) {
@@ -2606,6 +2630,10 @@ function createWebinarCandidate(
       event_name: row.eventTitle,
       event_date: row.eventStartAt.toISOString(),
       access_link: row.joinUrl,
+      fulfillment_email_status: confirmationEmail?.status ?? null,
+      fulfillment_email_sent_at: confirmationEmail?.sentAt?.toISOString() ?? null,
+      fulfillment_email_message_id: confirmationEmail?.messageId ?? null,
+      fulfillment_email_error: confirmationEmail?.error ?? null,
       stripe_subscription_id: null,
       ...getEmptyInvoiceMetadata(),
       ...getEmptyRecoveryInvoiceMetadata(),
@@ -2821,6 +2849,9 @@ function createPersistedAdminOrder(
         manifestation_intention: linkedBookingIntakeSnapshot?.intake?.manifestationIntention ?? linkedBookingIntake?.manifestationIntention ?? null,
         other: linkedBookingIntakeSnapshot?.intake?.other ?? linkedBookingIntake?.other ?? null,
         notes: linkedBookingIntakeSnapshot?.notes ?? linkedBookingIntake?.notes ?? linkedBooking?.notes ?? null,
+        delivery_format: linkedBookingIntakeSnapshot?.intake?.deliveryFormat ?? linkedBookingIntake?.deliveryFormat ?? null,
+        healing_areas: linkedBookingIntakeSnapshot?.intake?.healingAreas ?? linkedBookingIntake?.healingAreas ?? [],
+        concerns: linkedBookingIntakeSnapshot?.intake?.concerns ?? linkedBookingIntake?.concerns ?? null,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
         manifestation_goals: manifestationEnhancement?.intentions ?? null,
         manifestation_enhancement: manifestationEnhancement,
@@ -2908,11 +2939,41 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     existing.push(row);
     bookingsByUserId.set(row.userId, existing);
   }
+  const webinarConfirmationEmails = await db
+    .select({
+      userId: notificationEvents.user_id,
+      entityId: notificationEvents.entity_id,
+      status: notificationEvents.status,
+      sentAt: notificationEvents.sent_at,
+      messageId: notificationEvents.provider_message_id,
+      error: notificationEvents.failure_reason,
+      payload: notificationEvents.payload,
+    })
+    .from(notificationEvents)
+    .where(eq(notificationEvents.event_type, "webinar.confirmed"));
+  const webinarEmailsByUserEvent = new Map<string, {
+    status?: string | null;
+    sentAt?: Date | null;
+    messageId?: string | null;
+    error?: string | null;
+  }>();
+  for (const row of webinarConfirmationEmails) {
+    const payload = isRecord(row.payload) ? row.payload : null;
+    const eventId = getString(payload?.eventId) ?? getString(payload?.event_id) ?? row.entityId;
+    if (row.userId && eventId) {
+      webinarEmailsByUserEvent.set(`${row.userId}:${eventId}`, {
+        status: row.status,
+        sentAt: row.sentAt,
+        messageId: row.messageId,
+        error: row.error,
+      });
+    }
+  }
   const paymentsByUser = buildPaymentMap(paymentRows);
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
   const bookingBackedMentoringCircleEvents = new Set(
     bookingRows
-      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey)
+      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey && row.bookingTypeId !== ADRONIS_WEBINAR_BOOKING_TYPE_ID)
       .map((row) => `${row.userId}:${row.eventKey}`),
   );
   const persistedOrders = persistedOrderRows
@@ -2932,6 +2993,9 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   const candidates: OrderCandidate[] = [];
   for (const row of bookingRows) {
+    if (row.bookingTypeId === ADRONIS_WEBINAR_BOOKING_TYPE_ID) {
+      continue;
+    }
     try {
       const candidate = createSessionCandidate(
         row,
@@ -2994,7 +3058,13 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
       continue;
     }
     try {
-      const candidate = createWebinarCandidate(row, usersById, clientsByUserId, entitlementsByUserId);
+      const candidate = createWebinarCandidate(
+        row,
+        usersById,
+        clientsByUserId,
+        entitlementsByUserId,
+        webinarEmailsByUserEvent.get(`${row.userId}:${row.eventKey}`),
+      );
       if (candidate) {
         candidates.push(applyPersistedOrderState(
           candidate,

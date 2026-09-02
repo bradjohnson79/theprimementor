@@ -15,6 +15,7 @@ import {
   renderBookingCreatedTemplate,
   renderMentoringCircleConfirmedTemplate,
   renderReportGeneratedTemplate,
+  renderWebinarConfirmedTemplate,
 } from "./templates/userTemplates.js";
 import { renderAdminNewBookingTemplate, renderAdminPaymentReceivedTemplate } from "./templates/adminTemplates.js";
 
@@ -77,6 +78,20 @@ test("mentoring circle sample payloads are generated from the typed notification
   assert.equal(payload.eventId, "2026-04-26");
   assert.equal(payload.timezone, "America/Vancouver");
   assert.match(payload.joinUrl, /zoom\.us\/meeting\/register/i);
+});
+
+test("webinar confirmation email includes the event date, CAD price, and Zoom registration link", () => {
+  const payload = getSamplePayload("webinar.confirmed");
+  const rendered = renderWebinarConfirmedTemplate(payload);
+
+  assert.equal(rendered.subject, "Your Adronis Webinar Registration — From Disclosure to Contact");
+  assert.match(rendered.html, /Saturday, September 12, 2026/);
+  assert.match(rendered.html, /10:00 AM Pacific \/ 1:00 PM Eastern/);
+  assert.match(rendered.html, /\$14\.99 CAD/);
+  assert.match(rendered.html, /sCZZBeMQQgOQwsYb9XuM7Q/);
+  assert.match(rendered.html, /Complete Your Zoom Registration/);
+  assert.match(rendered.html, /does not automatically register you as a Zoom attendee/i);
+  assert.doesNotMatch(rendered.html, /join link has already been issued/i);
 });
 
 test("entity ids are derived from typed payloads", () => {

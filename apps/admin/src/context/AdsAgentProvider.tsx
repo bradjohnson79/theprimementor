@@ -24,7 +24,20 @@ import { adsSectionFromPath, adsSectionLabel, type AdsSection } from "../pages/a
 import { getPmaAgentFilters } from "../pages/ads/pmaAgentContext";
 
 const POLL_MS = 1_000;
-const POLL_TIMEOUT_MS = 105_000;
+const POLL_TIMEOUT_MS = 180_000;
+const TOKEN_REFRESH_SKEW_MS = 15_000;
+
+function tokenExpiryMs(token: string | null | undefined) {
+  if (!token) return 0;
+  const payload = token.split(".")[1];
+  if (!payload) return 0;
+  try {
+    const parsed = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number };
+    return typeof parsed.exp === "number" ? parsed.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
 
 type AdsAgentStore = {
   open: boolean;
@@ -75,6 +88,22 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
   const restoreDoneRef = useRef(false);
   const pollSeq = useRef(0);
   const abortPoll = useRef<AbortController | null>(null);
+  const pollTokenRef = useRef<{ token: string; expiresAt: number } | null>(null);
+
+  const pollAuthToken = useCallback(async () => {
+    const cached = pollTokenRef.current;
+    if (cached?.token && cached.expiresAt - Date.now() > TOKEN_REFRESH_SKEW_MS) {
+      return cached.token;
+    }
+    const token = await getToken({ skipCache: Boolean(cached) });
+    if (token) {
+      pollTokenRef.current = {
+        token,
+        expiresAt: tokenExpiryMs(token) || Date.now() + 45_000,
+      };
+    }
+    return token;
+  }, [getToken]);
 
   const refreshHealth = useCallback(async (test = false) => {
     try {
@@ -135,7 +164,6 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pollConversation = useCallback(async (
-    token: string | null,
     id: string,
     afterUserId: string | null,
     seq: number,
@@ -145,6 +173,7 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
       if (pollSeq.current !== seq) return;
       await sleep(POLL_MS);
       if (pollSeq.current !== seq) return;
+      const token = await pollAuthToken();
       const detail = unwrapData<{
         id: string;
         messages: AdsAgentMessage[];
@@ -167,10 +196,24 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
         return;
       }
     }
+    const token = await pollAuthToken();
+    const late = unwrapData<{
+      messages: AdsAgentMessage[];
+      generation?: AdsAgentGeneration;
+    }>(await api.get(`/admin/ads/agent/conversations/${id}`, token));
+    setMessages(late.messages);
+    const lateAssistant = [...late.messages].reverse().find((item) => item.role === "assistant");
+    const lateUser = afterUserId
+      ? late.messages.find((item) => item.id === afterUserId)
+      : [...late.messages].reverse().find((item) => item.role === "user");
+    const lateReady = lateAssistant && lateUser
+      ? new Date(lateAssistant.createdAt).getTime() >= new Date(lateUser.createdAt).getTime()
+      : Boolean(lateAssistant);
+    if (late.generation?.status !== "generating" && lateReady) return;
     throw Object.assign(new Error("Ads Agent provider timed out. Please retry."), {
       code: "ADS_AGENT_TIMEOUT",
     });
-  }, []);
+  }, [pollAuthToken]);
 
   const sendMessage = useCallback(async (message: string, images?: Array<{ mimeType: string; data: string }>) => {
     const trimmed = message.trim();
@@ -196,6 +239,12 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
     setMessages((current) => [...current, optimistic]);
     try {
       const token = await getToken();
+      if (token) {
+        pollTokenRef.current = {
+          token,
+          expiresAt: tokenExpiryMs(token) || Date.now() + 45_000,
+        };
+      }
       const response = unwrapData<{
         conversationId: string;
         status: "generating";
@@ -212,7 +261,7 @@ export function AdsAgentProvider({ children }: { children: ReactNode }) {
           item.id === optimistic.id ? response.message as AdsAgentMessage : item
         )));
       }
-      await pollConversation(token, response.conversationId, response.message?.id ?? null, seq);
+      await pollConversation(response.conversationId, response.message?.id ?? null, seq);
     } catch (sendError) {
       if (pollSeq.current !== seq) return;
       setError(adsAgentUserError(sendError));

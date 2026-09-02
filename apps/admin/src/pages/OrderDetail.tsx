@@ -130,6 +130,9 @@ interface IntakeFormState {
   other: string;
   submittedQuestions: string;
   notes: string;
+  deliveryFormat: string;
+  healingAreas: string;
+  concerns: string;
 }
 
 function listToLines(values: string[]) {
@@ -155,6 +158,9 @@ function createIntakeFormState(order: AdminOrder): IntakeFormState {
     other: intake.other ?? "",
     submittedQuestions: listToLines(intake.submitted_questions),
     notes: intake.notes ?? "",
+    deliveryFormat: intake.delivery_format ?? "",
+    healingAreas: listToLines(intake.healing_areas ?? []),
+    concerns: intake.concerns ?? "",
   };
 }
 
@@ -620,6 +626,9 @@ export default function OrderDetail() {
         other: nullableFormValue(intakeForm.other),
         submitted_questions: splitLines(intakeForm.submittedQuestions),
         notes: nullableFormValue(intakeForm.notes),
+        delivery_format: nullableFormValue(intakeForm.deliveryFormat),
+        healing_areas: splitLines(intakeForm.healingAreas),
+        concerns: nullableFormValue(intakeForm.concerns),
       };
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Invalid intake form data.");
@@ -1240,6 +1249,20 @@ export default function OrderDetail() {
                   <dt className="text-xs text-white/40">Access Link</dt>
                   <dd className="break-all text-white/85">{renderValue(order.metadata.access_link)}</dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-white/40">Confirmation email</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.fulfillment_email_status)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Email sent</dt>
+                  <dd className="text-white/85">{order.metadata.fulfillment_email_sent_at ? formatOrderDate(order.metadata.fulfillment_email_sent_at) : "—"}</dd>
+                </div>
+                {order.metadata.fulfillment_email_error ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Email failure</dt>
+                    <dd className="text-white/85">{renderValue(order.metadata.fulfillment_email_error)}</dd>
+                  </div>
+                ) : null}
               </>
             ) : null}
 
@@ -1544,6 +1567,36 @@ export default function OrderDetail() {
               </label>
 
               <label className="block">
+                <span className="text-xs text-white/40">Delivery Format</span>
+                <input
+                  value={intakeForm.deliveryFormat}
+                  onChange={(event) => updateIntakeForm({ deliveryFormat: event.target.value })}
+                  placeholder="live, prerecorded, or scan"
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Healing Areas</span>
+                <textarea
+                  value={intakeForm.healingAreas}
+                  onChange={(event) => updateIntakeForm({ healingAreas: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs text-white/40">Concerns</span>
+                <textarea
+                  value={intakeForm.concerns}
+                  onChange={(event) => updateIntakeForm({ concerns: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="block">
                 <span className="text-xs text-white/40">Notes</span>
                 <textarea
                   value={intakeForm.notes}
@@ -1597,6 +1650,18 @@ export default function OrderDetail() {
               <div>
                 <dt className="text-xs text-white/40">Consent Given</dt>
                 <dd className="text-white/85">{renderBoolean(order.metadata.intake.consent_given)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Delivery Format</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.delivery_format)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Healing Areas</dt>
+                <dd className="text-white/85">{renderList(order.metadata.intake.healing_areas ?? [])}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Concerns</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.concerns)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-white/40">Focus Topics</dt>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { classifyGoogleAdsError, GOOGLE_ADS_API_VERSION, searchGoogleAds } from "./googleAdsRestClient.js";
+import { classifyGoogleAdsError, GOOGLE_ADS_API_VERSION, resetGoogleAdsLoginCustomerCache, searchGoogleAds } from "./googleAdsRestClient.js";
 
 describe("Google Ads REST client", () => {
   it("uses a current Ads API version", () => {
@@ -32,6 +32,7 @@ describe("Google Ads REST client", () => {
     process.env.GOOGLE_ADS_CUSTOMER_ID = "4058459597";
     process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID = "8604690994";
     process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "test-token";
+    resetGoogleAdsLoginCustomerCache();
     const logins: string[] = [];
     const fetcher = (async (_url: string, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
@@ -53,6 +54,13 @@ describe("Google Ads REST client", () => {
       });
       assert.deepEqual(logins, ["8604690994", "4058459597"]);
       assert.equal((rows[0]?.customer as { id?: string })?.id, "4058459597");
+      const cached = await searchGoogleAds({
+        accessToken: "ya29.test",
+        query: "SELECT customer.id FROM customer LIMIT 1",
+        fetcher,
+      });
+      assert.deepEqual(logins, ["8604690994", "4058459597", "4058459597"]);
+      assert.equal((cached[0]?.customer as { id?: string })?.id, "4058459597");
     } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];

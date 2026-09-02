@@ -18,6 +18,8 @@ import MemberDivin8Chat from "./routes/MemberDivin8Chat";
 import Bookings from "./routes/Bookings";
 import Recordings from "./routes/Recordings";
 import MentoringCircle from "./routes/MentoringCircle";
+import AdronisWebinarCheckout from "./routes/AdronisWebinarCheckout";
+import AdronisWebinarThankYou from "./routes/AdronisWebinarThankYou";
 import MentorTraining from "./routes/MentorTraining";
 import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
@@ -36,11 +38,15 @@ import RegenerationOfferPage from "./routes/RegenerationOfferPage";
 import RegenerationOfferSuccess from "./routes/RegenerationOfferSuccess";
 import QASessionPage from "./routes/QASessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
+import PrimeBodyHealingPage from "./routes/PrimeBodyHealingPage";
+import PrimeBodyHealingBook from "./routes/PrimeBodyHealingBook";
 import {
   FOCUS_BOOKING_PATH,
   FOCUS_LANDING_PATH,
   MENTORING_BOOKING_PATH,
   MENTORING_LANDING_PATH,
+  PRIME_BODY_HEALING_BOOKING_PATH,
+  PRIME_BODY_HEALING_LANDING_PATH,
   QA_BOOKING_PATH,
   QA_LANDING_PATH,
   REGENERATION_BOOKING_PATH,
@@ -107,6 +113,9 @@ export default function App() {
           <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#sessions" replace />} />
           <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />
           <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
+          <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
+          <Route path="/webinars/adronis-disclosure-to-contact" element={<AdronisWebinarCheckout />} />
+          <Route path="/webinars/adronis-disclosure-to-contact/thank-you" element={<AdronisWebinarThankYou />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route element={<ProtectedLayout />}>
@@ -121,6 +130,7 @@ export default function App() {
             <Route path="/sessions/regeneration/success" element={<RegenerationSuccess />} />
             <Route path={QA_BOOKING_PATH} element={<Bookings />} />
             <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
+            <Route path={PRIME_BODY_HEALING_BOOKING_PATH} element={<PrimeBodyHealingBook />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/dashboard/reports/:reportType" element={<ReportOrder />} />
             <Route path="/reports/intro" element={<Navigate to="/dashboard/reports/intro" replace />} />

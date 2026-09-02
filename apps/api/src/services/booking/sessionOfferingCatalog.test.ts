@@ -20,6 +20,9 @@ const expected = [
   ["wisdom-mentoring-90", "mentoring", 90, 29900, "price_1TILnFAd5V3LaCqjkR9tAMuC"],
   ["regeneration-session", "regeneration", null, 9900, "price_1TSOy3Ad5V3LaCqjBkFRd1IL"],
   ["regeneration-qa-package", "regeneration", null, 14900, "price_1Twl2LAd5V3LaCqjCuljQ7Xk"],
+  ["prime-body-healing-level-1-live", "prime_body_healing", 15, 7900, null],
+  ["prime-body-healing-level-1-prerecorded", "prime_body_healing", null, 7900, null],
+  ["prime-body-healing-level-2", "prime_body_healing", null, 17900, null],
 ] as const;
 
 function rowForOffering(offering: typeof CANONICAL_SESSION_OFFERINGS[number]): BookingTypeSummary {
@@ -49,7 +52,14 @@ test("canonical session catalog contains the required offerings", () => {
     assert.equal(offering.durationMinutes, durationMinutes);
     assert.equal(offering.amountCents, amountCents);
     assert.equal(offering.currency, "CAD");
-    assert.equal(offering.stripeLivePriceFallback, stripePriceId);
+    assert.equal(offering.schedulingRequired, sessionType !== "prime_body_healing");
+    if (sessionType === "prime_body_healing") {
+      assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, undefined);
+      assert.ok(offering.stripePriceEnvKey?.startsWith("STRIPE_PRICE_PRIME_BODY_HEALING_"));
+      assert.ok(offering.stripeLivePriceEnvKey?.startsWith("STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_"));
+    } else {
+      assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, stripePriceId);
+    }
   }
 });
 
@@ -90,6 +100,13 @@ test("live Stripe price fallbacks resolve from the canonical catalog", () => {
   process.env.STRIPE_SECRET_KEY = "sk_live_test";
   try {
     for (const [id,,,, stripePriceId] of expected) {
+      if (!stripePriceId) {
+        assert.throws(
+          () => getBookingTypeStripePriceId(id),
+          /Missing Stripe price ID for booking type/,
+        );
+        continue;
+      }
       assert.equal(getBookingTypeStripePriceId(id), stripePriceId);
     }
   } finally {

@@ -1,6 +1,6 @@
-export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration";
+export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration" | "prime_body_healing";
 export type SessionOfferingBillingType = "one_time" | "subscription";
-export type SessionOfferingIntakeFlow = "guided_session" | "regeneration";
+export type SessionOfferingIntakeFlow = "guided_session" | "regeneration" | "prime_body_healing";
 
 export interface SessionOffering {
   productKey: string;
@@ -171,6 +171,57 @@ export const CANONICAL_SESSION_OFFERINGS = [
     schedulingRequired: true,
     description:
       "A limited-time $149 CAD one-time package with one Regeneration Session, 30 days of priority email support, and one private 30-minute Q&A that must be used within the same 30-day support window.",
+  },
+  {
+    productKey: "prime-body-healing-level-1-live",
+    bookingTypeId: "prime-body-healing-level-1-live",
+    sessionType: "prime_body_healing",
+    displayName: "Prime Body Healing — Level 1 Live",
+    durationMinutes: 15,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 7900,
+    stripePriceEnvKey: "STRIPE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+    active: true,
+    intakeFlow: "prime_body_healing",
+    schedulingRequired: false,
+    description:
+      "A focused 15-minute live Prime Body Healing session for up to five selected areas of energetic rejuvenation.",
+  },
+  {
+    productKey: "prime-body-healing-level-1-prerecorded",
+    bookingTypeId: "prime-body-healing-level-1-prerecorded",
+    sessionType: "prime_body_healing",
+    displayName: "Prime Body Healing — Level 1 Pre-Recorded",
+    durationMinutes: null,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 7900,
+    stripePriceEnvKey: "STRIPE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
+    active: true,
+    intakeFlow: "prime_body_healing",
+    schedulingRequired: false,
+    description:
+      "A personalized pre-recorded Prime Body Healing MP3 for up to five selected areas of energetic rejuvenation.",
+  },
+  {
+    productKey: "prime-body-healing-level-2",
+    bookingTypeId: "prime-body-healing-level-2",
+    sessionType: "prime_body_healing",
+    displayName: "Prime Body Healing — Level 2",
+    durationMinutes: null,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 17900,
+    stripePriceEnvKey: "STRIPE_PRICE_PRIME_BODY_HEALING_LEVEL_2",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_LEVEL_2",
+    active: true,
+    intakeFlow: "prime_body_healing",
+    schedulingRequired: false,
+    description:
+      "A comprehensive Prime Body Healing scan and rejuvenation with personalized MP3 recording and PDF scan report.",
   },
 ] as const satisfies readonly SessionOffering[];
 

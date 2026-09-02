@@ -20,7 +20,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:e2e:shop": "playwright test",
-    "test:e2e:shop-success": "playwright test -c playwright.shop-success.config.ts"
+    "test:e2e:shop-success": "playwright test -c playwright.shop-success.config.ts",
+    "test:e2e:admin": "playwright test -c playwright.admin.config.ts"
   },
   "engines": {
     "node": "22.x"

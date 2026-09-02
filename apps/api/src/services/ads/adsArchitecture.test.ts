@@ -25,6 +25,8 @@ describe("Ads Intelligence architecture", () => {
     assert.match(service, /enqueueAdsAgentChat/);
     assert.match(service, /generateAdsAgentReply/);
     assert.match(service, /GENERATION_DEADLINE_MS = 90_000/);
+    assert.match(service, /Promise.race/);
+    assert.match(service, /abort.aborted = true/);
     assert.match(service, /ads_agent_timing/);
     assert.doesNotMatch(service, /ollama|openai|anthropic|gemini/i);
     assert.match(adapter, /https:\/\/openrouter\.ai\/api\/v1/);

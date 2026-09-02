@@ -9,6 +9,7 @@ import {
   type ReportProductKey,
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
+import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import HomeShopGallery from "../components/home/HomeShopGallery";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
@@ -38,6 +39,7 @@ import {
   type GuidedSessionOption,
 } from "../lib/sessionCatalog";
 import {
+  PRIME_BODY_HEALING_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { ContactPublicContent } from "./ContactPublic";
@@ -769,6 +771,7 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+      <AdronisWebinarHomeCard />
       <HomeShopGallery />
       <RegenerationOfferHomePanel />
 
@@ -804,6 +807,50 @@ export default function Home() {
 
             <div className="space-y-6">
               <GuidedPrivateSessionsCard />
+              <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid sm:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] sm:items-center sm:gap-5 sm:p-5 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
+                <div className="aspect-square w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 sm:max-w-[20rem]">
+                  <img
+                    src="/images/prime-body-healing-level-2.png"
+                    alt="Prime Body Healing Level 2 artwork"
+                    className="h-full w-full object-contain p-1"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+                <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 sm:mt-0">
+                  <div className="space-y-1.5">
+                    <h3 className="text-base font-semibold leading-snug tracking-tight text-white">Prime Body Healing</h3>
+                    <p className="text-xs font-medium tabular-nums tracking-wide text-cyan-100/85">
+                      Level 1 $79 CAD · Level 2 $179 CAD
+                    </p>
+                  </div>
+                  <p className="flex-1 text-sm leading-relaxed text-white/60">
+                    Focused energetic rejuvenation or a comprehensive scan, healing, MP3, and PDF report. Pay first; Brad emails the next booking window or delivery turnaround.
+                  </p>
+                  <div className="mt-auto flex flex-col gap-2 sm:flex-row">
+                    <Link
+                      to={PRIME_BODY_HEALING_LANDING_PATH}
+                      onClick={() => trackCtaClick("explore_prime_body_healing", "home_sessions", {
+                        session: "Prime Body Healing",
+                        href: PRIME_BODY_HEALING_LANDING_PATH,
+                      })}
+                      className="flex-1 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
+                    >
+                      Explore Prime Body Healing
+                    </Link>
+                    <Link
+                      to={`${PRIME_BODY_HEALING_LANDING_PATH}#which-level`}
+                      onClick={() => trackCtaClick("learn_more", "home_sessions", {
+                        session: "Prime Body Healing",
+                        href: `${PRIME_BODY_HEALING_LANDING_PATH}#which-level`,
+                      })}
+                      className="flex-1 rounded-md border border-white/10 bg-transparent py-2.5 text-center text-sm font-medium text-white/80 transition hover:bg-white/8 hover:text-white"
+                    >
+                      Which Level?
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </div>
             <InlineBackToTop />
           </div>

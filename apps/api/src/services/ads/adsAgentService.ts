@@ -158,7 +158,7 @@ export async function enqueueAdsAgentChat(input: {
 /** @deprecated Use enqueueAdsAgentChat. Kept so existing imports keep working. */
 export const chatWithAdsAgent = enqueueAdsAgentChat;
 
-export async function generateAdsAgentReply(input: {
+type AdsAgentGenerationInput = {
   db: Database;
   userId: string;
   conversationId: string;
@@ -166,15 +166,59 @@ export async function generateAdsAgentReply(input: {
   context: AdsAgentContext;
   fetcher?: OpenRouterFetch;
   images?: Array<{ mimeType?: string; data?: string }>;
-}) {
+};
+
+function generationTimeoutError() {
+  const error = createHttpError(503, "Ads Agent provider timed out. Please retry.");
+  (error as { code?: string }).code = "ADS_AGENT_TIMEOUT";
+  return error;
+}
+
+export async function generateAdsAgentReply(input: AdsAgentGenerationInput) {
   const startedAt = Date.now();
   const timings: Record<string, number> = { requestReceived: 0 };
+  const abort = { aborted: false };
 
   const mark = (key: string) => {
     timings[key] = Date.now() - startedAt;
   };
 
   try {
+    await Promise.race([
+      runAdsAgentGeneration({ input, startedAt, timings, mark, abort }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          abort.aborted = true;
+          reject(generationTimeoutError());
+        }, GENERATION_DEADLINE_MS);
+      }),
+    ]);
+  } catch (error) {
+    abort.aborted = true;
+    const safe = userSafeGenerationError(error);
+    logger.warn("ads_agent_generation_failed", {
+      conversationId: input.conversationId,
+      errorCode: safe.errorCode,
+      ms: Date.now() - startedAt,
+      reason: error instanceof Error ? error.message.slice(0, 180) : "unknown",
+    });
+    await setAdsConversationGeneration(input.db, input.conversationId, {
+      status: "failed",
+      startedAt: new Date(startedAt).toISOString(),
+      error: safe.error,
+      errorCode: safe.errorCode,
+    }).catch(() => undefined);
+  }
+}
+
+async function runAdsAgentGeneration(params: {
+  input: AdsAgentGenerationInput;
+  startedAt: number;
+  timings: Record<string, number>;
+  mark: (key: string) => void;
+  abort: { aborted: boolean };
+}) {
+  const { input, startedAt, timings, mark, abort } = params;
     const settings = await getAdsAgentSettings(input.db);
     const health = await probeOpenRouterHealth({ fetcher: input.fetcher });
     mark("authComplete");
@@ -206,7 +250,7 @@ export async function generateAdsAgentReply(input: {
       ? sanitizeVisionImages(input.images.map((image) => ({ mimeType: image.mimeType ?? "", data: image.data ?? "" })))
       : [];
     if (images.length) {
-      throwIfGenerationDeadline(startedAt);
+      throwIfGenerationDeadline(startedAt, abort);
       const vision = await analyzeAdsScreenshots({ images, prompt: input.message, fetcher: input.fetcher });
       visionBrief = formatVisionForStrategist(vision);
       try {
@@ -242,6 +286,21 @@ export async function generateAdsAgentReply(input: {
     } catch {
       pmaSummary = JSON.stringify({ analyzed: false });
     }
+    let liveSnapshot = "";
+    if (mode === "READ_ONLY" && /\b(account|campaign|keyword|search term|spend|click|impression|budget|metric|ctr|cpc|conversion)\b/i.test(input.message)) {
+      throwIfGenerationDeadline(startedAt, abort);
+      const [summary, keywords, searchTerms] = await Promise.all([
+        invokeAdsAgentTool("getAccountSummary", { db: input.db, context: input.context }),
+        invokeAdsAgentTool("getKeywordPerformance", { db: input.db, context: input.context }),
+        invokeAdsAgentTool("getSearchTerms", { db: input.db, context: input.context }),
+      ]);
+      liveSnapshot = [
+        "Current Google Ads snapshot (authoritative, fetched just now — do not re-fetch these unless the user asks for a different date range):",
+        JSON.stringify(summary),
+        JSON.stringify(keywords),
+        JSON.stringify(searchTerms),
+      ].join("\n");
+    }
     mark("contextBuild");
 
     logger.info("ads_agent_chat", {
@@ -258,6 +317,7 @@ export async function generateAdsAgentReply(input: {
       memoryBlock,
       retrieved.length ? `Retrieved PMA knowledge (not the full library):\n${retrieved.map((entry) => `### ${entry.title}\n${entry.body.slice(0, 1200)}`).join("\n\n")}` : "",
       pmaSummary ? `Current PMA keyword strategy summary:\n${pmaSummary}` : "",
+      liveSnapshot,
       visionBrief,
       screenshotPma ? `PMA analysis of screenshot terms:\n${screenshotPma}` : "",
       "Knowledge authority: Prime Mentor actual data > owner decisions > Divin8 catalog facts > Google Ads doctrine > frameworks > hypotheses. Newer explicit owner decisions win. Separate facts from hypotheses.",
@@ -275,7 +335,7 @@ export async function generateAdsAgentReply(input: {
     let reply = "";
     let rounds = 0;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      throwIfGenerationDeadline(startedAt);
+      throwIfGenerationDeadline(startedAt, abort);
       rounds = round + 1;
       const turn = await completeOpenRouterChatTurn({
         fetcher: input.fetcher,
@@ -289,8 +349,8 @@ export async function generateAdsAgentReply(input: {
         break;
       }
       messages.push(turn.assistantMessage);
-      for (const call of turn.toolCalls) {
-        throwIfGenerationDeadline(startedAt);
+      const toolResults = await Promise.all(turn.toolCalls.map(async (call) => {
+        throwIfGenerationDeadline(startedAt, abort);
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(call.arguments || "{}") as Record<string, unknown>;
@@ -311,12 +371,13 @@ export async function generateAdsAgentReply(input: {
         } catch {
           // Performance memory is best-effort.
         }
-        messages.push({
-          role: "tool",
+        return {
+          role: "tool" as const,
           tool_call_id: call.id,
           content: JSON.stringify(result),
-        });
-      }
+        };
+      }));
+      messages.push(...toolResults);
       if (round === MAX_TOOL_ROUNDS - 1) {
         reply = turn.content || "I retrieved live Google Ads data but could not finish the analysis.";
       }
@@ -324,6 +385,9 @@ export async function generateAdsAgentReply(input: {
     mark("providerComplete");
     if (!reply) {
       throw adsAgentHttpError("provider_error", "OpenRouter is temporarily unavailable.");
+    }
+    if (abort.aborted) {
+      throw generationTimeoutError();
     }
 
     const assistant = await appendAdsMessage(input.db, {
@@ -336,6 +400,9 @@ export async function generateAdsAgentReply(input: {
     if (!assistant) {
       throw createHttpError(500, "Ads Agent response could not be stored.");
     }
+    if (abort.aborted) {
+      throw generationTimeoutError();
+    }
     await setAdsConversationGeneration(input.db, input.conversationId, { status: "idle" });
     mark("persistence");
     mark("finalResponse");
@@ -347,32 +414,19 @@ export async function generateAdsAgentReply(input: {
       ms: timings,
     });
     return assistant;
-  } catch (error) {
-    const safe = userSafeGenerationError(error);
-    logger.warn("ads_agent_generation_failed", {
-      conversationId: input.conversationId,
-      errorCode: safe.errorCode,
-      ms: Date.now() - startedAt,
-      reason: error instanceof Error ? error.message.slice(0, 180) : "unknown",
-    });
-    await setAdsConversationGeneration(input.db, input.conversationId, {
-      status: "failed",
-      startedAt: new Date(startedAt).toISOString(),
-      error: safe.error,
-      errorCode: safe.errorCode,
-    }).catch(() => undefined);
-  }
 }
 
 function remainingGenerationMs(startedAt: number) {
-  return Math.max(1_000, GENERATION_DEADLINE_MS - (Date.now() - startedAt));
+  const remaining = GENERATION_DEADLINE_MS - (Date.now() - startedAt);
+  if (remaining < 5_000) {
+    throw generationTimeoutError();
+  }
+  return remaining;
 }
 
-function throwIfGenerationDeadline(startedAt: number) {
-  if (Date.now() - startedAt >= GENERATION_DEADLINE_MS) {
-    const error = createHttpError(503, "Ads Agent provider timed out. Please retry.");
-    (error as { code?: string }).code = "ADS_AGENT_TIMEOUT";
-    throw error;
+function throwIfGenerationDeadline(startedAt: number, abort?: { aborted: boolean }) {
+  if (abort?.aborted || Date.now() - startedAt >= GENERATION_DEADLINE_MS) {
+    throw generationTimeoutError();
   }
 }
 

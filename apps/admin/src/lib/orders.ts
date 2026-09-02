@@ -163,6 +163,9 @@ export interface AdminOrder {
       manifestation_enhancement: AdminOrderManifestationEnhancement | null;
       other: string | null;
       notes: string | null;
+      delivery_format?: string | null;
+      healing_areas?: string[];
+      concerns?: string | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;

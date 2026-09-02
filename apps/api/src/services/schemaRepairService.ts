@@ -773,6 +773,7 @@ const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
 
 const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
+  `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'prime_body_healing';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'regeneration_offer';`,
   `INSERT INTO "booking_types" (
     "id",
@@ -860,6 +861,50 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     'CAD',
     10,
     10,
+    true
+  ),
+  (
+    'prime-body-healing-level-1-live',
+    'Prime Body Healing — Level 1 Live',
+    'prime_body_healing',
+    15,
+    7900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'prime-body-healing-level-1-prerecorded',
+    'Prime Body Healing — Level 1 Pre-Recorded',
+    'prime_body_healing',
+    0,
+    7900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'prime-body-healing-level-2',
+    'Prime Body Healing — Level 2',
+    'prime_body_healing',
+    0,
+    17900,
+    'CAD',
+    10,
+    10,
+    true
+  ),
+  (
+    'webinar-adronis-disclosure-to-contact',
+    'Adronis: From Disclosure to Contact',
+    'mentoring_circle',
+    90,
+    1499,
+    'CAD',
+    0,
+    0,
     true
   )
   ON CONFLICT ("id") DO UPDATE

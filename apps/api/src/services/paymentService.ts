@@ -33,6 +33,7 @@ import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sess
 import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOfferBilling.js";
 import { resolveMentoringCircleStripePriceId } from "../config/mentoringCircleBilling.js";
+import { assertWebinarRegistrationOpen, resolveWebinarStripePriceId } from "../config/webinarBilling.js";
 import {
   buildResonantDowsingCheckoutLineItem,
   getResonantDowsingStripePriceId,
@@ -50,11 +51,12 @@ import {
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity } from "./payments/paymentsService.js";
 import { buildStripeReferenceMetadata } from "./payments/stripeReferenceMetadata.js";
-import { createOrReuseMentoringCircleBooking } from "./booking/bookingService.js";
+import { createOrReuseMentoringCircleBooking, createOrReuseWebinarBooking } from "./booking/bookingService.js";
 import {
   getActiveMentoringCirclePurchaseEvent,
   getMentoringCircleEventOrThrow,
 } from "./mentoringCircleService.js";
+import { getWebinarEventOrThrow, getWebinarThankYouPath } from "./webinarEventService.js";
 import { validatePromoCodeForCheckout } from "./promoCodeService.js";
 import {
   mergeStripeMetadata,
@@ -335,7 +337,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -403,6 +405,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     && booking.sessionType !== "mentoring"
     && booking.sessionType !== "regeneration"
     && booking.sessionType !== "qa_session"
+    && booking.sessionType !== "prime_body_healing"
   ) {
     throw createHttpError(400, `Session checkout is not supported for ${booking.sessionType}`);
   }
@@ -1137,6 +1140,143 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
   return session;
 }
 
+async function createWebinarCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  const event = getWebinarEventOrThrow(input.eventId);
+  assertWebinarRegistrationOpen(event);
+
+  const booking = await createOrReuseWebinarBooking(db, {
+    userId: input.userId,
+    eventId: event.eventId,
+  });
+
+  if (booking.status === "paid" || booking.status === "scheduled" || booking.status === "completed") {
+    throw createHttpError(409, "This webinar has already been purchased.");
+  }
+
+  let payment = await getLatestPaymentForEntity(db, { entityType: "webinar", entityId: booking.id });
+  if (!payment) {
+    const created = await createPaymentRecordForEntity(db, {
+      userId: input.userId,
+      entityType: "webinar",
+      entityId: booking.id,
+      bookingId: booking.id,
+      amountCents: event.priceCents,
+      currency: event.currency,
+      status: "pending",
+      metadata: {
+        source: "webinar_checkout_recovery",
+        purchaseType: "webinar_event",
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+      },
+    });
+    payment = await getLatestPaymentForEntity(db, { entityType: "webinar", entityId: booking.id });
+    if (!payment) {
+      payment = {
+        id: created.id,
+        entityType: "webinar",
+        entityId: booking.id,
+        status: "pending",
+        providerPaymentIntentId: null,
+        providerCustomerId: null,
+        metadata: null,
+      };
+    }
+  }
+
+  if (payment.status === "paid") {
+    throw createHttpError(409, "This webinar has already been paid.");
+  }
+  if (payment.status === "refunded") {
+    throw createHttpError(400, "Refunded webinar purchases require manual support before checkout can restart.");
+  }
+
+  const stripe = getStripe();
+  const { priceId } = resolveWebinarStripePriceId(event);
+  const naming = resolveStripeProductNaming({
+    type: "event",
+    eventType: "webinar",
+    eventName: event.eventTitle,
+  });
+  const metadata = mergeStripeMetadata(buildCheckoutMetadata({
+    ...input,
+    type: "webinar",
+    entityId: booking.id,
+    bookingId: booking.id,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+  }), naming.metadata, {
+    customer_email: input.userEmail,
+    stripe_price_id: priceId,
+    purchaseType: "webinar_event",
+  });
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
+  const frontendUrl = getFrontendUrl();
+  const thankYouPath = getWebinarThankYouPath(event.eventId);
+
+  logger.debug("webinar_checkout_prepared", {
+    eventId: event.eventId,
+    bookingId: booking.id,
+    paymentId: payment.id,
+    priceId,
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: booking.id,
+    line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
+    metadata,
+    payment_intent_data: {
+      description: naming.description,
+      metadata,
+    },
+    success_url: `${frontendUrl}${thankYouPath}?checkout=success&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}/?webinar=canceled&eventId=${encodeURIComponent(event.eventId)}`,
+    customer: stripeCustomerId,
+  });
+
+  await updatePaymentCheckoutMetadata(db, payment.id, payment.metadata, {
+    source: "webinar_checkout_create",
+    purchaseType: "webinar_event",
+    stripeCheckoutSessionId: session.id,
+    stripeCheckoutMode: session.mode,
+    stripeCheckoutUrl: session.url,
+    stripePriceId: priceId,
+    stripeProductId: null,
+    stripeProductName: naming.productName,
+    eventId: event.eventId,
+    eventKey: event.eventKey,
+    bookingId: booking.id,
+    environment: metadata.environment,
+  });
+
+  logger.info("webinar_checkout_created", {
+    checkoutType: "webinar",
+    eventId: event.eventId,
+    bookingId: booking.id,
+    paymentId: payment.id,
+    sessionId: session.id,
+    priceId,
+    productName: naming.productName,
+    userId: input.userId,
+    clerkId: input.clerkId,
+    customerId: stripeCustomerId,
+    environment: metadata.environment,
+  });
+
+  return session;
+}
+
 async function createRegenerationOfferCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
   if (!isRegenerationOfferActive()) {
     logger.warn("regeneration_offer_checkout_expired", {
@@ -1579,6 +1719,9 @@ export async function createCheckoutSession(
   }
   if (type === "mentoring_circle") {
     return createMentoringCircleCheckoutSession(db, input);
+  }
+  if (type === "webinar") {
+    return createWebinarCheckoutSession(db, input);
   }
   if (type === "regeneration_offer") {
     return createRegenerationOfferCheckoutSession(db, input);
