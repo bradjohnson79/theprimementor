@@ -252,6 +252,9 @@ export interface AdminOrderIntakeUpdateBody {
   other: string | null;
   submitted_questions: string[];
   notes: string | null;
+  delivery_format?: string | null;
+  healing_areas?: string[];
+  concerns?: string | null;
 }
 
 export interface AdminOrderRecoveryInvoiceResponse {
