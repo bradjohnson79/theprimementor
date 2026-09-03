@@ -36,8 +36,10 @@ export function buildCandidatesFromThreads(input: {
   ownerAddresses: string[];
   existing: ExistingContactLookup;
   exclusionRules?: Array<Pick<ExclusionRule, "kind" | "value">>;
+  suppressed?: ExistingContactLookup;
 }): StoredGmailCandidate[] {
   const exclusionRules = input.exclusionRules ?? [];
+  const suppressed = input.suppressed ?? { has: () => false };
   const byEmail = new Map<string, StoredGmailCandidate>();
 
   for (const thread of input.threads) {
@@ -85,9 +87,12 @@ export function buildCandidatesFromThreads(input: {
           headers,
         });
         const exclusion = matchExclusion(person.email, exclusionRules);
-        const rejected = filter.filtered || exclusion.filtered;
-        const rejectionReason = filter.reason ?? exclusion.reason;
         const emailNormalized = normalizeEmail(person.email);
+        const isSuppressed = suppressed.has(emailNormalized);
+        const rejected = filter.filtered || exclusion.filtered || isSuppressed;
+        const rejectionReason = isSuppressed
+          ? "Previously removed due to hard bounce."
+          : filter.reason ?? exclusion.reason;
         const direction = detectTwoWay(threadMeta, emailNormalized, input.ownerAddresses);
         const dates = messageDates(threadMeta);
         const existing = byEmail.get(emailNormalized);
@@ -107,7 +112,13 @@ export function buildCandidatesFromThreads(input: {
           threadIds: [],
           messageIds: [],
           evidenceSummary: "",
-          status: rejected ? "filtered" : input.existing.has(emailNormalized) ? "already_in_list" : "new",
+          status: isSuppressed
+            ? "suppressed"
+            : rejected
+              ? "filtered"
+              : input.existing.has(emailNormalized)
+                ? "already_in_list"
+                : "new",
           rejectionReason: rejected ? rejectionReason : null,
         };
 
@@ -120,8 +131,8 @@ export function buildCandidatesFromThreads(input: {
         next.firstContact = pickEarlier(next.firstContact, dates.first?.toISOString() ?? null);
         next.lastContact = pickLater(next.lastContact, dates.last?.toISOString() ?? null);
         if (!next.firstName) next.firstName = person.firstName;
-        if (rejected && next.status === "new") {
-          next.status = "filtered";
+        if (rejected && (next.status === "new" || next.status === "already_in_list")) {
+          next.status = isSuppressed ? "suppressed" : "filtered";
           next.rejectionReason = rejectionReason;
         }
         if (input.existing.has(emailNormalized) && next.status === "new") {
@@ -165,13 +176,15 @@ export function dedupeCandidatesByEmail(candidates: StoredGmailCandidate[]): Sto
       threadIds,
       messageIds,
       messageCount: messageIds.length,
-      status: current.status === "filtered" || candidate.status === "filtered"
-        ? "filtered"
-        : current.status === "already_in_list" || candidate.status === "already_in_list"
-          ? "already_in_list"
-          : current.status === "invalid" || candidate.status === "invalid"
-            ? "invalid"
-            : "new",
+      status: current.status === "suppressed" || candidate.status === "suppressed"
+        ? "suppressed"
+        : current.status === "filtered" || candidate.status === "filtered"
+          ? "filtered"
+          : current.status === "already_in_list" || candidate.status === "already_in_list"
+            ? "already_in_list"
+            : current.status === "invalid" || candidate.status === "invalid"
+              ? "invalid"
+              : "new",
       rejectionReason: current.rejectionReason ?? candidate.rejectionReason,
     };
     merged.evidenceSummary = buildEvidenceSummary(merged);

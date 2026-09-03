@@ -144,7 +144,7 @@ async function assertProtectedRoutesUseRequireAuth() {
   const srcDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
   for (const entry of API_ROUTE_MANIFEST) {
-    if (entry.auth === "public" || entry.auth === "stripe-webhook" || entry.auth === "clerk-webhook") {
+    if (entry.auth === "public" || entry.auth === "stripe-webhook" || entry.auth === "clerk-webhook" || entry.auth === "brevo-webhook") {
       continue;
     }
 
@@ -187,7 +187,8 @@ async function assertValidationPolicies() {
     const requiresProtectedValidation = isMutating
       && entry.auth !== "public"
       && entry.auth !== "stripe-webhook"
-      && entry.auth !== "clerk-webhook";
+      && entry.auth !== "clerk-webhook"
+      && entry.auth !== "brevo-webhook";
 
     if (requiresProtectedValidation && entry.validation === "none") {
       throw new Error(`Protected mutating route must declare validation coverage: ${normalizeRoute(entry)}`);

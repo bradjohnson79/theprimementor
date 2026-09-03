@@ -11,6 +11,9 @@ import {
   parseContactListQuery,
   updateEmailContact,
 } from "../services/emailList/contactService.js";
+import { checkContactHealth } from "../services/emailList/emailHealthService.js";
+import { getHealthCheckJob, startHealthCheckJob } from "../services/emailList/emailHealthJobService.js";
+import { listEmailSuppressions, restoreSuppression } from "../services/emailList/emailSuppressionService.js";
 import { commitCsvImport, previewCsvImport } from "../services/emailList/csvImportService.js";
 import { createDrizzleEmailListStore } from "../services/emailList/emailListStore.js";
 import {
@@ -37,6 +40,7 @@ import {
 
 const SEARCH_RATE_LIMIT = { max: 20, timeWindow: "1 minute" as const };
 const COMMIT_RATE_LIMIT = { max: 10, timeWindow: "1 minute" as const };
+const HEALTH_CHECK_RATE_LIMIT = { max: 30, timeWindow: "1 minute" as const };
 
 function storeFor(request: FastifyRequest) {
   return createDrizzleEmailListStore(requireDatabase(request.server.db));
@@ -166,9 +170,41 @@ export async function adminEmailsRoutes(app: FastifyInstance) {
     return ok(await deleteExclusionRule(storeFor(request), request.params.id));
   });
 
+  app.get("/admin/email-contacts/suppressions", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    return ok(await listEmailSuppressions(storeFor(request)));
+  });
+
+  app.post<{ Params: { id: string }; Body: { confirm?: boolean } }>(
+    "/admin/email-contacts/suppressions/:id/restore",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      return ok(await restoreSuppression(storeFor(request), request.params.id, request.body ?? {}));
+    },
+  );
+
+  app.post("/admin/email-contacts/health-check/bulk", { preHandler: requireAuth }, async (request) => {
+    const user = requireAdmin(request);
+    return ok(await startHealthCheckJob(storeFor(request), user.id, (request.body ?? {}) as Record<string, unknown>));
+  });
+
+  app.get<{ Params: { id: string } }>("/admin/email-contacts/health-check/jobs/:id", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    return ok(await getHealthCheckJob(storeFor(request), request.params.id));
+  });
+
   app.get("/admin/email-contacts", { preHandler: requireAuth }, async (request) => {
     requireAdmin(request);
     return ok(await listEmailContacts(storeFor(request), parseContactListQuery(request.query as Record<string, unknown>)));
+  });
+
+  app.post<{ Params: { id: string } }>("/admin/email-contacts/:id/health-check", {
+    preHandler: requireAuth,
+    config: { rateLimit: HEALTH_CHECK_RATE_LIMIT },
+  }, async (request) => {
+    const user = requireAdmin(request);
+    return ok(await checkContactHealth(storeFor(request), request.params.id, {}, user.id));
   });
 
   app.post<{ Body: { email?: string; firstName?: string } }>("/admin/email-contacts", { preHandler: requireAuth }, async (request) => {

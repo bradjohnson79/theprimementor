@@ -98,6 +98,7 @@ export async function searchGmailCandidates(
   const { accessToken, gmailAddress } = await getValidAccessToken(store, userId, client);
   await dedupeStoredContacts(store);
   const existing = await store.existingNormalizedEmails();
+  const suppressed = await store.existingSuppressedEmails();
   const exclusionRules = await store.listExclusions();
   const owners = ownerAddresses(gmailAddress);
 
@@ -138,6 +139,7 @@ export async function searchGmailCandidates(
       ownerAddresses: owners,
       existing: { has: (email) => existing.has(normalizeEmail(email)) },
       exclusionRules,
+      suppressed: { has: (email) => suppressed.has(normalizeEmail(email)) },
     });
     const before = accumulated.length;
     accumulated = dedupeCandidatesByEmail([...accumulated, ...pageCandidates]);
@@ -205,11 +207,15 @@ export async function saveGmailCandidates(
     if (!candidate) {
       throw createHttpError(404, "Candidate not found in this search session");
     }
-    if (candidate.status === "invalid") continue;
+    if (candidate.status === "invalid" || candidate.status === "suppressed") continue;
     selected.push(candidate);
   }
 
+  const suppressed = await store.existingSuppressedEmails();
   const outcomes = await mapPool(selected, 6, async (candidate) => {
+    if (suppressed.has(normalizeEmail(candidate.emailNormalized))) {
+      return false;
+    }
     let contact = await store.getContactByNormalized(candidate.emailNormalized);
     let added = false;
     if (!contact) {
@@ -268,12 +274,13 @@ export async function persistEligibleCandidates(
   let filtered = 0;
   let invalid = 0;
 
+  const suppressed = await store.existingSuppressedEmails();
   for (const candidate of candidates) {
     if (candidate.status === "invalid") {
       invalid += 1;
       continue;
     }
-    if (candidate.status === "filtered") {
+    if (candidate.status === "filtered" || candidate.status === "suppressed" || suppressed.has(normalizeEmail(candidate.emailNormalized))) {
       filtered += 1;
       continue;
     }

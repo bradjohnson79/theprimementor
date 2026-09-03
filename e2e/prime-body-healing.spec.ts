@@ -62,10 +62,40 @@ test.describe("Prime Body Healing landing", () => {
     await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=2|\/sign-in/);
   });
 
-  test("home sessions card links to the landing", async ({ page }) => {
-    await page.goto("/#sessions");
-    await expect(page.getByRole("heading", { name: "Prime Body Healing" })).toBeVisible();
-    await page.getByRole("link", { name: "Explore Prime Body Healing" }).click();
+  test("home card sits below Shop and links to the landing", async ({ page }) => {
+    await page.goto("/");
+    const shop = page.locator("#home-shop-gallery");
+    const card = page.locator("#prime-body-healing");
+    await expect(card.getByRole("heading", { name: "Prime Body Healing" })).toBeVisible();
+    await expect(card.getByRole("img", { name: "Prime Body Healing Level 1 artwork" })).toBeVisible();
+    await expect(card.getByRole("img", { name: "Prime Body Healing Level 2 artwork" })).toBeVisible();
+    await expect(card.getByText("Level 1 — Focused")).toBeVisible();
+    await expect(card.getByText("Level 2 — Comprehensive")).toBeVisible();
+
+    const shopBox = await shop.boundingBox();
+    const cardBox = await card.boundingBox();
+    expect(shopBox && cardBox).toBeTruthy();
+    if (shopBox && cardBox) {
+      expect(cardBox.y).toBeGreaterThan(shopBox.y);
+    }
+
+    await expect(page.locator("#sessions").getByRole("heading", { name: "Prime Body Healing" })).toHaveCount(0);
+    await card.getByRole("link", { name: "Book Now for Prime Body Healing Level 1" }).click();
+    await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=1|\/sign-in/);
+    if (page.url().includes("/sign-in")) {
+      expect(page.url()).toContain(encodeURIComponent("/sessions/prime-body-healing/book?level=1"));
+    }
+
+    await page.goto("/");
+    const level2Card = page.locator("#prime-body-healing");
+    await level2Card.getByRole("link", { name: "Book Now for Prime Body Healing Level 2" }).click();
+    await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=2|\/sign-in/);
+    if (page.url().includes("/sign-in")) {
+      expect(page.url()).toContain(encodeURIComponent("/sessions/prime-body-healing/book?level=2"));
+    }
+
+    await page.goto("/");
+    await page.locator("#prime-body-healing").getByRole("link", { name: "Explore Prime Body Healing" }).click();
     await expect(page).toHaveURL(/\/sessions\/prime-body-healing$/);
   });
 });

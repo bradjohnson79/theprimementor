@@ -39,8 +39,29 @@ interface ContactRow {
   email: string;
   source: string;
   createdAt: string;
+  healthStatus?: string;
+  healthCheckedAt?: string | null;
+  healthReason?: string | null;
   select?: boolean;
   actions?: string | null;
+}
+
+interface SuppressionRow {
+  id: string;
+  email: string;
+  reason: string;
+  source: string;
+  suppressedAt: string;
+}
+
+interface HealthJob {
+  id: string;
+  status: string;
+  total: number;
+  completed: number;
+  counts: Record<string, number>;
+  progressLabel?: string;
+  error?: string | null;
 }
 
 interface ExclusionRow {
@@ -133,6 +154,32 @@ function isPreviewableCandidate(candidate: Candidate, rules: ExclusionRow[], dis
   return !matchesExclusion(candidate.email, rules);
 }
 
+const HEALTH_LABELS: Record<string, { label: string; tooltip: string; className: string }> = {
+  unchecked: { label: "Unchecked", tooltip: "This address has not been checked yet.", className: "border-white/15 bg-white/5 text-white/70" },
+  checking: { label: "Checking", tooltip: "A deliverability check is in progress.", className: "border-amber-400/30 bg-amber-400/10 text-amber-100" },
+  deliverable: { label: "Deliverability check passed", tooltip: "No current issue detected. This is not a guarantee the address will not bounce.", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" },
+  likely_deliverable: { label: "No current issue detected", tooltip: "The domain accepts mail. Mailbox existence was not confirmed.", className: "border-emerald-400/20 bg-emerald-400/5 text-emerald-100" },
+  risky: { label: "Risky", tooltip: "This address should be reviewed before a large send.", className: "border-amber-400/30 bg-amber-400/10 text-amber-100" },
+  catch_all: { label: "Catch-all", tooltip: "The domain accepts mail broadly, so mailbox existence could not be confirmed.", className: "border-sky-400/30 bg-sky-400/10 text-sky-100" },
+  soft_bounce: { label: "Soft bounce", tooltip: "A temporary delivery problem was reported. The contact stays on the list.", className: "border-amber-400/30 bg-amber-400/10 text-amber-100" },
+  unknown: { label: "Unknown", tooltip: "The check could not confirm the mailbox. The contact stays on the list.", className: "border-white/15 bg-white/5 text-white/70" },
+  hard_bounce: { label: "Hard bounce", tooltip: "This address was permanently rejected.", className: "border-rose-400/30 bg-rose-400/10 text-rose-100" },
+  invalid: { label: "Invalid", tooltip: "This address is definitively invalid.", className: "border-rose-400/30 bg-rose-400/10 text-rose-100" },
+  blocked: { label: "Blocked", tooltip: "The provider blocked delivery to this address.", className: "border-rose-400/20 bg-rose-400/10 text-rose-100" },
+};
+
+function HealthBadge({ status, reason }: { status?: string; reason?: string | null }) {
+  const meta = HEALTH_LABELS[status ?? "unchecked"] ?? HEALTH_LABELS.unchecked;
+  return (
+    <span
+      title={reason || meta.tooltip}
+      className={`inline-flex max-w-[14rem] items-center rounded-full border px-2 py-0.5 text-[11px] leading-4 ${meta.className}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 function uniqueNewCsvRows(rows: CsvPreviewRow[]) {
   const seen = new Set<string>();
   const unique: CsvPreviewRow[] = [];
@@ -173,6 +220,10 @@ export default function Emails() {
   const [contactSearchInput, setContactSearchInput] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [healthFilter, setHealthFilter] = useState("");
+  const [suppressions, setSuppressions] = useState<SuppressionRow[]>([]);
+  const [healthJob, setHealthJob] = useState<HealthJob | null>(null);
+  const [healthSummary, setHealthSummary] = useState<HealthJob | null>(null);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   const [sort, setSort] = useState<"newest" | "oldest" | "email" | "name">("newest");
   const [loadingContacts, setLoadingContacts] = useState(true);
@@ -196,6 +247,7 @@ export default function Emails() {
     exists: csvPreview.filter((row) => row.status === "exists").length,
     duplicateInFile: csvPreview.filter((row) => row.status === "duplicate_in_file").length,
     excluded: csvPreview.filter((row) => row.status === "excluded").length,
+    suppressed: csvPreview.filter((row) => row.status === "suppressed").length,
     invalid: csvPreview.filter((row) => row.status === "invalid" || row.status === "missing_email").length,
   }), [csvPreview]);
   const candidateTotalPages = Math.max(1, Math.ceil(visibleCandidates.length / CANDIDATE_PAGE_SIZE));
@@ -237,6 +289,7 @@ export default function Emails() {
       });
       if (contactSearch.trim()) params.set("search", contactSearch.trim());
       if (sourceFilter) params.set("source", sourceFilter);
+      if (healthFilter) params.set("healthStatus", healthFilter);
       const response = unwrapData<{
         contacts: ContactRow[];
         pagination: { total: number };
@@ -248,13 +301,20 @@ export default function Emails() {
     } finally {
       setLoadingContacts(false);
     }
-  }, [contactPage, contactSearch, getToken, sort, sourceFilter]);
+  }, [contactPage, contactSearch, getToken, healthFilter, sort, sourceFilter]);
+
+  const loadSuppressions = useCallback(async () => {
+    const token = await getToken();
+    const response = unwrapData<{ suppressions: SuppressionRow[] }>(await api.get("/admin/email-contacts/suppressions", token));
+    setSuppressions(response.suppressions ?? []);
+  }, [getToken]);
 
   useEffect(() => {
     void loadStatus();
     void loadProfiles();
     void loadExclusions();
-  }, [loadExclusions, loadProfiles, loadStatus]);
+    void loadSuppressions();
+  }, [loadExclusions, loadProfiles, loadStatus, loadSuppressions]);
 
   useEffect(() => {
     void loadContacts();
@@ -615,6 +675,80 @@ export default function Emails() {
     }
   }
 
+  async function pollHealthJob(jobId: string) {
+    const token = await getToken();
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const job = unwrapData<HealthJob>(await api.get(`/admin/email-contacts/health-check/jobs/${jobId}`, token));
+      setHealthJob(job);
+      if (job.status === "completed" || job.status === "failed") {
+        setHealthSummary(job);
+        setHealthJob(null);
+        await loadContacts();
+        await loadSuppressions();
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    }
+  }
+
+  async function checkEmail(row: ContactRow) {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const result = unwrapData<{ purged?: boolean; healthStatus?: string; reason?: string }>(
+        await api.post(`/admin/email-contacts/${row.id}/health-check`, {}, token),
+      );
+      if (result.purged) {
+        setMessage(`${row.email} was suppressed and removed.`);
+      } else {
+        setMessage(`Checked ${row.email}.`);
+      }
+      await loadContacts();
+      await loadSuppressions();
+    } catch (err) {
+      setError(providerError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startBulkHealth(scope: "ids" | "unchecked" | "all_active") {
+    const ids = scope === "ids" ? selectedContactIds : [];
+    if (scope === "ids" && ids.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const job = unwrapData<HealthJob>(await api.post("/admin/email-contacts/health-check/bulk", {
+        scope,
+        ids,
+        force: scope === "ids",
+      }, token));
+      setHealthJob(job);
+      await pollHealthJob(job.id);
+    } catch (err) {
+      setError(providerError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreSuppressed(row: SuppressionRow) {
+    if (!window.confirm(`Restore ${row.email} to the importable list? This does not add it back to Contacts.`)) return;
+    setBusy(true);
+    try {
+      const token = await getToken();
+      await api.post(`/admin/email-contacts/suppressions/${row.id}/restore`, { confirm: true }, token);
+      setMessage(`${row.email} is no longer suppressed.`);
+      await loadSuppressions();
+    } catch (err) {
+      setError(providerError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function exportCsv() {
     const token = await getToken();
     await api.downloadBlob("/admin/email-contacts/export", token, "email-contacts.csv");
@@ -644,6 +778,11 @@ export default function Emails() {
       ) : null}
       {message ? (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{message}</div>
+      ) : null}
+      {healthJob ? (
+        <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-3 text-sm text-white/80">
+          {healthJob.progressLabel ?? `Checking ${healthJob.completed} / ${healthJob.total}`}
+        </div>
       ) : null}
 
       <Card>
@@ -968,6 +1107,24 @@ export default function Emails() {
               <option value="manual">Manual</option>
             </select>
             <select
+              value={healthFilter}
+              onChange={(event) => {
+                setHealthFilter(event.target.value);
+                setContactPage(1);
+              }}
+              aria-label="Email Health"
+              className="rounded-xl border border-white/10 bg-[#0f1327] px-3 py-2 text-sm text-white"
+            >
+              <option value="">All health</option>
+              <option value="unchecked">Unchecked</option>
+              <option value="likely_deliverable">No current issue detected</option>
+              <option value="deliverable">Deliverability check passed</option>
+              <option value="risky">Risky</option>
+              <option value="catch_all">Catch-all</option>
+              <option value="soft_bounce">Soft bounce</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <select
               value={sort}
               onChange={(event) => setSort(event.target.value as typeof sort)}
               className="rounded-xl border border-white/10 bg-[#0f1327] px-3 py-2 text-sm text-white"
@@ -988,6 +1145,22 @@ export default function Emails() {
               className="rounded-lg bg-accent-cyan px-4 py-2 text-sm font-medium text-black"
             >
               Add contact
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void startBulkHealth(selectedContactIds.length > 0 ? "ids" : "unchecked")}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/80 disabled:opacity-40"
+            >
+              Check Email Health
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void startBulkHealth("all_active")}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/80 disabled:opacity-40"
+            >
+              Check all active
             </button>
             <button
               type="button"
@@ -1035,12 +1208,25 @@ export default function Emails() {
               { key: "firstName", label: "Name", render: (value) => String(value ?? "—") },
               { key: "email", label: "Email" },
               { key: "source", label: "Source" },
+              {
+                key: "healthStatus",
+                label: "Email Health",
+                render: (_value, row) => <HealthBadge status={row.healthStatus} reason={row.healthReason} />,
+              },
               { key: "createdAt", label: "Date added", render: (value) => formatDate(String(value)) },
               {
                 key: "actions",
                 label: "",
                 render: (_value, row) => (
                   <span className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-accent-cyan"
+                      disabled={busy}
+                      onClick={() => void checkEmail(row)}
+                    >
+                      Check Email
+                    </button>
                     <button
                       type="button"
                       className="text-accent-cyan"
@@ -1109,6 +1295,7 @@ export default function Emails() {
               {csvSkipCounts.exists ? ` ${csvSkipCounts.exists} already on Contacts.` : ""}
               {csvSkipCounts.duplicateInFile ? ` ${csvSkipCounts.duplicateInFile} repeat${csvSkipCounts.duplicateInFile === 1 ? "" : "s"} in this file.` : ""}
               {csvSkipCounts.excluded ? ` ${csvSkipCounts.excluded} filtered.` : ""}
+              {csvSkipCounts.suppressed ? ` ${csvSkipCounts.suppressed} previously removed due to hard bounce.` : ""}
               {csvSkipCounts.invalid ? ` ${csvSkipCounts.invalid} invalid.` : ""}
             </p>
             {csvNewRows.length > 0 ? (
@@ -1141,6 +1328,76 @@ export default function Emails() {
           </div>
         ) : null}
       </Card>
+
+      <Card>
+        <h3 className="text-lg font-semibold text-white">Suppressed</h3>
+        <p className="mt-1 text-sm text-white/55">
+          Permanently removed hard bounces and invalid addresses. Restore with confirm only if you are sure the address should be importable again.
+        </p>
+        {suppressions.length === 0 ? (
+          <p className="mt-3 text-sm text-white/40">No suppressed addresses yet.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm text-white/75">
+              <thead>
+                <tr className="text-left text-xs uppercase text-white/40">
+                  <th className="py-2">Email</th>
+                  <th>Reason</th>
+                  <th>Source</th>
+                  <th>Date</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppressions.map((row) => (
+                  <tr key={row.id}>
+                    <td className="py-1">{row.email}</td>
+                    <td>{row.reason.replace(/_/g, " ")}</td>
+                    <td>{row.source}</td>
+                    <td>{formatDate(row.suppressedAt)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-accent-cyan"
+                        disabled={busy}
+                        onClick={() => void restoreSuppressed(row)}
+                      >
+                        Restore
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {healthSummary ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1327] p-6">
+            <h3 className="text-lg font-semibold text-white">Email Health summary</h3>
+            <div className="mt-4 space-y-2 text-sm text-white/75">
+              <p>Removed permanently: {healthSummary.counts.removed ?? 0}</p>
+              <p>Suppressed: {healthSummary.counts.suppressed ?? 0}</p>
+              <p>Requires review: {healthSummary.counts.requiresReview ?? 0}</p>
+              <p>Deliverability check passed: {healthSummary.counts.deliverable ?? 0}</p>
+              <p>No current issue detected: {healthSummary.counts.likely_deliverable ?? 0}</p>
+              <p>Catch-all: {healthSummary.counts.catch_all ?? 0}</p>
+              <p>Unknown: {healthSummary.counts.unknown ?? 0}</p>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setHealthSummary(null)}
+                className="rounded-lg bg-accent-cyan px-4 py-2 text-sm font-medium text-black"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {manualOpen ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">

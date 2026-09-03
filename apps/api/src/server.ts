@@ -41,6 +41,7 @@ import { seoRoutes } from "./routes/seo.js";
 import { promoCodesRoutes } from "./routes/promoCodes.js";
 import { shopRoutes } from "./routes/shop.js";
 import { adminEmailsRoutes } from "./routes/adminEmails.js";
+import { brevoWebhookRoutes } from "./routes/brevoWebhook.js";
 import { adminAdsRoutes } from "./routes/adminAds.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
@@ -883,6 +884,7 @@ export async function buildApp() {
   await app.register(promoCodesRoutes, { prefix: "/api" });
   await app.register(shopRoutes, { prefix: "/api" });
   await app.register(adminEmailsRoutes, { prefix: "/api" });
+  await app.register(brevoWebhookRoutes, { prefix: "/api" });
   await app.register(adminAdsRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });

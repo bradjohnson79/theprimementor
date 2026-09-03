@@ -29,6 +29,10 @@ describe("csv helpers", () => {
     );
     assert.equal(classifyCsvRow(7, "Already@Example.com", "Bea", new Set(), existing).status, "exists");
     assert.equal(classifyCsvRow(8, "NEW@example.com", "Ada", seen, existing).status, "duplicate_in_file");
+    assert.equal(
+      classifyCsvRow(9, "bounce@example.com", "Bo", new Set(), existing, [], new Set(["bounce@example.com"])).status,
+      "suppressed",
+    );
   });
 
   it("leaves only unique new addresses after existing and in-file duplicates", () => {

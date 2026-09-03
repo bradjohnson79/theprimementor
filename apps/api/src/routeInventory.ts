@@ -5,7 +5,8 @@ export type ApiRouteAuth =
   | "admin"
   | "internal"
   | "stripe-webhook"
-  | "clerk-webhook";
+  | "clerk-webhook"
+  | "brevo-webhook";
 
 export type ApiRouteValidation = "none" | "manual" | "service";
 
@@ -253,6 +254,12 @@ export const API_ROUTE_MANIFEST: ApiRouteManifestEntry[] = [
   { method: "POST", url: "/api/admin/email-contacts/import/preview", auth: "admin", validation: "service", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/csvImportService.ts"] },
   { method: "POST", url: "/api/admin/email-contacts/import/commit", auth: "admin", validation: "service", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/csvImportService.ts"] },
   { method: "GET", url: "/api/admin/email-contacts/export", auth: "admin", validation: "none", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/contactService.ts"] },
+  { method: "POST", url: "/api/admin/email-contacts/:id/health-check", auth: "admin", validation: "service", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/emailHealthService.ts"] },
+  { method: "POST", url: "/api/admin/email-contacts/health-check/bulk", auth: "admin", validation: "service", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/emailHealthJobService.ts"] },
+  { method: "GET", url: "/api/admin/email-contacts/health-check/jobs/:id", auth: "admin", validation: "none", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/emailHealthJobService.ts"] },
+  { method: "GET", url: "/api/admin/email-contacts/suppressions", auth: "admin", validation: "none", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/emailSuppressionService.ts"] },
+  { method: "POST", url: "/api/admin/email-contacts/suppressions/:id/restore", auth: "admin", validation: "service", handlerFile: "routes/adminEmails.ts", serviceRefs: ["services/emailList/emailSuppressionService.ts"] },
+  { method: "POST", url: "/api/webhooks/brevo", auth: "brevo-webhook", validation: "service", handlerFile: "routes/brevoWebhook.ts", serviceRefs: ["services/emailList/brevoDeliveryWebhook.ts"] },
   { method: "GET", url: "/api/admin/ads/status", auth: "admin", validation: "none", handlerFile: "routes/adminAds.ts", serviceRefs: ["services/ads/googleAdsConnectionService.ts"] },
   { method: "GET", url: "/api/admin/ads/google/oauth/start", auth: "admin", validation: "none", handlerFile: "routes/adminAds.ts", serviceRefs: ["services/ads/googleAdsOAuthService.ts"] },
   { method: "GET", url: "/api/admin/ads/google/oauth/callback", auth: "public", validation: "service", handlerFile: "routes/adminAds.ts", serviceRefs: ["services/ads/googleAdsOAuthService.ts"] },

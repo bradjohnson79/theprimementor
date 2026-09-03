@@ -1470,11 +1470,20 @@ export const emailContacts = pgTable("email_contacts", {
   source: text("source").notNull(),
   source_reference: text("source_reference"),
   imported_by_user_id: uuid("imported_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  health_status: text("health_status").default("unchecked").notNull(),
+  health_checked_at: timestamp("health_checked_at", { withTimezone: true }),
+  health_source: text("health_source"),
+  health_reason: text("health_reason"),
+  last_bounce_at: timestamp("last_bounce_at", { withTimezone: true }),
+  bounce_count: integer("bounce_count").default(0).notNull(),
+  soft_bounce_count: integer("soft_bounce_count").default(0).notNull(),
+  last_soft_bounce_at: timestamp("last_soft_bounce_at", { withTimezone: true }),
   ...timestamps,
 }, (table) => ({
   emailNormalizedUnique: uniqueIndex("email_contacts_email_normalized_uidx").on(table.email_normalized),
   sourceCreatedIdx: index("email_contacts_source_created_idx").on(table.source, table.created_at),
   importedByIdx: index("email_contacts_imported_by_idx").on(table.imported_by_user_id),
+  healthStatusIdx: index("email_contacts_health_status_idx").on(table.health_status, table.health_checked_at),
 }));
 
 export const gmailConnections = pgTable("gmail_connections", {
@@ -1581,6 +1590,63 @@ export const emailExclusionRules = pgTable("email_exclusion_rules", {
   ...timestamps,
 }, (table) => ({
   kindValueUnique: uniqueIndex("email_exclusion_rules_kind_value_uidx").on(table.kind, table.value),
+}));
+
+export const emailSuppressions = pgTable("email_suppressions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email_normalized: text("email_normalized").notNull(),
+  reason: text("reason").notNull(),
+  source: text("source").notNull(),
+  provider_event_id: text("provider_event_id"),
+  suppressed_at: timestamp("suppressed_at", { withTimezone: true }).defaultNow().notNull(),
+  created_by_user_id: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  emailNormalizedUnique: uniqueIndex("email_suppressions_email_normalized_uidx").on(table.email_normalized),
+  reasonCreatedIdx: index("email_suppressions_reason_created_idx").on(table.reason, table.suppressed_at),
+}));
+
+export const emailHealthChecks = pgTable("email_health_checks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  contact_id: uuid("contact_id"),
+  email_normalized: text("email_normalized").notNull(),
+  previous_status: text("previous_status"),
+  new_status: text("new_status").notNull(),
+  source: text("source").notNull(),
+  reason: text("reason"),
+  checked_at: timestamp("checked_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  emailCheckedIdx: index("email_health_checks_email_checked_idx").on(table.email_normalized, table.checked_at),
+  contactIdx: index("email_health_checks_contact_idx").on(table.contact_id),
+}));
+
+export const emailDeliveryEvents = pgTable("email_delivery_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  provider: text("provider").notNull(),
+  provider_event_id: text("provider_event_id").notNull(),
+  email_normalized: text("email_normalized").notNull(),
+  kind: text("kind").notNull(),
+  received_at: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  providerEventUnique: uniqueIndex("email_delivery_events_provider_event_uidx").on(table.provider, table.provider_event_id),
+  emailReceivedIdx: index("email_delivery_events_email_received_idx").on(table.email_normalized, table.received_at),
+}));
+
+export const emailHealthJobs = pgTable("email_health_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  scope: text("scope").notNull(),
+  status: text("status").default("queued").notNull(),
+  total: integer("total").default(0).notNull(),
+  completed: integer("completed").default(0).notNull(),
+  counts: jsonb("counts").$type<Record<string, number>>().default({}).notNull(),
+  error: text("error"),
+  ...timestamps,
+}, (table) => ({
+  userCreatedIdx: index("email_health_jobs_user_created_idx").on(table.user_id, table.created_at),
+  statusIdx: index("email_health_jobs_status_idx").on(table.status),
 }));
 
 export const adsAgentSettings = pgTable("ads_agent_settings", {

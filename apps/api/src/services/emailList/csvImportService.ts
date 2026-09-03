@@ -60,6 +60,7 @@ export async function previewCsvImport(
 
   const existing = await store.existingNormalizedEmails();
   const exclusions = await store.listExclusions();
+  const suppressed = await store.existingSuppressedEmails();
   const seen = new Set<string>();
   const rows = records.map((record, index) =>
     classifyCsvRow(
@@ -69,6 +70,7 @@ export async function previewCsvImport(
       seen,
       existing,
       exclusions,
+      suppressed,
     ),
   );
 
@@ -107,9 +109,10 @@ export async function commitCsvImport(
   await dedupeStoredContacts(store);
   const existing = await store.existingNormalizedEmails();
   const exclusions = await store.listExclusions();
+  const suppressed = await store.existingSuppressedEmails();
   const seen = new Set<string>();
   const revalidated = session.rows.map((row) =>
-    classifyCsvRow(row.rowNumber, row.email, row.firstName ?? undefined, seen, existing, exclusions),
+    classifyCsvRow(row.rowNumber, row.email, row.firstName ?? undefined, seen, existing, exclusions, suppressed),
   );
 
   let added = 0;
@@ -150,7 +153,7 @@ export async function commitCsvImport(
     if (row.status === "exists") alreadyExisted += 1;
     else if (row.status === "duplicate_in_file") duplicateInFile += 1;
     else if (row.status === "invalid" || row.status === "missing_email") invalid += 1;
-    else if (row.status === "excluded") skipped += 1;
+    else if (row.status === "excluded" || row.status === "suppressed") skipped += 1;
     else skipped += 1;
   }
 
@@ -171,5 +174,6 @@ function summarizeRows(rows: CsvPreviewRow[]) {
     duplicateInFile: rows.filter((row) => row.status === "duplicate_in_file").length,
     invalid: rows.filter((row) => row.status === "invalid" || row.status === "missing_email").length,
     excluded: rows.filter((row) => row.status === "excluded").length,
+    suppressed: rows.filter((row) => row.status === "suppressed").length,
   };
 }

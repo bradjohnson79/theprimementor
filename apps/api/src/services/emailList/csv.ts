@@ -3,6 +3,7 @@ import { stringify } from "csv-stringify/sync";
 import { matchExclusion, type ExclusionRule } from "./exclusionRules.js";
 import { extractFirstName } from "./firstName.js";
 import { isValidEmail, normalizeEmail } from "./emailNormalize.js";
+import { SUPPRESSED_IMPORT_REASON } from "./emailSuppressionService.js";
 
 export const EMAIL_HEADERS = ["email", "email_address", "email address", "emailaddress"];
 export const FIRST_NAME_HEADERS = ["first_name", "firstname", "first name", "name"];
@@ -17,7 +18,7 @@ export interface CsvPreviewRow {
   email: string;
   emailNormalized: string;
   firstName: string | null;
-  status: "new" | "exists" | "duplicate_in_file" | "invalid" | "missing_email" | "excluded";
+  status: "new" | "exists" | "duplicate_in_file" | "invalid" | "missing_email" | "excluded" | "suppressed";
   reason: string | null;
 }
 
@@ -56,6 +57,7 @@ export function classifyCsvRow(
   seen: Set<string>,
   existing: Set<string>,
   exclusions: Array<Pick<ExclusionRule, "kind" | "value">> = [],
+  suppressed: Set<string> = new Set(),
 ): CsvPreviewRow {
   const rawEmail = emailValue?.trim() ?? "";
   if (!rawEmail) {
@@ -79,6 +81,16 @@ export function classifyCsvRow(
     };
   }
   const emailNormalized = normalizeEmail(rawEmail);
+  if (suppressed.has(emailNormalized)) {
+    return {
+      rowNumber,
+      email: rawEmail,
+      emailNormalized,
+      firstName: parseFirstNameFromCsv(firstNameValue),
+      status: "suppressed",
+      reason: SUPPRESSED_IMPORT_REASON,
+    };
+  }
   const exclusion = matchExclusion(rawEmail, exclusions);
   if (exclusion.filtered) {
     return {

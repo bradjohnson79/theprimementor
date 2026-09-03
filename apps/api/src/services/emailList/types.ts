@@ -1,5 +1,5 @@
 export type ContactSource = "gmail" | "csv" | "manual";
-export type CandidateStatus = "new" | "already_in_list" | "filtered" | "invalid";
+export type CandidateStatus = "new" | "already_in_list" | "filtered" | "invalid" | "suppressed";
 
 export interface StoredGmailCandidate {
   id: string;

@@ -260,6 +260,13 @@
       "when": 1756768000000,
       "tag": "20260912_adronis_webinar",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1756860000000,
+      "tag": "20260902_email_health",
+      "breakpoints": true
     }
   ]
 }

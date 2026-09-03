@@ -105,6 +105,29 @@ describe("candidateBuild", () => {
     assert.equal(byEmail.get("jane@client.com")?.status, "new");
   });
 
+  it("marks suppressed addresses with the hard-bounce skip reason", () => {
+    const candidates = buildCandidatesFromThreads({
+      threads: [{
+        id: "thread-suppressed",
+        messages: [{
+          id: "m-s",
+          threadId: "thread-suppressed",
+          headers: [
+            { name: "From", value: "Gone <gone@client.com>" },
+            { name: "To", value: "Owner <me@example.com>" },
+          ],
+        }],
+      }],
+      matchingMessageIds: new Set(["m-s"]),
+      query: "Adronis",
+      ownerAddresses: ["me@example.com"],
+      existing: { has: () => false },
+      suppressed: { has: (email) => email === "gone@client.com" },
+    });
+    assert.equal(candidates[0]?.status, "suppressed");
+    assert.match(candidates[0]?.rejectionReason ?? "", /hard bounce/);
+  });
+
   it("collapses the same address with different casing into one candidate", () => {
     const candidates = buildCandidatesFromThreads({
       threads: [

@@ -35,6 +35,12 @@ describe("Admin Emails architecture", () => {
     assert.match(page, /Remove selected/);
     assert.match(page, /uniqueNewCsvRows/);
     assert.match(page, /Only unique new addresses remain/);
+    assert.match(page, /Email Health/);
+    assert.match(page, /Check Email Health/);
+    assert.match(page, /Check Email/);
+    assert.match(page, /Suppressed/);
+    assert.match(page, /Deliverability check passed/);
+    assert.match(page, /The domain accepts mail broadly/);
   });
 
   it("never serializes tokens on Gmail status", () => {
@@ -49,6 +55,6 @@ describe("Admin Emails architecture", () => {
 
   it("does not add Emails tables to schema repair", () => {
     const repair = read("apps/api/src/services/schemaRepairService.ts");
-    assert.doesNotMatch(repair, /email_contacts|gmail_connections|gmail_search_sessions|email_csv_import_sessions|email_exclusion_rules/);
+    assert.doesNotMatch(repair, /email_contacts|gmail_connections|gmail_search_sessions|email_csv_import_sessions|email_exclusion_rules|email_suppressions|email_health_checks|email_delivery_events|email_health_jobs/);
   });
 });

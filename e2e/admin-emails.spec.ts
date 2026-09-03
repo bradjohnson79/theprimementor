@@ -12,5 +12,8 @@ test.describe("Admin Emails", () => {
     await page.goto(`${ADMIN_BASE}/admin/emails`);
     await expect(page.getByRole("heading", { name: "Emails" })).toBeVisible();
     await expect(page.locator("[data-emails-compliance-notice]")).toBeVisible();
+    await expect(page.getByText("Email Health", { exact: false }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check Email Health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Suppressed" })).toBeVisible();
   });
 });

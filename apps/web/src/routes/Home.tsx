@@ -39,6 +39,7 @@ import {
   type GuidedSessionOption,
 } from "../lib/sessionCatalog";
 import {
+  PRIME_BODY_HEALING_BOOKING_PATH,
   PRIME_BODY_HEALING_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
@@ -672,6 +673,128 @@ function InlineBackToTop() {
   );
 }
 
+function PrimeBodyHealingHomeCard() {
+  return (
+    <section
+      id="prime-body-healing"
+      className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16"
+      aria-labelledby="home-prime-body-healing-heading"
+    >
+      <div className="relative mx-auto max-w-6xl px-6">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 lg:p-8">
+          <div className="space-y-6">
+            <div className="max-w-3xl space-y-2">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-amber-200/70">Energetic Healing</p>
+              <h2 id="home-prime-body-healing-heading" className="text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">
+                Prime Body Healing
+              </h2>
+              <p className="text-sm leading-7 text-white/68 sm:text-base">
+                Deeper energetic, intuitive, and restorative rejuvenation across the physical and subtle body. Release accumulated heaviness, restore greater harmony, and move into a more aligned state.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <figure className="overflow-hidden rounded-xl border border-amber-200/20 bg-black/25">
+                <img
+                  src="/images/prime-body-healing-level-1.png"
+                  alt="Prime Body Healing Level 1 artwork"
+                  className="aspect-[4/3] w-full object-contain p-2"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption className="space-y-3 border-t border-white/8 px-3 py-3 text-center">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-amber-100/80">
+                    Level 1 · $79 CAD
+                  </p>
+                  <Link
+                    to={`${PRIME_BODY_HEALING_BOOKING_PATH}?level=1`}
+                    aria-label="Book Now for Prime Body Healing Level 1"
+                    onClick={() => trackCtaClick("book_prime_body_healing_level_1", "home_prime_body_healing", {
+                      session: "Prime Body Healing Level 1",
+                      href: `${PRIME_BODY_HEALING_BOOKING_PATH}?level=1`,
+                    })}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
+                  >
+                    Book Now
+                  </Link>
+                </figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-xl border border-violet-200/20 bg-black/25">
+                <img
+                  src="/images/prime-body-healing-level-2.png"
+                  alt="Prime Body Healing Level 2 artwork"
+                  className="aspect-[4/3] w-full object-contain p-2"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption className="space-y-3 border-t border-white/8 px-3 py-3 text-center">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-violet-100/80">
+                    Level 2 · $179 CAD
+                  </p>
+                  <Link
+                    to={`${PRIME_BODY_HEALING_BOOKING_PATH}?level=2`}
+                    aria-label="Book Now for Prime Body Healing Level 2"
+                    onClick={() => trackCtaClick("book_prime_body_healing_level_2", "home_prime_body_healing", {
+                      session: "Prime Body Healing Level 2",
+                      href: `${PRIME_BODY_HEALING_BOOKING_PATH}?level=2`,
+                    })}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400"
+                  >
+                    Book Now
+                  </Link>
+                </figcaption>
+              </figure>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-amber-200/15 bg-amber-300/5 p-4">
+                <p className="text-sm font-semibold text-amber-100">Level 1 — Focused</p>
+                <p className="mt-1.5 text-sm leading-6 text-white/62">
+                  Work with up to five selected areas. Choose a live 15-minute session or a personalized pre-recorded MP3.
+                </p>
+              </div>
+              <div className="rounded-xl border border-violet-200/15 bg-violet-400/5 p-4">
+                <p className="text-sm font-semibold text-violet-100">Level 2 — Comprehensive</p>
+                <p className="mt-1.5 text-sm leading-6 text-white/62">
+                  A full energetic scan and healing, plus a personalized MP3 and PDF report across physical, subtle, emotional, vital, and causal layers.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-xl text-sm leading-6 text-white/55">
+                After purchase, Brad emails the next booking window or delivery turnaround based on available dates.
+              </p>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[22rem] sm:flex-row">
+                <Link
+                  to={PRIME_BODY_HEALING_LANDING_PATH}
+                  onClick={() => trackCtaClick("explore_prime_body_healing", "home_prime_body_healing", {
+                    session: "Prime Body Healing",
+                    href: PRIME_BODY_HEALING_LANDING_PATH,
+                  })}
+                  className="flex-1 rounded-md bg-white/10 px-4 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
+                >
+                  Explore Prime Body Healing
+                </Link>
+                <Link
+                  to={`${PRIME_BODY_HEALING_LANDING_PATH}#which-level`}
+                  onClick={() => trackCtaClick("learn_more", "home_prime_body_healing", {
+                    session: "Prime Body Healing",
+                    href: `${PRIME_BODY_HEALING_LANDING_PATH}#which-level`,
+                  })}
+                  className="flex-1 rounded-md border border-white/10 bg-transparent px-4 py-2.5 text-center text-sm font-medium text-white/80 transition hover:bg-white/8 hover:text-white"
+                >
+                  Which Level?
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RegenerationOfferHomePanel() {
   const { status } = useRegenerationOfferStatus();
   const [error, setError] = useState<string | null>(null);
@@ -773,6 +896,7 @@ export default function Home() {
       <HeroSection />
       <AdronisWebinarHomeCard />
       <HomeShopGallery />
+      <PrimeBodyHealingHomeCard />
       <RegenerationOfferHomePanel />
 
       <section id="regeneration" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16">
@@ -807,50 +931,6 @@ export default function Home() {
 
             <div className="space-y-6">
               <GuidedPrivateSessionsCard />
-              <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid sm:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] sm:items-center sm:gap-5 sm:p-5 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
-                <div className="aspect-square w-full shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 sm:max-w-[20rem]">
-                  <img
-                    src="/images/prime-body-healing-level-2.png"
-                    alt="Prime Body Healing Level 2 artwork"
-                    className="h-full w-full object-contain p-1"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-                <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 sm:mt-0">
-                  <div className="space-y-1.5">
-                    <h3 className="text-base font-semibold leading-snug tracking-tight text-white">Prime Body Healing</h3>
-                    <p className="text-xs font-medium tabular-nums tracking-wide text-cyan-100/85">
-                      Level 1 $79 CAD · Level 2 $179 CAD
-                    </p>
-                  </div>
-                  <p className="flex-1 text-sm leading-relaxed text-white/60">
-                    Focused energetic rejuvenation or a comprehensive scan, healing, MP3, and PDF report. Pay first; Brad emails the next booking window or delivery turnaround.
-                  </p>
-                  <div className="mt-auto flex flex-col gap-2 sm:flex-row">
-                    <Link
-                      to={PRIME_BODY_HEALING_LANDING_PATH}
-                      onClick={() => trackCtaClick("explore_prime_body_healing", "home_sessions", {
-                        session: "Prime Body Healing",
-                        href: PRIME_BODY_HEALING_LANDING_PATH,
-                      })}
-                      className="flex-1 rounded-md bg-white/10 py-2.5 text-center text-sm font-medium text-white transition hover:bg-white/20"
-                    >
-                      Explore Prime Body Healing
-                    </Link>
-                    <Link
-                      to={`${PRIME_BODY_HEALING_LANDING_PATH}#which-level`}
-                      onClick={() => trackCtaClick("learn_more", "home_sessions", {
-                        session: "Prime Body Healing",
-                        href: `${PRIME_BODY_HEALING_LANDING_PATH}#which-level`,
-                      })}
-                      className="flex-1 rounded-md border border-white/10 bg-transparent py-2.5 text-center text-sm font-medium text-white/80 transition hover:bg-white/8 hover:text-white"
-                    >
-                      Which Level?
-                    </Link>
-                  </div>
-                </div>
-              </div>
             </div>
             <InlineBackToTop />
           </div>

@@ -1,7 +1,9 @@
 import { createHttpError } from "../booking/errors.js";
 import { buildExportCsv, exportHasOnlyAllowedColumns } from "./csv.js";
 import { displayEmail, isValidEmail, normalizeEmail } from "./emailNormalize.js";
-import type { ContactSource, EmailListStore, ListContactsQuery } from "./emailListStore.js";
+import type { ContactPatch, ContactRow, ContactSource, EmailListStore, ListContactsQuery } from "./emailListStore.js";
+import { isHealthStatus } from "./emailHealthTypes.js";
+import { assertNotSuppressed } from "./emailSuppressionService.js";
 
 function sanitizeFirstName(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -10,20 +12,19 @@ function sanitizeFirstName(value: unknown): string | null {
   return trimmed.slice(0, 80);
 }
 
-export function serializeContact(row: {
-  id: string;
-  first_name: string | null;
-  email: string;
-  source: string;
-  created_at: Date;
-  imported_by_user_id?: string | null;
-}) {
+export function serializeContact(row: Pick<ContactRow, "id" | "first_name" | "email" | "source" | "created_at" | "health_status" | "health_checked_at" | "health_source" | "health_reason" | "bounce_count" | "soft_bounce_count">) {
   return {
     id: row.id,
     firstName: row.first_name,
     email: row.email,
     source: row.source,
     createdAt: row.created_at.toISOString(),
+    healthStatus: row.health_status,
+    healthCheckedAt: row.health_checked_at?.toISOString() ?? null,
+    healthSource: row.health_source,
+    healthReason: row.health_reason,
+    bounceCount: row.bounce_count,
+    softBounceCount: row.soft_bounce_count,
   };
 }
 
@@ -79,6 +80,7 @@ export async function createManualContact(
     throw createHttpError(400, "A valid email address is required");
   }
   const emailNormalized = normalizeEmail(email);
+  await assertNotSuppressed(store, emailNormalized);
   const existing = await store.getContactByNormalized(emailNormalized);
   if (existing) {
     throw createHttpError(409, "That email is already on the master list");
@@ -101,7 +103,7 @@ export async function updateEmailContact(
 ) {
   const current = await store.getContactById(id);
   if (!current) throw createHttpError(404, "Contact not found");
-  const patch: { first_name?: string | null; email?: string; email_normalized?: string } = {};
+  const patch: ContactPatch = {};
   if (input.firstName !== undefined) {
     patch.first_name = sanitizeFirstName(input.firstName);
   }
@@ -111,12 +113,23 @@ export async function updateEmailContact(
       throw createHttpError(400, "A valid email address is required");
     }
     const emailNormalized = normalizeEmail(email);
+    await assertNotSuppressed(store, emailNormalized);
     const clash = await store.getContactByNormalized(emailNormalized);
     if (clash && clash.id !== id) {
       throw createHttpError(409, "That email is already on the master list");
     }
     patch.email = email;
     patch.email_normalized = emailNormalized;
+    if (emailNormalized !== current.email_normalized) {
+      patch.health_status = "unchecked";
+      patch.health_checked_at = null;
+      patch.health_source = null;
+      patch.health_reason = null;
+      patch.last_bounce_at = null;
+      patch.bounce_count = 0;
+      patch.soft_bounce_count = 0;
+      patch.last_soft_bounce_at = null;
+    }
   }
   const updated = await store.updateContact(id, patch);
   if (!updated) throw createHttpError(404, "Contact not found");
@@ -138,7 +151,12 @@ export async function bulkDeleteEmailContacts(store: EmailListStore, ids: unknow
 }
 
 export async function exportEmailContactsCsv(store: EmailListStore) {
-  const rows = await store.listAllContacts();
+  const suppressed = await store.existingSuppressedEmails();
+  const rows = (await store.listAllContacts()).filter((row) => (
+    !suppressed.has(row.email_normalized)
+    && row.health_status !== "hard_bounce"
+    && row.health_status !== "invalid"
+  ));
   const csv = buildExportCsv(rows.map((row) => ({ email: row.email, firstName: row.first_name })));
   if (!exportHasOnlyAllowedColumns(csv)) {
     throw createHttpError(500, "Export columns are invalid");
@@ -148,9 +166,11 @@ export async function exportEmailContactsCsv(store: EmailListStore) {
 
 export function parseContactListQuery(query: Record<string, unknown>): ListContactsQuery {
   const source = typeof query.source === "string" ? query.source : "";
+  const healthStatus = typeof query.healthStatus === "string" ? query.healthStatus : "";
   return {
     search: typeof query.search === "string" ? query.search : "",
     source: source === "gmail" || source === "csv" || source === "manual" ? source as ContactSource : "",
+    healthStatus: isHealthStatus(healthStatus) ? healthStatus : "",
     sort: query.sort === "oldest" || query.sort === "email" || query.sort === "name" ? query.sort : "newest",
     page: Number(query.page ?? 1) || 1,
     pageSize: Number(query.pageSize ?? query.limit ?? 25) || 25,
