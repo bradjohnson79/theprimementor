@@ -314,14 +314,17 @@ export default function MentorTraining() {
                   </div>
                   <div className="mt-6">
                     {isEligible ? (
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => void handlePurchase(tier.type)}
-                        className="dashboard-action-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isSubmitting ? "Redirecting..." : `Purchase - ${tier.priceLabel}`}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => void handlePurchase(tier.type)}
+                          className="dashboard-action-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isSubmitting ? "Redirecting..." : `Purchase - ${tier.priceLabel}`}
+                        </button>
+                        <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+                      </>
                     ) : (
                       <p className="text-sm text-white/60">Complete a Mentoring Session to unlock this package.</p>
                     )}

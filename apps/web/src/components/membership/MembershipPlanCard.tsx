@@ -90,6 +90,7 @@ export default function MembershipPlanCard({
       >
         {isBusy ? "Redirecting…" : plan.ctaLabel}
       </button>
+      <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
     </div>
   );
 }

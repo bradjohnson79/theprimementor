@@ -212,6 +212,7 @@ export default function PrimeBodyHealingPage() {
             >
               Book Level 1 — $79 CAD
             </Link>
+            <p className="mt-2 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
           </div>
         </div>
       </section>
@@ -244,6 +245,7 @@ export default function PrimeBodyHealingPage() {
             >
               Order Level 2 — $179 CAD
             </Link>
+            <p className="mt-2 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
           </div>
           <figure className="overflow-hidden rounded-[1.6rem] border border-violet-200/20 bg-white/[0.03] p-2">
             <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" />

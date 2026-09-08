@@ -186,11 +186,14 @@ function ReportActions({
 }) {
   const product = REPORT_PRODUCTS[reportKey];
   return (
-    <div className={`mt-6 flex flex-col gap-3 ${featured ? "sm:flex-row" : ""}`}>
-      <Link to={product.orderPath} className={CTA_PRIMARY}>
-        {product.ctaLabel}
-      </Link>
-      <SampleAction reportKey={reportKey} onOpen={onOpenSample} />
+    <div className="mt-6">
+      <div className={`flex flex-col gap-3 ${featured ? "sm:flex-row" : ""}`}>
+        <Link to={product.orderPath} className={CTA_PRIMARY}>
+          {product.ctaLabel}
+        </Link>
+        <SampleAction reportKey={reportKey} onOpen={onOpenSample} />
+      </div>
+      <p className="mt-2 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
     </div>
   );
 }

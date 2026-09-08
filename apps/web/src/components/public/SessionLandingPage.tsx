@@ -165,16 +165,19 @@ function LandingCta({
   title: string;
 }) {
   return (
-    <Link
-      to={href}
-      onClick={() => trackCtaClick("session_landing_cta", location, { href, label, title })}
-      className={[
-        "inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-        themeStyles[theme].cta,
-      ].join(" ")}
-    >
-      {label}
-    </Link>
+    <span className="inline-flex flex-col items-start gap-2">
+      <Link
+        to={href}
+        onClick={() => trackCtaClick("session_landing_cta", location, { href, label, title })}
+        className={[
+          "inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
+          themeStyles[theme].cta,
+        ].join(" ")}
+      >
+        {label}
+      </Link>
+      <span className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</span>
+    </span>
   );
 }
 

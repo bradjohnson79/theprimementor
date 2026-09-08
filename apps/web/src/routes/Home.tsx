@@ -91,7 +91,7 @@ interface SocialWidgetCardProps {
   children?: React.ReactNode;
 }
 
-const SERVICE_PURCHASE_NOTE = "Free account created before purchase.";
+const SERVICE_PURCHASE_NOTE = "Create a Free Account or Sign-in to Purchase";
 
 const REPORT_CARD_IMAGES: Record<ReportProductKey, string> = {
   three_questions: introductoryReportImage,
@@ -465,6 +465,7 @@ function GuidedPrivateSessionsCard() {
               Proceed
             </Link>
             <p className="text-sm text-white/45">{helperText}</p>
+            <p className="text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
           </div>
         </div>
 
@@ -717,6 +718,7 @@ function PrimeBodyHealingHomeCard() {
                   >
                     Book Now
                   </Link>
+                  <p className="text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
                 </figcaption>
               </figure>
               <figure className="overflow-hidden rounded-xl border border-violet-200/20 bg-black/25">
@@ -742,6 +744,7 @@ function PrimeBodyHealingHomeCard() {
                   >
                     Book Now
                   </Link>
+                  <p className="text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
                 </figcaption>
               </figure>
             </div>
@@ -850,6 +853,7 @@ function RegenerationOfferHomePanel() {
             </Link>
           </div>
           {error ? <p className="text-sm text-amber-100">{error}</p> : null}
+          <p className="text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
           <p className="text-xs uppercase tracking-[0.24em] text-white/45">Available until August 31, 2026 · One-time purchase · No subscription</p>
         </div>
 

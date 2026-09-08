@@ -132,7 +132,7 @@ export default function AdronisWebinarHomeCard() {
             {error ? <p className="text-sm text-amber-100">{error}</p> : null}
             {!owned ? (
               <p className="text-xs leading-5 text-white/55">
-                A free Prime Mentor account is required to purchase and access the webinar registration link.
+                Create a Free Account or Sign-in to Purchase
               </p>
             ) : null}
           </div>

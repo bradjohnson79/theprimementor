@@ -78,6 +78,7 @@ export default function ShopLanding() {
                     >
                       View Product
                     </Link>
+                    <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
                   </article>
                 );
               })}

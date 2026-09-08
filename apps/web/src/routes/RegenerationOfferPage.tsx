@@ -108,6 +108,7 @@ export default function RegenerationOfferPage() {
                     onError={setError}
                     className={CTA_CLASS}
                   />
+                  <p className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
                   {error ? <p className="text-sm text-cyan-100/80">{error}</p> : null}
                 </div>
               ) : (
@@ -226,13 +227,16 @@ export default function RegenerationOfferPage() {
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/66 sm:text-base">
               {priceLabel} CAD one-time. Offer ends August 31, 2026 at 11:59 PM America/Vancouver time.
             </p>
-            <div className="mt-8">
+            <div className="mt-8 space-y-3">
               {active ? (
-                <RegenerationOfferCheckoutButton
-                  source="regeneration_offer_landing_bottom"
-                  onError={setError}
-                  className={CTA_CLASS}
-                />
+                <>
+                  <RegenerationOfferCheckoutButton
+                    source="regeneration_offer_landing_bottom"
+                    onError={setError}
+                    className={CTA_CLASS}
+                  />
+                  <p className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+                </>
               ) : (
                 <Link
                   to="/sessions/regeneration"

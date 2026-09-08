@@ -53,6 +53,9 @@ export default function CourseCatalogCard({
             {ctaLabel}
           </button>
         )}
+        {badgeTone === "paid" ? (
+          <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+        ) : null}
       </div>
     </>
   );

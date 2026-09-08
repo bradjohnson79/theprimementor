@@ -528,6 +528,7 @@ export default function MentoringCircle() {
                         ? "Opening Checkout..."
                         : ctaLabel}
                   </button>
+                  <p className="mt-3 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
                 </div>
               )}
             </div>
