@@ -13,7 +13,7 @@ import type {
 } from "./types.js";
 
 const HISTORY_LIMIT = 16;
-const GENERATION_STALE_MS = 2 * 60_000;
+const GENERATION_STALE_MS = 3.5 * 60_000;
 const GENERATION_KEY = "_generation";
 
 function mapMessage(row: {

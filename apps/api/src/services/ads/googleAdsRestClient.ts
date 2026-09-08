@@ -79,19 +79,32 @@ export async function searchGoogleAds(input: {
   }
 
   const attempt = async (loginCustomerId: string) => {
-    const response = await (input.fetcher ?? fetch)(
-      `${GOOGLE_ADS_API_BASE}/customers/${customerId}/googleAds:search`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${input.accessToken}`,
-          "developer-token": developerToken,
-          "login-customer-id": loginCustomerId,
-          "Content-Type": "application/json",
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    let response: Response;
+    try {
+      response = await (input.fetcher ?? fetch)(
+        `${GOOGLE_ADS_API_BASE}/customers/${customerId}/googleAds:search`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${input.accessToken}`,
+            "developer-token": developerToken,
+            "login-customer-id": loginCustomerId,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: input.query }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({ query: input.query }),
-      },
-    );
+      );
+    } catch (error) {
+      if (error instanceof Error && /aborted|timeout/i.test(error.message)) {
+        throw adsError(504, "The Google Ads API timed out.", "GOOGLE_ADS_API_ERROR");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
     const body = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
       throw classifyGoogleAdsError(response.status, body);

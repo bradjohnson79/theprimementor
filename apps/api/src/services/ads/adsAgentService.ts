@@ -37,9 +37,11 @@ import { analyzeAdsScreenshots, formatVisionForStrategist, pmaFromScreenshotTerm
 import { ADS_PMA_OPENROUTER_TOOLS } from "./adsAgentTools.js";
 
 const MAX_TOOL_ROUNDS = 4;
-const GENERATION_DEADLINE_MS = 90_000;
-const TOOL_TIMEOUT_MS = 12_000;
+const GENERATION_DEADLINE_MS = 165_000;
+const TOOL_TIMEOUT_MS = 20_000;
 const TURN_TIMEOUT_MS = 45_000;
+const LIVE_ADS_QUERY =
+  /\b(account|campaign|keyword|search term|spend|click|impression|budget|metric|ctr|cpc|conversion|report|audit)\b/i;
 const inflightGenerations = new Map<string, Promise<unknown>>();
 
 function adsAgentHttpError(status: AdsAgentHealthStatus, fallback: string) {
@@ -55,10 +57,13 @@ function userSafeGenerationError(error: unknown) {
   if (code === "OPENROUTER_AUTH_ERROR") return { error: "OpenRouter is temporarily unavailable.", errorCode: code };
   if (code === "ADS_AGENT_MODEL_UNAVAILABLE") return { error: "OpenRouter is temporarily unavailable.", errorCode: code };
   if (code === "OPENROUTER_UNAVAILABLE") return { error: "OpenRouter is temporarily unavailable.", errorCode: code };
+  if (code.startsWith("GOOGLE_ADS_") || /google ads/i.test(message)) {
+    return { error: "Google Ads data could not be loaded. Please retry.", errorCode: code || "GOOGLE_ADS_API_ERROR" };
+  }
   if (code === "ADS_AGENT_TIMEOUT" || /timed out|aborted/i.test(message)) {
     return { error: "Ads Agent provider timed out. Please retry.", errorCode: "ADS_AGENT_TIMEOUT" };
   }
-  return { error: "Ads Agent provider timed out. Please retry.", errorCode: code || "ADS_AGENT_TIMEOUT" };
+  return { error: "Ads Agent could not finish this reply. Please retry.", errorCode: code || "ADS_AGENT_GENERATION_FAILED" };
 }
 
 export async function getAdsAgentHealth(_db: Database | null, options?: {
@@ -287,16 +292,21 @@ async function runAdsAgentGeneration(params: {
       pmaSummary = JSON.stringify({ analyzed: false });
     }
     let liveSnapshot = "";
-    if (mode === "READ_ONLY" && /\b(account|campaign|keyword|search term|spend|click|impression|budget|metric|ctr|cpc|conversion)\b/i.test(input.message)) {
+    let liveSnapshotReady = false;
+    if (mode === "READ_ONLY" && LIVE_ADS_QUERY.test(input.message)) {
       throwIfGenerationDeadline(startedAt, abort);
-      const [summary, keywords, searchTerms] = await Promise.all([
-        invokeAdsAgentTool("getAccountSummary", { db: input.db, context: input.context }),
-        invokeAdsAgentTool("getKeywordPerformance", { db: input.db, context: input.context }),
-        invokeAdsAgentTool("getSearchTerms", { db: input.db, context: input.context }),
+      const toolInput = { db: input.db, context: input.context, args: {} };
+      const [summary, campaigns, keywords, searchTerms] = await Promise.all([
+        invokeToolSafely("getAccountSummary", toolInput),
+        invokeToolSafely("getCampaigns", toolInput),
+        invokeToolSafely("getKeywordPerformance", toolInput),
+        invokeToolSafely("getSearchTerms", toolInput),
       ]);
+      liveSnapshotReady = snapshotHasLiveData(campaigns) || snapshotHasLiveData(summary);
       liveSnapshot = [
         "Current Google Ads snapshot (authoritative, fetched just now — do not re-fetch these unless the user asks for a different date range):",
         JSON.stringify(summary),
+        JSON.stringify(campaigns),
         JSON.stringify(keywords),
         JSON.stringify(searchTerms),
       ].join("\n");
@@ -311,6 +321,7 @@ async function runAdsAgentGeneration(params: {
       mode,
       hasImages: images.length > 0,
       memoryCount,
+      liveSnapshotReady,
     });
 
     const extras = [
@@ -340,7 +351,10 @@ async function runAdsAgentGeneration(params: {
       const turn = await completeOpenRouterChatTurn({
         fetcher: input.fetcher,
         messages,
-        tools: [...ADS_PMA_OPENROUTER_TOOLS, ...(mode === "READ_ONLY" ? ADS_AGENT_OPENROUTER_TOOLS : [])],
+        tools: [
+          ...ADS_PMA_OPENROUTER_TOOLS,
+          ...(mode === "READ_ONLY" && !liveSnapshotReady ? ADS_AGENT_OPENROUTER_TOOLS : []),
+        ],
         timeoutMs: Math.min(TURN_TIMEOUT_MS, remainingGenerationMs(startedAt)),
       });
       if (round === 0) mark("firstProviderResponse");
@@ -357,7 +371,7 @@ async function runAdsAgentGeneration(params: {
         } catch {
           args = {};
         }
-        const result = await invokeToolWithTimeout(call.name, {
+        const result = await invokeToolSafely(call.name, {
           db: input.db,
           context: input.context,
           args,
@@ -430,6 +444,10 @@ function throwIfGenerationDeadline(startedAt: number, abort?: { aborted: boolean
   }
 }
 
+function snapshotHasLiveData(result: Record<string, unknown>) {
+  return result.available === true;
+}
+
 async function invokeToolWithTimeout(
   name: string,
   input: { db: Database; context: AdsAgentContext; args: Record<string, unknown> },
@@ -444,6 +462,25 @@ async function invokeToolWithTimeout(
       }, TOOL_TIMEOUT_MS);
     }),
   ]);
+}
+
+async function invokeToolSafely(
+  name: string,
+  input: { db: Database; context: AdsAgentContext; args: Record<string, unknown> },
+) {
+  try {
+    return await invokeToolWithTimeout(name, input);
+  } catch (error) {
+    logger.warn("ads_agent_tool_failed", {
+      tool: name,
+      reason: error instanceof Error ? error.message.slice(0, 180) : "unknown",
+    });
+    return {
+      available: false,
+      reason: "TOOL_FAILED",
+      message: "This Google Ads read timed out or failed. Continue with any other live data already provided.",
+    };
+  }
 }
 
 export function adsAgentInflightCount() {
