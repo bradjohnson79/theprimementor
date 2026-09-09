@@ -2,13 +2,15 @@ import type { Database } from "@wisdom/db";
 import { serializeGoogleAdsStatus, type GoogleAdsPublicStatus } from "./googleAdsConnectionService.js";
 import {
   loadAccountSummary,
+  loadAdGroupPerformance,
+  loadAdPerformance,
   loadCampaignPerformance,
   loadGoogleRecommendations,
   loadKeywordPerformance,
   loadSearchTerms,
 } from "./googleAdsReportingService.js";
 import { createDbAdsGoogleStore, type AdsGoogleStore } from "./googleAdsStore.js";
-import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm } from "./googleAdsTypes.js";
+import type { AdsAccountSummary, AdsAd, AdsAdGroup, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm } from "./googleAdsTypes.js";
 import type { AdsAgentContext, AdsCapabilityMode } from "./types.js";
 
 export type GoogleAdsUnavailable = {
@@ -27,11 +29,11 @@ export interface GoogleAdsReportingService {
   getCampaignPerformance(range?: { from?: string; to?: string }): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsCampaign[]>>;
   getCampaignDetails(context?: AdsAgentContext): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsCampaign[]>>;
   compareDateRanges(args?: { from?: string; to?: string; compareFrom?: string; compareTo?: string }): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<{ current: AdsAccountSummary; previous: AdsAccountSummary }>>;
-  getAdGroupPerformance(): Promise<GoogleAdsUnavailable>;
+  getAdGroupPerformance(): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsAdGroup[]>>;
   getKeywordPerformance(range?: { from?: string; to?: string }): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsKeyword[]>>;
   getSearchTerms(range?: { from?: string; to?: string }): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsSearchTerm[]>>;
   getConversionPerformance(): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsAccountSummary>>;
-  getAdPerformance(): Promise<GoogleAdsUnavailable>;
+  getAdPerformance(): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsAd[]>>;
   getGoogleRecommendations(): Promise<GoogleAdsUnavailable | GoogleAdsAvailable<AdsRecommendation[]>>;
 }
 
@@ -91,11 +93,7 @@ export function createGoogleAdsProvider(store: AdsGoogleStore): GoogleAdsProvide
         return { available: true, data: { current, previous } };
       },
       async getAdGroupPerformance() {
-        return await requireReadOnly(store) ?? {
-          available: false,
-          reason: "READ_ONLY",
-          message: "Ad group reporting is not enabled in this mission.",
-        };
+        return await requireReadOnly(store) ?? { available: true, data: await loadAdGroupPerformance({ store }) };
       },
       async getKeywordPerformance(range) {
         return await requireReadOnly(store) ?? { available: true, data: await loadKeywordPerformance({ store, range }) };
@@ -108,11 +106,7 @@ export function createGoogleAdsProvider(store: AdsGoogleStore): GoogleAdsProvide
         return result;
       },
       async getAdPerformance() {
-        return await requireReadOnly(store) ?? {
-          available: false,
-          reason: "READ_ONLY",
-          message: "Ad creative reporting is not enabled in this mission.",
-        };
+        return await requireReadOnly(store) ?? { available: true, data: await loadAdPerformance({ store }) };
       },
       async getGoogleRecommendations() {
         return await requireReadOnly(store) ?? { available: true, data: await loadGoogleRecommendations({ store }) };

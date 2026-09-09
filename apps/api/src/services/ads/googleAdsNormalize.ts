@@ -1,4 +1,4 @@
-import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsKeywordInventory, AdsRecommendation, AdsSearchTerm, CampaignHealth } from "./googleAdsTypes.js";
+import type { AdsAccountSummary, AdsAd, AdsAdGroup, AdsCampaign, AdsKeyword, AdsKeywordInventory, AdsRecommendation, AdsSearchTerm, CampaignHealth } from "./googleAdsTypes.js";
 import { configuredCustomerId, configuredLoginCustomerId, displayCustomerId } from "./googleAdsIds.js";
 
 export function microsToAmount(value: unknown): number | null {
@@ -80,6 +80,11 @@ export function normalizeCampaign(row: Record<string, unknown>): AdsCampaign {
   };
 }
 
+function addNullable(left: number | null, right: number | null) {
+  if (left == null && right == null) return null;
+  return (left ?? 0) + (right ?? 0);
+}
+
 export function summarizeCampaigns(campaigns: AdsCampaign[], dateRange = last30DayRange()): AdsAccountSummary {
   const add = (values: Array<number | null>) => {
     const present = values.filter((value): value is number => value != null);
@@ -110,6 +115,138 @@ export function summarizeCampaigns(campaigns: AdsCampaign[], dateRange = last30D
   };
 }
 
+function assetTexts(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item === "string" && item.trim()) return [item.trim()];
+    if (item && typeof item === "object" && "text" in item) {
+      const text = String((item as { text?: unknown }).text ?? "").trim();
+      return text ? [text] : [];
+    }
+    return [];
+  });
+}
+
+export function normalizeAdGroup(row: Record<string, unknown>): AdsAdGroup {
+  const adGroup = (row.adGroup ?? row.ad_group ?? {}) as Record<string, unknown>;
+  const campaign = (row.campaign ?? {}) as Record<string, unknown>;
+  const metrics = (row.metrics ?? {}) as Record<string, unknown>;
+  const impressions = asNumber(metrics.impressions);
+  const clicks = asNumber(metrics.clicks);
+  const cost = microsToAmount(metrics.costMicros ?? metrics.cost_micros);
+  const conversions = asNumber(metrics.conversions);
+  return {
+    id: String(adGroup.id ?? ""),
+    name: String(adGroup.name ?? "Untitled ad group"),
+    status: String(adGroup.status ?? "UNKNOWN"),
+    type: String(adGroup.type ?? "UNKNOWN"),
+    campaignId: String(campaign.id ?? ""),
+    campaignName: String(campaign.name ?? ""),
+    impressions,
+    clicks,
+    ctr: asNumber(metrics.ctr) ?? safeRate(clicks, impressions),
+    cost,
+    conversions,
+    costPerConversion: safeRate(cost, conversions),
+  };
+}
+
+export function normalizeAd(row: Record<string, unknown>): AdsAd {
+  const adGroupAd = (row.adGroupAd ?? row.ad_group_ad ?? {}) as Record<string, unknown>;
+  const ad = (adGroupAd.ad ?? {}) as Record<string, unknown>;
+  const rsa = (ad.responsiveSearchAd ?? ad.responsive_search_ad ?? {}) as Record<string, unknown>;
+  const campaign = (row.campaign ?? {}) as Record<string, unknown>;
+  const adGroup = (row.adGroup ?? row.ad_group ?? {}) as Record<string, unknown>;
+  const metrics = (row.metrics ?? {}) as Record<string, unknown>;
+  const headlines = assetTexts(rsa.headlines);
+  const descriptions = assetTexts(rsa.descriptions);
+  const finalUrls = Array.isArray(ad.finalUrls)
+    ? ad.finalUrls
+    : Array.isArray(ad.final_urls)
+      ? ad.final_urls
+      : [];
+  const impressions = asNumber(metrics.impressions);
+  const clicks = asNumber(metrics.clicks);
+  const cost = microsToAmount(metrics.costMicros ?? metrics.cost_micros);
+  const conversions = asNumber(metrics.conversions);
+  return {
+    id: String(ad.id ?? ""),
+    name: String(ad.name || headlines[0] || "Untitled ad"),
+    status: String(adGroupAd.status ?? "UNKNOWN"),
+    type: String(ad.type ?? "UNKNOWN"),
+    headlines,
+    descriptions,
+    finalUrl: typeof finalUrls[0] === "string" ? finalUrls[0] : null,
+    campaignId: String(campaign.id ?? ""),
+    campaignName: String(campaign.name ?? ""),
+    adGroupId: String(adGroup.id ?? ""),
+    adGroupName: String(adGroup.name ?? ""),
+    impressions,
+    clicks,
+    ctr: asNumber(metrics.ctr) ?? safeRate(clicks, impressions),
+    cost,
+    conversions,
+    costPerConversion: safeRate(cost, conversions),
+  };
+}
+
+type PerformanceRow = {
+  id: string;
+  impressions: number | null;
+  clicks: number | null;
+  cost: number | null;
+  conversions: number | null;
+  ctr: number | null;
+  costPerConversion: number | null;
+};
+
+export function collapsePerformanceRows<T extends PerformanceRow>(rows: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const row of rows) {
+    const key = row.id || "unknown";
+    const current = byId.get(key);
+    if (!current) {
+      byId.set(key, { ...row, id: key });
+      continue;
+    }
+    const impressions = addNullable(current.impressions, row.impressions);
+    const clicks = addNullable(current.clicks, row.clicks);
+    const cost = addNullable(current.cost, row.cost);
+    const conversions = addNullable(current.conversions, row.conversions);
+    byId.set(key, {
+      ...current,
+      impressions,
+      clicks,
+      cost,
+      conversions,
+      ctr: safeRate(clicks, impressions),
+      costPerConversion: safeRate(cost, conversions),
+    });
+  }
+  return [...byId.values()];
+}
+
+export function overlayPerformanceRows<T extends PerformanceRow>(entities: T[], metrics: T[]): T[] {
+  const collapsed = collapsePerformanceRows(metrics);
+  const byId = new Map(entities.filter((item) => item.id).map((item) => [item.id, item]));
+  for (const row of collapsed) {
+    const current = byId.get(row.id);
+    byId.set(row.id, current
+      ? {
+        ...current,
+        impressions: row.impressions ?? current.impressions,
+        clicks: row.clicks ?? current.clicks,
+        cost: row.cost ?? current.cost,
+        conversions: row.conversions ?? current.conversions,
+        ctr: row.ctr ?? current.ctr ?? safeRate(row.clicks ?? current.clicks, row.impressions ?? current.impressions),
+        costPerConversion: row.costPerConversion ?? current.costPerConversion
+          ?? safeRate(row.cost ?? current.cost, row.conversions ?? current.conversions),
+      }
+      : row);
+  }
+  return [...byId.values()];
+}
+
 export function normalizeKeyword(row: Record<string, unknown>): AdsKeyword {
   const criterion = (row.adGroupCriterion ?? row.ad_group_criterion ?? {}) as Record<string, unknown>;
   const keyword = (criterion.keyword ?? {}) as Record<string, unknown>;
@@ -137,11 +274,6 @@ export function normalizeKeyword(row: Record<string, unknown>): AdsKeyword {
     conversions,
     costPerConversion: safeRate(cost, conversions),
   };
-}
-
-function addNullable(left: number | null, right: number | null) {
-  if (left == null && right == null) return null;
-  return (left ?? 0) + (right ?? 0);
 }
 
 export function collapseKeywordRows(rows: AdsKeyword[]): AdsKeyword[] {

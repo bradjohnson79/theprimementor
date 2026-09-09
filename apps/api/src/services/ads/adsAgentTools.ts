@@ -136,7 +136,7 @@ export const ADS_AGENT_OPENROUTER_TOOLS = [
     type: "function" as const,
     function: {
       name: "getAdGroupPerformance",
-      description: "Read-only ad group reporting. Returns unavailable until that reporting surface is enabled.",
+      description: "Read-only ad group performance for the connected account, including groups with no last-30-day traffic.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },
@@ -152,7 +152,7 @@ export const ADS_AGENT_OPENROUTER_TOOLS = [
     type: "function" as const,
     function: {
       name: "getAdPerformance",
-      description: "Read-only ad creative reporting. Returns unavailable until that reporting surface is enabled.",
+      description: "Read-only ad creative performance for the connected account, including ads with no last-30-day traffic.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
     },
   },

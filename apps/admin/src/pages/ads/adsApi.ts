@@ -66,6 +66,53 @@ export type AdsCampaign = {
   costPerConversion: number | null;
 };
 
+export type AdsAdGroup = {
+  id: string;
+  name: string;
+  status: string;
+  type: string;
+  campaignName: string;
+  cost: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  conversions: number | null;
+  costPerConversion: number | null;
+};
+
+export type AdsAd = {
+  id: string;
+  name: string;
+  status: string;
+  type: string;
+  headlines: string[];
+  finalUrl: string | null;
+  campaignName: string;
+  adGroupName: string;
+  cost: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  conversions: number | null;
+  costPerConversion: number | null;
+};
+
+export type AdsKeyword = {
+  id: string;
+  keyword: string;
+  matchType: string;
+  status: string;
+  negative: boolean;
+  campaignName: string;
+  adGroupName: string;
+  cost: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  conversions: number | null;
+  costPerConversion: number | null;
+};
+
 export type ReportingEnvelope<T> = {
   available: boolean;
   data?: T;

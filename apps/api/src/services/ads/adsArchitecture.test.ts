@@ -126,8 +126,13 @@ describe("Ads Intelligence architecture", () => {
     assert.match(inventory, /\/api\/admin\/ads\/google\/validate/);
     assert.match(inventory, /\/api\/admin\/ads\/google\/oauth\/callback/);
     assert.match(inventory, /\/api\/admin\/ads\/reporting\/campaigns/);
+    assert.match(inventory, /\/api\/admin\/ads\/reporting\/ad-groups/);
+    assert.match(inventory, /\/api\/admin\/ads\/reporting\/ads/);
+    assert.match(inventory, /\/api\/admin\/ads\/reporting\/keywords/);
     assert.match(inventory, /\/api\/admin\/ads\/pma\/analyze/);
     assert.match(read("apps/admin/src/App.tsx"), /keyword-strategy/);
+    assert.match(read("apps/admin/src/App.tsx"), /AdsEntityPages/);
+    assert.doesNotMatch(read("apps/admin/src/pages/ads/placeholders.tsx"), /export function AdsAdGroups|export function AdsKeywords|export function AdsAdCopy/);
     const rest = read("apps/api/src/services/ads/googleAdsRestClient.ts");
     assert.match(rest, /GOOGLE_ADS_API_VERSION = "v25"/);
     assert.doesNotMatch(inventory, /pauseCampaign|mutate|changeBudget/);

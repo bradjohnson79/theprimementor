@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { collapseKeywordRows, last30DayRange, microsToAmount, normalizeCampaign, normalizeKeyword, safeRate, summarizeCampaigns, summarizeKeywordInventory } from "./googleAdsNormalize.js";
+import { collapseKeywordRows, last30DayRange, microsToAmount, normalizeAd, normalizeAdGroup, normalizeCampaign, normalizeKeyword, overlayPerformanceRows, safeRate, summarizeCampaigns, summarizeKeywordInventory } from "./googleAdsNormalize.js";
 
 describe("Google Ads reporting normalization", () => {
   it("converts micros to currency units and keeps missing metrics null", () => {
@@ -82,5 +82,42 @@ describe("Google Ads reporting normalization", () => {
     assert.equal(inventory.uniquePositiveKeywords, 1);
     assert.equal(inventory.rawRowCount, 3);
     assert.equal(inventory.excludedRemoved, 1);
+  });
+
+  it("normalizes ad groups and ads and overlays zero-traffic entities", () => {
+    const group = normalizeAdGroup({
+      adGroup: { id: "44", name: "Divin8 Search", status: "ENABLED", type: "SEARCH_STANDARD" },
+      campaign: { id: "1", name: "Prime Mentor Reports" },
+    });
+    assert.equal(group.name, "Divin8 Search");
+    assert.equal(group.impressions, null);
+    const withMetrics = overlayPerformanceRows([group], [
+      normalizeAdGroup({
+        adGroup: { id: "44", name: "Divin8 Search", status: "ENABLED", type: "SEARCH_STANDARD" },
+        campaign: { id: "1", name: "Prime Mentor Reports" },
+        metrics: { impressions: "10", clicks: "2", costMicros: "3000000", conversions: "0" },
+      }),
+    ]);
+    assert.equal(withMetrics[0]?.impressions, 10);
+    assert.equal(withMetrics[0]?.cost, 3);
+    const ad = normalizeAd({
+      adGroupAd: {
+        status: "ENABLED",
+        ad: {
+          id: "88",
+          type: "RESPONSIVE_SEARCH_AD",
+          finalUrls: ["https://theprimementor.com/reports"],
+          responsiveSearchAd: {
+            headlines: [{ text: "Divin8 Reports" }, { text: "Personal Blueprint" }],
+            descriptions: [{ text: "A personalized report from your birth details." }],
+          },
+        },
+      },
+      campaign: { id: "1", name: "Prime Mentor Reports" },
+      adGroup: { id: "44", name: "Divin8 Search" },
+    });
+    assert.equal(ad.name, "Divin8 Reports");
+    assert.deepEqual(ad.headlines, ["Divin8 Reports", "Personal Blueprint"]);
+    assert.equal(ad.finalUrl, "https://theprimementor.com/reports");
   });
 });

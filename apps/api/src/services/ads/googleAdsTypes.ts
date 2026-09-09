@@ -19,6 +19,41 @@ export type AdsCampaign = {
   health: CampaignHealth | null;
 };
 
+export type AdsAdGroup = {
+  id: string;
+  name: string;
+  status: string;
+  type: string;
+  campaignId: string;
+  campaignName: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  cost: number | null;
+  conversions: number | null;
+  costPerConversion: number | null;
+};
+
+export type AdsAd = {
+  id: string;
+  name: string;
+  status: string;
+  type: string;
+  headlines: string[];
+  descriptions: string[];
+  finalUrl: string | null;
+  campaignId: string;
+  campaignName: string;
+  adGroupId: string;
+  adGroupName: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  cost: number | null;
+  conversions: number | null;
+  costPerConversion: number | null;
+};
+
 export type AdsKeyword = {
   id: string;
   keyword: string;

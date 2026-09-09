@@ -18,5 +18,11 @@ describe("Ads Agent read-only tools", () => {
     assert.match(prompt, /read-only tools/i);
     const blocked = await invokeAdsAgentTool("changeBudget");
     assert.equal("available" in blocked && blocked.available, false);
+    const adGroups = await invokeAdsAgentTool("getAdGroupPerformance");
+    assert.equal("available" in adGroups && adGroups.available, false);
+    const ads = await invokeAdsAgentTool("getAdPerformance");
+    assert.equal("available" in ads && ads.available, false);
+    const keywords = await invokeAdsAgentTool("getKeywordPerformance");
+    assert.equal("available" in keywords && keywords.available, false);
   });
 });

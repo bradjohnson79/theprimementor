@@ -26,12 +26,10 @@ import AdsSettings from "./pages/ads/Settings";
 import AdsDivin8Intelligence from "./pages/ads/Divin8Intelligence";
 import AdsCampaignLab from "./pages/ads/CampaignLab";
 import AdsCampaigns from "./pages/ads/Campaigns";
+import { AdsAdCopy, AdsAdGroups, AdsKeywords } from "./pages/ads/AdsEntityPages";
 import AdsKeywordStrategy from "./pages/ads/KeywordStrategy";
 import {
-  AdsAdCopy,
-  AdsAdGroups,
   AdsConversions,
-  AdsKeywords,
   AdsOpportunities,
   AdsSearchTerms,
 } from "./pages/ads/placeholders";

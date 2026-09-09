@@ -43,6 +43,16 @@ test.describe("Admin Ads", () => {
     await page.getByRole("link", { name: "Campaigns" }).first().click();
     await expect(page.getByRole("heading", { name: /Campaigns/ })).toBeVisible();
 
+    await page.getByRole("link", { name: "Ad Groups" }).first().click();
+    await expect(page.getByRole("heading", { name: "Ad Groups" })).toBeVisible();
+    await expect(page.getByText("Last 30 Days · read only")).toBeVisible();
+
+    await page.getByRole("link", { name: "Ads", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: "Ads", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Keywords", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: "Keywords", exact: true })).toBeVisible();
+
     await page.locator("[data-ads-agent-rail]").click();
     await expect(page.locator("[data-ads-agent-drawer]")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Ads Agent" })).toBeVisible();

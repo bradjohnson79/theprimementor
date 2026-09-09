@@ -153,6 +153,54 @@ export async function adminAdsRoutes(app: FastifyInstance) {
     }
   });
 
+  app.get("/admin/ads/reporting/ad-groups", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      const result = await providerForDatabase(db).reporting.getAdGroupPerformance();
+      assertNoGoogleAdsSecrets(result);
+      return ok(result);
+    } catch (error) {
+      const status = typeof (error as { statusCode?: number }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 502;
+      const code = typeof (error as { code?: string }).code === "string" ? (error as { code: string }).code : undefined;
+      return sendApiError(reply, status, error instanceof Error ? error.message : "Unable to load ad groups", code ? { code } : undefined);
+    }
+  });
+
+  app.get("/admin/ads/reporting/ads", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      const result = await providerForDatabase(db).reporting.getAdPerformance();
+      assertNoGoogleAdsSecrets(result);
+      return ok(result);
+    } catch (error) {
+      const status = typeof (error as { statusCode?: number }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 502;
+      const code = typeof (error as { code?: string }).code === "string" ? (error as { code: string }).code : undefined;
+      return sendApiError(reply, status, error instanceof Error ? error.message : "Unable to load ads", code ? { code } : undefined);
+    }
+  });
+
+  app.get("/admin/ads/reporting/keywords", { preHandler: requireAuth }, async (request, reply) => {
+    requireAdmin(request);
+    const db = requireDatabase(request.server.db);
+    try {
+      const result = await providerForDatabase(db).reporting.getKeywordPerformance();
+      assertNoGoogleAdsSecrets(result);
+      return ok(result);
+    } catch (error) {
+      const status = typeof (error as { statusCode?: number }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 502;
+      const code = typeof (error as { code?: string }).code === "string" ? (error as { code: string }).code : undefined;
+      return sendApiError(reply, status, error instanceof Error ? error.message : "Unable to load keywords", code ? { code } : undefined);
+    }
+  });
+
   app.get("/admin/ads/agent/health", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);
     try {

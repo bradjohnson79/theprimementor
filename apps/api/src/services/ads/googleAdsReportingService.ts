@@ -1,9 +1,9 @@
 import type { Database } from "@wisdom/db";
 import { getValidAdsAccessToken } from "./googleAdsOAuthService.js";
-import { collapseKeywordRows, last30DayRange, normalizeCampaign, normalizeKeyword, normalizeRecommendation, normalizeSearchTerm, summarizeCampaigns } from "./googleAdsNormalize.js";
+import { collapseKeywordRows, last30DayRange, normalizeAd, normalizeAdGroup, normalizeCampaign, normalizeKeyword, normalizeRecommendation, normalizeSearchTerm, overlayPerformanceRows, summarizeCampaigns } from "./googleAdsNormalize.js";
 import { searchGoogleAds, validateGoogleAdsAccess, type GoogleAdsFetch } from "./googleAdsRestClient.js";
 import { createDbAdsGoogleStore, type AdsGoogleStore } from "./googleAdsStore.js";
-import type { AdsAccountSummary, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm } from "./googleAdsTypes.js";
+import type { AdsAccountSummary, AdsAd, AdsAdGroup, AdsCampaign, AdsKeyword, AdsRecommendation, AdsSearchTerm } from "./googleAdsTypes.js";
 import type { AdsAgentContext } from "./types.js";
 
 function dateClause(range?: { from?: string; to?: string }) {
@@ -114,36 +114,161 @@ export async function loadAccountSummary(input: {
     : last30DayRange());
 }
 
+export async function loadAdGroupPerformance(input: {
+  store: AdsGoogleStore;
+  range?: { from?: string; to?: string };
+  fetcher?: GoogleAdsFetch;
+}): Promise<AdsAdGroup[]> {
+  const { accessToken } = await getValidAdsAccessToken(input.store);
+  const [entities, metrics] = await Promise.all([
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group.id,
+          ad_group.name,
+          ad_group.status,
+          ad_group.type,
+          campaign.id,
+          campaign.name
+        FROM ad_group
+        WHERE ad_group.status != 'REMOVED'
+      `.replace(/\s+/g, " ").trim(),
+    }),
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group.id,
+          ad_group.name,
+          ad_group.status,
+          ad_group.type,
+          campaign.id,
+          campaign.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.ctr,
+          metrics.cost_micros,
+          metrics.conversions
+        FROM ad_group
+        WHERE ${dateClause(input.range)}
+      `.replace(/\s+/g, " ").trim(),
+    }),
+  ]);
+  return overlayPerformanceRows(entities.map((row) => normalizeAdGroup(row)), metrics.map((row) => normalizeAdGroup(row)))
+    .sort((left, right) => (right.cost ?? 0) - (left.cost ?? 0) || left.name.localeCompare(right.name));
+}
+
+export async function loadAdPerformance(input: {
+  store: AdsGoogleStore;
+  range?: { from?: string; to?: string };
+  fetcher?: GoogleAdsFetch;
+}): Promise<AdsAd[]> {
+  const { accessToken } = await getValidAdsAccessToken(input.store);
+  const [entities, metrics] = await Promise.all([
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          ad_group_ad.ad.type,
+          ad_group_ad.status,
+          ad_group_ad.ad.responsive_search_ad.headlines,
+          ad_group_ad.ad.responsive_search_ad.descriptions,
+          ad_group_ad.ad.final_urls,
+          campaign.id,
+          campaign.name,
+          ad_group.id,
+          ad_group.name
+        FROM ad_group_ad
+        WHERE ad_group_ad.status != 'REMOVED'
+      `.replace(/\s+/g, " ").trim(),
+    }),
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group_ad.ad.id,
+          ad_group_ad.ad.name,
+          ad_group_ad.ad.type,
+          ad_group_ad.status,
+          campaign.id,
+          campaign.name,
+          ad_group.id,
+          ad_group.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.ctr,
+          metrics.cost_micros,
+          metrics.conversions
+        FROM ad_group_ad
+        WHERE ${dateClause(input.range)}
+      `.replace(/\s+/g, " ").trim(),
+    }),
+  ]);
+  return overlayPerformanceRows(entities.map((row) => normalizeAd(row)), metrics.map((row) => normalizeAd(row)))
+    .sort((left, right) => (right.cost ?? 0) - (left.cost ?? 0) || left.name.localeCompare(right.name));
+}
+
 export async function loadKeywordPerformance(input: {
   store: AdsGoogleStore;
   range?: { from?: string; to?: string };
   fetcher?: GoogleAdsFetch;
 }): Promise<AdsKeyword[]> {
   const { accessToken } = await getValidAdsAccessToken(input.store);
-  const rows = await searchGoogleAds({
-    accessToken,
-    fetcher: input.fetcher,
-    query: `
-      SELECT
-        ad_group_criterion.criterion_id,
-        ad_group_criterion.keyword.text,
-        ad_group_criterion.keyword.match_type,
-        ad_group_criterion.status,
-        ad_group_criterion.negative,
-        campaign.id,
-        campaign.name,
-        ad_group.id,
-        ad_group.name,
-        metrics.impressions,
-        metrics.clicks,
-        metrics.ctr,
-        metrics.cost_micros,
-        metrics.conversions
-      FROM keyword_view
-      WHERE ${dateClause(input.range)}
-    `.replace(/\s+/g, " ").trim(),
-  });
-  return collapseKeywordRows(rows.map((row) => normalizeKeyword(row)));
+  const [entities, metrics] = await Promise.all([
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group_criterion.criterion_id,
+          ad_group_criterion.keyword.text,
+          ad_group_criterion.keyword.match_type,
+          ad_group_criterion.status,
+          ad_group_criterion.negative,
+          campaign.id,
+          campaign.name,
+          ad_group.id,
+          ad_group.name
+        FROM ad_group_criterion
+        WHERE ad_group_criterion.type = 'KEYWORD'
+          AND ad_group_criterion.status != 'REMOVED'
+      `.replace(/\s+/g, " ").trim(),
+    }),
+    searchGoogleAds({
+      accessToken,
+      fetcher: input.fetcher,
+      query: `
+        SELECT
+          ad_group_criterion.criterion_id,
+          ad_group_criterion.keyword.text,
+          ad_group_criterion.keyword.match_type,
+          ad_group_criterion.status,
+          ad_group_criterion.negative,
+          campaign.id,
+          campaign.name,
+          ad_group.id,
+          ad_group.name,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.ctr,
+          metrics.cost_micros,
+          metrics.conversions
+        FROM keyword_view
+        WHERE ${dateClause(input.range)}
+      `.replace(/\s+/g, " ").trim(),
+    }),
+  ]);
+  return overlayPerformanceRows(
+    collapseKeywordRows(entities.map((row) => normalizeKeyword(row))),
+    collapseKeywordRows(metrics.map((row) => normalizeKeyword(row))),
+  ).sort((left, right) => (right.cost ?? 0) - (left.cost ?? 0) || left.keyword.localeCompare(right.keyword));
 }
 
 export async function loadSearchTerms(input: {
