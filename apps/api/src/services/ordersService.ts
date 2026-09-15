@@ -15,10 +15,12 @@ import {
   subscriptionAdminNotes,
   subscriptions,
   users,
+  webinarRecordingEntitlements,
   type Database,
 } from "@wisdom/db";
 import { desc, eq, inArray, or, sql } from "drizzle-orm";
-import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, getOnDemandWebinarById, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { reconcileOnDemandMuxReadiness } from "./mux/muxPlaybackService.js";
 import { logger } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import { getSectionsFromStoredReport } from "./reportFormat.js";
@@ -245,6 +247,13 @@ export interface AdminOrder {
     payment_source?: string | null;
     payment_sync_status?: string | null;
     stripe_checkout_session_id?: string | null;
+    stripe_payment_intent_id?: string | null;
+    stripe_price_id?: string | null;
+    grant_source?: string | null;
+    mux_asset_id?: string | null;
+    mux_asset_ready?: boolean | null;
+    playback_protected?: boolean | null;
+    duplicate_payment?: boolean | null;
     fulfillment_type?: string | null;
     fulfillment_email_status?: string | null;
     fulfillment_email_sent_at?: string | null;
@@ -389,6 +398,17 @@ interface WebinarSourceRow {
   status: string;
   joinUrl: string;
   createdAt: Date;
+  kind?: "live" | "on_demand";
+  grantSource?: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripePriceId?: string | null;
+  muxAssetId?: string | null;
+  muxAssetReady?: boolean | null;
+  playbackProtected?: boolean | null;
+  duplicatePayment?: boolean;
 }
 
 interface MentorTrainingSourceRow {
@@ -2630,6 +2650,14 @@ function createWebinarCandidate(
       event_name: row.eventTitle,
       event_date: row.eventStartAt.toISOString(),
       access_link: row.joinUrl,
+      grant_source: row.grantSource ?? null,
+      mux_asset_id: row.muxAssetId ?? null,
+      mux_asset_ready: row.muxAssetReady ?? null,
+      playback_protected: row.playbackProtected ?? null,
+      duplicate_payment: row.duplicatePayment === true,
+      stripe_checkout_session_id: row.stripeCheckoutSessionId ?? null,
+      stripe_payment_intent_id: row.stripePaymentIntentId ?? null,
+      stripe_price_id: row.stripePriceId ?? null,
       fulfillment_email_status: confirmationEmail?.status ?? null,
       fulfillment_email_sent_at: confirmationEmail?.sentAt?.toISOString() ?? null,
       fulfillment_email_message_id: confirmationEmail?.messageId ?? null,
@@ -2648,6 +2676,9 @@ function createWebinarCandidate(
 function normalizePersistedOrderType(type: string): AdminOrderType {
   if (type === "subscription" || type === "subscription_initial" || type === "subscription_renewal") {
     return "subscription";
+  }
+  if (type === "on_demand_webinar") {
+    return "webinar";
   }
   if (type === "session" || type === "report" || type === "webinar" || type === "mentor_training" || type === "regeneration_offer" || type === "shop" || type === "custom") {
     return type;
@@ -2950,7 +2981,10 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
       payload: notificationEvents.payload,
     })
     .from(notificationEvents)
-    .where(eq(notificationEvents.event_type, "webinar.confirmed"));
+    .where(or(
+      eq(notificationEvents.event_type, "webinar.confirmed"),
+      eq(notificationEvents.event_type, "on_demand_webinar.confirmed"),
+    ));
   const webinarEmailsByUserEvent = new Map<string, {
     status?: string | null;
     sentAt?: Date | null;
@@ -2959,9 +2993,18 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   }>();
   for (const row of webinarConfirmationEmails) {
     const payload = isRecord(row.payload) ? row.payload : null;
-    const eventId = getString(payload?.eventId) ?? getString(payload?.event_id) ?? row.entityId;
+    const eventId = getString(payload?.eventId) ?? getString(payload?.event_id) ?? getString(payload?.webinarId) ?? row.entityId;
     if (row.userId && eventId) {
       webinarEmailsByUserEvent.set(`${row.userId}:${eventId}`, {
+        status: row.status,
+        sentAt: row.sentAt,
+        messageId: row.messageId,
+        error: row.error,
+      });
+    }
+    const webinarId = getString(payload?.webinarId);
+    if (row.userId && webinarId && webinarId !== eventId) {
+      webinarEmailsByUserEvent.set(`${row.userId}:${webinarId}`, {
         status: row.status,
         sentAt: row.sentAt,
         messageId: row.messageId,
@@ -3053,7 +3096,98 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
       logger.warn("orders_mentor_training_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
   }
-  for (const row of webinarRows) {
+  const recordingEntitlementRows = await db
+    .select()
+    .from(webinarRecordingEntitlements);
+  const readinessByWebinarId = new Map<string, Awaited<ReturnType<typeof reconcileOnDemandMuxReadiness>>>();
+  for (const row of recordingEntitlementRows) {
+    if (!readinessByWebinarId.has(row.webinar_id)) {
+      try {
+        readinessByWebinarId.set(row.webinar_id, await reconcileOnDemandMuxReadiness(row.webinar_id));
+      } catch {
+        readinessByWebinarId.set(row.webinar_id, {
+          assetReady: false,
+          playbackProtected: false,
+          muxAssetId: null,
+          playbackIds: [],
+        });
+      }
+    }
+  }
+  const onDemandPayments = await db
+    .select({
+      id: payments.id,
+      userId: payments.user_id,
+      amountCents: payments.amount_cents,
+      currency: payments.currency,
+      status: payments.status,
+      providerPaymentIntentId: payments.provider_payment_intent_id,
+      metadata: payments.metadata,
+      createdAt: payments.created_at,
+    })
+    .from(payments)
+    .where(eq(payments.entity_type, "on_demand_webinar"));
+
+  const onDemandWebinarRows: WebinarSourceRow[] = [];
+  for (const row of recordingEntitlementRows) {
+    if (!row.purchased_at) continue;
+    const catalog = getOnDemandWebinarById(row.webinar_id);
+    const readiness = readinessByWebinarId.get(row.webinar_id);
+    onDemandWebinarRows.push({
+      id: row.id,
+      userId: row.user_id,
+      archived: false,
+      eventKey: row.webinar_id,
+      eventTitle: catalog?.title ?? row.webinar_id,
+      eventStartAt: row.purchased_at,
+      timezone: "America/Los_Angeles",
+      status: row.revoked_at ? "revoked" : "purchased",
+      joinUrl: catalog?.playerPath ?? `/dashboard/webinars/${row.webinar_id}`,
+      createdAt: row.created_at,
+      kind: "on_demand",
+      grantSource: row.grant_source,
+      amountCents: row.amount_cents,
+      currency: row.currency,
+      stripeCheckoutSessionId: row.stripe_checkout_session_id,
+      stripePaymentIntentId: row.stripe_payment_intent_id,
+      stripePriceId: row.stripe_price_id,
+      muxAssetId: readiness?.muxAssetId ?? null,
+      muxAssetReady: readiness?.assetReady ?? null,
+      playbackProtected: readiness?.playbackProtected ?? null,
+    });
+  }
+  for (const row of onDemandPayments) {
+    const metadata = isRecord(row.metadata) ? row.metadata : null;
+    if (metadata?.duplicatePayment !== true) continue;
+    const webinarId = getString(metadata.webinarId) ?? "";
+    const catalog = getOnDemandWebinarById(webinarId);
+    const readiness = readinessByWebinarId.get(webinarId);
+    onDemandWebinarRows.push({
+      id: row.id,
+      userId: row.userId,
+      archived: false,
+      eventKey: webinarId || row.id,
+      eventTitle: `${catalog?.title ?? "On-demand webinar"} (duplicate payment)`,
+      eventStartAt: row.createdAt,
+      timezone: "America/Los_Angeles",
+      status: "duplicate_payment",
+      joinUrl: catalog?.playerPath ?? "/dashboard/webinars",
+      createdAt: row.createdAt,
+      kind: "on_demand",
+      grantSource: "stripe_checkout",
+      amountCents: row.amountCents,
+      currency: row.currency,
+      stripeCheckoutSessionId: getString(metadata?.stripeCheckoutSessionId),
+      stripePaymentIntentId: row.providerPaymentIntentId,
+      stripePriceId: getString(metadata?.stripePriceId),
+      muxAssetId: readiness?.muxAssetId ?? null,
+      muxAssetReady: readiness?.assetReady ?? null,
+      playbackProtected: readiness?.playbackProtected ?? null,
+      duplicatePayment: true,
+    });
+  }
+
+  for (const row of [...webinarRows, ...onDemandWebinarRows]) {
     if (bookingBackedMentoringCircleEvents.has(`${row.userId}:${row.eventKey}`)) {
       continue;
     }
@@ -3189,7 +3323,11 @@ function persistedOrderMatchesSource(row: {
   }
 
   if (type === "webinar") {
-    return getString(metadata?.eventKey) === sourceId || getString(metadata?.event_key) === sourceId;
+    return getString(metadata?.eventKey) === sourceId
+      || getString(metadata?.event_key) === sourceId
+      || getString(metadata?.entitlementId) === sourceId
+      || getString(metadata?.webinarId) === sourceId
+      || getString(metadata?.stripeCheckoutSessionId) === sourceId;
   }
 
   if (type === "mentor_training") {

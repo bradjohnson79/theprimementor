@@ -12,6 +12,7 @@ import {
 interface RenderedTemplate {
   subject: string;
   html: string;
+  text?: string;
   templateVersion: string;
 }
 
@@ -528,6 +529,66 @@ export function renderWebinarConfirmedTemplate(
         url: buildFrontendUrl(payload.accessPagePath || "/webinars/adronis-disclosure-to-contact/thank-you"),
       },
       footerNote: "Need help? Visit theprimementor.com/contact or reply to this email. The Prime Mentor support team can resend your registration details if needed.",
+    }),
+  };
+}
+
+export function renderOnDemandWebinarConfirmedTemplate(
+  payload: NotificationPayloadMap["on_demand_webinar.confirmed"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Adronis: From Disclosure to Contact");
+  const greeting = payload.firstName?.trim()
+    ? `Hi ${payload.firstName.trim()},`
+    : "Hi,";
+  const amount = `$${((payload.amountCents ?? 799) / 100).toFixed(2)} ${(payload.currency ?? "CAD").toUpperCase()}`;
+  const watchUrl = buildFrontendUrl(payload.watchPath || "/dashboard/webinars/adronis-disclosure-to-contact-on-demand");
+  const purchasedAt = payload.purchasedAt
+    ? new Intl.DateTimeFormat("en-CA", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "America/Los_Angeles",
+    }).format(new Date(payload.purchasedAt))
+    : "Today";
+  const textBody = [
+    `${greeting}`,
+    "",
+    `Your Adronis on-demand webinar is ready. Watch ${eventTitle} anytime in Dashboard → Webinars.`,
+    "",
+    `Amount paid: ${amount}`,
+    `Purchase date: ${purchasedAt}`,
+    `Order reference: ${text(payload.orderRef, "Unavailable")}`,
+    "",
+    `Watch My Webinar: ${watchUrl}`,
+    "",
+    "Need help? Visit theprimementor.com/contact or reply to this email.",
+  ].join("\n");
+
+  return {
+    subject: "Your Adronis On-Demand Webinar Is Ready",
+    templateVersion: "on-demand-webinar-confirmed-v1",
+    text: textBody,
+    html: renderPrimeMentorEmail({
+      eyebrow: "On-Demand Webinar Ready",
+      title: "Your Adronis On-Demand Webinar Is Ready",
+      intro: `${greeting} your purchase is complete. You can watch the recording any time in Dashboard → Webinars.`,
+      sections: [
+        renderInfoCard(
+          "Purchase details",
+          renderKeyValueTable([
+            { label: "Webinar", value: eventTitle },
+            { label: "Amount paid", value: amount },
+            { label: "Purchase date", value: purchasedAt },
+            { label: "Order reference", value: text(payload.orderRef, "Unavailable") },
+            { label: "Email", value: payload.email ?? undefined },
+          ]),
+        ),
+        renderParagraph("Open Dashboard → Webinars to start watching. Your access stays in your account."),
+      ],
+      callToAction: {
+        label: "Watch My Webinar",
+        url: watchUrl,
+      },
+      footerNote: "Need help? Visit theprimementor.com/contact or reply to this email. The Prime Mentor support team can help you find your webinar.",
     }),
   };
 }

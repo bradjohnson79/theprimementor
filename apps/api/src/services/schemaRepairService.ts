@@ -22,6 +22,8 @@ const REPAIRABLE_PREFIXES = [
   "promo_code_changes_log.",
   "course_entitlements.",
   "course_lesson_progress.",
+  "webinar_recording_entitlements.",
+  "webinar_recording_progress.",
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
@@ -202,6 +204,96 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
   END $$;`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "course_lesson_progress_user_course_lesson_uidx" ON "course_lesson_progress" USING btree ("user_id", "course_slug", "lesson_id");`,
   `CREATE INDEX IF NOT EXISTS "course_lesson_progress_user_course_completed_idx" ON "course_lesson_progress" USING btree ("user_id", "course_slug", "completed_at");`,
+  `DO $$ BEGIN
+    CREATE TYPE "public"."webinar_recording_grant_source" AS ENUM('stripe_checkout');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;`,
+  `CREATE TABLE IF NOT EXISTS "webinar_recording_entitlements" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL,
+    "webinar_id" text NOT NULL,
+    "stripe_checkout_session_id" text,
+    "stripe_payment_intent_id" text,
+    "stripe_price_id" text,
+    "amount_cents" integer,
+    "currency" text,
+    "grant_source" "webinar_recording_grant_source" DEFAULT 'stripe_checkout' NOT NULL,
+    "purchased_at" timestamp with time zone,
+    "revoked_at" timestamp with time zone,
+    "order_id" uuid,
+    "payment_id" uuid,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "user_id" uuid;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "webinar_id" text;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "stripe_checkout_session_id" text;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "stripe_payment_intent_id" text;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "stripe_price_id" text;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "amount_cents" integer;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "currency" text;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "grant_source" "webinar_recording_grant_source" DEFAULT 'stripe_checkout';`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "purchased_at" timestamp with time zone;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "revoked_at" timestamp with time zone;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "order_id" uuid;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "payment_id" uuid;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "webinar_recording_entitlements" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'webinar_recording_entitlements_user_id_users_id_fk') THEN
+      ALTER TABLE "webinar_recording_entitlements"
+        ADD CONSTRAINT "webinar_recording_entitlements_user_id_users_id_fk"
+        FOREIGN KEY ("user_id") REFERENCES "public"."users"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'webinar_recording_entitlements_order_id_orders_id_fk') THEN
+      ALTER TABLE "webinar_recording_entitlements"
+        ADD CONSTRAINT "webinar_recording_entitlements_order_id_orders_id_fk"
+        FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'webinar_recording_entitlements_payment_id_payments_id_fk') THEN
+      ALTER TABLE "webinar_recording_entitlements"
+        ADD CONSTRAINT "webinar_recording_entitlements_payment_id_payments_id_fk"
+        FOREIGN KEY ("payment_id") REFERENCES "public"."payments"("id")
+        ON DELETE set null ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "webinar_recording_entitlements_user_webinar_uidx" ON "webinar_recording_entitlements" USING btree ("user_id", "webinar_id");`,
+  `CREATE INDEX IF NOT EXISTS "webinar_recording_entitlements_user_active_idx" ON "webinar_recording_entitlements" USING btree ("user_id", "revoked_at");`,
+  `CREATE INDEX IF NOT EXISTS "webinar_recording_entitlements_webinar_purchased_idx" ON "webinar_recording_entitlements" USING btree ("webinar_id", "purchased_at");`,
+  `CREATE INDEX IF NOT EXISTS "webinar_recording_entitlements_checkout_session_idx" ON "webinar_recording_entitlements" USING btree ("stripe_checkout_session_id");`,
+  `CREATE INDEX IF NOT EXISTS "webinar_recording_entitlements_payment_intent_idx" ON "webinar_recording_entitlements" USING btree ("stripe_payment_intent_id");`,
+  `CREATE TABLE IF NOT EXISTS "webinar_recording_progress" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL,
+    "webinar_id" text NOT NULL,
+    "position_seconds" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "id" uuid DEFAULT gen_random_uuid() NOT NULL;`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "user_id" uuid;`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "webinar_id" text;`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "position_seconds" integer DEFAULT 0 NOT NULL;`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone DEFAULT now() NOT NULL;`,
+  `ALTER TABLE "webinar_recording_progress" ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone DEFAULT now();`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'webinar_recording_progress_user_id_users_id_fk') THEN
+      ALTER TABLE "webinar_recording_progress"
+        ADD CONSTRAINT "webinar_recording_progress_user_id_users_id_fk"
+        FOREIGN KEY ("user_id") REFERENCES "public"."users"("id")
+        ON DELETE cascade ON UPDATE no action;
+    END IF;
+  END $$;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "webinar_recording_progress_user_webinar_uidx" ON "webinar_recording_progress" USING btree ("user_id", "webinar_id");`,
+  `CREATE INDEX IF NOT EXISTS "webinar_recording_progress_user_updated_idx" ON "webinar_recording_progress" USING btree ("user_id", "updated_at");`,
   `CREATE TABLE IF NOT EXISTS "subscription_admin_audit_entries" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "subscription_kind" text NOT NULL,
@@ -775,6 +867,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'prime_body_healing';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'regeneration_offer';`,
+  `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'on_demand_webinar';`,
   `INSERT INTO "booking_types" (
     "id",
     "name",

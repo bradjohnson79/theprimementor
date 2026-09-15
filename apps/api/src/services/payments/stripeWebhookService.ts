@@ -66,6 +66,7 @@ import {
   handleRegenerationSubscriptionUpdated,
 } from "../regenerationSubscriptionService.js";
 import { handleRegenerationOfferCheckoutSessionCompleted, handleRegenerationOfferInvoicePaid } from "../regenerationOfferService.js";
+import { fulfillOnDemandWebinarPurchase } from "../webinars/onDemandWebinarFulfillmentService.js";
 import {
   reconcileCanceledPaymentIntent,
   reconcileChargeDispute,
@@ -102,6 +103,7 @@ function getStripeClient() {
 
 type StripePaymentType =
   | "webinar"
+  | "on_demand_webinar"
   | "session"
   | "report"
   | "subscription"
@@ -393,6 +395,7 @@ function parseMetadata(
     userEmail: typeof raw.userEmail === "string" && raw.userEmail.trim() ? raw.userEmail.trim() : null,
     clerkId: typeof raw.clerkId === "string" && raw.clerkId.trim() ? raw.clerkId.trim() : null,
     type: raw.type === "webinar"
+      || raw.type === "on_demand_webinar"
       || raw.type === "session"
       || raw.type === "report"
       || raw.type === "subscription"
@@ -441,7 +444,7 @@ function parseMetadata(
 
 function resolvePaymentEntity(
   metadata: StandardStripeMetadata,
-): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
+): { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "on_demand_webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription"; entityId: string } | null {
   if (metadata.type === "session") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "session", entityId } : null;
@@ -453,6 +456,10 @@ function resolvePaymentEntity(
   if (metadata.type === "webinar") {
     const entityId = metadata.entityId ?? metadata.bookingId;
     return entityId ? { entityType: "webinar", entityId } : null;
+  }
+  if (metadata.type === "on_demand_webinar") {
+    const entityId = metadata.raw.webinarId ?? metadata.entityId;
+    return entityId ? { entityType: "on_demand_webinar", entityId } : null;
   }
   if (metadata.type === "report") {
     const entityId = metadata.entityId ?? metadata.reportId;
@@ -662,7 +669,7 @@ async function findExistingPayment(
   db: DbExecutor,
   input: {
     providerPaymentIntentId: string | null;
-    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription" | null;
+    entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "on_demand_webinar" | "course" | "shop" | "regeneration_offer" | "regeneration_subscription" | null;
     entityId: string | null;
     bookingId: string | null;
   },
@@ -1449,6 +1456,54 @@ async function handleCheckoutSessionCompleted(
     return;
   }
   if (await handleRegenerationOfferCheckoutSessionCompleted(db as Database, session, logger)) {
+    return;
+  }
+
+  if (metadata.type === "on_demand_webinar") {
+    const userId = await resolveUserForStripeObject(db, {
+      stripeCustomerId,
+      stripeSubscriptionId,
+      metadata,
+    }, logger, {
+      eventType: "checkout.session.completed",
+      checkoutSessionId: session.id,
+      customerId: stripeCustomerId,
+      subscriptionId: stripeSubscriptionId,
+    });
+    if (!userId) {
+      logger.warn(
+        { checkoutSessionId: session.id, customerId: stripeCustomerId },
+        "stripe_on_demand_webinar_missing_user_mapping",
+      );
+      return;
+    }
+    if (stripeCustomerId) {
+      await upsertStripeCustomerMapping(db, {
+        userId,
+        stripeCustomerId,
+      }, logger, { checkoutSessionId: session.id, eventType: "checkout.session.completed" });
+    }
+    const result = await fulfillOnDemandWebinarPurchase(db as Database, {
+      userId,
+      session: {
+        id: session.id,
+        payment_status: session.payment_status,
+        amount_total: session.amount_total,
+        currency: session.currency,
+        payment_intent: session.payment_intent,
+        metadata: metadata.raw,
+      },
+      webinarId: metadata.raw.webinarId ?? metadata.entityId,
+    });
+    logger.info({
+      eventType: "checkout.session.completed",
+      checkoutSessionId: session.id,
+      webinarId: result.webinarId,
+      entitlementId: result.entitlementId,
+      paymentId: result.paymentId,
+      duplicatePayment: result.duplicatePayment,
+      userId,
+    }, "stripe_on_demand_webinar_entitlement_granted");
     return;
   }
 

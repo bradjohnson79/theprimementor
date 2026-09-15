@@ -21,6 +21,7 @@ export type PaymentEntityType =
   | "mentor_training"
   | "mentoring_circle"
   | "webinar"
+  | "on_demand_webinar"
   | "course"
   | "shop"
   | "regeneration_offer"

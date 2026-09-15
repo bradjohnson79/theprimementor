@@ -7,6 +7,7 @@ export type NotificationEvent =
   | "mentoring_circle.reminder_24h"
   | "mentoring_circle.reminder_1h"
   | "webinar.confirmed"
+  | "on_demand_webinar.confirmed"
   | "report.generated"
   | "shop.digital_fulfillment"
   | "admin.payment.received"
@@ -126,6 +127,18 @@ export interface NotificationPayloadMap {
     zoomRegistrationUrl: string;
     accessPagePath?: string | null;
   };
+  "on_demand_webinar.confirmed": {
+    entityId: string;
+    webinarId: string;
+    eventTitle: string;
+    firstName?: string | null;
+    email?: string | null;
+    amountCents: number;
+    currency: string;
+    purchasedAt: string;
+    orderRef: string;
+    watchPath: string;
+  };
   "report.generated": {
     entityId: string;
     orderId: string;
@@ -199,6 +212,7 @@ export const USER_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "webinar.confirmed",
+  "on_demand_webinar.confirmed",
   "report.generated",
   "shop.digital_fulfillment",
 ] as const satisfies readonly NotificationEvent[];
@@ -219,6 +233,7 @@ export const CONFIGURABLE_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "webinar.confirmed",
+  "on_demand_webinar.confirmed",
   "report.generated",
   "admin.new.booking",
   "admin.new.user",

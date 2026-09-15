@@ -46,4 +46,5 @@ export * from "./promo.js";
 export * from "./sessionOfferings.js";
 export * from "./regenerationOffer.js";
 export * from "./webinarEvents.js";
+export * from "./onDemandWebinars.js";
 export * from "./shopPricing.js";

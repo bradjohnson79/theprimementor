@@ -68,11 +68,17 @@ export async function sendResendEmail(input: {
       ...(input.replyTo ? { replyTo: input.replyTo } : {}),
     });
 
-    const messageId = typeof response.data?.id === "string" ? response.data.id : null;
+    const messageId = typeof response.data?.id === "string" ? response.data.id.trim() : "";
     if (response.error) {
       return {
         success: false,
         error: response.error.message || "Resend delivery failed.",
+      };
+    }
+    if (!messageId) {
+      return {
+        success: false,
+        error: "Resend returned no message id (uncertain send).",
       };
     }
 

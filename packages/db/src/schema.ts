@@ -119,6 +119,7 @@ export const persistedOrderTypeEnum = pgEnum("persisted_order_type", [
   "subscription_initial",
   "subscription_renewal",
   "webinar",
+  "on_demand_webinar",
   "mentor_training",
   "regeneration_offer",
   "shop",
@@ -967,6 +968,48 @@ export const courseEntitlements = pgTable("course_entitlements", {
   coursePurchasedIdx: index("course_entitlements_course_purchased_idx").on(table.course_slug, table.purchased_at),
   checkoutSessionIdx: index("course_entitlements_checkout_session_idx").on(table.stripe_checkout_session_id),
   paymentIntentIdx: index("course_entitlements_payment_intent_idx").on(table.stripe_payment_intent_id),
+}));
+
+export const webinarRecordingGrantSourceEnum = pgEnum("webinar_recording_grant_source", [
+  "stripe_checkout",
+]);
+
+export const webinarRecordingEntitlements = pgTable("webinar_recording_entitlements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  webinar_id: text("webinar_id").notNull(),
+  stripe_checkout_session_id: text("stripe_checkout_session_id"),
+  stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  stripe_price_id: text("stripe_price_id"),
+  amount_cents: integer("amount_cents"),
+  currency: text("currency"),
+  grant_source: webinarRecordingGrantSourceEnum("grant_source").default("stripe_checkout").notNull(),
+  purchased_at: timestamp("purchased_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  order_id: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+  payment_id: uuid("payment_id").references(() => payments.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (table) => ({
+  userWebinarUnique: uniqueIndex("webinar_recording_entitlements_user_webinar_uidx").on(table.user_id, table.webinar_id),
+  userActiveIdx: index("webinar_recording_entitlements_user_active_idx").on(table.user_id, table.revoked_at),
+  webinarPurchasedIdx: index("webinar_recording_entitlements_webinar_purchased_idx").on(table.webinar_id, table.purchased_at),
+  checkoutSessionIdx: index("webinar_recording_entitlements_checkout_session_idx").on(table.stripe_checkout_session_id),
+  paymentIntentIdx: index("webinar_recording_entitlements_payment_intent_idx").on(table.stripe_payment_intent_id),
+}));
+
+export const webinarRecordingProgress = pgTable("webinar_recording_progress", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  webinar_id: text("webinar_id").notNull(),
+  position_seconds: integer("position_seconds").default(0).notNull(),
+  ...timestamps,
+}, (table) => ({
+  userWebinarUnique: uniqueIndex("webinar_recording_progress_user_webinar_uidx").on(table.user_id, table.webinar_id),
+  userUpdatedIdx: index("webinar_recording_progress_user_updated_idx").on(table.user_id, table.updated_at),
 }));
 
 export const courseLessonProgress = pgTable("course_lesson_progress", {

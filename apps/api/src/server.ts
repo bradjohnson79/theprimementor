@@ -14,6 +14,7 @@ import { syncUserRoutes } from "./routes/sync-user.js";
 import { meRoutes } from "./routes/me.js";
 import { mentoringCircleRoutes } from "./routes/mentoring-circle.js";
 import { webinarRoutes } from "./routes/webinars.js";
+import { muxRoutes } from "./routes/mux.js";
 import { membershipsRoutes } from "./routes/memberships.js";
 import { regenerationOfferRoutes } from "./routes/regeneration-offer.js";
 import { reportsRoutes } from "./routes/reports.js";
@@ -856,6 +857,7 @@ export async function buildApp() {
   await app.register(meRoutes, { prefix: "/api" });
   await app.register(mentoringCircleRoutes, { prefix: "/api" });
   await app.register(webinarRoutes, { prefix: "/api" });
+  await app.register(muxRoutes, { prefix: "/api" });
   await app.register(membershipsRoutes);
   await app.register(membershipsRoutes, { prefix: "/api" });
   await app.register(regenerationOfferRoutes, { prefix: "/api" });

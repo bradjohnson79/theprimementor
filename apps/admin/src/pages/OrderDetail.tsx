@@ -1263,6 +1263,36 @@ export default function OrderDetail() {
                     <dd className="text-white/85">{renderValue(order.metadata.fulfillment_email_error)}</dd>
                   </div>
                 ) : null}
+                {order.metadata.grant_source ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Entitlement source</dt>
+                    <dd className="text-white/85">{renderValue(order.metadata.grant_source)}</dd>
+                  </div>
+                ) : null}
+                {order.metadata.mux_asset_id ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Mux asset</dt>
+                    <dd className="break-all text-white/85">{renderValue(order.metadata.mux_asset_id)}</dd>
+                  </div>
+                ) : null}
+                {order.metadata.mux_asset_ready != null ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Mux ready</dt>
+                    <dd className="text-white/85">{order.metadata.mux_asset_ready ? "ready" : "not ready"}</dd>
+                  </div>
+                ) : null}
+                {order.metadata.playback_protected != null ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Playback protected</dt>
+                    <dd className="text-white/85">{order.metadata.playback_protected ? "signed" : "public playback remains"}</dd>
+                  </div>
+                ) : null}
+                {order.metadata.duplicate_payment ? (
+                  <div>
+                    <dt className="text-xs text-white/40">Duplicate payment</dt>
+                    <dd className="text-amber-200">Yes — keep the entitlement and resolve this extra charge in Admin.</dd>
+                  </div>
+                ) : null}
               </>
             ) : null}
 

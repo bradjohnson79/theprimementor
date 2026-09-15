@@ -61,6 +61,7 @@ export default function MemberLayout() {
     { to: "/mentoring-circle", label: "Mentoring Circle", icon: "◎" },
     ...(tierState === "initiate" ? [{ to: "/mentor-training", label: "Mentor Training", icon: "◇" }] : []),
     { to: "/dashboard/courses", label: "Courses", icon: "▧" },
+    { to: "/dashboard/webinars", label: "Webinars", icon: "▶" },
     { to: "/settings", label: "Settings", icon: "⚙" },
     { to: "/member/contact", label: "Contact", icon: "✉" },
   ];

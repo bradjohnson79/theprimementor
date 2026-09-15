@@ -205,6 +205,13 @@ export interface AdminOrder {
     payment_source?: string | null;
     payment_sync_status?: string | null;
     stripe_checkout_session_id?: string | null;
+    stripe_payment_intent_id?: string | null;
+    stripe_price_id?: string | null;
+    grant_source?: string | null;
+    mux_asset_id?: string | null;
+    mux_asset_ready?: boolean | null;
+    playback_protected?: boolean | null;
+    duplicate_payment?: boolean | null;
     fulfillment_type?: string | null;
     fulfillment_email_status?: string | null;
     fulfillment_email_sent_at?: string | null;

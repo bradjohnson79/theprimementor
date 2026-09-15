@@ -2,6 +2,7 @@ export const STRIPE_REFERENCE_SCHEMA_VERSION = "stripe-reference-v1";
 
 export type StripeReferenceEntityType =
   | "webinar"
+  | "on_demand_webinar"
   | "session"
   | "report"
   | "subscription"
@@ -70,6 +71,8 @@ function isEntityType(value: string | null): value is StripeReferenceEntityType 
   return value === "session"
     || value === "report"
     || value === "subscription"
+    || value === "webinar"
+    || value === "on_demand_webinar"
     || value === "mentor_training"
     || value === "mentoring_circle"
     || value === "course"

@@ -20,6 +20,8 @@ import Recordings from "./routes/Recordings";
 import MentoringCircle from "./routes/MentoringCircle";
 import AdronisWebinarCheckout from "./routes/AdronisWebinarCheckout";
 import AdronisWebinarThankYou from "./routes/AdronisWebinarThankYou";
+import OnDemandWebinarCheckout from "./routes/OnDemandWebinarCheckout";
+import OnDemandWebinarThankYou from "./routes/OnDemandWebinarThankYou";
 import MentorTraining from "./routes/MentorTraining";
 import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
@@ -55,6 +57,8 @@ import {
 import { TTT_COURSE_ROUTE } from "./lib/courses.config";
 
 const Courses = lazy(() => import("./routes/Courses"));
+const DashboardWebinars = lazy(() => import("./routes/DashboardWebinars"));
+const OnDemandWebinarPlayer = lazy(() => import("./routes/OnDemandWebinarPlayer"));
 const CourseTTT = lazy(() => import("./routes/CourseTTT"));
 const CourseResonantDowsing = lazy(() => import("./routes/CourseResonantDowsing"));
 
@@ -116,6 +120,8 @@ export default function App() {
           <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
           <Route path="/webinars/adronis-disclosure-to-contact" element={<AdronisWebinarCheckout />} />
           <Route path="/webinars/adronis-disclosure-to-contact/thank-you" element={<AdronisWebinarThankYou />} />
+          <Route path="/webinars/adronis-disclosure-to-contact/on-demand" element={<OnDemandWebinarCheckout />} />
+          <Route path="/webinars/adronis-disclosure-to-contact/on-demand/thank-you" element={<OnDemandWebinarThankYou />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route element={<ProtectedLayout />}>
@@ -139,6 +145,22 @@ export default function App() {
             <Route path="/mentoring-circle" element={<MentoringCircle />} />
             <Route path="/events/mentoring-circle" element={<MentoringCircle />} />
             <Route path="/mentor-training" element={<MentorTraining />} />
+            <Route
+              path="/dashboard/webinars"
+              element={(
+                <Suspense fallback={<RouteFallback />}>
+                  <DashboardWebinars />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/dashboard/webinars/:webinarId"
+              element={(
+                <Suspense fallback={<RouteFallback />}>
+                  <OnDemandWebinarPlayer />
+                </Suspense>
+              )}
+            />
             <Route
               path="/dashboard/courses"
               element={(

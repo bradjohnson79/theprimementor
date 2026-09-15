@@ -17,6 +17,8 @@ import {
   subscriptionAdminNotes,
   reports,
   courseEntitlements,
+  webinarRecordingEntitlements,
+  webinarRecordingProgress,
   courseLessonProgress,
   webhookEvents,
   invoices,
@@ -51,6 +53,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   reports: many(reports),
   courseEntitlements: many(courseEntitlements),
+  webinarRecordingEntitlements: many(webinarRecordingEntitlements),
+  webinarRecordingProgress: many(webinarRecordingProgress),
   courseLessonProgress: many(courseLessonProgress),
   mentoringCircleRegistrations: many(mentoringCircleRegistrations),
   shopEntitlements: many(shopEntitlements),
@@ -67,6 +71,28 @@ export const courseEntitlementsRelations = relations(courseEntitlements, ({ one 
   order: one(orders, {
     fields: [courseEntitlements.order_id],
     references: [orders.id],
+  }),
+}));
+
+export const webinarRecordingEntitlementsRelations = relations(webinarRecordingEntitlements, ({ one }) => ({
+  user: one(users, {
+    fields: [webinarRecordingEntitlements.user_id],
+    references: [users.id],
+  }),
+  order: one(orders, {
+    fields: [webinarRecordingEntitlements.order_id],
+    references: [orders.id],
+  }),
+  payment: one(payments, {
+    fields: [webinarRecordingEntitlements.payment_id],
+    references: [payments.id],
+  }),
+}));
+
+export const webinarRecordingProgressRelations = relations(webinarRecordingProgress, ({ one }) => ({
+  user: one(users, {
+    fields: [webinarRecordingProgress.user_id],
+    references: [users.id],
   }),
 }));
 

@@ -12,6 +12,7 @@ import {
   renderMentoringCircleReminder1hTemplate,
   renderMentoringCircleReminder24hTemplate,
   renderWebinarConfirmedTemplate,
+  renderOnDemandWebinarConfirmedTemplate,
   renderPaymentFailedTemplate,
   renderPaymentSucceededTemplate,
   renderReportGeneratedTemplate,
@@ -21,6 +22,7 @@ import {
 export interface NotificationTemplate {
   subject: string;
   html: string;
+  text?: string;
   templateVersion: string;
 }
 
@@ -35,6 +37,7 @@ const TEMPLATE_RESOLVERS: { [TEvent in NotificationEvent]: TemplateResolver<TEve
   "mentoring_circle.reminder_24h": renderMentoringCircleReminder24hTemplate,
   "mentoring_circle.reminder_1h": renderMentoringCircleReminder1hTemplate,
   "webinar.confirmed": renderWebinarConfirmedTemplate,
+  "on_demand_webinar.confirmed": renderOnDemandWebinarConfirmedTemplate,
   "report.generated": renderReportGeneratedTemplate,
   "shop.digital_fulfillment": renderShopDigitalFulfillmentTemplate,
   "admin.payment.received": renderAdminPaymentReceivedTemplate,

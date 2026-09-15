@@ -421,6 +421,7 @@ export async function sendNotification<TEvent extends NotificationRequest["event
     to: appliedPolicy.resolvedRecipients,
     subject: template.subject,
     html: template.html,
+    text: template.text,
   });
 
   if (!sendResult.success) {

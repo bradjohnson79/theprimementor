@@ -34,6 +34,10 @@ import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
 import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOfferBilling.js";
 import { resolveMentoringCircleStripePriceId } from "../config/mentoringCircleBilling.js";
 import { assertWebinarRegistrationOpen, resolveWebinarStripePriceId } from "../config/webinarBilling.js";
+import { resolveOnDemandWebinarStripePriceId } from "../config/onDemandWebinarBilling.js";
+import { getOnDemandWebinarById } from "@wisdom/utils";
+import { assertOnDemandWebinarSaleable } from "./mux/muxPlaybackService.js";
+import { hasActiveOnDemandWebinarEntitlement } from "./webinars/onDemandWebinarEntitlementService.js";
 import {
   buildResonantDowsingCheckoutLineItem,
   getResonantDowsingStripePriceId,
@@ -68,7 +72,7 @@ import {
   getRegenerationOfferIntakeBooking,
 } from "./regenerationOfferService.js";
 
-type CheckoutType = "webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer";
+type CheckoutType = "webinar" | "on_demand_webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer";
 type CheckoutTier = "seeker" | "initiate";
 type CheckoutDiscountConfig = Pick<Stripe.Checkout.SessionCreateParams, "allow_promotion_codes" | "discounts">;
 
@@ -111,6 +115,7 @@ export interface CreateCheckoutSessionInput {
   courseEntitlementId?: string;
   shopEntitlementId?: string;
   eventId?: string;
+  webinarId?: string;
   promoCode?: string;
 }
 
@@ -135,6 +140,7 @@ function buildCheckoutMetadata(
     billingInterval?: "monthly" | "annual";
     eventId?: string;
     eventKey?: string;
+    webinarId?: string;
     orderId?: string;
     promoCode?: string;
     promoCodeId?: string;
@@ -224,6 +230,10 @@ function buildCheckoutMetadata(
   }
   if (input.eventKey?.trim()) {
     metadata.eventKey = input.eventKey.trim();
+  }
+  if (input.webinarId?.trim()) {
+    metadata.webinarId = input.webinarId.trim();
+    metadata.purchase_type = "on_demand_webinar";
   }
   if (input.orderId?.trim()) {
     metadata.orderId = input.orderId.trim();
@@ -337,7 +347,7 @@ async function getMentorTrainingOrderForCheckout(db: Database, trainingOrderId: 
 
 async function getLatestPaymentForEntity(
   db: Database,
-  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "course" | "shop" | "regeneration_offer"; entityId: string },
+  input: { entityType: "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "webinar" | "on_demand_webinar" | "course" | "shop" | "regeneration_offer"; entityId: string },
 ) {
   const [row] = await db
     .select({
@@ -1694,6 +1704,102 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
   return session;
 }
 
+async function createOnDemandWebinarCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
+  const webinarId = input.webinarId?.trim();
+  if (!webinarId) {
+    throw createHttpError(400, "webinarId is required for on-demand webinar checkout.");
+  }
+  const webinar = getOnDemandWebinarById(webinarId);
+  if (!webinar) {
+    throw createHttpError(404, "On-demand webinar was not found.");
+  }
+
+  await assertOnDemandWebinarSaleable(webinar.webinarId);
+
+  if (await hasActiveOnDemandWebinarEntitlement(db, { userId: input.userId, webinarId: webinar.webinarId })) {
+    throw createHttpError(409, "This on-demand webinar has already been purchased.");
+  }
+
+  const { priceId } = resolveOnDemandWebinarStripePriceId(webinar);
+  const stripe = getStripe();
+  const frontendUrl = getFrontendUrl();
+  const metadata = buildCheckoutMetadata({
+    ...input,
+    type: "on_demand_webinar",
+    entityId: webinar.webinarId,
+    webinarId: webinar.webinarId,
+  });
+  metadata.stripePriceId = priceId;
+  metadata.purchase_type = "on_demand_webinar";
+  metadata.customer_email = input.userEmail;
+
+  const stripeCustomerId = await ensureStripeCustomerId(db, {
+    stripe,
+    userId: input.userId,
+    email: input.userEmail,
+    metadata: {
+      userId: input.userId,
+      clerkId: input.clerkId,
+    },
+  });
+
+  const naming = resolveStripeProductNaming({
+    type: "custom",
+    productName: `${webinar.title} (On Demand)`,
+    description: "On-demand webinar recording access in Dashboard → Webinars.",
+    metadata: {
+      product_type: "on_demand_webinar",
+      webinar_id: webinar.webinarId,
+    },
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    client_reference_id: webinar.webinarId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata: mergeStripeMetadata(metadata, naming.metadata),
+    payment_intent_data: {
+      description: naming.description,
+      metadata: mergeStripeMetadata(metadata, naming.metadata),
+    },
+    success_url: `${frontendUrl}${webinar.thankYouPath}?checkout=success&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${frontendUrl}${webinar.checkoutPath}?checkout=canceled`,
+    customer: stripeCustomerId,
+  });
+
+  await createPaymentRecordForEntity(db, {
+    userId: input.userId,
+    entityType: "on_demand_webinar",
+    entityId: session.id,
+    amountCents: webinar.priceCents,
+    currency: webinar.currency,
+    status: "pending",
+    metadata: {
+      source: "on_demand_webinar_checkout_create",
+      webinarId: webinar.webinarId,
+      stripeCheckoutSessionId: session.id,
+      stripeCheckoutMode: session.mode,
+      stripeCheckoutUrl: session.url,
+      stripePriceId: priceId,
+      purchase_type: "on_demand_webinar",
+      environment: metadata.environment,
+    },
+  });
+
+  logger.info("on_demand_webinar_checkout_created", {
+    checkoutType: "on_demand_webinar",
+    webinarId: webinar.webinarId,
+    sessionId: session.id,
+    priceId,
+    userId: input.userId,
+    clerkId: input.clerkId,
+    customerId: stripeCustomerId,
+  });
+
+  return session;
+}
+
 export async function createCheckoutSession(
   db: Database,
   input: CreateCheckoutSessionInput,
@@ -1722,6 +1828,9 @@ export async function createCheckoutSession(
   }
   if (type === "webinar") {
     return createWebinarCheckoutSession(db, input);
+  }
+  if (type === "on_demand_webinar") {
+    return createOnDemandWebinarCheckoutSession(db, input);
   }
   if (type === "regeneration_offer") {
     return createRegenerationOfferCheckoutSession(db, input);

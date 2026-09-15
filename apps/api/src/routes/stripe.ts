@@ -14,7 +14,7 @@ import {
 import { processStripeWebhookEvent, syncCheckoutSessionCompleted } from "../services/payments/stripeWebhookService.js";
 import { retrieveShopCheckoutSession } from "../services/shop/shopCheckoutSessionRetrieve.js";
 
-type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "webinar" | "mentor_training" | "subscription" | "course" | "shop" | "regeneration_offer";
+type CheckoutSyncEntityType = "session" | "report" | "mentoring_circle" | "webinar" | "on_demand_webinar" | "mentor_training" | "subscription" | "course" | "shop" | "regeneration_offer";
 
 interface CheckoutSessionSyncBody {
   checkoutSessionId?: string;
@@ -66,6 +66,7 @@ export async function stripeRoutes(app: FastifyInstance) {
         courseEntitlementId: request.body?.courseEntitlementId,
         shopEntitlementId: request.body?.shopEntitlementId,
         eventId: request.body?.eventId,
+        webinarId: request.body?.webinarId,
         promoCode: request.body?.promoCode,
         userId: user.id,
         userEmail: user.email,

@@ -109,6 +109,18 @@ const SAMPLE_PAYLOAD_FACTORIES: SamplePayloadFactoryMap = {
     zoomRegistrationUrl: "https://us02web.zoom.us/meeting/register/sCZZBeMQQgOQwsYb9XuM7Q",
     accessPagePath: "/webinars/adronis-disclosure-to-contact/thank-you",
   }),
+  "on_demand_webinar.confirmed": () => ({
+    entityId: "on_demand_webinar_confirmed_sample",
+    webinarId: "adronis-disclosure-to-contact-on-demand",
+    eventTitle: "Adronis: From Disclosure to Contact",
+    firstName: "Alex",
+    email: "alex@example.com",
+    amountCents: 799,
+    currency: "CAD",
+    purchasedAt: new Date("2026-09-14T20:00:00.000Z").toISOString(),
+    orderRef: "order_on_demand_sample",
+    watchPath: "/dashboard/webinars/adronis-disclosure-to-contact-on-demand",
+  }),
   "report.generated": () => ({
     entityId: "report_sample_generated",
     orderId: "order_sample_report",

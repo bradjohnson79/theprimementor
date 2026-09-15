@@ -14,6 +14,7 @@ import {
   renderBookingConfirmedTemplate,
   renderBookingCreatedTemplate,
   renderMentoringCircleConfirmedTemplate,
+  renderOnDemandWebinarConfirmedTemplate,
   renderReportGeneratedTemplate,
   renderWebinarConfirmedTemplate,
 } from "./templates/userTemplates.js";
@@ -92,6 +93,15 @@ test("webinar confirmation email includes the event date, CAD price, and Zoom re
   assert.match(rendered.html, /Complete Your Zoom Registration/);
   assert.match(rendered.html, /does not automatically register you as a Zoom attendee/i);
   assert.doesNotMatch(rendered.html, /join link has already been issued/i);
+});
+
+test("on-demand webinar confirmation email has no Zoom copy and includes a watch CTA", () => {
+  const payload = getSamplePayload("on_demand_webinar.confirmed");
+  const rendered = renderOnDemandWebinarConfirmedTemplate(payload);
+
+  assert.equal(rendered.subject, "Your Adronis On-Demand Webinar Is Ready");
+  assert.match(rendered.html, /Watch My Webinar/);
+  assert.doesNotMatch(rendered.html, /Zoom/i);
 });
 
 test("entity ids are derived from typed payloads", () => {

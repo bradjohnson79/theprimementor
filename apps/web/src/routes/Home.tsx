@@ -10,6 +10,7 @@ import {
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
+import OnDemandWebinarsHomeSection from "../components/webinars/OnDemandWebinarsHomeSection";
 import HomeShopGallery from "../components/home/HomeShopGallery";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
@@ -900,6 +901,7 @@ export default function Home() {
       <HeroSection />
       <AdronisWebinarHomeCard />
       <HomeShopGallery />
+      <OnDemandWebinarsHomeSection />
       <PrimeBodyHealingHomeCard />
       <RegenerationOfferHomePanel />
 
