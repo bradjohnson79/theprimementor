@@ -22,6 +22,11 @@ export const ADRONIS_ON_DEMAND_DESCRIPTION = [
   "This is the full on-demand recording, including the original question-and-answer session and a simple practice for Higher Self connection.",
 ].join(" ");
 
+export const ADRONIS_ON_DEMAND_PLAYER_SUMMARY = [
+  "Brad Johnson channels Adronis on humanity’s path from the current phase of disclosure toward global first contact — and what may follow in its aftermath.",
+  "This recording includes the original question-and-answer session and a simple practice for Higher Self connection.",
+].join(" ");
+
 export const ADRONIS_ON_DEMAND_FEATURE_BULLETS = [
   "Deep insights from Adronis on disclosure leading into global contact",
   "How the transition into first contact may occur",
