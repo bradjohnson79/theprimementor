@@ -13,6 +13,7 @@ export const ADRONIS_ON_DEMAND_CHECKOUT_PATH = "/webinars/adronis-disclosure-to-
 export const ADRONIS_ON_DEMAND_THANK_YOU_PATH = "/webinars/adronis-disclosure-to-contact/on-demand/thank-you";
 export const ADRONIS_ON_DEMAND_PLAYER_PATH = `/dashboard/webinars/${ADRONIS_ON_DEMAND_WEBINAR_ID}`;
 export const ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH = `${ADRONIS_ON_DEMAND_CHECKOUT_PATH}?autocheckout=1`;
+export const ADRONIS_ON_DEMAND_CANCEL_PATH = "/";
 export const ADRONIS_ON_DEMAND_PRESENTER = "Brad Johnson channeling Adronis";
 
 export const ADRONIS_ON_DEMAND_DESCRIPTION = [

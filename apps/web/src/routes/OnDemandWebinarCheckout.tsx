@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from "react-route
 import { useAuth } from "@clerk/react";
 import {
   ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH,
+  ADRONIS_ON_DEMAND_CANCEL_PATH,
   ADRONIS_ON_DEMAND_PLAYER_PATH,
   ADRONIS_ON_DEMAND_THANK_YOU_PATH,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
@@ -28,6 +29,7 @@ export default function OnDemandWebinarCheckout() {
   const [error, setError] = useState<string | null>(null);
   const autocheckoutStartedRef = useRef(false);
   const shouldAutocheckout = searchParams.get("autocheckout") === "1";
+  const canceledCheckout = searchParams.get("checkout") === "canceled";
 
   useEffect(() => {
     void fetchPublicOnDemandWebinar(ADRONIS_ON_DEMAND_WEBINAR_ID).then(setCatalog);
@@ -82,6 +84,10 @@ export default function OnDemandWebinarCheckout() {
       }
     })();
   }, [catalog?.saleable, getToken, isSignedIn, navigate, owned, searchParams, setSearchParams, shouldAutocheckout]);
+
+  if (canceledCheckout) {
+    return <Navigate to={ADRONIS_ON_DEMAND_CANCEL_PATH} replace />;
+  }
 
   if (!isSignedIn) {
     const redirectUrl = `${location.pathname}${location.search}${location.hash}` || ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH;

@@ -35,7 +35,7 @@ import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOff
 import { resolveMentoringCircleStripePriceId } from "../config/mentoringCircleBilling.js";
 import { assertWebinarRegistrationOpen, resolveWebinarStripePriceId } from "../config/webinarBilling.js";
 import { resolveOnDemandWebinarStripePriceId } from "../config/onDemandWebinarBilling.js";
-import { getOnDemandWebinarById } from "@wisdom/utils";
+import { ADRONIS_ON_DEMAND_CANCEL_PATH, getOnDemandWebinarById } from "@wisdom/utils";
 import { assertOnDemandWebinarSaleable } from "./mux/muxPlaybackService.js";
 import { hasActiveOnDemandWebinarEntitlement } from "./webinars/onDemandWebinarEntitlementService.js";
 import {
@@ -1764,7 +1764,7 @@ async function createOnDemandWebinarCheckoutSession(db: Database, input: CreateC
       metadata: mergeStripeMetadata(metadata, naming.metadata),
     },
     success_url: `${frontendUrl}${webinar.thankYouPath}?checkout=success&checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}${webinar.checkoutPath}?checkout=canceled`,
+    cancel_url: `${frontendUrl}${ADRONIS_ON_DEMAND_CANCEL_PATH}`,
     customer: stripeCustomerId,
   });
 
