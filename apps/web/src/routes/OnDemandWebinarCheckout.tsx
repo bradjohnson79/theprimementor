@@ -18,6 +18,7 @@ import { fetchOnDemandWebinarMe, fetchPublicOnDemandWebinar, startOnDemandWebina
 
 const CANONICAL = "https://theprimementor.com/webinars/adronis-disclosure-to-contact/on-demand";
 const LANDING_OG_IMAGE = `https://theprimementor.com${ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH}`;
+const CTA_CLASS_NAME = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#D7B454] to-[#F2D88A] px-6 py-3 text-sm font-semibold text-[#07111C] shadow-[0_10px_32px_rgba(215,180,84,0.22)] transition hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
 export default function OnDemandWebinarCheckout() {
   const { isSignedIn, getToken } = useAuth();
@@ -34,6 +35,7 @@ export default function OnDemandWebinarCheckout() {
   const autocheckoutStartedRef = useRef(false);
   const shouldAutocheckout = searchParams.get("autocheckout") === "1";
   const canceledCheckout = searchParams.get("checkout") === "canceled";
+  const hasAccess = Boolean(isSignedIn && owned);
 
   usePageMeta({
     title: "Adronis: From Disclosure to Contact | On Demand",
@@ -48,10 +50,7 @@ export default function OnDemandWebinarCheckout() {
   }, []);
 
   useEffect(() => {
-    if (!isSignedIn) {
-      setOwned(false);
-      return;
-    }
+    if (!isSignedIn) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -73,7 +72,7 @@ export default function OnDemandWebinarCheckout() {
   }, [getToken, isSignedIn, navigate]);
 
   useEffect(() => {
-    if (!isSignedIn || !shouldAutocheckout || autocheckoutStartedRef.current || owned || !catalog?.saleable) {
+    if (!isSignedIn || !shouldAutocheckout || autocheckoutStartedRef.current || hasAccess || !catalog?.saleable) {
       return;
     }
 
@@ -98,75 +97,92 @@ export default function OnDemandWebinarCheckout() {
         setError(message);
       }
     })();
-  }, [catalog?.saleable, getToken, isSignedIn, navigate, owned, searchParams, setSearchParams, shouldAutocheckout]);
+  }, [catalog?.saleable, getToken, hasAccess, isSignedIn, navigate, searchParams, setSearchParams, shouldAutocheckout]);
 
   if (canceledCheckout) {
     return <Navigate to={ADRONIS_ON_DEMAND_CANCEL_PATH} replace />;
   }
 
   if (!catalog) {
-    return <div className="mx-auto max-w-3xl px-6 py-16 text-white/70">Webinar not found.</div>;
+    return <div className="mx-auto max-w-3xl px-6 py-16 text-slate-300">Webinar not found.</div>;
   }
 
   const bullets = catalog.featureBullets.length ? catalog.featureBullets : ADRONIS_ON_DEMAND_FEATURE_BULLETS;
+  const ctaLabel = hasAccess ? "Watch Now" : "Watch Now — $7.99 CAD";
 
   return (
-    <div className="relative isolate overflow-hidden text-white">
-      <section className="relative px-6 pb-20 pt-16 sm:pt-20">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_36%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.16),transparent_34%),radial-gradient(circle_at_bottom,rgba(99,102,241,0.10),transparent_40%)]" />
-        <div className="relative mx-auto max-w-4xl">
-          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-amber-200/72">On Demand Recording</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
+    <div className="relative isolate min-h-full overflow-hidden text-[#F8FAFC]">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(24,80,120,0.34),transparent_34%),radial-gradient(circle_at_85%_18%,rgba(43,125,142,0.22),transparent_32%),radial-gradient(circle_at_50%_70%,rgba(80,40,130,0.18),transparent_42%)]"
+        aria-hidden="true"
+      />
+      <section className="relative px-4 pb-20 pt-12 sm:px-6 sm:pt-16 lg:px-8">
+        <div className="relative mx-auto w-full max-w-[76rem]">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[#E5C267]">On Demand Recording</p>
+          <h1 className="hero-headline mt-3 max-w-4xl text-4xl font-semibold tracking-[-0.04em] text-[#F8FAFC] sm:text-5xl lg:text-6xl">
             {catalog.title}
           </h1>
-          <p className="mt-3 text-sm uppercase tracking-[0.18em] text-cyan-200/70">{catalog.presenter}</p>
-          <p className="mt-4 text-lg font-medium text-amber-100">
-            {catalog.displayPrice}
-            <span className="mx-2 text-white/30">·</span>
-            <span className="text-white/70">{catalog.displayDuration}</span>
-          </p>
+          <p className="mt-4 text-sm font-medium uppercase tracking-[0.18em] text-[#67E8F9]">{catalog.presenter}</p>
+          <div className="mt-5 flex flex-wrap items-end gap-x-4 gap-y-2">
+            <p className="text-2xl font-semibold text-[#F0D78A]">{catalog.displayPrice}</p>
+            <p className="pb-0.5 text-base text-[#94A3B8]">{catalog.displayDuration}</p>
+          </div>
 
-          <figure className="mt-8 overflow-hidden rounded-[1.6rem] border border-amber-200/20 bg-slate-950 p-2">
+          <div className="mt-6 space-y-3">
+            <OnDemandWebinarCheckoutButton
+              source="on_demand_webinar_landing_page"
+              owned={hasAccess}
+              saleable={catalog.saleable}
+              onError={setError}
+              className={CTA_CLASS_NAME}
+            >
+              {ctaLabel}
+            </OnDemandWebinarCheckoutButton>
+            {hasAccess ? null : (
+              <p className="text-sm text-[#94A3B8]">Create an Account or Sign-in to Purchase</p>
+            )}
+            {error ? <p className="text-sm text-[#F0D78A]">{error}</p> : null}
+          </div>
+
+          <figure className="mt-10 overflow-hidden rounded-3xl border border-white/[0.09] bg-[#050a12] shadow-[0_30px_90px_rgba(0,0,0,0.48),0_0_55px_rgba(41,190,220,0.08)]">
             <img
               src={ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH}
               alt={catalog.posterAlt}
               width={1672}
               height={941}
-              className="mx-auto h-auto w-full rounded-[1.2rem] object-contain"
+              className="mx-auto h-auto w-full object-contain"
               loading="eager"
               decoding="async"
             />
           </figure>
 
-          <div className="mx-auto mt-8 max-w-3xl space-y-5">
-            <p className="text-base leading-8 text-white/72 sm:text-lg">
+          <div className="glass-card mt-10 space-y-5 p-6 sm:p-8">
+            <p className="text-base leading-8 text-[#CBD5E1] sm:text-lg">
               The recorded Adronis webinar is now available to watch anytime. Brad Johnson channels Adronis on
               humanity’s path from the current phase of disclosure toward global first contact — and what may
               follow in its aftermath.
             </p>
-            <p className="text-base leading-8 text-white/68">
+            <p className="text-base leading-8 text-[#CBD5E1]">
               {catalog.description}
             </p>
-            <ul className="space-y-2 text-sm leading-7 text-white/70 sm:text-base">
+            <ul className="space-y-2 text-sm leading-7 text-[#CBD5E1] sm:text-base">
               {bullets.map((bullet) => (
                 <li key={bullet} className="flex gap-3">
-                  <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200/80" aria-hidden />
+                  <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E5C267]" aria-hidden />
                   <span>{bullet}</span>
                 </li>
               ))}
             </ul>
             <div className="pt-2">
               <OnDemandWebinarCheckoutButton
-                source="on_demand_webinar_landing_page"
-                owned={owned}
+                source="on_demand_webinar_landing_page_details"
+                owned={hasAccess}
                 saleable={catalog.saleable}
                 onError={setError}
-                className="inline-flex rounded-full bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className={CTA_CLASS_NAME}
               >
-                {owned ? "Watch Now" : "Watch On Demand — $7.99 CAD"}
+                {ctaLabel}
               </OnDemandWebinarCheckoutButton>
-              <p className="mt-3 text-sm text-white/55">Create an Account or Sign-in to Purchase</p>
-              {error ? <p className="mt-3 text-sm text-amber-200">{error}</p> : null}
             </div>
           </div>
         </div>

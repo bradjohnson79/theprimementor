@@ -130,6 +130,7 @@ export default function RootLayout() {
     || location.pathname.startsWith("/shop/")
     || location.pathname === "/membership-signup"
     || location.pathname.startsWith("/subscriptions/")
+    || location.pathname.startsWith("/webinars/")
     || location.pathname === REGENERATION_LANDING_PATH
     || location.pathname === "/regeneration-offer"
     || location.pathname === "/regeneration-offer/success"

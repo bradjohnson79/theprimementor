@@ -1,0 +1,36 @@
+---
+description: Prime Mentor public pages use the dark aurora theme by default. Cream, ivory, and washed-out light page shells are prohibited unless Brad explicitly requests them.
+alwaysApply: true
+---
+
+# Prime Mentor Visual Design Law
+
+DARK AURORA is the default Prime Mentor theme. Cream / off-white is not part of the brand.
+
+## Default visual language
+
+- Deep midnight navy, black-blue, cosmic gradients
+- Aurora cyan, teal, restrained violet
+- Gold accents and bright high-contrast type
+- Premium translucent dark cards and subtle atmospheric glow
+- Cosmic, sophisticated, mystical, premium, modern, readable
+
+## Prohibited as a page theme
+
+Do not use cream, ivory, warm off-white, pale beige, washed-out cream-to-blue gradients, or pastel shells as the dominant background.
+
+Light colors are for text, icons, artwork, and isolated contrast only.
+
+## When building or changing a page
+
+1. Assume dark aurora. Reuse existing tokens, `PublicEnergyBackground`, cosmic/aurora CSS, gold/cyan accents, and glass/dark cards.
+2. Never introduce a cream/off-white theme unless Brad explicitly requests it for that page.
+3. Do not infer that a new landing page, webinar, product, course, report, or promotion should be light.
+4. A white header is only for non-marketing/member chrome. Public marketing pages use the dark shared header. A white nav does not authorize a cream content shell.
+5. Add new public marketing routes to `isMarketingSurface` in `apps/web/src/layouts/RootLayout.tsx` so they inherit `bg-[#04050f]`, the dark header, and `PublicEnergyBackground`.
+
+## Review gate
+
+Before marking a public page complete, ask: "Does this unmistakably look like The Prime Mentor?"
+
+If it looks cream, beige, pastel, generic-light, or disconnected from dark aurora, the work is not complete.
