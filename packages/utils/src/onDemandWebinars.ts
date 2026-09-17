@@ -7,6 +7,7 @@ export const ADRONIS_ON_DEMAND_LIVE_STRIPE_PRICE_ID = "price_1UFd7kAd5V3LaCqjFX6
 export const ADRONIS_ON_DEMAND_PLAYBACK_ID = "iEwnjRE3o8jKpy7n1Uw2gLYGS5CdTTRLfOxHM00ScWpc";
 export const ADRONIS_ON_DEMAND_DURATION_SECONDS = 8331;
 export const ADRONIS_ON_DEMAND_POSTER_PATH = "/images/adronis-from-disclosure-to-contact-on-demand.jpg";
+export const ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH = "/images/adronis-from-disclosure-to-contact-on-demand-16x9.jpg";
 export const ADRONIS_ON_DEMAND_POSTER_ALT =
   "Adronis: From Disclosure to Contact on-demand webinar. Available now on demand for $7.99.";
 export const ADRONIS_ON_DEMAND_CHECKOUT_PATH = "/webinars/adronis-disclosure-to-contact/on-demand";
