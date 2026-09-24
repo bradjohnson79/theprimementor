@@ -4,7 +4,6 @@ import { useAuth, UserButton, useUser } from "@clerk/react";
 import { LayoutDashboard } from "lucide-react";
 import PublicEnergyBackground from "../components/background/PublicEnergyBackground";
 import pmLogo from "../assets/prime-mentor-logo.webp";
-import { getUmamiScriptUrl, getUmamiWebsiteId } from "../lib/analytics";
 import { useUserSync } from "../hooks/useUserSync";
 import {
   MENTORING_LANDING_PATH,
@@ -160,24 +159,6 @@ export default function RootLayout() {
   const navGroups = NAV_GROUPS.map((group) => (
     group.label === "Shop" ? { ...group, items: shopItems } : group
   ));
-
-  useEffect(() => {
-    const scriptId = "prime-mentor-umami";
-    if (document.getElementById(scriptId)) {
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.defer = true;
-    script.src = getUmamiScriptUrl();
-    script.setAttribute("data-website-id", getUmamiWebsiteId());
-    document.head.appendChild(script);
-
-    return () => {
-      script.remove();
-    };
-  }, []);
 
   function toggleMobileDropdown(label: string) {
     setMobileDropdown((current) => (current === label ? null : label));

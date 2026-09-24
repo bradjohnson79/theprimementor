@@ -1,8 +1,8 @@
 export const analyticsHelperText = {
   entryPages:
-    "Entry pages show where visitors begin their journey. High-performing entry pages should be optimized with clear CTAs, trust-building copy, and next-step pathways.",
+    "GoatCounter does not report first-page entries. Use top pages and conversion paths to see where visitors are spending attention.",
   exitPages:
-    "Exit pages reveal where users are dropping off. If key sales pages have high exits, review CTA clarity, page speed, offer strength, and checkout friction.",
+    "GoatCounter does not report exit pages. Use conversion paths, events, and order trends to judge drop-off instead.",
   devices:
     "Device data helps reveal whether Prime Mentor should prioritize desktop, mobile, or tablet layout improvements.",
   browsers:

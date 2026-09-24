@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import {
   buildConversionPathInsights,
   buildStrategicRecommendations,
-  buildUmamiAuthHeaders,
   loadInsightsSubsection,
   normalizeExpandedRows,
   type AnalyticsRangeWindow,
 } from "./analyticsService.js";
+import { buildGoatCounterAuthHeaders } from "./goatcounterClient.js";
 
 const window: AnalyticsRangeWindow = {
   range: "7d",
@@ -103,28 +103,45 @@ test("buildStrategicRecommendations uses soft factual wording", () => {
   assert.ok(recommendations.every((item) => !/converting poorly/i.test(item)));
 });
 
-test("buildUmamiAuthHeaders uses Bearer auth for Umami Cloud", () => {
-  const headers = buildUmamiAuthHeaders("umami-test-key");
-  assert.equal(headers.Authorization, "Bearer umami-test-key");
-  assert.equal(headers["x-umami-api-key"], "umami-test-key");
+test("buildGoatCounterAuthHeaders uses Bearer auth", () => {
+  const headers = buildGoatCounterAuthHeaders("goatcounter-test-token");
+  assert.equal(headers.Authorization, "Bearer goatcounter-test-token");
   assert.equal(headers.Accept, "application/json");
 });
 
-test("loadInsightsSubsection degrades without throwing when Umami returns an error", async () => {
+test("loadInsightsSubsection marks entry pages unsupported without fetching", async () => {
+  logger.warnings = [];
+  const result = await loadInsightsSubsection({
+    window,
+    metricType: "entry",
+    limit: 5,
+    logger,
+    operation: "test_entry",
+    emptyWarning: "Entry page data is unavailable.",
+  });
+
+  assert.equal(result.status, "unsupported");
+  assert.deepEqual(result.items, []);
+  assert.equal(logger.warnings.length, 0);
+});
+
+test("loadInsightsSubsection degrades without throwing when GoatCounter returns an error", async () => {
   const originalFetch = globalThis.fetch;
-  const previousKey = process.env.UMAMI_API_KEY;
-  process.env.UMAMI_API_KEY = "test-key";
+  const previousToken = process.env.GOATCOUNTER_API_TOKEN;
+  const previousSite = process.env.GOATCOUNTER_SITE_URL;
+  process.env.GOATCOUNTER_API_TOKEN = "test-token";
+  process.env.GOATCOUNTER_SITE_URL = "https://example.goatcounter.com";
   logger.warnings = [];
   globalThis.fetch = async () => new Response("unsupported", { status: 400 });
 
   try {
     const result = await loadInsightsSubsection({
       window,
-      metricType: "entry",
+      metricType: "path",
       limit: 5,
       logger,
-      operation: "test_entry",
-      emptyWarning: "Entry page data is unavailable.",
+      operation: "test_path",
+      emptyWarning: "Path data is unavailable.",
     });
 
     assert.equal(result.status, "degraded");
@@ -132,10 +149,15 @@ test("loadInsightsSubsection degrades without throwing when Umami returns an err
     assert.equal(logger.warnings.at(-1)?.message, "analytics_insights_subsection_degraded");
   } finally {
     globalThis.fetch = originalFetch;
-    if (previousKey === undefined) {
-      delete process.env.UMAMI_API_KEY;
+    if (previousToken === undefined) {
+      delete process.env.GOATCOUNTER_API_TOKEN;
     } else {
-      process.env.UMAMI_API_KEY = previousKey;
+      process.env.GOATCOUNTER_API_TOKEN = previousToken;
+    }
+    if (previousSite === undefined) {
+      delete process.env.GOATCOUNTER_SITE_URL;
+    } else {
+      process.env.GOATCOUNTER_SITE_URL = previousSite;
     }
   }
 });

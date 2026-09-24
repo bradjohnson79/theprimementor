@@ -38,8 +38,8 @@ interface SummaryResponse {
     pageviews: TrendMetric;
     sessions: TrendMetric;
   };
-  umami: {
-    websiteId: string;
+  goatcounter: {
+    siteUrl: string;
     dashboardUrl: string;
     connected: boolean;
   };
@@ -243,15 +243,6 @@ function formatMoney(value: number, currency = "CAD") {
   }).format(value);
 }
 
-function formatSeconds(value: number) {
-  const minutes = Math.floor(value / 60);
-  const seconds = value % 60;
-  if (minutes <= 0) {
-    return `${seconds}s`;
-  }
-  return `${minutes}m ${seconds}s`;
-}
-
 function formatDate(value: string) {
   if (!value) {
     return "Just now";
@@ -449,7 +440,7 @@ export default function Analytics() {
             Analytics
           </h1>
           <p className={classNames("mt-3 max-w-3xl text-sm leading-6", isLightTheme ? "text-slate-600" : "text-white/65")}>
-            Unified traffic, behavior, conversion, and business performance for Prime Mentor. Umami powers the web
+            Unified traffic, behavior, conversion, and business performance for Prime Mentor. GoatCounter powers the web
             analytics layer, while internal data keeps orders, subscriptions, and bookings anchored to the database.
           </p>
         </div>
@@ -508,7 +499,7 @@ export default function Analytics() {
                     {formatNumber(data.summary.traffic.visitors)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Active now: {formatNumber(data.summary.traffic.activeVisitors)}
+                    Unique visits in this period
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.visitors} isLightTheme={isLightTheme} />
@@ -521,7 +512,7 @@ export default function Analytics() {
                     {formatNumber(data.summary.traffic.pageviews)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Bounce count: {formatNumber(data.summary.traffic.bounces)}
+                    Same unique-visit count as GoatCounter
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.pageviews} isLightTheme={isLightTheme} />
@@ -534,19 +525,19 @@ export default function Analytics() {
                     {formatNumber(data.summary.traffic.sessions)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Avg. session time: {formatSeconds(data.summary.traffic.averageSessionSeconds)}
+                    Session length is not tracked
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.sessions} isLightTheme={isLightTheme} />
               </div>
             </SectionCard>
             <SectionCard
-              title="Umami Connection"
+              title="GoatCounter Connection"
               eyebrow="Source Health"
               isLightTheme={isLightTheme}
-              action={(
+              action={data.summary.goatcounter.dashboardUrl ? (
                 <a
-                  href={data.summary.umami.dashboardUrl}
+                  href={data.summary.goatcounter.dashboardUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={classNames(
@@ -556,24 +547,24 @@ export default function Analytics() {
                       : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white",
                   )}
                 >
-                  Open Umami Dashboard
+                  Open GoatCounter
                 </a>
-              )}
+              ) : null}
             >
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <span
                     className={classNames(
                       "inline-flex h-2.5 w-2.5 rounded-full",
-                      data.summary.umami.connected ? "bg-emerald-400" : "bg-amber-300",
+                      data.summary.goatcounter.connected ? "bg-emerald-400" : "bg-amber-300",
                     )}
                   />
                   <p className={classNames("text-sm font-medium", isLightTheme ? "text-slate-800" : "text-white")}>
-                    {data.summary.umami.connected ? "Connected" : "Degraded"}
+                    {data.summary.goatcounter.connected ? "Connected" : "Not configured"}
                   </p>
                 </div>
                 <p className={classNames("text-sm", isLightTheme ? "text-slate-600" : "text-white/60")}>
-                  Website ID: {data.summary.umami.websiteId || "Not configured"}
+                  Site: {data.summary.goatcounter.siteUrl || "Set GOATCOUNTER_SITE_URL"}
                 </p>
               </div>
             </SectionCard>

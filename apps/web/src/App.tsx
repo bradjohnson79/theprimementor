@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from "react";
 import { initGoogleAdsGlobalSiteTag } from "./lib/googleAdsTag";
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
+import { installGoatCounterScript, trackPageview } from "./lib/analytics";
 import RootLayout from "./layouts/RootLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import MemberLayout from "./layouts/MemberLayout";
@@ -73,11 +74,19 @@ function RouteFallback() {
 }
 
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
+
+  useEffect(() => {
+    return installGoatCounterScript();
+  }, []);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
+  useEffect(() => {
+    trackPageview(`${pathname}${search}${hash}`);
+  }, [pathname, search, hash]);
 
   return null;
 }

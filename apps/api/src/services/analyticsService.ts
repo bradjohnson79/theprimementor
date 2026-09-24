@@ -8,6 +8,18 @@ import {
 } from "@wisdom/db";
 import { desc } from "drizzle-orm";
 import { createHttpError } from "./booking/errors.js";
+import {
+  fetchGoatCounterJson,
+  formatGoatCounterRange,
+  getGoatCounterDashboardUrl,
+  getGoatCounterSiteUrl,
+  metricRowsFromHits,
+  metricRowsFromStats,
+  seriesFromGoatCounterStats,
+  type GoatCounterHitsResponse,
+  type GoatCounterStatsResponse,
+  type GoatCounterTotalResponse,
+} from "./goatcounterClient.js";
 
 export type AnalyticsRange = "24h" | "7d" | "30d";
 export type AnalyticsStatus = "ok" | "degraded";
@@ -31,67 +43,19 @@ export interface AnalyticsRangeWindow {
   timezone: string;
 }
 
-interface UmamiStatsResponse {
-  pageviews?: number;
-  visitors?: number;
-  visits?: number;
-  bounces?: number;
-  totaltime?: number;
-  comparison?: {
-    pageviews?: number;
-    visitors?: number;
-    visits?: number;
-    bounces?: number;
-    totaltime?: number;
-  };
-}
-
-interface UmamiMetricRow {
+interface LegacyMetricRow {
   x?: string;
   y?: number;
   name?: string;
-  country?: string;
   pageviews?: number;
   visitors?: number;
   visits?: number;
   bounces?: number;
-  totaltime?: number;
-}
-
-interface UmamiPageviewsResponse {
-  pageviews?: Array<{ x?: string; y?: number }>;
-  sessions?: Array<{ x?: string; y?: number }>;
-}
-
-interface UmamiEventStatsResponse {
-  data?: {
-    events?: number;
-    visitors?: number;
-    visits?: number;
-    uniqueEvents?: number;
-    comparison?: {
-      events?: number;
-      visitors?: number;
-      visits?: number;
-      uniqueEvents?: number;
-    };
-  };
-}
-
-interface UmamiEventListResponse {
-  data?: Array<{
-    id?: string;
-    createdAt?: string;
-    urlPath?: string;
-    pageTitle?: string;
-    eventName?: string;
-    referrerDomain?: string;
-  }>;
 }
 
 type TrendDirection = "up" | "down" | "neutral";
 type InsightsSubsectionStatus = "ok" | "degraded" | "unsupported";
-type UmamiExpandedMetricType =
+type InsightMetricType =
   | "path"
   | "entry"
   | "exit"
@@ -122,7 +86,7 @@ export interface AnalyticsMetricRow {
 export interface AnalyticsInsightSubsection {
   status: InsightsSubsectionStatus;
   warning?: string;
-  metricType: UmamiExpandedMetricType;
+  metricType: InsightMetricType;
   items: AnalyticsMetricRow[];
 }
 
@@ -151,9 +115,6 @@ const analyticsCache = new Map<string, CachedEntry<unknown>>();
 const ORDER_METRIC_STATUSES = new Set(["completed"]);
 const SESSION_BOOKED_STATUSES = new Set(["paid", "scheduled", "completed"]);
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
-const DEFAULT_UMAMI_WEBSITE_ID = "db9c7631-014a-4dc3-b9c2-967afed009f7";
-const DEFAULT_UMAMI_DASHBOARD_URL = "https://cloud.umami.is";
-const DEFAULT_UMAMI_API_URL = "https://api.umami.is/v1";
 const CONVERSION_ROUTE_LABELS = [
   { prefix: "/sessions/regeneration", label: "Regeneration Monthly Package interest" },
   { prefix: "/subscriptions/initiate", label: "Initiate subscription interest" },
@@ -183,32 +144,6 @@ function getRangeDurationMs(range: AnalyticsRange) {
     default:
       return 7 * 24 * 60 * 60 * 1000;
   }
-}
-
-function getUmamiApiKey() {
-  return process.env.UMAMI_API_KEY?.trim() || process.env.UMANI_API_KEY?.trim() || "";
-}
-
-function getUmamiWebsiteId() {
-  return process.env.UMAMI_WEBSITE_ID?.trim() || DEFAULT_UMAMI_WEBSITE_ID;
-}
-
-function getUmamiApiUrl() {
-  const configured = process.env.UMAMI_API_URL?.trim();
-  if (!configured) {
-    return DEFAULT_UMAMI_API_URL;
-  }
-
-  try {
-    const normalized = new URL(configured);
-    if (normalized.hostname === "cloud.umami.is" && /^\/api\/?$/.test(normalized.pathname)) {
-      return DEFAULT_UMAMI_API_URL;
-    }
-  } catch {
-    return configured;
-  }
-
-  return configured;
 }
 
 export function getPreviousRange(range: AnalyticsRange, endAt = Date.now()) {
@@ -302,7 +237,7 @@ function buildDegradedMeta(reason: string) {
   };
 }
 
-function calculateBounceRate(row: UmamiMetricRow) {
+function calculateBounceRate(row: LegacyMetricRow) {
   const visits = numberValue(row.visits);
   if (visits <= 0) {
     return 0;
@@ -310,11 +245,11 @@ function calculateBounceRate(row: UmamiMetricRow) {
   return Math.round((numberValue(row.bounces) / visits) * 100);
 }
 
-function normalizeMetricLabel(row: UmamiMetricRow) {
+function normalizeMetricLabel(row: LegacyMetricRow) {
   return stringValue(row.name ?? row.x);
 }
 
-export function normalizeExpandedRows(rows: UmamiMetricRow[] | null | undefined): AnalyticsMetricRow[] {
+export function normalizeExpandedRows(rows: LegacyMetricRow[] | null | undefined): AnalyticsMetricRow[] {
   const safeRows = rows ?? [];
   const totalVisitors = safeRows.reduce((sum, row) => sum + numberValue(row.visitors), 0);
 
@@ -415,125 +350,93 @@ export function buildStrategicRecommendations(input: {
   return recommendations.slice(0, 6);
 }
 
-export function buildUmamiAuthHeaders(apiKey: string) {
+const GOATCOUNTER_UNSUPPORTED_METRICS = new Set<InsightMetricType>(["entry", "exit", "region", "query"]);
+const GOATCOUNTER_STAT_PAGES: Partial<Record<InsightMetricType, string>> = {
+  device: "systems",
+  browser: "browsers",
+  country: "locations",
+  channel: "campaigns",
+};
+
+function goatcounterConnection(connected: boolean) {
+  const siteUrl = getGoatCounterSiteUrl();
   return {
-    Accept: "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    "x-umami-api-key": apiKey,
+    siteUrl,
+    dashboardUrl: getGoatCounterDashboardUrl(),
+    connected,
   };
 }
 
-function buildUmamiRequestUrl(pathname: string, params: Record<string, string | number | undefined>) {
-  const baseUrl = getUmamiApiUrl();
-  if (!baseUrl) {
-    return null;
-  }
-
-  const url = new URL(pathname.replace(/^\//, ""), `${baseUrl.replace(/\/+$/, "")}/`);
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === "") {
-      continue;
-    }
-    url.searchParams.set(key, String(value));
-  }
-  return url;
+function pageVisitCount(total: GoatCounterTotalResponse | null | undefined) {
+  const visits = Number(total?.total) || 0;
+  const events = Number(total?.total_events) || 0;
+  return Math.max(0, visits - events);
 }
 
-async function fetchUmamiJson<T>(
-  input: {
-    pathname: string;
-    params?: Record<string, string | number | undefined>;
-    logger: AnalyticsLogger;
-    operation: string;
-  },
-): Promise<T | null> {
-  const apiKey = getUmamiApiKey();
-  const websiteId = getUmamiWebsiteId();
-  const url = buildUmamiRequestUrl(`websites/${websiteId ?? ""}/${input.pathname}`, input.params ?? {});
-
-  if (!apiKey || !websiteId || !url) {
-    input.logger.warn(
-      {
-        operation: input.operation,
-        hasApiKey: Boolean(apiKey),
-        hasWebsiteId: Boolean(websiteId),
-        hasApiUrl: Boolean(getUmamiApiUrl()),
-      },
-      "Umami analytics running in degraded mode",
-    );
-    return null;
-  }
-
-  try {
-    const response = await fetch(url, {
-      headers: buildUmamiAuthHeaders(apiKey),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      input.logger.warn(
-        {
-          operation: input.operation,
-          status: response.status,
-          url: url.toString(),
-          body: body.slice(0, 200),
-        },
-        "Umami analytics request failed",
-      );
-      return null;
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    input.logger.warn(
-      {
-        operation: input.operation,
-        error: error instanceof Error ? error.message : "unknown_error",
-      },
-      "Umami analytics request failed",
-    );
-    return null;
-  }
-}
-
-function normalizeSeries(values: Array<{ x?: string; y?: number }> | undefined) {
-  return (values ?? []).map((entry) => ({
-    timestamp: stringValue(entry.x),
-    value: numberValue(entry.y),
-  }));
-}
-
-async function fetchUmamiExpandedMetrics(input: {
-  window: AnalyticsRangeWindow;
-  metricType: UmamiExpandedMetricType;
-  limit: number;
-  logger: AnalyticsLogger;
-  operation: string;
-}) {
-  return fetchUmamiJson<UmamiMetricRow[]>({
-    pathname: "metrics/expanded",
-    params: {
-      startAt: input.window.startAt,
-      endAt: input.window.endAt,
-      type: input.metricType,
-      limit: input.limit,
-    },
-    logger: input.logger,
-    operation: input.operation,
-  });
-}
 
 export async function loadInsightsSubsection(input: {
   window: AnalyticsRangeWindow;
-  metricType: UmamiExpandedMetricType;
+  metricType: InsightMetricType;
   limit: number;
   logger: AnalyticsLogger;
   operation: string;
   emptyWarning: string;
 }): Promise<AnalyticsInsightSubsection> {
+  if (GOATCOUNTER_UNSUPPORTED_METRICS.has(input.metricType)) {
+    return {
+      status: "unsupported",
+      warning: "GoatCounter does not provide this breakdown.",
+      metricType: input.metricType,
+      items: [],
+    };
+  }
+
+  const range = formatGoatCounterRange(input.window.startAt, input.window.endAt);
+
   try {
-    const rows = await fetchUmamiExpandedMetrics(input);
-    if (!rows) {
+    if (input.metricType === "path") {
+      const payload = await fetchGoatCounterJson<GoatCounterHitsResponse>({
+        pathname: "stats/hits",
+        params: { ...range, limit: input.limit },
+        logger: input.logger,
+        operation: input.operation,
+      });
+      if (!payload) {
+        input.logger.warn(
+          { operation: input.operation, metricType: input.metricType, status: "degraded" },
+          "analytics_insights_subsection_degraded",
+        );
+        return {
+          status: "degraded",
+          warning: input.emptyWarning,
+          metricType: input.metricType,
+          items: [],
+        };
+      }
+      return {
+        status: "ok",
+        metricType: input.metricType,
+        items: metricRowsFromHits(payload.hits, false).slice(0, input.limit),
+      };
+    }
+
+    const page = GOATCOUNTER_STAT_PAGES[input.metricType];
+    if (!page) {
+      return {
+        status: "unsupported",
+        warning: "GoatCounter does not provide this breakdown.",
+        metricType: input.metricType,
+        items: [],
+      };
+    }
+
+    const payload = await fetchGoatCounterJson<GoatCounterStatsResponse>({
+      pathname: `stats/${page}`,
+      params: range,
+      logger: input.logger,
+      operation: input.operation,
+    });
+    if (!payload) {
       input.logger.warn(
         { operation: input.operation, metricType: input.metricType, status: "degraded" },
         "analytics_insights_subsection_degraded",
@@ -549,7 +452,7 @@ export async function loadInsightsSubsection(input: {
     return {
       status: "ok",
       metricType: input.metricType,
-      items: normalizeExpandedRows(rows),
+      items: metricRowsFromStats(payload.stats).slice(0, input.limit),
     };
   } catch (error) {
     input.logger.warn(
@@ -629,23 +532,29 @@ export async function getAdminAnalyticsSummary(
 ) {
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
-  const websiteId = getUmamiWebsiteId();
+  const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
+  const previousRange = formatGoatCounterRange(window.previousStartAt, window.previousEndAt);
 
   return getCachedOrLoad(`analytics:summary:${range}`, async () => {
-    const stats = await fetchUmamiJson<UmamiStatsResponse>({
-      pathname: "stats",
-      params: {
-        startAt: window.startAt,
-        endAt: window.endAt,
-      },
-      logger,
-      operation: "summary",
-    });
+    const [current, previous] = await Promise.all([
+      fetchGoatCounterJson<GoatCounterTotalResponse>({
+        pathname: "stats/total",
+        params: currentRange,
+        logger,
+        operation: "summary",
+      }),
+      fetchGoatCounterJson<GoatCounterTotalResponse>({
+        pathname: "stats/total",
+        params: previousRange,
+        logger,
+        operation: "summary_previous",
+      }),
+    ]);
 
-    if (!stats) {
+    if (!current) {
       return {
         range,
-        ...buildDegradedMeta("Umami traffic summary is temporarily unavailable."),
+        ...buildDegradedMeta("GoatCounter traffic summary is temporarily unavailable."),
         traffic: {
           visitors: 0,
           pageviews: 0,
@@ -660,45 +569,31 @@ export async function getAdminAnalyticsSummary(
           pageviews: getTrendMetric(0, 0, "previous period"),
           sessions: getTrendMetric(0, 0, "previous period"),
         },
-        umami: {
-          websiteId,
-          dashboardUrl: DEFAULT_UMAMI_DASHBOARD_URL,
-          connected: false,
-        },
+        goatcounter: goatcounterConnection(false),
       };
     }
 
-    const active = await fetchUmamiJson<{ visitors?: number }>({
-      pathname: "active",
-      logger,
-      operation: "active_users",
-    });
-
-    const totalTimeSeconds = Math.round(numberValue(stats.totaltime));
-    const sessions = numberValue(stats.visits);
+    const visits = pageVisitCount(current);
+    const previousVisits = pageVisitCount(previous);
 
     return {
       range,
       status: "ok" as const,
       traffic: {
-        visitors: numberValue(stats.visitors),
-        pageviews: numberValue(stats.pageviews),
-        sessions,
-        bounces: numberValue(stats.bounces),
-        totalTimeSeconds,
-        averageSessionSeconds: sessions > 0 ? Math.round(totalTimeSeconds / sessions) : 0,
-        activeVisitors: numberValue(active?.visitors),
+        visitors: visits,
+        pageviews: visits,
+        sessions: visits,
+        bounces: 0,
+        totalTimeSeconds: 0,
+        averageSessionSeconds: 0,
+        activeVisitors: 0,
       },
       trends: {
-        visitors: getTrendMetric(numberValue(stats.visitors), numberValue(stats.comparison?.visitors), "previous period"),
-        pageviews: getTrendMetric(numberValue(stats.pageviews), numberValue(stats.comparison?.pageviews), "previous period"),
-        sessions: getTrendMetric(numberValue(stats.visits), numberValue(stats.comparison?.visits), "previous period"),
+        visitors: getTrendMetric(visits, previousVisits, "previous period"),
+        pageviews: getTrendMetric(visits, previousVisits, "previous period"),
+        sessions: getTrendMetric(visits, previousVisits, "previous period"),
       },
-      umami: {
-        websiteId,
-        dashboardUrl: DEFAULT_UMAMI_DASHBOARD_URL,
-        connected: true,
-      },
+      goatcounter: goatcounterConnection(true),
     };
   });
 }
@@ -710,38 +605,28 @@ export async function getAdminAnalyticsPageviews(
 ) {
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
+  const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
 
   return getCachedOrLoad(`analytics:pageviews:${range}`, async () => {
-    const [pageviews, topPages] = await Promise.all([
-      fetchUmamiJson<UmamiPageviewsResponse>({
-        pathname: "pageviews",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          unit: window.unit,
-          timezone: window.timezone,
-          compare: "prev",
-        },
+    const [totals, hits] = await Promise.all([
+      fetchGoatCounterJson<GoatCounterTotalResponse>({
+        pathname: "stats/total",
+        params: currentRange,
         logger,
         operation: "pageviews",
       }),
-      fetchUmamiJson<UmamiMetricRow[]>({
-        pathname: "metrics/expanded",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          type: "path",
-          limit: 8,
-        },
+      fetchGoatCounterJson<GoatCounterHitsResponse>({
+        pathname: "stats/hits",
+        params: { ...currentRange, limit: 20 },
         logger,
         operation: "top_pages",
       }),
     ]);
 
-    if (!pageviews || !topPages) {
+    if (!totals || !hits) {
       return {
         range,
-        ...buildDegradedMeta("Umami pageview metrics are temporarily unavailable."),
+        ...buildDegradedMeta("GoatCounter pageview metrics are temporarily unavailable."),
         series: {
           pageviews: [],
           sessions: [],
@@ -750,19 +635,21 @@ export async function getAdminAnalyticsPageviews(
       };
     }
 
+    const series = seriesFromGoatCounterStats(totals.stats, window.unit);
+
     return {
       range,
       status: "ok" as const,
       series: {
-        pageviews: normalizeSeries(pageviews.pageviews),
-        sessions: normalizeSeries(pageviews.sessions),
+        pageviews: series,
+        sessions: series,
       },
-      topPages: topPages.map((row) => ({
-        path: stringValue(row.name ?? row.x),
-        visitors: numberValue(row.visitors),
-        pageviews: numberValue(row.pageviews),
-        visits: numberValue(row.visits),
-        bounceRate: row.visits ? Math.round((numberValue(row.bounces) / numberValue(row.visits)) * 100) : 0,
+      topPages: metricRowsFromHits(hits.hits, false).slice(0, 8).map((row) => ({
+        path: row.label,
+        visitors: row.visitors,
+        pageviews: row.pageviews,
+        visits: row.visits,
+        bounceRate: row.bounceRate,
       })),
     };
   });
@@ -775,58 +662,35 @@ export async function getAdminAnalyticsEvents(
 ) {
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
+  const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
+  const previousRange = formatGoatCounterRange(window.previousStartAt, window.previousEndAt);
 
   return getCachedOrLoad(`analytics:events:${range}`, async () => {
-    const [eventStats, eventMetrics, eventSeries, recentEvents] = await Promise.all([
-      fetchUmamiJson<UmamiEventStatsResponse>({
-        pathname: "events/stats",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          compare: "prev",
-        },
+    const [current, previous, hits] = await Promise.all([
+      fetchGoatCounterJson<GoatCounterTotalResponse>({
+        pathname: "stats/total",
+        params: currentRange,
         logger,
         operation: "event_stats",
       }),
-      fetchUmamiJson<UmamiMetricRow[]>({
-        pathname: "metrics",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          type: "event",
-          limit: 12,
-        },
+      fetchGoatCounterJson<GoatCounterTotalResponse>({
+        pathname: "stats/total",
+        params: previousRange,
+        logger,
+        operation: "event_stats_previous",
+      }),
+      fetchGoatCounterJson<GoatCounterHitsResponse>({
+        pathname: "stats/hits",
+        params: { ...currentRange, limit: 100 },
         logger,
         operation: "event_metrics",
       }),
-      fetchUmamiJson<Array<{ x?: string; t?: string; y?: number }>>({
-        pathname: "events/series",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          unit: window.unit,
-          timezone: window.timezone,
-        },
-        logger,
-        operation: "event_series",
-      }),
-      fetchUmamiJson<UmamiEventListResponse>({
-        pathname: "events",
-        params: {
-          startAt: window.startAt,
-          endAt: window.endAt,
-          page: 1,
-          pageSize: 8,
-        },
-        logger,
-        operation: "recent_events",
-      }),
     ]);
 
-    if (!eventStats || !eventMetrics || !eventSeries || !recentEvents) {
+    if (!current || !hits) {
       return {
         range,
-        ...buildDegradedMeta("Umami event tracking is temporarily unavailable."),
+        ...buildDegradedMeta("GoatCounter event tracking is temporarily unavailable."),
         totals: {
           events: 0,
           visitors: 0,
@@ -845,41 +709,39 @@ export async function getAdminAnalyticsEvents(
       };
     }
 
-    const totalTrackedEvents = eventMetrics.reduce((sum, entry) => sum + numberValue(entry.y), 0);
+    const eventRows = metricRowsFromHits(hits.hits, true).slice(0, 12);
+    const eventHits = (hits.hits ?? []).filter((hit) => Boolean(hit.event));
+    const currentEvents = Number(current.total_events) || 0;
+    const previousEvents = Number(previous?.total_events) || 0;
 
     return {
       range,
       status: "ok" as const,
       totals: {
-        events: numberValue(eventStats.data?.events),
-        visitors: numberValue(eventStats.data?.visitors),
-        visits: numberValue(eventStats.data?.visits),
-        uniqueEvents: numberValue(eventStats.data?.uniqueEvents),
+        events: currentEvents,
+        visitors: currentEvents,
+        visits: currentEvents,
+        uniqueEvents: eventRows.length,
         comparison: {
-          events: numberValue(eventStats.data?.comparison?.events),
-          visitors: numberValue(eventStats.data?.comparison?.visitors),
-          visits: numberValue(eventStats.data?.comparison?.visits),
-          uniqueEvents: numberValue(eventStats.data?.comparison?.uniqueEvents),
+          events: previousEvents,
+          visitors: previousEvents,
+          visits: previousEvents,
+          uniqueEvents: 0,
         },
       },
-      items: eventMetrics.map((entry) => ({
-        name: stringValue(entry.x),
-        total: numberValue(entry.y),
-        share: totalTrackedEvents > 0 ? Math.round((numberValue(entry.y) / totalTrackedEvents) * 100) : 0,
+      items: eventRows.map((row) => ({
+        name: row.label,
+        total: row.pageviews,
+        share: row.share,
       })),
-      series: eventSeries.map((entry) => ({
-        name: stringValue(entry.x),
-        timestamp: stringValue(entry.t),
-        value: numberValue(entry.y),
-      })),
-      recent: (recentEvents.data ?? []).map((entry) => ({
-        id: stringValue(entry.id),
-        eventName: stringValue(entry.eventName) || "pageview",
-        createdAt: stringValue(entry.createdAt),
-        path: stringValue(entry.urlPath),
-        title: stringValue(entry.pageTitle),
-        referrer: stringValue(entry.referrerDomain),
-      })),
+      series: eventHits.flatMap((hit) => (
+        seriesFromGoatCounterStats(hit.stats, window.unit).map((point) => ({
+          name: hit.path || hit.title || "event",
+          timestamp: point.timestamp,
+          value: point.value,
+        }))
+      )),
+      recent: [],
     };
   });
 }
@@ -891,16 +753,12 @@ export async function getAdminAnalyticsReferrers(
 ) {
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
+  const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
 
   return getCachedOrLoad(`analytics:referrers:${range}`, async () => {
-    const referrers = await fetchUmamiJson<UmamiMetricRow[]>({
-      pathname: "metrics/expanded",
-      params: {
-        startAt: window.startAt,
-        endAt: window.endAt,
-        type: "referrer",
-        limit: 8,
-      },
+    const referrers = await fetchGoatCounterJson<GoatCounterStatsResponse>({
+      pathname: "stats/toprefs",
+      params: currentRange,
       logger,
       operation: "referrers",
     });
@@ -908,29 +766,27 @@ export async function getAdminAnalyticsReferrers(
     if (!referrers) {
       return {
         range,
-        ...buildDegradedMeta("Umami referrer data is temporarily unavailable."),
+        ...buildDegradedMeta("GoatCounter referrer data is temporarily unavailable."),
         items: [],
       };
     }
 
-    const totalVisitors = referrers.reduce((sum, row) => sum + numberValue(row.visitors), 0);
-
     return {
       range,
       status: "ok" as const,
-      items: referrers.map((row) => ({
-        referrer: stringValue(row.name ?? row.x) || "Direct",
-        visitors: numberValue(row.visitors),
-        pageviews: numberValue(row.pageviews),
-        visits: numberValue(row.visits),
-        share: totalVisitors > 0 ? Math.round((numberValue(row.visitors) / totalVisitors) * 100) : 0,
+      items: metricRowsFromStats(referrers.stats).slice(0, 8).map((row) => ({
+        referrer: row.label || "Direct",
+        visitors: row.visitors,
+        pageviews: row.pageviews,
+        visits: row.visits,
+        share: row.share,
       })),
     };
   });
 }
 
 function aggregateInsightStatus(sections: Array<{ status: InsightsSubsectionStatus }>) {
-  return sections.some((section) => section.status !== "ok") ? "degraded" as const : "ok" as const;
+  return sections.some((section) => section.status === "degraded") ? "degraded" as const : "ok" as const;
 }
 
 export async function getAdminAnalyticsInsights(
