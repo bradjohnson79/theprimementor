@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildConversionPathInsights,
   buildStrategicRecommendations,
+  buildUmamiAuthHeaders,
   loadInsightsSubsection,
   normalizeExpandedRows,
   type AnalyticsRangeWindow,
@@ -100,6 +101,13 @@ test("buildStrategicRecommendations uses soft factual wording", () => {
   assert.ok(recommendations.some((item) => item.includes("may indicate")));
   assert.ok(recommendations.some((item) => item.includes("Consider")));
   assert.ok(recommendations.every((item) => !/converting poorly/i.test(item)));
+});
+
+test("buildUmamiAuthHeaders uses Bearer auth for Umami Cloud", () => {
+  const headers = buildUmamiAuthHeaders("umami-test-key");
+  assert.equal(headers.Authorization, "Bearer umami-test-key");
+  assert.equal(headers["x-umami-api-key"], "umami-test-key");
+  assert.equal(headers.Accept, "application/json");
 });
 
 test("loadInsightsSubsection degrades without throwing when Umami returns an error", async () => {

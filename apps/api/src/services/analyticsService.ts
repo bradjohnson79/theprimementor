@@ -415,6 +415,14 @@ export function buildStrategicRecommendations(input: {
   return recommendations.slice(0, 6);
 }
 
+export function buildUmamiAuthHeaders(apiKey: string) {
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${apiKey}`,
+    "x-umami-api-key": apiKey,
+  };
+}
+
 function buildUmamiRequestUrl(pathname: string, params: Record<string, string | number | undefined>) {
   const baseUrl = getUmamiApiUrl();
   if (!baseUrl) {
@@ -458,18 +466,17 @@ async function fetchUmamiJson<T>(
 
   try {
     const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "x-umami-api-key": apiKey,
-      },
+      headers: buildUmamiAuthHeaders(apiKey),
     });
 
     if (!response.ok) {
+      const body = await response.text().catch(() => "");
       input.logger.warn(
         {
           operation: input.operation,
           status: response.status,
           url: url.toString(),
+          body: body.slice(0, 200),
         },
         "Umami analytics request failed",
       );
