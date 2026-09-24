@@ -38,6 +38,10 @@ export const ANALYTICS_EVENT_NAMES = {
   subscription_started: "subscription_started",
   session_booked: "session_booked",
   cta_click: "cta_click",
+  report_view: "report_view",
+  sample_view: "sample_view",
+  report_order_click: "report_order_click",
+  report_checkout_start: "report_checkout_start",
 } as const;
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENT_NAMES;

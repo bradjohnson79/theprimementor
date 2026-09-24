@@ -11,6 +11,7 @@ import {
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import { isReportsMarketingPath } from "../lib/reportMarketingPaths";
 import { api } from "../lib/api";
 import { unwrapShopProducts } from "../lib/shop";
 
@@ -124,7 +125,7 @@ export default function RootLayout() {
     location.pathname === "/"
     || location.pathname === "/about"
     || location.pathname === "/media"
-    || location.pathname === "/reports"
+    || isReportsMarketingPath(location.pathname)
     || location.pathname === "/shop"
     || location.pathname.startsWith("/shop/")
     || location.pathname === "/membership-signup"

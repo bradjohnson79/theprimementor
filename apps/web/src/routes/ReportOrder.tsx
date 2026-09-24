@@ -11,6 +11,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import { api } from "../lib/api";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { startReportCheckout } from "../lib/reportCheckout";
+import { trackReportCheckoutStart } from "../lib/reportLandingAnalytics";
 
 type FormState = Record<string, string | boolean | string[]>;
 type ValidationIssue = {
@@ -161,6 +162,14 @@ export default function ReportOrder() {
   }, [getToken, location.search]);
 
   const reportType = product?.key as ReportProductKey | undefined;
+
+  useEffect(() => {
+    if (!product?.key) {
+      return;
+    }
+    trackReportCheckoutStart(product.key);
+  }, [product?.key]);
+
   const resolvedForm = useMemo<FormState>(() => ({
     ...form,
     email: String(form.email || email),

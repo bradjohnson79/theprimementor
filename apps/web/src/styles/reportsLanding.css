@@ -43,6 +43,28 @@
   }
 }
 
+.reports-sticky-cta {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(228, 195, 106, 0.18);
+  background: rgba(4, 6, 16, 0.94);
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  backdrop-filter: blur(16px);
+}
+
+@media (min-width: 768px) {
+  .reports-sticky-cta {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reports-cover-float,
   .reports-cover-float-delay {

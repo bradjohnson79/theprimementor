@@ -28,6 +28,7 @@ import Settings from "./routes/Settings";
 import Contact from "./routes/Contact";
 import ReportOrder from "./routes/ReportOrder";
 import ReportsLanding from "./routes/ReportsLanding";
+import ReportProductLanding from "./routes/ReportProductLanding";
 import ShopLanding from "./routes/ShopLanding";
 import ShopProduct from "./routes/ShopProduct";
 import ShopSuccess from "./routes/ShopSuccess";
@@ -110,6 +111,8 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/reports" element={<ReportsLanding />} />
+          <Route path="/reports/introductory" element={<ReportProductLanding />} />
+          <Route path="/reports/compatibility" element={<ReportProductLanding />} />
           <Route path="/shop" element={<ShopLanding />} />
           <Route path="/shop/order/success" element={<ShopSuccess />} />
           <Route path="/shop/success" element={<ShopSuccess />} />

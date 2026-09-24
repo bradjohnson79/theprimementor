@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import type { ReportProductKey } from "@wisdom/utils";
+import { withCurrentSearch } from "../../lib/reportAttribution";
+import {
+  trackReportOrderClick,
+  type ReportLandingPageSource,
+} from "../../lib/reportLandingAnalytics";
 
 interface SampleReportDialogProps {
   open: boolean;
@@ -8,6 +14,8 @@ interface SampleReportDialogProps {
   pdfUrl: string;
   orderPath: string;
   ctaLabel: string;
+  reportKey?: ReportProductKey;
+  pageSource?: ReportLandingPageSource;
 }
 
 export default function SampleReportDialog({
@@ -17,8 +25,12 @@ export default function SampleReportDialog({
   pdfUrl,
   orderPath,
   ctaLabel,
+  reportKey,
+  pageSource,
 }: SampleReportDialogProps) {
+  const location = useLocation();
   const panelRef = useRef<HTMLDivElement>(null);
+  const orderHref = withCurrentSearch(orderPath, location.search);
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +87,9 @@ export default function SampleReportDialog({
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-amber-200/70">Sample Report</p>
             <h2 id="sample-report-title" className="mt-1 text-lg font-semibold">{title}</h2>
+            <p className="mt-1 text-xs leading-5 text-white/55">
+              This is an anonymized sample. Client names have been changed for confidentiality.
+            </p>
           </div>
           <button
             type="button"
@@ -106,7 +121,12 @@ export default function SampleReportDialog({
             Download sample
           </a>
           <Link
-            to={orderPath}
+            to={orderHref}
+            onClick={() => {
+              if (reportKey && pageSource) {
+                trackReportOrderClick(reportKey, pageSource);
+              }
+            }}
             className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 px-4 py-2.5 text-sm font-semibold text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200"
           >
             {ctaLabel}

@@ -29,6 +29,8 @@ import introAvif640 from "../assets/reports/divin8-introductory-report-640.avif"
 import introWebp from "../assets/reports/divin8-introductory-report.webp";
 import introWebp640 from "../assets/reports/divin8-introductory-report-640.webp";
 
+export { REPORT_PUBLIC_MARKETING_PATHS, isReportsMarketingPath } from "../lib/reportMarketingPaths";
+
 export interface ReportCoverSources {
   webp: string;
   avif: string;
@@ -127,15 +129,92 @@ export const REPORT_COVERS: Record<ReportProductKey, ReportCoverSources> = {
   },
 };
 
-/** Optional sample PDFs. Leave null until an anonymized public sample is supplied. */
+/** Anonymized public sample PDFs. Compatibility has no published sample yet. */
 export const REPORT_SAMPLES: Record<ReportProductKey, ReportSampleConfig> = {
-  intro: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
-  deep_dive: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
-  initiate: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
-  three_questions: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
-  compatibility: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
-  annual_12_month: { samplePdfUrl: null, samplePdfLabel: "View Sample Report" },
+  intro: {
+    samplePdfUrl: "/samples/divin8-introductory-report-sample.pdf",
+    samplePdfLabel: "View Sample",
+  },
+  deep_dive: {
+    samplePdfUrl: "/samples/divin8-deep-dive-report-sample.pdf",
+    samplePdfLabel: "View Sample",
+  },
+  initiate: {
+    samplePdfUrl: "/samples/divin8-initiate-report-sample.pdf",
+    samplePdfLabel: "View Sample",
+  },
+  three_questions: {
+    samplePdfUrl: "/samples/divin8-3-questions-report-sample.pdf",
+    samplePdfLabel: "View Sample",
+  },
+  compatibility: { samplePdfUrl: null, samplePdfLabel: "View Sample" },
+  annual_12_month: {
+    samplePdfUrl: "/samples/divin8-12-month-annual-report-sample.pdf",
+    samplePdfLabel: "View Sample",
+  },
 };
+
+export const REPORT_DELIVERY_SENTENCE =
+  "Your report is delivered within 48 hours Monday–Friday.";
+
+export const REPORT_PRODUCT_LANDINGS = [
+  {
+    path: "/reports/introductory",
+    productKey: "intro" as const satisfies ReportProductKey,
+    headline: "Personalized Birth & Natal Insight Report",
+    pageSource: "reports_introductory",
+    canonical: "https://theprimementor.com/reports/introductory",
+    title: "Introductory Divin8 Report | Personalized Natal Insight",
+    description:
+      "A personalized Introductory Divin8 Report covering core identity, strengths and challenges, and life direction from your birth information.",
+  },
+  {
+    path: "/reports/compatibility",
+    productKey: "compatibility" as const satisfies ReportProductKey,
+    headline: "Personalized Relationship Compatibility Report",
+    pageSource: "reports_compatibility",
+    canonical: "https://theprimementor.com/reports/compatibility",
+    title: "Partner Compatibility Report | Divin8 Relationship Insight",
+    description:
+      "A personalized Divin8 Compatibility Report comparing two birth charts for strengths, challenges, communication, and relationship dynamics.",
+  },
+] as const;
+
+export const REPORT_FUTURE_MARKETING_SLUGS = {
+  annual: "annual_12_month",
+  "3-questions": "three_questions",
+} as const;
+
+export const REPORT_REQUIRED_INFO: Record<ReportProductKey, string> = {
+  intro: "Name, email, birth date, and birth location. Birth time is optional.",
+  deep_dive: "Name, email, birth date, and birth location. Birth time is optional.",
+  initiate: "Name, email, birth date, and birth location. Birth time is optional.",
+  three_questions:
+    "Name, email, birth date, birth location, and three written questions. Birth time is optional.",
+  compatibility:
+    "Birth information for two people and the type of relationship you want examined.",
+  annual_12_month:
+    "Name, email, birth date, and birth location. Birth time is optional. You may add optional areas of focus for the year ahead.",
+};
+
+export const REPORT_HOW_IT_WORKS = [
+  {
+    title: "Choose your report",
+    body: "Select the report that best matches what you want to explore.",
+  },
+  {
+    title: "Provide your information",
+    body: "Complete the required birth and report-intake information.",
+  },
+  {
+    title: "Your report is prepared",
+    body: "After checkout, the report is generated and prepared for your member dashboard.",
+  },
+  {
+    title: "Receive your report",
+    body: REPORT_DELIVERY_SENTENCE,
+  },
+] as const;
 
 export const REPORT_BEST_FOR: Record<ReportProductKey, string[]> = {
   intro: ["Foundational self-understanding", "Core identity", "Direction", "Accessible synthesis"],
@@ -269,10 +348,16 @@ export const REPORT_LANDING_FAQS = [
     answer: "Your report is delivered within 48 hours Monday–Friday.",
   },
   {
+    id: "written",
+    question: "Is this a live session or a written report?",
+    answer:
+      "You are purchasing a written digital report, not a live consultation. After checkout, the finished report is prepared for your member dashboard.",
+  },
+  {
     id: "samples",
     question: "Are sample reports available?",
     answer:
-      "Sample reports are being prepared. When an anonymized sample is available for a report, a View Sample Report action will appear with that report.",
+      "Anonymized sample PDFs are available for the Introductory, 3 Questions, Deep Dive, 12 Month Annual, and Initiate reports. Client names in those samples have been changed for confidentiality. A Partner Compatibility sample is not published yet.",
   },
 ] as const;
 
