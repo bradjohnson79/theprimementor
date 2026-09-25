@@ -45,7 +45,7 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "reports",
     keywords: ["report", "reports", "intro", "deep dive", "initiate", "tier"],
     answer:
-      "Reports come in three tiers: Introductory, Deep Dive, and Initiate. The Reports flow lets you choose a tier, complete the intake, and submit your request. The page states reports are delivered within 48 hours.",
+      "Reports come in three tiers: Introductory, Deep Dive, and Initiate. The Reports flow lets you choose a tier, complete the intake, and submit your request. The page states reports are delivered within 24 hours Monday–Friday.",
     links: [{ label: "Go to Reports", href: "/reports" }],
   },
   {

@@ -92,12 +92,17 @@ describe("Reports landing architecture", () => {
   it("uses the exact delivery sentence and once-per-transition report analytics", () => {
     const overlay = read("apps/web/src/data/reportLanding.ts");
     const landing = read("apps/web/src/routes/ReportsLanding.tsx");
+    const productLanding = read("apps/web/src/routes/ReportProductLanding.tsx");
     const analytics = read("apps/web/src/lib/analytics.ts");
     const reportAnalytics = read("apps/web/src/lib/reportLandingAnalytics.ts");
     const order = read("apps/web/src/routes/ReportOrder.tsx");
+    const marketing = `${overlay}\n${landing}\n${productLanding}`;
 
-    assert.match(overlay, /Your report is delivered within 48 hours Monday–Friday\./);
+    assert.match(overlay, /Your report is delivered within 24 hours Monday–Friday\./);
+    assert.match(overlay, /answer: REPORT_DELIVERY_SENTENCE/);
     assert.match(landing, /REPORT_DELIVERY_SENTENCE/);
+    assert.match(productLanding, /REPORT_DELIVERY_SENTENCE/);
+    assert.equal(/48 hours|48-hour/i.test(marketing), false);
     assert.equal(/usually|same-day|instant|faster/i.test(landing), false);
     assert.match(analytics, /report_view: "report_view"/);
     assert.match(analytics, /sample_view: "sample_view"/);

@@ -155,7 +155,7 @@ export const REPORT_SAMPLES: Record<ReportProductKey, ReportSampleConfig> = {
 };
 
 export const REPORT_DELIVERY_SENTENCE =
-  "Your report is delivered within 48 hours Monday–Friday.";
+  "Your report is delivered within 24 hours Monday–Friday.";
 
 export const REPORT_PRODUCT_LANDINGS = [
   {
@@ -345,7 +345,7 @@ export const REPORT_LANDING_FAQS = [
   {
     id: "delivery",
     question: "When will my report be delivered?",
-    answer: "Your report is delivered within 48 hours Monday–Friday.",
+    answer: REPORT_DELIVERY_SENTENCE,
   },
   {
     id: "written",

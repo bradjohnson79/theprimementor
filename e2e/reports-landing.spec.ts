@@ -54,7 +54,8 @@ test.describe("Divin8 Reports landing", () => {
     await deliveryButton.click();
     await expect(
       page.getByRole("region", { name: "When will my report be delivered?" }),
-    ).toHaveText("Your report is delivered within 48 hours Monday–Friday.");
+    ).toHaveText("Your report is delivered within 24 hours Monday–Friday.");
+    await expect(page.getByText(/48 hours/i)).toHaveCount(0);
 
     const writtenButton = page.getByRole("button", {
       name: "Is this a live session or a written report?",

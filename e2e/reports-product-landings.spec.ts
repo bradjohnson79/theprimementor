@@ -13,6 +13,10 @@ test.describe("Divin8 Reports product landings", () => {
       page.locator('img[alt="Divin8 Introductory Report cover artwork"]'),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "View Sample" })).toBeVisible();
+    await expect(
+      page.getByText("Your report is delivered within 24 hours Monday–Friday.").first(),
+    ).toBeVisible();
+    await expect(page.getByText(/48 hours/i)).toHaveCount(0);
 
     const orderHref = await page
       .getByRole("link", { name: "Order Introductory Report" })
@@ -58,6 +62,10 @@ test.describe("Divin8 Reports product landings", () => {
     await expect(
       page.getByText("A Partner Compatibility sample is not published yet.").first(),
     ).toBeVisible();
+    await expect(
+      page.getByText("Your report is delivered within 24 hours Monday–Friday.").first(),
+    ).toBeVisible();
+    await expect(page.getByText(/48 hours/i)).toHaveCount(0);
     await expect(page.locator("iframe")).toHaveCount(0);
 
     const orderHref = await page

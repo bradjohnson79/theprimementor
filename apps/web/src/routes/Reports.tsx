@@ -884,7 +884,7 @@ export default function Reports() {
       <header className="mb-6">
         <h1 className="text-3xl font-semibold text-white">Reports</h1>
         <p className="mt-3 max-w-2xl text-sm text-white/65">
-          Order your Divin8 report. Complete the intake below - your report will be delivered within 48 hours.
+          Order your Divin8 report. Complete the intake below - your report will be delivered within 24 hours.
         </p>
       </header>
 
@@ -898,7 +898,7 @@ export default function Reports() {
               </p>
             </div>
             <div className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-medium text-amber-100">
-              48-hour delivery
+              24-hour delivery
             </div>
           </div>
 
