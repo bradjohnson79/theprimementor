@@ -321,7 +321,15 @@ function OfflineCard({
 }) {
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-cyan-200/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_42%),rgba(255,255,255,0.03)]">
-      <img src={imageSrc} alt={imageAlt} className="aspect-[16/9] w-full object-cover" loading="lazy" decoding="async" />
+      <div className="aspect-square w-full overflow-hidden">
+        <img
+          src={imageSrc}
+          alt={imageAlt}
+          className="h-full w-full object-cover object-center"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-3">
           <h4 className="text-lg font-semibold text-white">{title}</h4>
