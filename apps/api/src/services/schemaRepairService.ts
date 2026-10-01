@@ -866,6 +866,8 @@ const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
 const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'qa_session';`,
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'prime_body_healing';`,
+  `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'email_session';`,
+  `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'past_life_akashic';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'regeneration_offer';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'on_demand_webinar';`,
   `INSERT INTO "booking_types" (
@@ -987,6 +989,28 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     'CAD',
     10,
     10,
+    true
+  ),
+  (
+    'email-session',
+    'Email Session',
+    'email_session',
+    0,
+    5900,
+    'CAD',
+    0,
+    0,
+    true
+  ),
+  (
+    'past-life-akashic-reading',
+    'Past Life Akashic Reading',
+    'past_life_akashic',
+    0,
+    7900,
+    'CAD',
+    0,
+    0,
     true
   ),
   (

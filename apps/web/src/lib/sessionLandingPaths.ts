@@ -27,6 +27,10 @@ export const FOCUS_BOOKING_PATH = SESSION_BOOKING_PATHS.focus;
 export const MENTORING_BOOKING_PATH = SESSION_BOOKING_PATHS.mentoring;
 export const PRIME_BODY_HEALING_LANDING_PATH = SESSION_LANDING_PATHS.prime_body_healing;
 export const PRIME_BODY_HEALING_BOOKING_PATH = SESSION_BOOKING_PATHS.prime_body_healing;
+export const EMAIL_SESSION_LANDING_PATH = "/sessions/email-session";
+export const EMAIL_SESSION_BOOKING_PATH = "/sessions/email-session/book";
+export const PAST_LIFE_AKASHIC_LANDING_PATH = "/sessions/past-life-akashic-reading";
+export const PAST_LIFE_AKASHIC_BOOKING_PATH = "/sessions/past-life-akashic-reading/book";
 
 export function sessionBookingPath(type: SessionLandingType) {
   return SESSION_BOOKING_PATHS[type];

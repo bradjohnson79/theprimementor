@@ -8,6 +8,7 @@ import {
 } from "@wisdom/db";
 import { logger } from "@wisdom/utils";
 import { and, eq, or, sql } from "drizzle-orm";
+import { isRegenerationMonthlyPlanName } from "../config/regenerationBilling.js";
 import { createHttpError } from "./booking/errors.js";
 import { getAdminOrderById, parseOrderId } from "./ordersService.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
@@ -159,9 +160,9 @@ function isPersistedOrderTypeMatch(orderType: string, parsedType: ReturnType<typ
 
 function isRegenerationSubscriptionMetadata(metadata: Awaited<ReturnType<typeof getAdminOrderById>>["metadata"]) {
   return metadata.order_variant === "regeneration_monthly_package"
-    || metadata.plan_name === "Regeneration Monthly Package"
-    || metadata.invoice_label === "Regeneration Monthly Package"
-    || metadata.product_name === "Regeneration Monthly Package";
+    || isRegenerationMonthlyPlanName(metadata.plan_name)
+    || isRegenerationMonthlyPlanName(metadata.invoice_label)
+    || isRegenerationMonthlyPlanName(metadata.product_name);
 }
 
 export function assertOrderCanCreateInvoice(order: Pick<Awaited<ReturnType<typeof getAdminOrderById>>, "type" | "status" | "metadata">) {

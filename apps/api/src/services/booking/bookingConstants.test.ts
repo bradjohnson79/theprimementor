@@ -5,7 +5,10 @@ import {
   sessionTypeRequiresAvailabilitySelection,
   sessionTypeRequiresSchedule,
   validatePrimeBodyHealingIntake,
+  validateEmailSessionIntake,
+  validatePastLifeAkashicIntake,
   bookingRequiresNatalFields,
+  bookingRequiresPhone,
 } from "./bookingConstants.js";
 
 test("qa_session is recognized as a booking session type", () => {
@@ -112,6 +115,42 @@ test("Level 2 intake requires concerns and natal fields, not a live format", () 
       concerns: "Fatigue",
     }),
     /deliveryFormat must be scan/,
+  );
+});
+
+test("offline recorded sessions skip scheduling and require their intake fields", () => {
+  assert.equal(sessionTypeRequiresSchedule("email_session"), false);
+  assert.equal(sessionTypeRequiresSchedule("past_life_akashic"), false);
+  assert.equal(sessionTypeRequiresAvailabilitySelection("email_session"), false);
+  assert.equal(sessionTypeRequiresAvailabilitySelection("past_life_akashic"), false);
+  assert.equal(bookingRequiresPhone("email_session"), false);
+  assert.equal(bookingRequiresNatalFields("past_life_akashic"), false);
+  assert.deepEqual(
+    validateEmailSessionIntake({
+      questionRecipient: "adronis",
+      question1: "What is the next useful step?",
+      question2: "",
+      question3: "How do I stay with it?",
+    }),
+    {
+      questionRecipient: "adronis",
+      question1: "What is the next useful step?",
+      question2: undefined,
+      question3: "How do I stay with it?",
+    },
+  );
+  assert.throws(
+    () => validateEmailSessionIntake({
+      questionRecipient: "brad_johnson",
+      question1: " ",
+      question2: "",
+      question3: "",
+    }),
+    /Question 1 is required/,
+  );
+  assert.deepEqual(
+    validatePastLifeAkashicIntake({ preparatoryNote: "A recurring dream of the sea." }),
+    { preparatoryNote: "A recurring dream of the sea." },
   );
 });
 

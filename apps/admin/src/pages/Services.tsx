@@ -55,7 +55,7 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
     },
     {
       id: "regeneration-monthly-package",
-      title: "Regeneration Monthly Package",
+      title: "Manifestation Monthly Package",
       price: "$99 CAD",
       tag: "Monthly Process",
       description:

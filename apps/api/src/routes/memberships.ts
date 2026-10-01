@@ -8,6 +8,7 @@ import {
   cancelMemberRecurringSubscription,
   listMemberRecurringSubscriptions,
   pauseMemberRecurringSubscription,
+  renewMemberRecurringSubscription,
   type MemberSubscriptionKind,
 } from "../services/memberSubscriptionsService.js";
 
@@ -94,6 +95,26 @@ export async function membershipsRoutes(app: FastifyInstance) {
           reason: request.body?.reason,
           details: request.body?.details,
           retentionAccepted: request.body?.retentionAccepted,
+        }),
+      });
+    },
+  );
+
+  app.post<{ Params: CancelMemberSubscriptionParams }>(
+    "/member/subscriptions/:subscriptionType/:subscriptionId/renew",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const subscriptionType = request.params.subscriptionType.trim();
+      if (subscriptionType !== "membership" && subscriptionType !== "regeneration") {
+        return sendApiError(reply, 400, "subscriptionType must be membership or regeneration");
+      }
+
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await renewMemberRecurringSubscription(db, {
+          userId: request.dbUser!.id,
+          subscriptionType: subscriptionType as MemberSubscriptionKind,
+          subscriptionId: request.params.subscriptionId,
         }),
       });
     },

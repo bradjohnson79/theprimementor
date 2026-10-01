@@ -40,6 +40,10 @@ import {
   bookingRequiresPhone,
   normalizeHealingAreas,
   validatePrimeBodyHealingIntake,
+  validateEmailSessionIntake,
+  validatePastLifeAkashicIntake,
+  isOfflineQuestionRecipient,
+  isOfflineRecordedSessionType,
   isPrimeBodyHealingDeliveryFormat,
   type BookingClientGender,
   type BookingIntakePayload,
@@ -540,6 +544,11 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
     : [];
   const deliveryFormat = isPrimeBodyHealingDeliveryFormat(raw.deliveryFormat) ? raw.deliveryFormat : undefined;
   const concerns = normalizeText(raw.concerns);
+  const questionRecipient = isOfflineQuestionRecipient(raw.questionRecipient) ? raw.questionRecipient : undefined;
+  const question1 = normalizeText(raw.question1);
+  const question2 = normalizeText(raw.question2);
+  const question3 = normalizeText(raw.question3);
+  const preparatoryNote = normalizeText(raw.preparatoryNote);
   const birthDate = normalizeBirthDate(raw.birthDate);
   const birthTime = normalizeText(raw.birthTime);
   const birthPlace = normalizeText(raw.birthPlace);
@@ -552,6 +561,11 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (deliveryFormat) intake.deliveryFormat = deliveryFormat;
   if (healingAreas.length > 0) intake.healingAreas = healingAreas;
   if (concerns) intake.concerns = concerns;
+  if (questionRecipient) intake.questionRecipient = questionRecipient;
+  if (question1) intake.question1 = question1;
+  if (question2) intake.question2 = question2;
+  if (question3) intake.question3 = question3;
+  if (preparatoryNote) intake.preparatoryNote = preparatoryNote;
   if (birthDate) intake.birthDate = birthDate;
   if (birthTime) intake.birthTime = birthTime;
   if (birthPlace) intake.birthPlace = birthPlace;
@@ -645,7 +659,9 @@ function normalizeSharedFields(
   const birthDate = normalizeBirthDate(input.birthDate);
   const birthTime = normalizeBirthTime(input.birthTime);
   const requiresNatal = bookingRequiresNatalFields(sessionType, bookingTypeId);
-  const birthplace = sessionType === "qa_session" || (sessionType === "prime_body_healing" && !requiresNatal)
+  const birthplace = sessionType === "qa_session"
+    || isOfflineRecordedSessionType(sessionType)
+    || (sessionType === "prime_body_healing" && !requiresNatal)
     ? null
     : normalizeStructuredBirthplace({
       birthPlaceName: input.birthPlaceName ?? input.birthPlace,
@@ -800,6 +816,34 @@ function buildNormalizedIntake(
       if (pbh.concerns) normalized.concerns = pbh.concerns;
     } catch (error) {
       throw createHttpError(400, error instanceof Error ? error.message : "Invalid Prime Body Healing intake");
+    }
+  }
+
+  if (sessionType === "email_session") {
+    try {
+      const emailSession = validateEmailSessionIntake({
+        questionRecipient: intake.questionRecipient,
+        question1: intake.question1,
+        question2: intake.question2,
+        question3: intake.question3,
+      });
+      normalized.questionRecipient = emailSession.questionRecipient;
+      normalized.question1 = emailSession.question1;
+      if (emailSession.question2) normalized.question2 = emailSession.question2;
+      if (emailSession.question3) normalized.question3 = emailSession.question3;
+    } catch (error) {
+      throw createHttpError(400, error instanceof Error ? error.message : "Invalid Email Session intake");
+    }
+  }
+
+  if (sessionType === "past_life_akashic") {
+    try {
+      const reading = validatePastLifeAkashicIntake({
+        preparatoryNote: intake.preparatoryNote,
+      });
+      if (reading.preparatoryNote) normalized.preparatoryNote = reading.preparatoryNote;
+    } catch (error) {
+      throw createHttpError(400, error instanceof Error ? error.message : "Invalid Past Life Akashic Reading intake");
     }
   }
 

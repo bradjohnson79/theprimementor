@@ -116,7 +116,7 @@ const ORDER_METRIC_STATUSES = new Set(["completed"]);
 const SESSION_BOOKED_STATUSES = new Set(["paid", "scheduled", "completed"]);
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 const CONVERSION_ROUTE_LABELS = [
-  { prefix: "/sessions/regeneration", label: "Regeneration Monthly Package interest" },
+  { prefix: "/sessions/regeneration", label: "Manifestation Monthly Package interest" },
   { prefix: "/subscriptions/initiate", label: "Initiate subscription interest" },
   { prefix: "/subscriptions/seeker", label: "Seeker subscription interest" },
   { prefix: "/reports", label: "Divin8 Reports interest" },

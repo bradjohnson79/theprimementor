@@ -75,7 +75,7 @@ const ORDER_CATEGORY_FILTERS = {
   ],
   subscription: [
     { id: "all", label: "All Subscriptions" },
-    { id: "regeneration_monthly_package", label: "Regeneration Monthly Package" },
+    { id: "regeneration_monthly_package", label: "Manifestation Monthly Package" },
     { id: "premium_subscription", label: "Premium Subscription" },
   ],
 } as const;

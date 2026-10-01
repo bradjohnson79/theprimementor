@@ -46,7 +46,7 @@ export const SESSION_TYPE_OPTIONS: Array<{
 }> = [
   {
     type: "regeneration",
-    label: "Regeneration Monthly Package",
+    label: "Manifestation Monthly Package",
     description:
       "A $99 CAD/month subscription with one 15-minute Zoom consultation, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support. Use it to support health and wellness, finances, career, relationships, household improvement, personal development, selling homes or assets, and custom manifestation requests.",
   },

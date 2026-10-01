@@ -416,6 +416,8 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     && booking.sessionType !== "regeneration"
     && booking.sessionType !== "qa_session"
     && booking.sessionType !== "prime_body_healing"
+    && booking.sessionType !== "email_session"
+    && booking.sessionType !== "past_life_akashic"
   ) {
     throw createHttpError(400, `Session checkout is not supported for ${booking.sessionType}`);
   }

@@ -256,6 +256,41 @@ export function renderBookingCreatedTemplate(
   if (payload.purchaseConfirmed && payload.sessionType === "mentoring") {
     return renderMentoringSessionBookingCreatedTemplate(payload);
   }
+  if (payload.purchaseConfirmed && (payload.sessionType === "email_session" || payload.sessionType === "past_life_akashic")) {
+    const serviceName = payload.sessionType === "email_session" ? "Email Session" : "Past Life Akashic Reading";
+    return {
+      subject: `${serviceName} purchase confirmed`,
+      templateVersion: payload.sessionType === "email_session" ? "email-session-confirmed-v1" : "past-life-akashic-confirmed-v1",
+      html: renderPrimeMentorEmail({
+        eyebrow: "Purchase Confirmed",
+        title: `Your ${serviceName} is confirmed`,
+        intro: `Your ${serviceName} purchase and intake have been received. This session is completed offline. There is no calendar appointment. Brad will email the completed MP3 recording when it is ready.`,
+        sections: [
+          renderInfoCard(
+            "Order details",
+            renderKeyValueTable([
+              { label: "Client", value: payload.fullName ?? undefined },
+              { label: "Email", value: payload.email ?? undefined },
+              { label: "Service", value: payload.bookingType ?? serviceName },
+              { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+              { label: "Purchase", value: "Confirmed" },
+              { label: "Delivery", value: "MP3 by email when ready" },
+            ]),
+          ),
+          renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
+        ],
+        callToAction: {
+          label: "Contact Support",
+          url: buildFrontendUrl("/contact"),
+        },
+        secondaryCallToAction: {
+          label: "Return to Dashboard",
+          url: buildFrontendUrl("/dashboard"),
+        },
+        footerNote: "Keep this email for your records. You do not need to book a time slot.",
+      }),
+    };
+  }
   if (payload.purchaseConfirmed && payload.sessionType === "prime_body_healing") {
     return {
       subject: "Prime Body Healing purchase confirmed",

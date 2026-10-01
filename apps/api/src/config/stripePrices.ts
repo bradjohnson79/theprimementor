@@ -30,6 +30,14 @@ const SESSION_PRICE_ENV_KEYS: Record<SessionCheckoutType, { standard: string; li
     standard: "STRIPE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
     live: "STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_LEVEL_1",
   },
+  email_session: {
+    standard: "STRIPE_PRICE_EMAIL_SESSION",
+    live: "STRIPE_LIVE_PRICE_EMAIL_SESSION",
+  },
+  past_life_akashic: {
+    standard: "STRIPE_PRICE_PAST_LIFE_AKASHIC",
+    live: "STRIPE_LIVE_PRICE_PAST_LIFE_AKASHIC",
+  },
 };
 
 const LIVE_SESSION_PRICE_FALLBACKS: Partial<Record<SessionCheckoutType, string>> = {
@@ -37,6 +45,8 @@ const LIVE_SESSION_PRICE_FALLBACKS: Partial<Record<SessionCheckoutType, string>>
   mentoring: "price_1TILnFAd5V3LaCqjkR9tAMuC",
   regeneration: "price_1TKj0yAd5V3LaCqjQC6LV0k2",
   qa_session: "price_1Te0tkAd5V3LaCqjaF1A19RZ",
+  email_session: "price_1ULrI2Ad5V3LaCqjD8074l8b",
+  past_life_akashic: "price_1ULrIuAd5V3LaCqjMFr5pAUX",
 };
 
 const CANONICAL_BOOKING_TYPE_PRICE_ENV_KEYS: Record<string, BookingTypeStripePriceConfig> = Object.fromEntries(

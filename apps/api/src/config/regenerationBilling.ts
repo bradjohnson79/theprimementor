@@ -6,7 +6,13 @@ const REGENERATION_PRICE_ENV_KEYS = {
 const LIVE_REGENERATION_MONTHLY_PRICE_FALLBACK = "price_1TSOy3Ad5V3LaCqjBkFRd1IL";
 
 export const REGENERATION_PRODUCT_KEY = "regeneration_monthly_package";
-export const REGENERATION_PLAN_NAME = "Regeneration Monthly Package";
+export const LEGACY_REGENERATION_PLAN_NAME = "Regeneration Monthly Package";
+export const REGENERATION_PLAN_NAME = "Manifestation Monthly Package";
+
+export function isRegenerationMonthlyPlanName(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized === REGENERATION_PLAN_NAME || normalized === LEGACY_REGENERATION_PLAN_NAME;
+}
 export const REGENERATION_MANIFESTATION_ENHANCEMENT_KEY = "regeneration_manifestation_enhancement_30_day";
 export const REGENERATION_MANIFESTATION_ENHANCEMENT_NAME = "Optional Additional Manifestation Request for First Month";
 export const REGENERATION_MANIFESTATION_ENHANCEMENT_PRICE_ID = "price_1TYIg9Ad5V3LaCqjID619B7x";

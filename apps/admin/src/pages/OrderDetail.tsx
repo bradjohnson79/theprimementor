@@ -1714,6 +1714,26 @@ export default function OrderDetail() {
                 <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.other)}</dd>
               </div>
               <div>
+                <dt className="text-xs text-white/40">Question recipient</dt>
+                <dd className="text-white/85">{renderValue(order.metadata.intake.question_recipient)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Question 1</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.question_1)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Question 2</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.question_2)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Question 3</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.question_3)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-white/40">Preparatory note</dt>
+                <dd className="whitespace-pre-wrap text-white/85">{renderValue(order.metadata.intake.preparatory_note)}</dd>
+              </div>
+              <div>
                 <dt className="text-xs text-white/40">Submitted Questions</dt>
                 <dd className="text-white/85">{renderList(order.metadata.intake.submitted_questions)}</dd>
               </div>

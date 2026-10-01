@@ -1,4 +1,4 @@
-export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "qa_session", "mentoring_circle", "prime_body_healing"] as const;
+export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "qa_session", "mentoring_circle", "prime_body_healing", "email_session", "past_life_akashic"] as const;
 export type BookingSessionType = typeof BOOKING_SESSION_TYPES[number];
 
 export const BOOKING_STATUSES = ["pending_payment", "paid", "scheduled", "completed", "cancelled"] as const;
@@ -67,6 +67,20 @@ export const PRIME_BODY_HEALING_BOOKING_TYPE_IDS = {
   level2: "prime-body-healing-level-2",
 } as const;
 
+export const OFFLINE_QUESTION_RECIPIENTS = ["brad_johnson", "adronis", "brad_and_adronis"] as const;
+export type OfflineQuestionRecipient = typeof OFFLINE_QUESTION_RECIPIENTS[number];
+
+export const OFFLINE_QUESTION_RECIPIENT_LABELS: Record<OfflineQuestionRecipient, string> = {
+  brad_johnson: "Brad Johnson",
+  adronis: "Adronis",
+  brad_and_adronis: "Brad & Adronis",
+};
+
+export const EMAIL_SESSION_BOOKING_TYPE_ID = "email-session";
+export const PAST_LIFE_AKASHIC_BOOKING_TYPE_ID = "past-life-akashic-reading";
+export const OFFLINE_QUESTION_MAX_LENGTH = 1000;
+export const OFFLINE_PREPARATORY_NOTE_MAX_LENGTH = 2000;
+
 export interface BookingIntakePayload {
   type: BookingSessionType;
   gender?: BookingClientGender;
@@ -81,6 +95,11 @@ export interface BookingIntakePayload {
   birthDate?: string;
   birthTime?: string;
   birthPlace?: string;
+  questionRecipient?: OfflineQuestionRecipient;
+  question1?: string;
+  question2?: string;
+  question3?: string;
+  preparatoryNote?: string;
   other?: string;
   notes?: string;
 }
@@ -107,12 +126,20 @@ export function createEmptyBookingAvailability(): BookingAvailability {
   };
 }
 
+export function isOfflineRecordedSessionType(sessionType: BookingSessionType) {
+  return sessionType === "email_session" || sessionType === "past_life_akashic";
+}
+
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
   return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
 }
 
 export function sessionTypeRequiresAvailabilitySelection(sessionType: BookingSessionType) {
   return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
+}
+
+export function isOfflineQuestionRecipient(value: unknown): value is OfflineQuestionRecipient {
+  return typeof value === "string" && OFFLINE_QUESTION_RECIPIENTS.includes(value as OfflineQuestionRecipient);
 }
 
 export function isPrimeBodyHealingDeliveryFormat(value: unknown): value is PrimeBodyHealingDeliveryFormat {
@@ -127,7 +154,7 @@ export function expectedPrimeBodyHealingDeliveryFormat(bookingTypeId: string): P
 }
 
 export function bookingRequiresNatalFields(sessionType: BookingSessionType, bookingTypeId?: string) {
-  if (sessionType === "qa_session") return false;
+  if (sessionType === "qa_session" || isOfflineRecordedSessionType(sessionType)) return false;
   if (sessionType === "prime_body_healing") {
     return bookingTypeId === PRIME_BODY_HEALING_BOOKING_TYPE_IDS.level2;
   }
@@ -135,7 +162,50 @@ export function bookingRequiresNatalFields(sessionType: BookingSessionType, book
 }
 
 export function bookingRequiresPhone(sessionType: BookingSessionType) {
-  return sessionType !== "qa_session" && sessionType !== "prime_body_healing";
+  return sessionType !== "qa_session" && sessionType !== "prime_body_healing" && !isOfflineRecordedSessionType(sessionType);
+}
+
+function normalizeOfflineText(value: unknown, maxLength: number, label: string) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (trimmed.length > maxLength) {
+    throw new Error(`${label} must be ${maxLength} characters or fewer`);
+  }
+  return trimmed;
+}
+
+export function validateEmailSessionIntake(input: {
+  questionRecipient: unknown;
+  question1: unknown;
+  question2: unknown;
+  question3: unknown;
+}) {
+  if (!isOfflineQuestionRecipient(input.questionRecipient)) {
+    throw new Error("Choose who should address your questions");
+  }
+  const question1 = normalizeOfflineText(input.question1, OFFLINE_QUESTION_MAX_LENGTH, "Question 1");
+  const question2 = normalizeOfflineText(input.question2, OFFLINE_QUESTION_MAX_LENGTH, "Question 2");
+  const question3 = normalizeOfflineText(input.question3, OFFLINE_QUESTION_MAX_LENGTH, "Question 3");
+  if (!question1) {
+    throw new Error("Question 1 is required");
+  }
+  return {
+    questionRecipient: input.questionRecipient,
+    question1,
+    question2: question2 || undefined,
+    question3: question3 || undefined,
+  };
+}
+
+export function validatePastLifeAkashicIntake(input: { preparatoryNote: unknown }) {
+  const preparatoryNote = normalizeOfflineText(
+    input.preparatoryNote,
+    OFFLINE_PREPARATORY_NOTE_MAX_LENGTH,
+    "Preparatory note",
+  );
+  return {
+    preparatoryNote: preparatoryNote || undefined,
+  };
 }
 
 export function normalizeHealingAreas(

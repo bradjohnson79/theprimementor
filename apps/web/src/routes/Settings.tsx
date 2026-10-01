@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth, UserProfile } from "@clerk/react";
+import { MEMBER_PRICING } from "@wisdom/utils";
 import { api } from "../lib/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { clerkAuthAppearance } from "../lib/authFormStyles";
@@ -23,6 +25,7 @@ type MemberRecurringSubscription = {
   cancelAtPeriodEnd: boolean;
   cancelable: boolean;
   pauseable: boolean;
+  renewable: boolean;
   pausedUntil: string | null;
   detail: string | null;
 };
@@ -112,6 +115,7 @@ export default function Settings() {
   const [pauseTarget, setPauseTarget] = useState<MemberRecurringSubscription | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [pausingId, setPausingId] = useState<string | null>(null);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
   const [billingPortalLoading, setBillingPortalLoading] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancellationDetails, setCancellationDetails] = useState("");
@@ -177,9 +181,26 @@ export default function Settings() {
     }
   }, [isLoading, user?.phone]);
 
-  const activeSubscriptions = useMemo(
+  const visibleSubscriptions = useMemo(
     () => subscriptions.filter((subscription) => subscription.status !== "canceled"),
     [subscriptions],
+  );
+  const hasLiveMembership = useMemo(
+    () =>
+      subscriptions.some(
+        (subscription) =>
+          subscription.kind === "membership"
+          && (subscription.status === "active"
+            || subscription.status === "paused"
+            || subscription.status === "cancelling"
+            || subscription.status === "past_due"),
+      ),
+    [subscriptions],
+  );
+  const premiumRenewPrice = formatSubscriptionPrice(
+    Math.round(MEMBER_PRICING.seeker.monthly.amountCad * 100),
+    "CAD",
+    "monthly",
   );
 
   const inputClassName =
@@ -259,6 +280,28 @@ export default function Settings() {
       setProfileError(error instanceof Error ? error.message : "Phone number could not be updated.");
     } finally {
       setIsSavingPhone(false);
+    }
+  }
+
+  async function handleRenewSubscription(subscription: MemberRecurringSubscription) {
+    setRenewingId(subscription.id);
+    setSubscriptionsError(null);
+    try {
+      const token = await getToken();
+      await api.post(
+        `/member/subscriptions/${subscription.kind}/${subscription.id}/renew`,
+        {},
+        token,
+      );
+      const refreshed = await api.get("/member/subscriptions", token) as {
+        data?: MemberRecurringSubscription[];
+      };
+      setSubscriptions(refreshed.data ?? []);
+      refetch();
+    } catch (error) {
+      setSubscriptionsError(error instanceof Error ? error.message : "Subscription could not be renewed.");
+    } finally {
+      setRenewingId(null);
     }
   }
 
@@ -400,14 +443,12 @@ export default function Settings() {
           ) : null}
 
           {!subscriptionsLoading && !subscriptionsError ? (
-            <div className="mt-4">
-              {activeSubscriptions.length === 0 ? (
-                <p className="text-sm text-white/65">No active subscriptions.</p>
-              ) : (
+            <div className="mt-4 space-y-4">
+              {visibleSubscriptions.length > 0 ? (
                 <div className="space-y-4">
                   <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/45">Active Subscriptions</p>
                   <div className="divide-y divide-white/10 rounded-xl border border-white/10 bg-white/5">
-                    {activeSubscriptions.map((subscription) => (
+                    {visibleSubscriptions.map((subscription) => (
                       <div key={`${subscription.kind}-${subscription.id}`} className="space-y-3 px-4 py-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
@@ -423,6 +464,20 @@ export default function Settings() {
                           </div>
 
                           <div className="flex flex-wrap gap-2">
+                            {subscription.renewable ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleRenewSubscription(subscription)}
+                                disabled={renewingId === subscription.id}
+                                className="inline-flex rounded-lg bg-accent-cyan px-3 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-400/40 disabled:text-white/50"
+                              >
+                                {renewingId === subscription.id
+                                  ? "Renewing..."
+                                  : subscription.kind === "membership"
+                                    ? "Renew Membership"
+                                    : "Renew Subscription"}
+                              </button>
+                            ) : null}
                             {subscription.pauseable ? (
                               <button
                                 type="button"
@@ -460,6 +515,7 @@ export default function Settings() {
                             <p>
                               Access remains active until:{" "}
                               <span className="text-white">{formatSubscriptionDate(subscription.accessEndsOn)}</span>
+                              . Renew now to keep this membership after that date.
                             </p>
                           ) : null}
                           {subscription.status === "paused" ? (
@@ -477,7 +533,33 @@ export default function Settings() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
+
+              {!hasLiveMembership ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/45">Available to Renew</p>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-medium text-white">Premium Membership</h3>
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadgeClassName("canceled")}`}>
+                            Available
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-white/45">Premium tier</p>
+                        <p className="mt-3 text-sm text-white">{premiumRenewPrice}</p>
+                      </div>
+                      <Link
+                        to="/subscriptions/seeker"
+                        className="inline-flex justify-center rounded-lg bg-accent-cyan px-3 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110"
+                      >
+                        Renew Membership
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

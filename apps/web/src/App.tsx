@@ -44,11 +44,17 @@ import QASessionPage from "./routes/QASessionPage";
 import MentoringSessionPage from "./routes/MentoringSessionPage";
 import PrimeBodyHealingPage from "./routes/PrimeBodyHealingPage";
 import PrimeBodyHealingBook from "./routes/PrimeBodyHealingBook";
+import OfflineSessionPage from "./routes/OfflineSessionPage";
+import OfflineSessionBook from "./routes/OfflineSessionBook";
 import {
+  EMAIL_SESSION_BOOKING_PATH,
+  EMAIL_SESSION_LANDING_PATH,
   FOCUS_BOOKING_PATH,
   FOCUS_LANDING_PATH,
   MENTORING_BOOKING_PATH,
   MENTORING_LANDING_PATH,
+  PAST_LIFE_AKASHIC_BOOKING_PATH,
+  PAST_LIFE_AKASHIC_LANDING_PATH,
   PRIME_BODY_HEALING_BOOKING_PATH,
   PRIME_BODY_HEALING_LANDING_PATH,
   QA_BOOKING_PATH,
@@ -130,6 +136,8 @@ export default function App() {
           <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />
           <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
           <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
+          <Route path={EMAIL_SESSION_LANDING_PATH} element={<OfflineSessionPage product="email" />} />
+          <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
           <Route path="/webinars/adronis-disclosure-to-contact" element={<AdronisWebinarCheckout />} />
           <Route path="/webinars/adronis-disclosure-to-contact/thank-you" element={<AdronisWebinarThankYou />} />
           <Route path="/webinars/adronis-disclosure-to-contact/on-demand" element={<OnDemandWebinarCheckout />} />
@@ -149,6 +157,8 @@ export default function App() {
             <Route path={QA_BOOKING_PATH} element={<Bookings />} />
             <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
             <Route path={PRIME_BODY_HEALING_BOOKING_PATH} element={<PrimeBodyHealingBook />} />
+            <Route path={EMAIL_SESSION_BOOKING_PATH} element={<OfflineSessionBook product="email" />} />
+            <Route path={PAST_LIFE_AKASHIC_BOOKING_PATH} element={<OfflineSessionBook product="pastLife" />} />
             <Route path="/bookings" element={<Bookings />} />
             <Route path="/dashboard/reports/:reportType" element={<ReportOrder />} />
             <Route path="/reports/intro" element={<Navigate to="/dashboard/reports/intro" replace />} />

@@ -1,6 +1,6 @@
-export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration" | "prime_body_healing";
+export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration" | "prime_body_healing" | "email_session" | "past_life_akashic";
 export type SessionOfferingBillingType = "one_time" | "subscription";
-export type SessionOfferingIntakeFlow = "guided_session" | "regeneration" | "prime_body_healing";
+export type SessionOfferingIntakeFlow = "guided_session" | "regeneration" | "prime_body_healing" | "offline_session";
 
 export interface SessionOffering {
   productKey: string;
@@ -140,7 +140,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     productKey: "regeneration-session",
     bookingTypeId: "regeneration-session",
     sessionType: "regeneration",
-    displayName: "Regeneration Monthly Package",
+    displayName: "Manifestation Monthly Package",
     durationMinutes: null,
     billingType: "subscription",
     currency: "CAD",
@@ -152,7 +152,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "regeneration",
     schedulingRequired: true,
     description:
-      "A $99 CAD/month subscription with one 15-minute Zoom consultation, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support.",
+      "Ongoing 1-to-1 manifestation support at $99 CAD/month, with a private consultation, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and priority email support.",
   },
   {
     productKey: "regeneration-qa-package",
@@ -222,6 +222,42 @@ export const CANONICAL_SESSION_OFFERINGS = [
     schedulingRequired: false,
     description:
       "A comprehensive Prime Body Healing scan and rejuvenation with personalized MP3 recording and PDF scan report.",
+  },
+  {
+    productKey: "email-session",
+    bookingTypeId: "email-session",
+    sessionType: "email_session",
+    displayName: "Email Session",
+    durationMinutes: null,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 5900,
+    stripePriceEnvKey: "STRIPE_PRICE_EMAIL_SESSION",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_EMAIL_SESSION",
+    stripeLivePriceFallback: "price_1ULrI2Ad5V3LaCqjD8074l8b",
+    active: true,
+    intakeFlow: "offline_session",
+    schedulingRequired: false,
+    description:
+      "Ask up to three questions for Brad or Adronis and receive a privately recorded MP3 response by email. No live appointment is required.",
+  },
+  {
+    productKey: "past-life-akashic-reading",
+    bookingTypeId: "past-life-akashic-reading",
+    sessionType: "past_life_akashic",
+    displayName: "Past Life Akashic Reading",
+    durationMinutes: null,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 7900,
+    stripePriceEnvKey: "STRIPE_PRICE_PAST_LIFE_AKASHIC",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_PAST_LIFE_AKASHIC",
+    stripeLivePriceFallback: "price_1ULrIuAd5V3LaCqjMFr5pAUX",
+    active: true,
+    intakeFlow: "offline_session",
+    schedulingRequired: false,
+    description:
+      "Explore and interpret one past life within your Akashic Records. Brad conducts the reading privately and emails the completed MP3. No live appointment is required.",
   },
 ] as const satisfies readonly SessionOffering[];
 

@@ -23,7 +23,7 @@ export const utmEmptyState =
 export const utmExample = "?utm_source=facebook&utm_medium=group_post&utm_campaign=regeneration_monthly";
 
 export const conversionRouteLabels = [
-  { prefix: "/sessions/regeneration", label: "Regeneration Monthly Package interest" },
+  { prefix: "/sessions/regeneration", label: "Manifestation Monthly Package interest" },
   { prefix: "/subscriptions/initiate", label: "Initiate subscription interest" },
   { prefix: "/subscriptions/seeker", label: "Seeker subscription interest" },
   { prefix: "/reports", label: "Divin8 Reports interest" },

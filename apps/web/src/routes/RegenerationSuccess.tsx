@@ -36,7 +36,7 @@ export default function RegenerationSuccess() {
         }
         refetch();
         setStatus("success");
-        setMessage("Your Regeneration Monthly Package is active and syncing into your dashboard now.");
+        setMessage("Your Manifestation Monthly Package is active and syncing into your dashboard now.");
       } catch (error) {
         if (cancelled) {
           return;
@@ -60,7 +60,7 @@ export default function RegenerationSuccess() {
       className="mx-auto max-w-3xl px-6 py-12"
     >
       <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white shadow-[0_0_32px_rgba(15,23,42,0.28)]">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Regeneration Monthly Package</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-white">Manifestation Monthly Package</h1>
         <p className="mt-3 text-sm leading-7 text-white/70">{message}</p>
 
         {status === "loading" ? (

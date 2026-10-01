@@ -44,6 +44,8 @@ type PromoTarget =
   | "mentor_training:initiate"
   | "mentoring_circle"
   | "prime_body_healing"
+  | "email_session"
+  | "past_life_akashic"
   | "prime_body_healing:level_1"
   | "prime_body_healing:level_2"
   | "shop:remote-source-bed-kit"
@@ -62,6 +64,8 @@ export const bookingSessionTypeEnum = pgEnum("booking_session_type", [
   "qa_session",
   "mentoring_circle",
   "prime_body_healing",
+  "email_session",
+  "past_life_akashic",
 ]);
 
 export const bookingStatusEnum = pgEnum("booking_status", [

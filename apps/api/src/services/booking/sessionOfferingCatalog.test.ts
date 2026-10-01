@@ -23,6 +23,8 @@ const expected = [
   ["prime-body-healing-level-1-live", "prime_body_healing", 15, 7900, null],
   ["prime-body-healing-level-1-prerecorded", "prime_body_healing", null, 7900, null],
   ["prime-body-healing-level-2", "prime_body_healing", null, 17900, null],
+  ["email-session", "email_session", null, 5900, "price_1ULrI2Ad5V3LaCqjD8074l8b"],
+  ["past-life-akashic-reading", "past_life_akashic", null, 7900, "price_1ULrIuAd5V3LaCqjMFr5pAUX"],
 ] as const;
 
 function rowForOffering(offering: typeof CANONICAL_SESSION_OFFERINGS[number]): BookingTypeSummary {
@@ -52,7 +54,10 @@ test("canonical session catalog contains the required offerings", () => {
     assert.equal(offering.durationMinutes, durationMinutes);
     assert.equal(offering.amountCents, amountCents);
     assert.equal(offering.currency, "CAD");
-    assert.equal(offering.schedulingRequired, sessionType !== "prime_body_healing");
+    assert.equal(
+      offering.schedulingRequired,
+      sessionType !== "prime_body_healing" && sessionType !== "email_session" && sessionType !== "past_life_akashic",
+    );
     if (sessionType === "prime_body_healing") {
       assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, undefined);
       assert.ok(offering.stripePriceEnvKey?.startsWith("STRIPE_PRICE_PRIME_BODY_HEALING_"));

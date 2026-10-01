@@ -166,6 +166,11 @@ export interface AdminOrder {
       delivery_format?: string | null;
       healing_areas?: string[];
       concerns?: string | null;
+      question_recipient?: string | null;
+      preparatory_note?: string | null;
+      question_1?: string | null;
+      question_2?: string | null;
+      question_3?: string | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;

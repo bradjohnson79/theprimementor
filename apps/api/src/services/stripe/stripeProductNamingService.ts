@@ -99,6 +99,12 @@ function resolveSessionName(input: Extract<StripeNamedProduct, { type: "session"
   if (sessionType === "regeneration") {
     return REGENERATION_PLAN_NAME;
   }
+  if (sessionType === "email_session") {
+    return "Email Session";
+  }
+  if (sessionType === "past_life_akashic") {
+    return "Past Life Akashic Reading";
+  }
   if (sessionType === "prime_body_healing") {
     const fallback = input.fallbackName?.trim();
     if (fallback) return fallback;

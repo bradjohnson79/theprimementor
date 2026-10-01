@@ -238,13 +238,13 @@ function RegenerationBillingNotice() {
     <div className="rounded-2xl border border-amber-300/25 bg-amber-500/10 px-5 py-4 text-sm leading-7 text-amber-50/90">
       <p className="font-semibold uppercase tracking-[0.18em] text-amber-200/90">Important</p>
       <p className="mt-2">
-        The Regeneration Monthly Package is $99 CAD/month and includes one 15-minute Zoom consultation with Brad Johnson,
+        The Manifestation Monthly Package is $99 CAD/month and includes one 15-minute Zoom consultation with Brad Johnson,
         safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority
         email support. Your next monthly consultation is automatically scheduled approximately 30 days after your initial
         consultation. Cancel anytime.
       </p>
       <p className="mt-3">
-        If you have questions about your Regeneration Monthly Package, please{" "}
+        If you have questions about your Manifestation Monthly Package, please{" "}
         <Link to="/contact" className="font-medium text-amber-200 underline underline-offset-4 transition hover:text-white">
           Contact us
         </Link>
@@ -1011,7 +1011,7 @@ export default function Bookings() {
         id: "selected-services",
         title: "Selected Services",
         items: [
-          { label: "Regeneration Monthly Package — $99 CAD / month", value: "Selected" },
+          { label: "Manifestation Monthly Package — $99 CAD / month", value: "Selected" },
           {
             label: "Optional: Add Additional Manifestation Request for First Month (+$29 CAD)",
             value: form.manifestationEnhancementSelected === true ? "Selected" : "Not selected",
@@ -1684,7 +1684,7 @@ export default function Bookings() {
                         {
                           selected: false,
                           title: "No - Continue with Regeneration Only",
-                          description: "Continue with the standard Regeneration Monthly Package.",
+                          description: "Continue with the standard Manifestation Monthly Package.",
                         },
                       ].map((option) => {
                         const active = form.manifestationEnhancementSelected === option.selected;
@@ -1785,7 +1785,7 @@ export default function Bookings() {
         id: "review",
         title: "Review and confirm",
         guidance: isRegeneration
-          ? "Everything looks good. Review your intake, then continue to secure checkout to start the Regeneration Monthly Package."
+          ? "Everything looks good. Review your intake, then continue to secure checkout to start the Manifestation Monthly Package."
           : "Everything looks good. Take a moment to review your details before you proceed to payment.",
         validate: validateReviewStep,
         isComplete: () => form.consentGiven,
@@ -1897,14 +1897,14 @@ export default function Bookings() {
           {isRegenerationOfferPackage
             ? "Regeneration Q&A Package"
             : isRegeneration
-              ? "Regeneration Monthly Package"
+              ? "Manifestation Monthly Package"
               : "Sessions"}
         </h1>
         <p className="max-w-2xl text-white/60">
           {isRegenerationOfferPackage
             ? "Complete your intake first, then continue to Stripe for the limited-time Regeneration Q&A Package at $149 CAD one-time."
             : isRegeneration
-              ? "Complete your intake first, then continue to Stripe to begin the Regeneration Monthly Package at $99 CAD / month. Cancel anytime."
+              ? "Complete your intake first, then continue to Stripe to begin the Manifestation Monthly Package at $99 CAD / month. Cancel anytime."
               : "Choose your session type, complete the intake that fits it, and submit when you are ready."}
         </p>
       </div>

@@ -432,6 +432,10 @@ export function buildTargetsFromSessionType(sessionType: string): PromoTarget[] 
       return [PROMO_TARGETS.REGEN_SESSION];
     case "prime_body_healing":
       return [PROMO_TARGETS.PRIME_BODY_HEALING];
+    case "email_session":
+      return [PROMO_TARGETS.EMAIL_SESSION];
+    case "past_life_akashic":
+      return [PROMO_TARGETS.PAST_LIFE_AKASHIC];
     default:
       throw createHttpError(400, "Unsupported session type for promo validation");
   }
@@ -1628,6 +1632,8 @@ async function buildPromoCatalogTargetIndex(db: Database, stripe: Stripe): Promi
     { bookingTypeId: "prime-body-healing-level-1-live", sessionType: "prime_body_healing", durationMinutes: 15 },
     { bookingTypeId: "prime-body-healing-level-1-prerecorded", sessionType: "prime_body_healing", durationMinutes: 0 },
     { bookingTypeId: "prime-body-healing-level-2", sessionType: "prime_body_healing", durationMinutes: 0 },
+    { bookingTypeId: "email-session", sessionType: "email_session", durationMinutes: 0 },
+    { bookingTypeId: "past-life-akashic-reading", sessionType: "past_life_akashic", durationMinutes: 0 },
   ];
 
   for (const mapping of bookingMappings) {

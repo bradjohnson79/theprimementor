@@ -153,8 +153,28 @@ function summarizeIntake(intake: unknown) {
   if (typeof intake.concerns === "string" && intake.concerns.trim()) {
     lines.push(`Concerns: ${intake.concerns.trim()}`);
   }
+  if (typeof intake.questionRecipient === "string" && intake.questionRecipient.trim()) {
+    const recipientLabels: Record<string, string> = {
+      brad_johnson: "Brad Johnson",
+      adronis: "Adronis",
+      brad_and_adronis: "Brad & Adronis",
+    };
+    lines.push(`Addressed to: ${recipientLabels[intake.questionRecipient] ?? intake.questionRecipient.trim()}`);
+  }
+  if (typeof intake.question1 === "string" && intake.question1.trim()) {
+    lines.push(`Question 1: ${intake.question1.trim()}`);
+  }
+  if (typeof intake.question2 === "string" && intake.question2.trim()) {
+    lines.push(`Question 2: ${intake.question2.trim()}`);
+  }
+  if (typeof intake.question3 === "string" && intake.question3.trim()) {
+    lines.push(`Question 3: ${intake.question3.trim()}`);
+  }
+  if (typeof intake.preparatoryNote === "string" && intake.preparatoryNote.trim()) {
+    lines.push(`Preparatory note: ${intake.preparatoryNote.trim()}`);
+  }
 
-  return lines.filter(Boolean).slice(0, 8);
+  return lines.filter(Boolean).slice(0, 12);
 }
 
 export async function sendSessionPurchaseConfirmedNotification(
@@ -193,6 +213,8 @@ export async function sendSessionPurchaseConfirmedNotification(
     booking.sessionType !== "qa_session"
     && booking.sessionType !== "mentoring"
     && booking.sessionType !== "prime_body_healing"
+    && booking.sessionType !== "email_session"
+    && booking.sessionType !== "past_life_akashic"
   ) {
     return;
   }

@@ -26,10 +26,12 @@ import { createHttpError } from "./booking/errors.js";
 import { getSectionsFromStoredReport } from "./reportFormat.js";
 import type { SubscriptionActorType } from "./adminSubscriptionLifecycleService.js";
 import {
+  isRegenerationMonthlyPlanName,
   REGENERATION_MANIFESTATION_ENHANCEMENT_AMOUNT_CENTS,
   REGENERATION_MANIFESTATION_ENHANCEMENT_DURATION_DAYS,
   REGENERATION_MANIFESTATION_ENHANCEMENT_NAME,
 } from "../config/regenerationBilling.js";
+import { OFFLINE_QUESTION_RECIPIENT_LABELS, type OfflineQuestionRecipient } from "./booking/bookingConstants.js";
 import { resolveStripeProductNaming } from "./stripe/stripeProductNamingService.js";
 
 const DEFAULT_LIMIT = 25;
@@ -205,6 +207,11 @@ export interface AdminOrder {
       delivery_format: string | null;
       healing_areas: string[];
       concerns: string | null;
+      question_recipient?: string | null;
+      preparatory_note?: string | null;
+      question_1?: string | null;
+      question_2?: string | null;
+      question_3?: string | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;
@@ -871,6 +878,12 @@ function formatSessionTypeLabel(value: string | null, fallbackName?: string | nu
   if (value === "prime_body_healing") {
     return "Prime Body Healing";
   }
+  if (value === "email_session") {
+    return "Email Session";
+  }
+  if (value === "past_life_akashic") {
+    return "Past Life Akashic Reading";
+  }
   return titleCase(value);
 }
 
@@ -1379,7 +1392,7 @@ function resolveAdminOrderProductName(candidate: OrderCandidate, payment: Paymen
   if (candidate.type === "subscription") {
     return resolveStripeProductNaming({
       type: "subscription",
-      subscriptionType: candidate.metadata.plan_name === "Regeneration Monthly Package" ? "regeneration" : "membership",
+      subscriptionType: isRegenerationMonthlyPlanName(candidate.metadata.plan_name) ? "regeneration" : "membership",
       tier: candidate.membershipTier,
       billingInterval: candidate.metadata.billing_cycle,
     }).productName;
@@ -1880,7 +1893,21 @@ function parseBookingIntake(value: unknown) {
     deliveryFormat: getString(value.deliveryFormat),
     healingAreas: getStringArray(value.healingAreas),
     concerns: getString(value.concerns),
+    questionRecipient: getString(value.questionRecipient),
+    question1: getString(value.question1),
+    question2: getString(value.question2),
+    question3: getString(value.question3),
+    preparatoryNote: getString(value.preparatoryNote),
   };
+}
+
+function offlineQuestionRecipientLabel(value: string | null | undefined) {
+  if (!value) return null;
+  return OFFLINE_QUESTION_RECIPIENT_LABELS[value as OfflineQuestionRecipient] ?? value;
+}
+
+function offlineSessionQuestions(intake: ReturnType<typeof parseBookingIntake>) {
+  return [intake?.question1, intake?.question2, intake?.question3].filter((question): question is string => Boolean(question));
 }
 
 function parseBookingIntakeSnapshot(value: unknown) {
@@ -2228,6 +2255,7 @@ function createSessionCandidate(
     intakeSnapshot?.location ?? row.birthPlaceName,
     row.birthPlace,
   );
+  const recordedQuestions = offlineSessionQuestions(intakeSnapshot?.intake ?? intake);
   const inferredSubmittedQuestions = buildQuestions(
     [other],
     [
@@ -2236,9 +2264,15 @@ function createSessionCandidate(
       manifestationIntention ? [manifestationIntention] : healthFocusAreas.map((area) => `${area.name} (severity ${area.severity}/10)`),
     ],
   );
-  const submittedQuestions = intakeSnapshot?.submittedQuestions && intakeSnapshot.submittedQuestions.length > 0
-    ? intakeSnapshot.submittedQuestions
-    : inferredSubmittedQuestions;
+  const submittedQuestions = recordedQuestions.length > 0
+    ? recordedQuestions
+    : intakeSnapshot?.submittedQuestions && intakeSnapshot.submittedQuestions.length > 0
+      ? intakeSnapshot.submittedQuestions
+      : inferredSubmittedQuestions;
+  const questionRecipient = offlineQuestionRecipientLabel(
+    intakeSnapshot?.intake?.questionRecipient ?? intake?.questionRecipient,
+  );
+  const preparatoryNote = intakeSnapshot?.intake?.preparatoryNote ?? intake?.preparatoryNote ?? null;
   const orderId = getOrderId("session", row.id);
   const executionReport = executionReportsByOrderId.get(orderId) ?? null;
 
@@ -2292,6 +2326,11 @@ function createSessionCandidate(
         delivery_format: intakeSnapshot?.intake?.deliveryFormat ?? intake?.deliveryFormat ?? null,
         healing_areas: intakeSnapshot?.intake?.healingAreas ?? intake?.healingAreas ?? [],
         concerns: intakeSnapshot?.intake?.concerns ?? intake?.concerns ?? null,
+        question_recipient: questionRecipient,
+        preparatory_note: preparatoryNote,
+        question_1: intakeSnapshot?.intake?.question1 ?? intake?.question1 ?? null,
+        question_2: intakeSnapshot?.intake?.question2 ?? intake?.question2 ?? null,
+        question_3: intakeSnapshot?.intake?.question3 ?? intake?.question3 ?? null,
       },
       availability,
       report_type: null,
@@ -2873,7 +2912,9 @@ function createPersistedAdminOrder(
           ?? null,
         timezone: bookingTimezone,
         consent_given: linkedBookingIntakeSnapshot?.consentGiven ?? linkedBooking?.consentGiven ?? null,
-        submitted_questions: linkedBookingIntakeSnapshot?.submittedQuestions ?? [],
+        submitted_questions: offlineSessionQuestions(linkedBookingIntakeSnapshot?.intake ?? linkedBookingIntake).length > 0
+          ? offlineSessionQuestions(linkedBookingIntakeSnapshot?.intake ?? linkedBookingIntake)
+          : linkedBookingIntakeSnapshot?.submittedQuestions ?? [],
         topics: linkedBookingIntakeSnapshot?.intake?.topics ?? linkedBookingIntake?.topics ?? [],
         goals: linkedBookingIntakeSnapshot?.intake?.goals ?? linkedBookingIntake?.goals ?? [],
         health_focus_areas: linkedBookingIntakeSnapshot?.intake?.healthFocusAreas ?? linkedBookingIntake?.healthFocusAreas ?? [],
@@ -2883,6 +2924,13 @@ function createPersistedAdminOrder(
         delivery_format: linkedBookingIntakeSnapshot?.intake?.deliveryFormat ?? linkedBookingIntake?.deliveryFormat ?? null,
         healing_areas: linkedBookingIntakeSnapshot?.intake?.healingAreas ?? linkedBookingIntake?.healingAreas ?? [],
         concerns: linkedBookingIntakeSnapshot?.intake?.concerns ?? linkedBookingIntake?.concerns ?? null,
+        question_recipient: offlineQuestionRecipientLabel(
+          linkedBookingIntakeSnapshot?.intake?.questionRecipient ?? linkedBookingIntake?.questionRecipient,
+        ),
+        preparatory_note: linkedBookingIntakeSnapshot?.intake?.preparatoryNote ?? linkedBookingIntake?.preparatoryNote ?? null,
+        question_1: linkedBookingIntakeSnapshot?.intake?.question1 ?? linkedBookingIntake?.question1 ?? null,
+        question_2: linkedBookingIntakeSnapshot?.intake?.question2 ?? linkedBookingIntake?.question2 ?? null,
+        question_3: linkedBookingIntakeSnapshot?.intake?.question3 ?? linkedBookingIntake?.question3 ?? null,
         manifestation_enhancement_selected: manifestationEnhancement?.selected ?? null,
         manifestation_goals: manifestationEnhancement?.intentions ?? null,
         manifestation_enhancement: manifestationEnhancement,

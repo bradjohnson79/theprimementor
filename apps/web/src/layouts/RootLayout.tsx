@@ -7,6 +7,8 @@ import pmLogo from "../assets/prime-mentor-logo.webp";
 import { useUserSync } from "../hooks/useUserSync";
 import {
   MENTORING_LANDING_PATH,
+  EMAIL_SESSION_LANDING_PATH,
+  PAST_LIFE_AKASHIC_LANDING_PATH,
   PRIME_BODY_HEALING_LANDING_PATH,
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
@@ -41,9 +43,11 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Sessions",
     href: "/#sessions",
     items: [
-      { label: "Regeneration Monthly Package", href: REGENERATION_LANDING_PATH },
+      { label: "Manifestation Monthly Package", href: REGENERATION_LANDING_PATH },
       { label: "Q&A Session", href: QA_LANDING_PATH },
       { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
+      { label: "Email Session", href: EMAIL_SESSION_LANDING_PATH },
+      { label: "Past Life Akashic Reading", href: PAST_LIFE_AKASHIC_LANDING_PATH },
       { label: "Prime Body Healing", href: PRIME_BODY_HEALING_LANDING_PATH },
     ],
   },
@@ -136,7 +140,9 @@ export default function RootLayout() {
     || location.pathname === "/regeneration-offer/success"
     || location.pathname === QA_LANDING_PATH
     || location.pathname === MENTORING_LANDING_PATH
-    || location.pathname === PRIME_BODY_HEALING_LANDING_PATH;
+    || location.pathname === PRIME_BODY_HEALING_LANDING_PATH
+    || location.pathname === EMAIL_SESSION_LANDING_PATH
+    || location.pathname === PAST_LIFE_AKASHIC_LANDING_PATH;
 
   useUserSync();
 

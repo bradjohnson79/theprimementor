@@ -86,8 +86,8 @@ const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
     title: "Sessions",
     items: [
-      { label: "Guided Private Sessions", anchor: "#sessions" },
-      { label: "Regeneration Monthly Package", anchor: "#sessions" },
+      { label: "Prime Mentor Services", anchor: "#sessions" },
+      { label: "Manifestation Monthly Package", anchor: "#sessions" },
       { label: "Mentoring Session", anchor: "#sessions" },
     ],
   },

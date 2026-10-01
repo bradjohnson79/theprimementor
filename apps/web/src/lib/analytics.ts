@@ -42,6 +42,12 @@ export const ANALYTICS_EVENT_NAMES = {
   sample_view: "sample_view",
   report_order_click: "report_order_click",
   report_checkout_start: "report_checkout_start",
+  services_category_view: "services_category_view",
+  service_card_view: "service_card_view",
+  service_cta_click: "service_cta_click",
+  offline_intake_start: "offline_intake_start",
+  offline_intake_complete: "offline_intake_complete",
+  checkout_start: "checkout_start",
 } as const;
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENT_NAMES;

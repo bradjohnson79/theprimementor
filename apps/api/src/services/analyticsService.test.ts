@@ -82,7 +82,7 @@ test("buildConversionPathInsights keeps only configured routes and applies label
 
   assert.deepEqual(rows.map((row) => row.path), ["/reports", "/sessions/regeneration"]);
   assert.equal(rows[0]?.routeLabel, "Divin8 Reports interest");
-  assert.equal(rows[1]?.routeLabel, "Regeneration Monthly Package interest");
+  assert.equal(rows[1]?.routeLabel, "Manifestation Monthly Package interest");
   assert.match(rows[1]?.frictionNote ?? "", /Worth reviewing/);
 });
 

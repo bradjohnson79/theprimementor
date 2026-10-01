@@ -6,7 +6,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
   theme: "regeneration",
   pageTitle: "regeneration_monthly_package",
   hero: {
-    eyebrow: "Regeneration Monthly Package",
+    eyebrow: "Manifestation Monthly Package",
     title: "Regenerate Your Personal Life Every Month",
     subtitle:
       "A monthly 1-to-1 manifestation and regeneration service with Brad Johnson to safeguard your desired outcomes, amplify preferred assumptions, clear anti-goals, and support your personal transformation.",
@@ -35,9 +35,9 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
       label: "What This Package Is",
       title: "A monthly subscription for regenerating your personal life from the inside out.",
       paragraphs: [
-        "The Regeneration Monthly Package is a monthly subscription service designed to help regenerate your personal life from the inside out.",
+        "The Manifestation Monthly Package is a monthly subscription service designed to help regenerate your personal life from the inside out.",
         "This is not limited to physical regeneration. Brad works with your desired manifestation, personal state, or life improvement goal by safeguarding the assumption, amplifying the preferred outcome, and clearing anti-goals that may interfere with the result.",
-        "The Regeneration Monthly Package includes a 15 minute ZOOM consultation with Brad Johnson. Brad interacts with you teaching you a simple and powerful breathwork exercise and guides you through your desired manifestation with a meditation. This leads to Manifestation safeguarding securing your manifestation from personal doubt/sabotage increasing it to accelerate itself to you.",
+        "The Manifestation Monthly Package includes a 15 minute ZOOM consultation with Brad Johnson. Brad interacts with you teaching you a simple and powerful breathwork exercise and guides you through your desired manifestation with a meditation. This leads to Manifestation safeguarding securing your manifestation from personal doubt/sabotage increasing it to accelerate itself to you.",
       ],
       density: "default",
     },
@@ -61,7 +61,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
       ],
       image: {
         src: regenerationMonthlyPackageImage,
-        alt: "Regeneration Monthly Package artwork",
+        alt: "Manifestation Monthly Package artwork",
       },
       callout: {
         eyebrow: "Monthly Support",
@@ -96,7 +96,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
         "The monthly cycle is designed to keep the intention clear, the support active, and the next consultation already moving toward continuity.",
       ],
       bullets: [
-        "1. Subscribe to the Regeneration Monthly Package.",
+        "1. Subscribe to the Manifestation Monthly Package.",
         "2. Book your first 15-minute Zoom consultation with Brad.",
         "3. Share the personal state, manifestation, or life area you want regenerated.",
         "4. Brad safeguards and amplifies the desired manifestation and begins offline anti-goal clearing.",
@@ -121,14 +121,14 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
       label: "Cancellation / No Obligation",
       title: "Monthly support without a long-term obligation.",
       paragraphs: [
-        "The Regeneration Monthly Package is a monthly subscription at $99 CAD/month. There is no long-term obligation, and you may cancel your subscription anytime.",
+        "The Manifestation Monthly Package is a monthly subscription at $99 CAD/month. There is no long-term obligation, and you may cancel your subscription anytime.",
       ],
       density: "spacious",
     },
   ],
   finalCta: {
     eyebrow: "Begin Monthly Support",
-    title: "Begin Your Regeneration Monthly Package",
+    title: "Begin Your Manifestation Monthly Package",
     description:
       "Start monthly 1-to-1 manifestation and regeneration support with Brad Johnson for $99 CAD / month. Cancel anytime.",
     cta: {
