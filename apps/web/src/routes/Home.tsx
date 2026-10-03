@@ -10,7 +10,8 @@ import {
 import HeroSection from "../components/hero/HeroSection";
 import PrimeMentorServices from "../components/home/PrimeMentorServices";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
-import OnDemandWebinarsHomeSection from "../components/webinars/OnDemandWebinarsHomeSection";
+import StarFamilyHomeSection from "../components/webinars/StarFamilyHomeSection";
+import DisclosureOnDemandCompactCard from "../components/webinars/DisclosureOnDemandCompactCard";
 import HomeShopGallery from "../components/home/HomeShopGallery";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
@@ -442,7 +443,8 @@ export default function Home() {
       <PrimeMentorServices />
       <AdronisWebinarHomeCard />
       <HomeShopGallery />
-      <OnDemandWebinarsHomeSection />
+      <StarFamilyHomeSection />
+      <DisclosureOnDemandCompactCard />
       <RegenerationOfferHomePanel />
 
       <LandingSection id="reports">

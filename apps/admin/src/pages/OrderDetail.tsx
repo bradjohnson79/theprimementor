@@ -1242,8 +1242,24 @@ export default function OrderDetail() {
                   <dd className="text-white/85">{renderValue(order.metadata.event_name)}</dd>
                 </div>
                 <div>
+                  <dt className="text-xs text-white/40">Webinar ID</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.event_id)}</dd>
+                </div>
+                <div>
                   <dt className="text-xs text-white/40">Event Date</dt>
                   <dd className="text-white/85">{order.metadata.event_date ? formatOrderDate(order.metadata.event_date) : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Live entitlement</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.live_entitlement_status)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Recording entitlement</dt>
+                  <dd className="text-white/85">{renderValue(order.metadata.recording_entitlement_status)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/40">Zoom registration available</dt>
+                  <dd className="text-white/85">{order.metadata.zoom_registration_available ? "Yes" : "No"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-white/40">Access Link</dt>

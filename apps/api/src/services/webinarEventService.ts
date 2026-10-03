@@ -1,10 +1,11 @@
 import { and, desc, eq } from "drizzle-orm";
-import { bookings, mentoringCircleRegistrations, payments, type Database } from "@wisdom/db";
+import { bookings, mentoringCircleRegistrations, payments, webinarRecordingEntitlements, type Database } from "@wisdom/db";
 import {
   ADRONIS_WEBINAR_BOOKING_TYPE_ID,
   ADRONIS_WEBINAR_THANK_YOU_PATH,
   formatAdronisWebinarPrice,
   getAdronisWebinarPublicCatalog,
+  getOnDemandWebinarById,
 } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import {
@@ -12,6 +13,7 @@ import {
   getWebinarEventById,
   isWebinarRegistrationOpen,
   listWebinarEvents,
+  resolveWebinarZoomRegistrationUrl,
   type WebinarEventDefinition,
 } from "../config/webinarEvents.js";
 
@@ -127,7 +129,7 @@ export function buildWebinarEventState(
     accessStatus: confirmed ? "confirmed" : pending ? "pending_payment" : "locked",
     joinEligible,
     registered: confirmed,
-    zoomRegistrationUrl: joinEligible ? (registration?.join_url ?? booking?.joinUrl ?? event.zoomRegistrationUrl) : null,
+    zoomRegistrationUrl: joinEligible ? (registration?.join_url ?? booking?.joinUrl ?? resolveWebinarZoomRegistrationUrl(event)) : null,
   };
 }
 
@@ -145,7 +147,7 @@ async function getExistingRegistration(db: Database, userId: string, eventKey: s
 
 export async function getLatestWebinarBookingAccessRow(
   db: Database,
-  input: { userId: string; eventKey: string },
+  input: { userId: string; eventKey: string; bookingTypeId: string },
 ): Promise<WebinarBookingAccessRow | null> {
   const [row] = await db
     .select({
@@ -160,7 +162,7 @@ export async function getLatestWebinarBookingAccessRow(
     .leftJoin(payments, eq(payments.booking_id, bookings.id))
     .where(and(
       eq(bookings.user_id, input.userId),
-      eq(bookings.booking_type_id, WEBINAR_EVENT_BOOKING_TYPE_ID),
+      eq(bookings.booking_type_id, input.bookingTypeId),
       eq(bookings.event_key, input.eventKey),
     ))
     .orderBy(desc(bookings.created_at), desc(payments.created_at))
@@ -176,6 +178,7 @@ async function buildStateForEvent(
   const booking = await getLatestWebinarBookingAccessRow(db, {
     userId: input.userId,
     eventKey: input.event.eventKey,
+    bookingTypeId: input.event.bookingTypeId,
   });
   let registration = await getExistingRegistration(db, input.userId, input.event.eventKey);
   if (booking && CONFIRMED_BOOKING_STATUSES.has(booking.status) && !registration) {
@@ -219,7 +222,7 @@ export async function upsertWebinarRegistrationProjection(
       event_start_at: new Date(event.eventStartAt),
       timezone: event.timezone,
       status: "registered",
-      join_url: booking.joinUrl ?? event.zoomRegistrationUrl,
+      join_url: booking.joinUrl ?? resolveWebinarZoomRegistrationUrl(event),
     })
     .onConflictDoUpdate({
       target: [mentoringCircleRegistrations.user_id, mentoringCircleRegistrations.event_key],
@@ -228,7 +231,7 @@ export async function upsertWebinarRegistrationProjection(
         event_start_at: new Date(event.eventStartAt),
         timezone: event.timezone,
         status: "registered",
-        join_url: booking.joinUrl ?? event.zoomRegistrationUrl,
+        join_url: booking.joinUrl ?? resolveWebinarZoomRegistrationUrl(event),
         updated_at: new Date(),
       },
     })
@@ -250,6 +253,35 @@ export async function getWebinarStateForUser(
   return buildStateForEvent(db, { userId, event });
 }
 
+export async function listPurchasedLiveWebinars(db: Database, userId: string) {
+  const cards = [];
+  for (const event of listWebinarEvents()) {
+    const state = await getWebinarStateForUser(db, userId, event.eventId);
+    if (!state.joinEligible) continue;
+    const published = getOnDemandWebinarById(event.eventId);
+    const recordingReady = published?.published === true;
+    cards.push({
+      eventId: event.eventId,
+      title: event.eventTitle,
+      presenter: event.presenter,
+      displayDate: event.displayDate,
+      displayTime: event.displayTime,
+      posterPath: event.posterPath,
+      posterAlt: event.posterAlt,
+      kind: "live_webinar" as const,
+      purchaseStatus: "purchased" as const,
+      zoomRegistrationUrl: state.zoomRegistrationUrl,
+      recordingStatus: recordingReady
+        ? "ready" as const
+        : event.grantsComplimentaryRecording
+          ? "coming_soon" as const
+          : "not_included" as const,
+      playerPath: recordingReady && published ? published.playerPath : null,
+    });
+  }
+  return cards;
+}
+
 export async function getWebinarAccessForUser(
   db: Database,
   userId: string,
@@ -260,6 +292,53 @@ export async function getWebinarAccessForUser(
     throw createHttpError(403, "Webinar access requires a verified purchase.");
   }
   return state;
+}
+
+export async function grantComplimentaryWebinarRecording(
+  db: Database,
+  input: {
+    userId: string;
+    webinarId: string;
+    stripeCheckoutSessionId?: string | null;
+    stripePaymentIntentId?: string | null;
+    stripePriceId?: string | null;
+    amountCents?: number | null;
+    currency?: string | null;
+    paymentId?: string | null;
+  },
+) {
+  const [existing] = await db
+    .select()
+    .from(webinarRecordingEntitlements)
+    .where(and(
+      eq(webinarRecordingEntitlements.user_id, input.userId),
+      eq(webinarRecordingEntitlements.webinar_id, input.webinarId),
+    ))
+    .limit(1);
+  if (existing) {
+    return existing;
+  }
+
+  const [created] = await db
+    .insert(webinarRecordingEntitlements)
+    .values({
+      user_id: input.userId,
+      webinar_id: input.webinarId,
+      stripe_checkout_session_id: input.stripeCheckoutSessionId ?? null,
+      stripe_payment_intent_id: input.stripePaymentIntentId ?? null,
+      stripe_price_id: input.stripePriceId ?? null,
+      amount_cents: input.amountCents ?? null,
+      currency: input.currency ?? null,
+      grant_source: "stripe_checkout",
+      purchased_at: new Date(),
+      payment_id: input.paymentId ?? null,
+    })
+    .onConflictDoNothing({
+      target: [webinarRecordingEntitlements.user_id, webinarRecordingEntitlements.webinar_id],
+    })
+    .returning();
+
+  return created ?? existing ?? null;
 }
 
 export function getWebinarThankYouPath(eventId?: string | null) {

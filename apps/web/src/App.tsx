@@ -22,6 +22,8 @@ import MentoringCircle from "./routes/MentoringCircle";
 import AdronisWebinarCheckout from "./routes/AdronisWebinarCheckout";
 import AdronisWebinarThankYou from "./routes/AdronisWebinarThankYou";
 import OnDemandWebinarCheckout from "./routes/OnDemandWebinarCheckout";
+import StarFamilyWebinarCheckout from "./routes/StarFamilyWebinarCheckout";
+import StarFamilyWebinarThankYou from "./routes/StarFamilyWebinarThankYou";
 import OnDemandWebinarThankYou from "./routes/OnDemandWebinarThankYou";
 import MentorTraining from "./routes/MentorTraining";
 import Settings from "./routes/Settings";
@@ -138,6 +140,8 @@ export default function App() {
           <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
           <Route path={EMAIL_SESSION_LANDING_PATH} element={<OfflineSessionPage product="email" />} />
           <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
+          <Route path="/webinars/adronis-star-family-communion" element={<StarFamilyWebinarCheckout />} />
+          <Route path="/webinars/adronis-star-family-communion/thank-you" element={<StarFamilyWebinarThankYou />} />
           <Route path="/webinars/adronis-disclosure-to-contact" element={<AdronisWebinarCheckout />} />
           <Route path="/webinars/adronis-disclosure-to-contact/thank-you" element={<AdronisWebinarThankYou />} />
           <Route path="/webinars/adronis-disclosure-to-contact/on-demand" element={<OnDemandWebinarCheckout />} />

@@ -15,16 +15,18 @@ function isLiveStripeMode() {
 
 export function resolveWebinarStripePriceId(event?: WebinarEventDefinition | null) {
   const target = event ?? ADRONIS_WEBINAR_EVENT;
-  const envKey = isLiveStripeMode()
-    ? ADRONIS_WEBINAR_LIVE_PRICE_ENV_KEY
-    : ADRONIS_WEBINAR_PRICE_ENV_KEY;
+  const liveMode = isLiveStripeMode();
+  const envKey = liveMode ? target.livePriceEnvKey : target.testPriceEnvKey;
   const envPriceId = process.env[envKey]?.trim();
-  const priceId = envPriceId || target.stripePriceId?.trim() || "";
+  const fallbackPriceId = liveMode || target.allowTestLivePriceFallback
+    ? target.stripePriceId?.trim() || ""
+    : "";
+  const priceId = envPriceId || fallbackPriceId;
 
   if (!priceId) {
     throw createHttpError(
       500,
-      `Stripe price is not configured for webinar event ${target.eventId}. Missing ${envKey} or event.stripePriceId.`,
+      `Stripe price is not configured for webinar event ${target.eventId}. Missing ${envKey}. Live price IDs are never used in test mode for this event.`,
     );
   }
 

@@ -23,6 +23,7 @@ import {
   getWebinarEventOrThrow,
   getWebinarStateForUser,
   listPublicWebinarCatalog,
+  listPurchasedLiveWebinars,
   toPublicWebinarCatalog,
 } from "../services/webinarEventService.js";
 
@@ -51,7 +52,7 @@ export async function webinarRoutes(app: FastifyInstance) {
 
   app.get<{ Params: OnDemandParams }>("/webinars/on-demand/:webinarId", async (request, reply) => {
     const webinar = getOnDemandWebinarById(request.params.webinarId);
-    if (!webinar) {
+    if (!webinar?.published) {
       return sendApiError(reply, 404, "On-demand webinar was not found");
     }
     const readiness = await reconcileOnDemandMuxReadiness(webinar.webinarId);
@@ -77,6 +78,7 @@ export async function webinarRoutes(app: FastifyInstance) {
     return ok({
       owned: catalog.filter((entry) => entry.owned),
       explore: catalog,
+      live: await listPurchasedLiveWebinars(db, user.id),
     });
   });
 

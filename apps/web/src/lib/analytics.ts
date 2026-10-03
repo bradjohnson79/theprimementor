@@ -48,6 +48,15 @@ export const ANALYTICS_EVENT_NAMES = {
   offline_intake_start: "offline_intake_start",
   offline_intake_complete: "offline_intake_complete",
   checkout_start: "checkout_start",
+  webinar_view: "webinar_view",
+  webinar_registration_started: "webinar_registration_started",
+  webinar_checkout_created: "webinar_checkout_created",
+  webinar_purchase_completed: "webinar_purchase_completed",
+  webinar_zoom_registration_clicked: "webinar_zoom_registration_clicked",
+  webinar_dashboard_viewed: "webinar_dashboard_viewed",
+  webinar_home_view: "webinar_home_view",
+  webinar_learn_more_clicked: "webinar_learn_more_clicked",
+  webinar_checkout_started: "webinar_checkout_started",
 } as const;
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENT_NAMES;

@@ -3,10 +3,42 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
 import { Clapperboard } from "lucide-react";
-import { fetchOnDemandWebinarLibrary, type OnDemandWebinarState } from "../lib/onDemandWebinarApi";
+import { trackEventOnce } from "../lib/analytics";
+import { fetchOnDemandWebinarLibrary, type LiveWebinarLibraryCard, type OnDemandWebinarLibrary, type OnDemandWebinarState } from "../lib/onDemandWebinarApi";
 import OnDemandWebinarCheckoutButton from "../components/webinars/OnDemandWebinarCheckoutButton";
 
 type LibraryTab = "mine" | "explore";
+
+function LiveWebinarCard({ webinar }: { webinar: LiveWebinarLibraryCard }) {
+  return (
+    <article className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-white/[0.03]">
+      <img src={webinar.posterPath} alt={webinar.posterAlt} className="mx-auto h-auto w-full max-h-[22rem] object-contain bg-slate-950" />
+      <div className="space-y-3 p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100/70">Live Webinar · Purchased</p>
+        <h2 className="text-xl font-semibold text-white">{webinar.title}</h2>
+        <p className="text-sm text-white/70">{webinar.displayDate}</p>
+        <p className="text-sm text-white/70">{webinar.displayTime}</p>
+        {webinar.zoomRegistrationUrl ? (
+          <a href={webinar.zoomRegistrationUrl} className="inline-flex w-full items-center justify-center rounded-full bg-amber-300 px-5 py-2.5 text-sm font-semibold text-slate-950">
+            Register on Zoom
+          </a>
+        ) : null}
+        <p className="text-sm text-white/60">
+          {webinar.recordingStatus === "coming_soon"
+            ? "Recording Coming Soon"
+            : webinar.recordingStatus === "ready" && webinar.playerPath
+              ? "Recording ready"
+              : null}
+        </p>
+        {webinar.recordingStatus === "ready" && webinar.playerPath ? (
+          <Link to={webinar.playerPath} className="inline-flex w-full items-center justify-center rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white">
+            Watch Recording
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  );
+}
 
 function WebinarCard({
   webinar,
@@ -57,7 +89,7 @@ export default function DashboardWebinars() {
   const requestedTab = searchParams.get("tab") === "explore" ? "explore" : "mine";
   const [tab, setTab] = useState<LibraryTab>(requestedTab);
   const [loading, setLoading] = useState(true);
-  const [library, setLibrary] = useState<{ owned: OnDemandWebinarState[]; explore: OnDemandWebinarState[] } | null>(null);
+  const [library, setLibrary] = useState<OnDemandWebinarLibrary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +110,15 @@ export default function DashboardWebinars() {
   }, [getToken]);
 
   const owned = library?.owned ?? [];
+  const live = library?.live ?? [];
+
+  useEffect(() => {
+    if (!library) return;
+    trackEventOnce("analytics:webinars:dashboard-view", "webinar_dashboard_viewed", {
+      live_count: live.length,
+      owned_count: owned.length,
+    });
+  }, [library, live.length, owned.length]);
   const explore = useMemo(
     () => (library?.explore ?? []).filter((entry) => !entry.owned),
     [library],
@@ -130,10 +171,10 @@ export default function DashboardWebinars() {
 
         {loading ? (
           <section className="dashboard-panel text-sm text-white/60">Loading webinars...</section>
-        ) : tab === "mine" && owned.length === 0 ? (
+        ) : tab === "mine" && owned.length === 0 && live.length === 0 ? (
           <section className="dashboard-panel space-y-3">
             <h2 className="text-lg font-semibold text-white">No webinars yet</h2>
-            <p className="text-sm text-white/60">When you purchase an on-demand webinar, it will appear here.</p>
+            <p className="text-sm text-white/60">When you register for a live webinar or purchase an on-demand recording, it will appear here.</p>
             <button type="button" onClick={() => selectTab("explore")} className="text-sm text-amber-200 underline">
               Explore Webinars
             </button>
@@ -144,6 +185,9 @@ export default function DashboardWebinars() {
           </section>
         ) : (
           <section className="grid gap-5 lg:grid-cols-2">
+            {tab === "mine" ? live.map((webinar) => (
+              <LiveWebinarCard key={webinar.eventId} webinar={webinar} />
+            )) : null}
             {(tab === "mine" ? owned : explore).map((webinar) => (
               <WebinarCard key={webinar.webinarId} webinar={webinar} owned={tab === "mine"} />
             ))}

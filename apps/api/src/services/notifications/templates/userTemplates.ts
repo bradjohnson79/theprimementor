@@ -568,6 +568,51 @@ export function renderWebinarConfirmedTemplate(
   };
 }
 
+export function renderStarFamilyWebinarConfirmedTemplate(
+  payload: NotificationPayloadMap["star_family_webinar.confirmed"],
+): RenderedTemplate {
+  const eventTitle = text(payload.eventTitle, "Adronis: Star Family Communion");
+  const greeting = payload.firstName ? `Hi ${payload.firstName},` : "Hi,";
+  const amount = `$${((payload.amountCents ?? 1499) / 100).toFixed(2)} ${(payload.currency ?? "CAD").toUpperCase()}`;
+  const dashboardUrl = buildFrontendUrl(payload.dashboardPath || "/dashboard/webinars");
+  return {
+    subject: "You’re Registered — Adronis: Star Family Communion",
+    templateVersion: "star-family-webinar-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Live Webinar Registration",
+      title: "You’re Registered for Adronis: Star Family Communion",
+      intro: `${greeting} thank you for registering. Your payment was successful, and your place in the live webinar is confirmed.`,
+      sections: [
+        renderInfoCard(
+          "Event details",
+          renderKeyValueTable([
+            { label: "Webinar", value: eventTitle },
+            { label: "Date", value: text(payload.displayDate, "Saturday, October 17, 2026") },
+            { label: "Time", value: text(payload.displayTime, "10:00 AM Pacific / 1:00 PM Eastern") },
+            { label: "Amount paid", value: amount },
+            { label: "Reference", value: payload.bookingId },
+            { label: "Name", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+          ]),
+        ),
+        renderParagraph("This webinar is held live on Zoom. Complete the Zoom registration form so Zoom can send your personal meeting access details and reminders."),
+        renderParagraph(`Zoom registration URL: ${payload.zoomRegistrationUrl}`),
+        renderParagraph("Your registration includes the complete recording of Adronis: Star Family Communion at no additional cost. After the recording has been prepared, it will appear under Dashboard → Webinars."),
+      ],
+      callToAction: {
+        label: "Register on Zoom",
+        url: payload.zoomRegistrationUrl,
+        note: "Opens Zoom’s attendee registration page.",
+      },
+      secondaryCallToAction: {
+        label: "View My Webinars",
+        url: dashboardUrl,
+      },
+      footerNote: "Need help? Visit https://theprimementor.com/#contact or reply to this email.",
+    }),
+  };
+}
+
 export function renderOnDemandWebinarConfirmedTemplate(
   payload: NotificationPayloadMap["on_demand_webinar.confirmed"],
 ): RenderedTemplate {

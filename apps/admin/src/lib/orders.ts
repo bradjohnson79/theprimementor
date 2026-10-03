@@ -187,6 +187,10 @@ export interface AdminOrder {
     renewal_date: string | null;
     event_name: string | null;
     event_date: string | null;
+    event_id?: string | null;
+    live_entitlement_status?: string | null;
+    recording_entitlement_status?: string | null;
+    zoom_registration_available?: boolean | null;
     access_link: string | null;
     stripe_subscription_id: string | null;
     billing_mode: string | null;

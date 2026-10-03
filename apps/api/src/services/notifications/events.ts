@@ -7,6 +7,7 @@ export type NotificationEvent =
   | "mentoring_circle.reminder_24h"
   | "mentoring_circle.reminder_1h"
   | "webinar.confirmed"
+  | "star_family_webinar.confirmed"
   | "on_demand_webinar.confirmed"
   | "report.generated"
   | "shop.digital_fulfillment"
@@ -127,6 +128,25 @@ export interface NotificationPayloadMap {
     zoomRegistrationUrl: string;
     accessPagePath?: string | null;
   };
+  "star_family_webinar.confirmed": {
+    entityId: string;
+    bookingId: string;
+    eventId: string;
+    eventTitle: string;
+    presenter: string;
+    displayDate: string;
+    displayTime: string;
+    startTimeUtc: string;
+    timezone: string;
+    fullName?: string | null;
+    firstName?: string | null;
+    email?: string | null;
+    amountCents: number;
+    currency: string;
+    zoomRegistrationUrl: string;
+    accessPagePath?: string | null;
+    dashboardPath: string;
+  };
   "on_demand_webinar.confirmed": {
     entityId: string;
     webinarId: string;
@@ -212,6 +232,7 @@ export const USER_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "webinar.confirmed",
+  "star_family_webinar.confirmed",
   "on_demand_webinar.confirmed",
   "report.generated",
   "shop.digital_fulfillment",
@@ -233,6 +254,7 @@ export const CONFIGURABLE_NOTIFICATION_EVENTS = [
   "mentoring_circle.reminder_24h",
   "mentoring_circle.reminder_1h",
   "webinar.confirmed",
+  "star_family_webinar.confirmed",
   "on_demand_webinar.confirmed",
   "report.generated",
   "admin.new.booking",

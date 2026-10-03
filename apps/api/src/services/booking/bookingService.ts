@@ -55,8 +55,8 @@ import {
   MENTORING_CIRCLE_BOOKING_TYPE_ID,
   getMentoringCircleEventOrThrow,
 } from "../mentoringCircleService.js";
+import { resolveWebinarZoomRegistrationUrl } from "../../config/webinarEvents.js";
 import {
-  WEBINAR_EVENT_BOOKING_TYPE_ID,
   getWebinarEventOrThrow,
 } from "../webinarEventService.js";
 
@@ -1163,7 +1163,7 @@ export async function confirmMentoringCircleBooking(
 
 async function getWebinarBookingRow(
   db: Database,
-  input: { userId: string; eventKey: string },
+  input: { userId: string; eventKey: string; bookingTypeId: string },
 ) {
   const [row] = await db
     .select({
@@ -1173,7 +1173,7 @@ async function getWebinarBookingRow(
     .from(bookings)
     .where(and(
       eq(bookings.user_id, input.userId),
-      eq(bookings.booking_type_id, WEBINAR_EVENT_BOOKING_TYPE_ID),
+      eq(bookings.booking_type_id, input.bookingTypeId),
       eq(bookings.session_type, "mentoring_circle"),
       eq(bookings.event_key, input.eventKey),
     ))
@@ -1192,6 +1192,7 @@ export async function createOrReuseWebinarBooking(
   const existing = await getWebinarBookingRow(db, {
     userId: input.userId,
     eventKey: event.eventKey,
+    bookingTypeId: event.bookingTypeId,
   });
 
   if (existing) {
@@ -1217,7 +1218,7 @@ export async function createOrReuseWebinarBooking(
           purchaseType: "webinar_event",
           eventId: event.eventId,
           eventKey: event.eventKey,
-          bookingTypeId: WEBINAR_EVENT_BOOKING_TYPE_ID,
+          bookingTypeId: event.bookingTypeId,
         },
       });
     }
@@ -1247,7 +1248,7 @@ export async function createOrReuseWebinarBooking(
       .insert(bookings)
       .values({
         user_id: input.userId,
-        booking_type_id: WEBINAR_EVENT_BOOKING_TYPE_ID,
+        booking_type_id: event.bookingTypeId,
         session_type: "mentoring_circle",
         event_key: event.eventKey,
         start_time_utc: eventStartUtc,
@@ -1297,7 +1298,7 @@ export async function createOrReuseWebinarBooking(
         purchaseType: "webinar_event",
         eventId: event.eventId,
         eventKey: event.eventKey,
-        bookingTypeId: WEBINAR_EVENT_BOOKING_TYPE_ID,
+        bookingTypeId: event.bookingTypeId,
       },
     });
 
@@ -1323,7 +1324,7 @@ export async function confirmWebinarBooking(
     throw createHttpError(404, "Booking not found");
   }
 
-  if (booking.bookingTypeId !== WEBINAR_EVENT_BOOKING_TYPE_ID || booking.eventKey !== event.eventKey) {
+  if (booking.bookingTypeId !== event.bookingTypeId || booking.eventKey !== event.eventKey) {
     throw createHttpError(400, "Booking is not a webinar purchase");
   }
 
@@ -1338,7 +1339,7 @@ export async function confirmWebinarBooking(
       end_time_utc: addMinutes(new Date(event.eventStartAt), event.durationMinutes),
       timezone: event.timezone,
       status: "scheduled",
-      join_url: event.zoomRegistrationUrl,
+      join_url: resolveWebinarZoomRegistrationUrl(event),
       updated_at: new Date(),
     })
     .where(eq(bookings.id, booking.id));

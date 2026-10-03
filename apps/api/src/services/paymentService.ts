@@ -1221,6 +1221,11 @@ async function createWebinarCheckoutSession(db: Database, input: CreateCheckoutS
     customer_email: input.userEmail,
     stripe_price_id: priceId,
     purchaseType: "webinar_event",
+    eventTitle: event.eventTitle,
+    eventDate: event.eventStartAt,
+    includesLiveEntitlement: "true",
+    includesRecordingEntitlement: event.grantsComplimentaryRecording ? "true" : "false",
+    recordingWebinarId: event.grantsComplimentaryRecording ? event.eventId : "",
   });
   const stripeCustomerId = await ensureStripeCustomerId(db, {
     stripe,

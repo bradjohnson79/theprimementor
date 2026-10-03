@@ -10,7 +10,8 @@ import {
   type Database,
 } from "@wisdom/db";
 import type { BillingInterval, Divin8Tier } from "@wisdom/utils";
-import { toUtcIsoString } from "@wisdom/utils";
+import { STAR_FAMILY_WEBINAR_EVENT_ID, toUtcIsoString } from "@wisdom/utils";
+import { resolveWebinarZoomRegistrationUrl } from "../../config/webinarEvents.js";
 import Stripe from "stripe";
 import {
   deriveTierFromPriceId,
@@ -22,6 +23,7 @@ import {
   sendAdminNewBookingNotification,
   sendMentoringCircleConfirmedNotification,
   sendSessionPurchaseConfirmedNotification,
+  sendStarFamilyWebinarConfirmedNotification,
   sendWebinarConfirmedNotification,
 } from "../booking/notificationService.js";
 import { confirmMentoringCircleBooking, confirmWebinarBooking } from "../booking/bookingService.js";
@@ -31,6 +33,7 @@ import {
 } from "../mentoringCircleService.js";
 import {
   getWebinarEventOrThrow,
+  grantComplimentaryWebinarRecording,
   upsertWebinarRegistrationProjection,
 } from "../webinarEventService.js";
 import { recordPromoUsage } from "../promoCodeService.js";
@@ -1377,6 +1380,10 @@ async function finalizeWebinarAccess(
     eventId?: string | null;
     amountCents?: number | null;
     currency?: string | null;
+    stripeCheckoutSessionId?: string | null;
+    stripePaymentIntentId?: string | null;
+    stripePriceId?: string | null;
+    paymentId?: string | null;
   },
 ) {
   const event = getWebinarEventOrThrow(input.eventId);
@@ -1385,8 +1392,23 @@ async function finalizeWebinarAccess(
     eventId: event.eventId,
   });
   await upsertWebinarRegistrationProjection(db as Database, { bookingId: booking.id });
+  if (event.grantsComplimentaryRecording) {
+    await grantComplimentaryWebinarRecording(db as Database, {
+      userId: input.userId,
+      webinarId: event.eventId,
+      stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+      stripePaymentIntentId: input.stripePaymentIntentId,
+      stripePriceId: input.stripePriceId,
+      amountCents: input.amountCents ?? event.priceCents,
+      currency: input.currency ?? event.currency,
+      paymentId: input.paymentId,
+    });
+  }
 
-  void sendWebinarConfirmedNotification(db as Database, {
+  const notify = event.eventId === STAR_FAMILY_WEBINAR_EVENT_ID
+    ? sendStarFamilyWebinarConfirmedNotification
+    : sendWebinarConfirmedNotification;
+  void notify(db as Database, {
     bookingId: booking.id,
     userId: input.userId,
     bookingType: event.eventTitle,
@@ -1396,7 +1418,7 @@ async function finalizeWebinarAccess(
       ?? toUtcIsoString(new Date(new Date(event.eventStartAt).getTime() + event.durationMinutes * 60_000)),
     eventId: event.eventId,
     eventTitle: event.eventTitle,
-    joinUrl: event.zoomRegistrationUrl,
+    joinUrl: resolveWebinarZoomRegistrationUrl(event),
     accessPagePath: event.thankYouPath,
     amountCents: input.amountCents ?? event.priceCents,
     currency: input.currency ?? event.currency,
@@ -1655,6 +1677,9 @@ async function handleCheckoutSessionCompleted(
         eventId: metadata.eventId ?? metadata.eventKey,
         amountCents: session.amount_total ?? 1499,
         currency: (session.currency ?? "cad").toUpperCase(),
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: providerPaymentIntentId,
+        stripePriceId: metadata.raw.stripe_price_id ?? metadata.raw.stripePriceId ?? null,
       });
     }
     if (entity.entityType === "course") {
@@ -1838,6 +1863,10 @@ async function handleCheckoutSessionCompleted(
       eventId: metadata.eventId ?? metadata.eventKey,
       amountCents: paidPayment.amount_cents,
       currency: paidPayment.currency,
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId: providerPaymentIntentId,
+      stripePriceId: metadata.raw.stripe_price_id ?? metadata.raw.stripePriceId ?? null,
+      paymentId: paidPayment.id,
     });
 
     logger.info({

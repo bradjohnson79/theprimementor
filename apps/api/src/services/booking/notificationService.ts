@@ -326,6 +326,45 @@ export async function sendWebinarConfirmedNotification(
   });
 }
 
+export async function sendStarFamilyWebinarConfirmedNotification(
+  db: Database,
+  payload: BookingNotificationPayload,
+): Promise<void> {
+  if (!payload.eventId || !payload.eventTitle || !payload.joinUrl) {
+    logger.warn("star_family_webinar_notification_missing_event", {
+      bookingId: payload.bookingId,
+      eventId: payload.eventId ?? null,
+    });
+    return;
+  }
+
+  const contact = await getBookingNotificationContact(db, payload);
+  const firstName = contact.fullName?.trim().split(/\s+/)[0] || null;
+  await sendNotification(db, {
+    event: "star_family_webinar.confirmed",
+    userId: payload.userId,
+    payload: {
+      entityId: payload.entityId ?? payload.bookingId,
+      bookingId: payload.bookingId,
+      eventId: payload.eventId,
+      eventTitle: payload.eventTitle,
+      presenter: payload.presenter ?? "Brad Johnson and Adronis",
+      displayDate: payload.displayDate ?? "Saturday, October 17, 2026",
+      displayTime: payload.displayTime ?? "10:00 AM Pacific / 1:00 PM Eastern",
+      startTimeUtc: payload.startTimeUtc ?? "",
+      timezone: payload.timezone,
+      fullName: contact.fullName,
+      firstName,
+      email: contact.email,
+      amountCents: payload.amountCents ?? 1499,
+      currency: payload.currency ?? "CAD",
+      zoomRegistrationUrl: payload.joinUrl,
+      accessPagePath: payload.accessPagePath ?? "/webinars/adronis-star-family-communion/thank-you",
+      dashboardPath: "/dashboard/webinars",
+    },
+  });
+}
+
 export async function sendMentoringCircleConfirmedNotification(
   db: Database,
   payload: BookingNotificationPayload,

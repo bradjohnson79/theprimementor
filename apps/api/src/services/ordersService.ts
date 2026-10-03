@@ -19,7 +19,8 @@ import {
   type Database,
 } from "@wisdom/db";
 import { desc, eq, inArray, or, sql } from "drizzle-orm";
-import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, getOnDemandWebinarById, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID, getOnDemandWebinarById, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { getWebinarEventById } from "../config/webinarEvents.js";
 import { reconcileOnDemandMuxReadiness } from "./mux/muxPlaybackService.js";
 import { logger } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
@@ -231,6 +232,10 @@ export interface AdminOrder {
     renewal_date: string | null;
     event_name: string | null;
     event_date: string | null;
+    event_id?: string | null;
+    live_entitlement_status?: string | null;
+    recording_entitlement_status?: string | null;
+    zoom_registration_available?: boolean | null;
     access_link: string | null;
     stripe_subscription_id: string | null;
     billing_mode: string | null;
@@ -416,6 +421,7 @@ interface WebinarSourceRow {
   muxAssetReady?: boolean | null;
   playbackProtected?: boolean | null;
   duplicatePayment?: boolean;
+  recordingEntitlementStatus?: string | null;
 }
 
 interface MentorTrainingSourceRow {
@@ -2688,6 +2694,10 @@ function createWebinarCandidate(
       renewal_date: null,
       event_name: row.eventTitle,
       event_date: row.eventStartAt.toISOString(),
+      event_id: row.eventKey,
+      live_entitlement_status: row.kind === "on_demand" ? "not_applicable" : (row.status === "scheduled" || row.status === "confirmed" ? "granted" : row.status),
+      recording_entitlement_status: row.recordingEntitlementStatus ?? (row.kind === "on_demand" ? row.status : "not_included"),
+      zoom_registration_available: row.kind === "on_demand" ? false : Boolean(row.joinUrl),
       access_link: row.joinUrl,
       grant_source: row.grantSource ?? null,
       mux_asset_id: row.muxAssetId ?? null,
@@ -3031,6 +3041,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     .from(notificationEvents)
     .where(or(
       eq(notificationEvents.event_type, "webinar.confirmed"),
+      eq(notificationEvents.event_type, "star_family_webinar.confirmed"),
       eq(notificationEvents.event_type, "on_demand_webinar.confirmed"),
     ));
   const webinarEmailsByUserEvent = new Map<string, {
@@ -3064,7 +3075,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
   const bookingBackedMentoringCircleEvents = new Set(
     bookingRows
-      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey && row.bookingTypeId !== ADRONIS_WEBINAR_BOOKING_TYPE_ID)
+      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey && row.bookingTypeId !== ADRONIS_WEBINAR_BOOKING_TYPE_ID && row.bookingTypeId !== STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID)
       .map((row) => `${row.userId}:${row.eventKey}`),
   );
   const persistedOrders = persistedOrderRows
@@ -3084,7 +3095,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   const candidates: OrderCandidate[] = [];
   for (const row of bookingRows) {
-    if (row.bookingTypeId === ADRONIS_WEBINAR_BOOKING_TYPE_ID) {
+    if (row.bookingTypeId === ADRONIS_WEBINAR_BOOKING_TYPE_ID || row.bookingTypeId === STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID) {
       continue;
     }
     try {
@@ -3176,9 +3187,15 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     .from(payments)
     .where(eq(payments.entity_type, "on_demand_webinar"));
 
+  const recordingGranted = new Set(
+    recordingEntitlementRows
+      .filter((row) => row.purchased_at && !row.revoked_at)
+      .map((row) => `${row.user_id}:${row.webinar_id}`),
+  );
   const onDemandWebinarRows: WebinarSourceRow[] = [];
   for (const row of recordingEntitlementRows) {
     if (!row.purchased_at) continue;
+    if (getWebinarEventById(row.webinar_id)?.grantsComplimentaryRecording) continue;
     const catalog = getOnDemandWebinarById(row.webinar_id);
     const readiness = readinessByWebinarId.get(row.webinar_id);
     onDemandWebinarRows.push({
@@ -3241,7 +3258,12 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     }
     try {
       const candidate = createWebinarCandidate(
-        row,
+        {
+          ...row,
+          recordingEntitlementStatus: row.kind === "on_demand"
+            ? (row.status === "revoked" ? "revoked" : "granted")
+            : (recordingGranted.has(`${row.userId}:${row.eventKey}`) ? "granted" : "not_included"),
+        },
         usersById,
         clientsByUserId,
         entitlementsByUserId,

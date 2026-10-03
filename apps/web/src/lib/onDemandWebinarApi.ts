@@ -14,9 +14,25 @@ export interface OnDemandWebinarState extends OnDemandWebinarPublicCatalog {
   positionSeconds?: number;
 }
 
+export interface LiveWebinarLibraryCard {
+  eventId: string;
+  title: string;
+  presenter: string;
+  displayDate: string;
+  displayTime: string;
+  posterPath: string;
+  posterAlt: string;
+  kind: "live_webinar";
+  purchaseStatus: "purchased";
+  zoomRegistrationUrl: string | null;
+  recordingStatus: "ready" | "coming_soon" | "not_included";
+  playerPath: string | null;
+}
+
 export interface OnDemandWebinarLibrary {
   owned: OnDemandWebinarState[];
   explore: OnDemandWebinarState[];
+  live?: LiveWebinarLibraryCard[];
 }
 
 export interface OnDemandPlaybackAuth {

@@ -27,6 +27,7 @@ const DEFAULT_ENABLED_EVENTS: NotificationSettingsMap = {
   "mentoring_circle.reminder_24h": true,
   "mentoring_circle.reminder_1h": true,
   "webinar.confirmed": true,
+  "star_family_webinar.confirmed": true,
   "on_demand_webinar.confirmed": true,
   "report.generated": true,
   "admin.new.booking": true,

@@ -5,7 +5,6 @@ import {
   ADRONIS_ON_DEMAND_FEATURE_BULLETS,
   ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH,
   ADRONIS_ON_DEMAND_CANCEL_PATH,
-  ADRONIS_ON_DEMAND_PLAYER_PATH,
   ADRONIS_ON_DEMAND_THANK_YOU_PATH,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
   getOnDemandWebinarById,
@@ -60,7 +59,6 @@ export default function OnDemandWebinarCheckout() {
         setCatalog(state);
         if (state.owned) {
           setOwned(true);
-          navigate(ADRONIS_ON_DEMAND_PLAYER_PATH, { replace: true });
         }
       } catch {
         if (!cancelled) setOwned(false);
@@ -108,7 +106,7 @@ export default function OnDemandWebinarCheckout() {
   }
 
   const bullets = catalog.featureBullets.length ? catalog.featureBullets : ADRONIS_ON_DEMAND_FEATURE_BULLETS;
-  const ctaLabel = hasAccess ? "Watch Now" : "Watch Now — $7.99 CAD";
+  const ctaLabel = hasAccess ? "Watch in Dashboard" : "Get Instant Access — $7.99 CAD";
 
   return (
     <div className="relative isolate min-h-full overflow-hidden text-[#F8FAFC]">
@@ -118,7 +116,7 @@ export default function OnDemandWebinarCheckout() {
       />
       <section className="relative px-4 pb-20 pt-12 sm:px-6 sm:pt-16 lg:px-8">
         <div className="relative mx-auto w-full max-w-[76rem]">
-          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[#E5C267]">On Demand Recording</p>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[#E5C267]">Webinar On Demand</p>
           <h1 className="hero-headline mt-3 max-w-4xl text-4xl font-semibold tracking-[-0.04em] text-[#F8FAFC] sm:text-5xl lg:text-6xl">
             {catalog.title}
           </h1>
