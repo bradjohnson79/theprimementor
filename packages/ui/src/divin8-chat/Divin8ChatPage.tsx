@@ -216,6 +216,7 @@ export default function Divin8ChatPage({
             showScrollToBottom={chat.showScrollToBottom}
             onScrollToBottom={() => chat.scrollToBottom("smooth")}
             onViewportScroll={chat.handleViewportScroll}
+            onUserScrollIntent={chat.handleViewportIntent}
             scrollViewportRef={chat.messageViewportRef}
             liveAnnouncement={chat.liveAnnouncement}
             serverTimeContext={chat.debugMeta?.timeContext ?? null}

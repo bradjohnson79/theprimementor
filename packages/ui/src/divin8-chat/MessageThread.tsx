@@ -9,7 +9,6 @@ interface MessageThreadProps {
   isGenerating: boolean;
   messages: Divin8ChatMessage[];
   scrollContainer: HTMLDivElement | null;
-  bottomSpacer: number;
   onRetry: (messageId: string) => void;
 }
 
@@ -305,7 +304,6 @@ export default function MessageThread({
   isGenerating,
   messages,
   scrollContainer: _scrollContainer,
-  bottomSpacer,
   onRetry,
 }: MessageThreadProps) {
   const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
@@ -339,7 +337,7 @@ export default function MessageThread({
   }
 
   return (
-    <div style={{ paddingBottom: `${bottomSpacer}px` }}>
+    <div className="pb-4">
       {items.map((item) => {
         if (!item) {
           return null;

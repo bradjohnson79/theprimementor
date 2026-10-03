@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode, type RefObject, type UIEvent } from "react";
+import { useCallback, useState, type KeyboardEvent, type ReactNode, type RefObject, type TouchEvent, type UIEvent, type WheelEvent } from "react";
 import MessageThread from "./MessageThread";
 import type { Divin8ChatMessage, Divin8ServerTimeContext } from "./types";
 import { classNames, darkChatStyles, visuallyHiddenStyle } from "./utils";
@@ -15,6 +15,7 @@ interface ChatWindowProps {
   showScrollToBottom: boolean;
   onScrollToBottom: () => void;
   onViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
+  onUserScrollIntent: (event: WheelEvent<HTMLDivElement> | TouchEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => void;
   scrollViewportRef: RefObject<HTMLDivElement | null>;
   composer: ReactNode;
   liveAnnouncement: string;
@@ -74,13 +75,13 @@ export default function ChatWindow({
   showScrollToBottom,
   onScrollToBottom,
   onViewportScroll,
+  onUserScrollIntent,
   scrollViewportRef,
   composer,
   liveAnnouncement,
   headerActions,
   serverTimeContext,
 }: ChatWindowProps) {
-  const [composerHeight, setComposerHeight] = useState(0);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
   const setViewportElement = useCallback(
@@ -92,24 +93,6 @@ export default function ChatWindow({
     },
     [scrollViewportRef],
   );
-
-  useEffect(() => {
-    const composerElement = scrollElement?.nextElementSibling as HTMLElement | null;
-    if (!composerElement) {
-      return;
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      setComposerHeight(entry.contentRect.height);
-    });
-
-    observer.observe(composerElement);
-    return () => observer.disconnect();
-  }, [composer, scrollElement]);
 
   const formattedTime = serverTimeContext ? formatServerTime(serverTimeContext) : null;
 
@@ -159,7 +142,15 @@ export default function ChatWindow({
         ) : null}
       </div>
 
-      <div ref={setViewportElement} onScroll={onViewportScroll} className="flex-1 overflow-y-auto overscroll-contain">
+      <div
+        ref={setViewportElement}
+        onScroll={onViewportScroll}
+        onWheel={onUserScrollIntent}
+        onTouchStart={onUserScrollIntent}
+        onTouchMove={onUserScrollIntent}
+        onKeyDown={onUserScrollIntent}
+        className="flex-1 overflow-y-auto overscroll-contain"
+      >
         {isThreadLoading ? (
           <LoadingSkeleton isLightTheme={isLightTheme} />
         ) : threadError ? (
@@ -200,41 +191,14 @@ export default function ChatWindow({
             isGenerating={isGenerating}
             messages={messages}
             scrollContainer={scrollElement}
-            bottomSpacer={composerHeight + 16}
             onRetry={onRetryMessage}
           />
         )}
       </div>
 
-      {showScrollToBottom ? (
-        <button
-          type="button"
-          onClick={onScrollToBottom}
-          aria-label="Scroll to bottom"
-          className="absolute right-4 z-20 flex items-center justify-center overflow-hidden rounded-full bg-accent-cyan text-slate-950 shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70"
-          style={{
-            bottom: `${composerHeight + 12}px`,
-            width: "32px",
-            height: "32px",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            className="h-3.5 w-3.5"
-            style={{ width: "14px", height: "14px" }}
-            aria-hidden="true"
-          >
-            <path d="M19 14l-7 7-7-7M12 21V3" />
-          </svg>
-        </button>
-      ) : null}
-
       <div
         className={classNames(
-          "sticky bottom-0 z-10 shrink-0 border-t px-3 pt-2",
+          "relative sticky bottom-0 z-10 shrink-0 border-t px-3 pt-2",
           isLightTheme ? "border-slate-100 bg-white/95" : "",
         )}
         style={{
@@ -242,6 +206,25 @@ export default function ChatWindow({
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
         }}
       >
+        {showScrollToBottom ? (
+          <button
+            type="button"
+            onClick={onScrollToBottom}
+            aria-label="Scroll to bottom"
+            className="absolute bottom-full right-4 z-20 mb-3 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-accent-cyan text-slate-950 shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/70"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            >
+              <path d="M19 14l-7 7-7-7M12 21V3" />
+            </svg>
+          </button>
+        ) : null}
         {composer}
       </div>
 

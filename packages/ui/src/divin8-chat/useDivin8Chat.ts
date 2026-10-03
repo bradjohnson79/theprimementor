@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction, type TouchEvent, type UIEvent, type WheelEvent } from "react";
 import type {
   Divin8ProfileCreateRequest,
   Divin8ProfileResponse,
@@ -130,6 +130,7 @@ export interface UseDivin8ChatReturn {
   handleDeleteProfile: (profileId: string) => Promise<void>;
   insertProfileTag: (tag: string) => void;
   handleViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
+  handleViewportIntent: (event: WheelEvent<HTMLDivElement> | TouchEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => void;
   scrollToBottom: (behavior: ScrollBehavior) => void;
   setSearchQuery: (query: string) => void;
   handleExport: (format: Divin8ConversationExportFormat) => void;
@@ -659,6 +660,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   const resizeFollowRafRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
   const shouldAutoFollowRef = useRef(true);
+  const programmaticScrollRef = useRef(false);
+  const userScrollingRef = useRef(false);
+  const userScrollIdleRef = useRef<number | null>(null);
+  const scrollSourceRef = useRef<"user" | "programmatic" | "restore">("user");
+  const contentPinArmedRef = useRef(false);
+  const touchStartYRef = useRef<number | null>(null);
   const previousMessageStateRef = useRef<{ threadId: string | null; count: number; generating: boolean }>({
     threadId: null,
     count: 0,
@@ -803,39 +810,108 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
   }, [isGenerating, messages]);
 
   // -- Scroll helpers --
-  const updateNearBottomState = useCallback((element: HTMLDivElement) => {
+  const markUserScrolling = useCallback(() => {
+    userScrollingRef.current = true;
+    if (userScrollIdleRef.current !== null) {
+      window.clearTimeout(userScrollIdleRef.current);
+    }
+    userScrollIdleRef.current = window.setTimeout(() => {
+      userScrollingRef.current = false;
+      userScrollIdleRef.current = null;
+    }, 180);
+  }, []);
+
+  const releaseUserFollow = useCallback(() => {
+    shouldAutoFollowRef.current = false;
+    contentPinArmedRef.current = false;
+    programmaticScrollRef.current = false;
+    markUserScrolling();
+  }, [markUserScrolling]);
+
+  const updateNearBottomState = useCallback((element: HTMLDivElement, source: "user" | "programmatic" | "restore") => {
     const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
     const nextNearBottom = remaining <= NEAR_BOTTOM_THRESHOLD;
     isNearBottomRef.current = nextNearBottom;
-    shouldAutoFollowRef.current = nextNearBottom;
+    if (source === "user" || source === "restore") {
+      shouldAutoFollowRef.current = nextNearBottom;
+    }
+    if (source === "user") {
+      if (!nextNearBottom) {
+        contentPinArmedRef.current = false;
+      }
+      markUserScrolling();
+    }
     setShowScrollToBottom(!nextNearBottom);
     if (activeThreadIdRef.current) {
       scrollPositionsRef.current[activeThreadIdRef.current] = element.scrollTop;
     }
-  }, []);
+  }, [markUserScrolling]);
 
   const handleViewportScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
+    scrollSourceRef.current = programmaticScrollRef.current ? "programmatic" : "user";
     if (scrollRafRef.current) return;
     scrollRafRef.current = window.requestAnimationFrame(() => {
       scrollRafRef.current = null;
-      updateNearBottomState(el);
+      updateNearBottomState(el, scrollSourceRef.current);
     });
   }, [updateNearBottomState]);
+
+  const handleViewportIntent = useCallback((event: WheelEvent<HTMLDivElement> | TouchEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
+    if (event.type === "wheel" && "deltaY" in event) {
+      if (event.deltaY < 0) releaseUserFollow();
+      return;
+    }
+    if (event.type === "touchstart" && "touches" in event) {
+      touchStartYRef.current = event.touches[0]?.clientY ?? null;
+      return;
+    }
+    if (event.type === "touchmove" && "touches" in event) {
+      const nextY = event.touches[0]?.clientY;
+      const startY = touchStartYRef.current;
+      if (nextY != null && startY != null && nextY > startY + 4) {
+        releaseUserFollow();
+      }
+      return;
+    }
+    if (event.type === "keydown" && "key" in event && (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home")) {
+      releaseUserFollow();
+    }
+  }, [releaseUserFollow]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const viewport = messageViewportRef.current;
     if (!viewport) return;
     shouldAutoFollowRef.current = true;
+    contentPinArmedRef.current = true;
+    userScrollingRef.current = false;
+    programmaticScrollRef.current = true;
     window.requestAnimationFrame(() => {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior });
-      window.requestAnimationFrame(() => updateNearBottomState(viewport));
+      const finish = () => {
+        programmaticScrollRef.current = false;
+        updateNearBottomState(viewport, "programmatic");
+      };
+      if (behavior === "smooth") {
+        const onEnd = () => {
+          viewport.removeEventListener("scrollend", onEnd);
+          finish();
+        };
+        viewport.addEventListener("scrollend", onEnd);
+        window.setTimeout(() => {
+          viewport.removeEventListener("scrollend", onEnd);
+          if (programmaticScrollRef.current) finish();
+        }, 700);
+        return;
+      }
+      window.requestAnimationFrame(finish);
     });
   }, [updateNearBottomState]);
 
   useEffect(() => () => {
     if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
     if (resizeFollowRafRef.current) window.cancelAnimationFrame(resizeFollowRafRef.current);
+    if (userScrollIdleRef.current !== null) window.clearTimeout(userScrollIdleRef.current);
   }, []);
 
   // -- Scroll restore after thread load --
@@ -844,12 +920,18 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const pending = pendingScrollRestoreRef.current;
     if (!viewport || !activeThreadId || isLoadingThread || !pending || pending.threadId !== activeThreadId) return;
     pendingScrollRestoreRef.current = null;
+    programmaticScrollRef.current = true;
     if (pending.mode === "restore" && scrollPositionsRef.current[activeThreadId] !== undefined) {
       viewport.scrollTop = scrollPositionsRef.current[activeThreadId];
+      contentPinArmedRef.current = false;
     } else {
       viewport.scrollTop = viewport.scrollHeight;
+      contentPinArmedRef.current = true;
     }
-    updateNearBottomState(viewport);
+    updateNearBottomState(viewport, "restore");
+    window.requestAnimationFrame(() => {
+      programmaticScrollRef.current = false;
+    });
   }, [activeThreadId, isLoadingThread, messages.length, updateNearBottomState]);
 
   // -- Auto-scroll on new messages --
@@ -861,9 +943,13 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     const generatingStarted = isGenerating && !prev.generating;
     previousMessageStateRef.current = { threadId: activeThreadId, count: messages.length, generating: isGenerating };
     if (!viewport || !activeThreadId || isLoadingThread || threadChanged) return;
-    if ((countIncreased || generatingStarted) && (isNearBottomRef.current || shouldAutoFollowRef.current)) {
-      scrollToBottom("instant");
+    if (!(countIncreased || generatingStarted)) return;
+    if (userScrollingRef.current || (!isNearBottomRef.current && !shouldAutoFollowRef.current)) {
+      contentPinArmedRef.current = false;
+      return;
     }
+    contentPinArmedRef.current = true;
+    scrollToBottom("instant");
   }, [activeThreadId, isGenerating, isLoadingThread, messages.length, scrollToBottom]);
 
   useEffect(() => {
@@ -873,8 +959,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       return;
     }
 
-    const observer = new ResizeObserver(() => {
-      if (!shouldAutoFollowRef.current) {
+    const observer = new ResizeObserver((entries) => {
+      const viewportResized = entries.some((entry) => entry.target === viewport);
+      if (!shouldAutoFollowRef.current || userScrollingRef.current) {
+        return;
+      }
+      if (!viewportResized && !contentPinArmedRef.current) {
         return;
       }
       if (resizeFollowRafRef.current) {
@@ -882,12 +972,23 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       }
       resizeFollowRafRef.current = window.requestAnimationFrame(() => {
         resizeFollowRafRef.current = null;
+        if (!shouldAutoFollowRef.current || userScrollingRef.current) {
+          return;
+        }
+        if (!viewportResized && !contentPinArmedRef.current) {
+          return;
+        }
+        programmaticScrollRef.current = true;
         viewport.scrollTop = viewport.scrollHeight;
-        updateNearBottomState(viewport);
+        window.requestAnimationFrame(() => {
+          programmaticScrollRef.current = false;
+          updateNearBottomState(viewport, "programmatic");
+        });
       });
     });
 
     observer.observe(content);
+    observer.observe(viewport);
     return () => {
       observer.disconnect();
       if (resizeFollowRafRef.current) {
@@ -1708,6 +1809,7 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
     handleDeleteProfile,
     insertProfileTag,
     handleViewportScroll,
+    handleViewportIntent,
     scrollToBottom,
     setSearchQuery,
     handleExport,
