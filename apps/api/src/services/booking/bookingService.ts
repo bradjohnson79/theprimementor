@@ -46,10 +46,12 @@ import {
   isOfflineRecordedSessionType,
   isPrimeBodyHealingDeliveryFormat,
   type BookingClientGender,
+  type BookingClientImage,
   type BookingIntakePayload,
   type BookingSessionType,
   type BookingStatus,
 } from "./bookingConstants.js";
+import { claimBookingIntakeImage } from "./intakeImageService.js";
 import { normalizeStructuredBirthplace } from "../intake/placeSelection.js";
 import {
   MENTORING_CIRCLE_BOOKING_TYPE_ID,
@@ -571,8 +573,31 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (birthPlace) intake.birthPlace = birthPlace;
   if (other) intake.other = other;
   if (notes) intake.notes = notes;
+  const clientImage = parseClientImage(raw.clientImage);
+  if (clientImage) intake.clientImage = clientImage;
 
   return intake;
+}
+
+function parseClientImage(value: unknown): BookingClientImage | null {
+  if (value == null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw createHttpError(400, "Intake image is invalid.");
+  }
+  const raw = value as Record<string, unknown>;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const fileName = typeof raw.fileName === "string" ? raw.fileName.trim() : "";
+  const contentType = typeof raw.contentType === "string" ? raw.contentType.trim().toLowerCase() : "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw createHttpError(400, "Intake image is invalid.");
+  }
+  if (!fileName || fileName.length > 180) {
+    throw createHttpError(400, "Intake image is invalid.");
+  }
+  if (contentType !== "image/jpeg" && contentType !== "image/png" && contentType !== "image/webp") {
+    throw createHttpError(400, "Intake image is invalid.");
+  }
+  return { id, fileName, contentType };
 }
 
 function parseStoredAvailability(value: unknown): BookingAvailability | null {
@@ -728,6 +753,7 @@ function buildNormalizedIntake(
   const other = normalizeText(intake.other);
   const normalized: BookingIntakePayload = { type: sessionType };
   if (intake.gender) normalized.gender = intake.gender;
+  if (intake.clientImage) normalized.clientImage = intake.clientImage;
   if (notes) normalized.notes = notes;
 
   if (sessionType === "focus") {
@@ -1439,6 +1465,14 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
       });
     }
 
+    if (intake.clientImage) {
+      await claimBookingIntakeImage(db, {
+        imageId: intake.clientImage.id,
+        userId: bookingUserId,
+        bookingId: reusableBookingId,
+      });
+    }
+
     const existingSummary = await getBookingSummaryById(db, reusableBookingId);
     if (!existingSummary) {
       throw createHttpError(500, "Reusable booking could not be loaded");
@@ -1475,6 +1509,14 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
         notes,
       })
       .returning({ id: bookings.id });
+
+    if (intake.clientImage) {
+      await claimBookingIntakeImage(tx, {
+        imageId: intake.clientImage.id,
+        userId: bookingUserId,
+        bookingId: created.id,
+      });
+    }
 
     if (!deferPaymentRecord) {
       await createPaymentRecordForBooking(tx, {

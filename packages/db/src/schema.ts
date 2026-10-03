@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -490,6 +491,30 @@ export const bookings = pgTable("bookings", {
     .on(table.user_id, table.booking_type_id, table.event_key)
     .where(sql`${table.event_key} is not null`),
   eventKeyIdx: index("bookings_event_key_idx").on(table.event_key, table.status),
+}));
+
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+export const bookingIntakeImages = pgTable("booking_intake_images", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id)
+    .notNull(),
+  booking_id: uuid("booking_id").references(() => bookings.id),
+  file_name: text("file_name").notNull(),
+  content_type: text("content_type").notNull(),
+  byte_size: integer("byte_size").notNull(),
+  data: bytea("data").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  bookingUnique: uniqueIndex("booking_intake_images_booking_uidx")
+    .on(table.booking_id)
+    .where(sql`${table.booking_id} is not null`),
+  userCreatedIdx: index("booking_intake_images_user_created_idx").on(table.user_id, table.created_at),
 }));
 
 export const payments = pgTable("payments", {

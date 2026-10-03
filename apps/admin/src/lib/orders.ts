@@ -171,6 +171,11 @@ export interface AdminOrder {
       question_1?: string | null;
       question_2?: string | null;
       question_3?: string | null;
+      client_image?: {
+        id: string;
+        file_name: string;
+        content_type: string;
+      } | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;

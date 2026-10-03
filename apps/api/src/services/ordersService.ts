@@ -213,6 +213,11 @@ export interface AdminOrder {
       question_1?: string | null;
       question_2?: string | null;
       question_3?: string | null;
+      client_image?: {
+        id: string;
+        file_name: string;
+        content_type: string;
+      } | null;
     };
     availability: AdminOrderAvailability | null;
     report_type: string | null;
@@ -609,6 +614,7 @@ function createEmptyIntakeMetadata(): AdminOrder["metadata"]["intake"] {
     delivery_format: null,
     healing_areas: [],
     concerns: null,
+    client_image: null,
   };
 }
 
@@ -1904,6 +1910,21 @@ function parseBookingIntake(value: unknown) {
     question2: getString(value.question2),
     question3: getString(value.question3),
     preparatoryNote: getString(value.preparatoryNote),
+    clientImage: parseClientImageReference(value.clientImage),
+  };
+}
+
+function parseClientImageReference(value: unknown) {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const fileName = getString(value.fileName);
+  const contentType = getString(value.contentType);
+  if (!id || !fileName || !contentType) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
+  return {
+    id,
+    file_name: fileName,
+    content_type: contentType,
   };
 }
 
@@ -2337,6 +2358,7 @@ function createSessionCandidate(
         question_1: intakeSnapshot?.intake?.question1 ?? intake?.question1 ?? null,
         question_2: intakeSnapshot?.intake?.question2 ?? intake?.question2 ?? null,
         question_3: intakeSnapshot?.intake?.question3 ?? intake?.question3 ?? null,
+        client_image: intakeSnapshot?.intake?.clientImage ?? intake?.clientImage ?? null,
       },
       availability,
       report_type: null,

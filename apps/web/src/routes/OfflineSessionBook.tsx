@@ -2,11 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth, useUser } from "@clerk/react";
 import { getActiveSessionOfferingByBookingTypeId } from "@wisdom/utils";
+import SessionIntakeImageField from "../components/bookings/SessionIntakeImageField";
 import FormField from "../components/forms/FormField";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { startSessionCheckout } from "../lib/sessionCheckout";
+import { uploadSessionIntakeImage } from "../lib/uploadSessionIntakeImage";
 import {
   EMAIL_SESSION_BOOKING_PATH,
   EMAIL_SESSION_LANDING_PATH,
@@ -89,6 +91,7 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
   const [question3, setQuestion3] = useState("");
   const [preparatoryNote, setPreparatoryNote] = useState("");
   const [consentGiven, setConsentGiven] = useState(false);
+  const [intakeImageFile, setIntakeImageFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -158,6 +161,9 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
     setError(null);
     try {
       const token = await getToken();
+      const clientImage = intakeImageFile
+        ? await uploadSessionIntakeImage(intakeImageFile, token)
+        : undefined;
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const payload = {
         bookingTypeId: content.bookingTypeId,
@@ -173,6 +179,7 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
         intake: {
           type: content.sessionType,
           gender,
+          ...(clientImage ? { clientImage } : {}),
           ...(product === "email"
             ? {
               questionRecipient: recipient,
@@ -270,6 +277,12 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
             </FormField>
           )}
 
+          <SessionIntakeImageField
+            id="offline-intake-image"
+            file={intakeImageFile}
+            onChange={setIntakeImageFile}
+          />
+
           <label className="flex items-start gap-3 text-sm text-white/75">
             <input type="checkbox" className="mt-1" checked={consentGiven} onChange={(event) => setConsentGiven(event.target.checked)} />
             <span>
@@ -291,6 +304,7 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
             <ReviewRow label="Gender" value={gender} />
             <ReviewRow label="Phone" value={phone || "None added"} />
             <ReviewRow label="Birthdate" value={birthDate || "None added"} />
+            <ReviewRow label="Photo" value={intakeImageFile?.name || "None added"} />
             {product === "email" ? (
               <>
                 <ReviewRow label="Addressed to" value={recipientLabel(recipient)} />

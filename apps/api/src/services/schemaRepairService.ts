@@ -24,6 +24,22 @@ const REPAIRABLE_PREFIXES = [
   "course_lesson_progress.",
   "webinar_recording_entitlements.",
   "webinar_recording_progress.",
+  "booking_intake_images.",
+] as const;
+
+const BOOKING_INTAKE_IMAGE_REPAIR = [
+  `CREATE TABLE IF NOT EXISTS "booking_intake_images" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL REFERENCES "users"("id"),
+    "booking_id" uuid REFERENCES "bookings"("id"),
+    "file_name" text NOT NULL,
+    "content_type" text NOT NULL,
+    "byte_size" integer NOT NULL,
+    "data" bytea NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "booking_intake_images_booking_uidx" ON "booking_intake_images" ("booking_id") WHERE "booking_id" IS NOT NULL;`,
+  `CREATE INDEX IF NOT EXISTS "booking_intake_images_user_created_idx" ON "booking_intake_images" ("user_id", "created_at");`,
 ] as const;
 
 const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
@@ -861,6 +877,14 @@ const KNOWN_SCHEMA_REPAIR_STATEMENTS = [
 
 const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
   "users.phone": [`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;`],
+  "booking_intake_images.id": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.user_id": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.booking_id": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.file_name": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.content_type": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.byte_size": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.data": BOOKING_INTAKE_IMAGE_REPAIR,
+  "booking_intake_images.created_at": BOOKING_INTAKE_IMAGE_REPAIR,
 };
 
 const KNOWN_DATA_REPAIR_STATEMENTS = [
@@ -1067,6 +1091,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "buffer_after_minutes" = excluded."buffer_after_minutes",
     "is_active" = true,
     "updated_at" = now();`,
+  ...BOOKING_INTAKE_IMAGE_REPAIR,
 ] as const;
 
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {

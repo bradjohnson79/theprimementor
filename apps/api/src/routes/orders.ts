@@ -10,6 +10,7 @@ import { markAdminOrderManualPaid } from "../services/adminOrderPaymentService.j
 import { updateAdminOrderIntake, type AdminOrderIntakeUpdateInput } from "../services/adminOrderIntakeService.js";
 import { sendAdminReportRecoveryInvoice } from "../services/reportRecoveryInvoiceService.js";
 import { createAdminOrderInvoice } from "../services/adminOrderInvoiceService.js";
+import { readBookingIntakeImage } from "../services/booking/intakeImageService.js";
 
 interface OrdersQuery {
   limit?: string;
@@ -108,6 +109,33 @@ export async function ordersRoutes(app: FastifyInstance) {
       data: await setArchivedStateForAdminOrders(db, { orderIds, archived }),
     });
   });
+
+  app.get<{ Params: { orderId: string }; Querystring: { download?: string } }>(
+    "/admin/orders/:orderId/intake-image",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+      const bookingId = request.params.orderId.startsWith("session_")
+        ? request.params.orderId.slice("session_".length)
+        : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookingId)) {
+        return sendApiError(reply, 404, "Intake image not found");
+      }
+
+      const image = await readBookingIntakeImage(db, bookingId);
+      if (!image) {
+        return sendApiError(reply, 404, "Intake image not found");
+      }
+
+      const filename = image.fileName.replace(/["\r\n]/g, "");
+      const disposition = request.query.download === "1" ? "attachment" : "inline";
+      reply.header("Content-Type", image.contentType);
+      reply.header("Content-Disposition", `${disposition}; filename="${filename}"`);
+      reply.header("Cache-Control", "private, max-age=60");
+      return reply.send(image.data);
+    },
+  );
 
   app.get<{ Params: { orderId: string } }>("/admin/orders/:orderId", { preHandler: requireAuth }, async (request, reply) => {
     requireAdmin(request);

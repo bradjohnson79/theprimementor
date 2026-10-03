@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { logger } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requireAdmin, requireDatabase } from "../routeAssertions.js";
+import { requireAdmin, requireDatabase, requireDbUser } from "../routeAssertions.js";
 import {
   cancelBooking,
   confirmBookingAvailability,
@@ -14,6 +14,7 @@ import {
   listActiveIntakeBookingTypes,
   validateActiveCanonicalBookingTypeCatalog,
 } from "../services/booking/bookingTypesService.js";
+import { saveBookingIntakeImage } from "../services/booking/intakeImageService.js";
 
 interface CreateBookingBody {
   bookingTypeId?: string;
@@ -61,6 +62,37 @@ export async function bookingsRoutes(app: FastifyInstance) {
       throw new Error(`Booking type catalog is invalid: ${validation.errors.join("; ")}`);
     }
     return ok({ data: await listActiveIntakeBookingTypes(db) });
+  });
+
+  app.post("/bookings/intake-images", { preHandler: requireAuth }, async (request, reply) => {
+    const db = requireDatabase(app.db);
+    const user = requireDbUser(request);
+    const data = await request.file({ limits: { fileSize: 5 * 1024 * 1024 } });
+    if (!data) {
+      return sendApiError(reply, 400, "No file uploaded. Include a file in the 'image' field.");
+    }
+
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    for await (const chunk of data.file) {
+      totalBytes += chunk.length;
+      if (totalBytes > 5 * 1024 * 1024) {
+        return sendApiError(reply, 413, "Image must be under 5MB.");
+      }
+      chunks.push(chunk);
+    }
+    if (data.file.truncated) {
+      return sendApiError(reply, 413, "Image must be under 5MB.");
+    }
+
+    const saved = await saveBookingIntakeImage(db, {
+      userId: user.id,
+      fileName: data.filename || "intake-image",
+      contentType: data.mimetype,
+      data: Buffer.concat(chunks),
+    });
+
+    return ok(saved);
   });
 
   app.post<{ Body: CreateBookingBody }>("/bookings", { preHandler: requireAuth }, async (request, reply) => {

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth, useUser } from "@clerk/react";
+import SessionIntakeImageField from "../components/bookings/SessionIntakeImageField";
 import { api } from "../lib/api";
 import { startSessionCheckout } from "../lib/sessionCheckout";
+import { uploadSessionIntakeImage } from "../lib/uploadSessionIntakeImage";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { PRIME_BODY_HEALING_LANDING_PATH } from "../lib/sessionLandingPaths";
@@ -44,6 +46,7 @@ export default function PrimeBodyHealingBook() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [concerns, setConcerns] = useState("");
   const [notes, setNotes] = useState("");
+  const [intakeImageFile, setIntakeImageFile] = useState<File | null>(null);
   const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -108,6 +111,9 @@ export default function PrimeBodyHealingBook() {
     setIsProcessing(true);
     try {
       const token = await getToken();
+      const clientImage = intakeImageFile
+        ? await uploadSessionIntakeImage(intakeImageFile, token)
+        : undefined;
       const healingAreas = areas.map(normalizeText).filter(Boolean).slice(0, 5);
       const payload = {
         bookingTypeId,
@@ -128,6 +134,7 @@ export default function PrimeBodyHealingBook() {
         notes: normalizeText(notes) || undefined,
         intake: {
           type: "prime_body_healing",
+          ...(clientImage ? { clientImage } : {}),
           deliveryFormat: level === 2 ? "scan" : deliveryFormat,
           healingAreas,
           concerns: level === 2 ? normalizeText(concerns) : undefined,
@@ -346,6 +353,7 @@ export default function PrimeBodyHealingBook() {
             </label>
           </div>
         </fieldset>
+        <SessionIntakeImageField file={intakeImageFile} onChange={setIntakeImageFile} />
         <label className="block space-y-1 text-sm">
           <span>Optional notes</span>
           <textarea className={`${fieldClass} min-h-24`} value={notes} onChange={(event) => setNotes(event.target.value)} />

@@ -11,6 +11,7 @@ import {
   isRegenerationOfferActive,
 } from "@wisdom/utils";
 import TimezoneSelect from "@wisdom/ui/timezone-select";
+import SessionIntakeImageField from "../components/bookings/SessionIntakeImageField";
 import FormField from "../components/forms/FormField";
 import FormStepper, { type StepConfig } from "../components/forms/FormStepper";
 import ReviewStep from "../components/forms/ReviewStep";
@@ -22,6 +23,7 @@ import { usePromoCode } from "../hooks/usePromoCode";
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import regenerationOfferImage from "../assets/regeneration-qa-package.png";
 import { api } from "../lib/api";
+import { uploadSessionIntakeImage, type SessionIntakeImageRef } from "../lib/uploadSessionIntakeImage";
 import { trackEventOnce } from "../lib/analytics";
 import { formatRegenerationOfferPrice } from "../lib/regenerationOffer";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
@@ -314,6 +316,7 @@ export default function Bookings() {
   const [detectedTimezoneSource, setDetectedTimezoneSource] = useState<DetectedTimezoneSource>(null);
   const [availabilitySelection, setAvailabilitySelection] = useState<AvailabilitySelection>(createEmptyAvailabilitySelection);
   const [form, setForm] = useState<IntakeFormState>(() => buildInitialFormState());
+  const [intakeImageFile, setIntakeImageFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -721,11 +724,14 @@ export default function Bookings() {
     return nextErrors;
   }
 
-  function buildBookingPayload(place?: PlaceResult | null) {
+  function buildBookingPayload(place?: PlaceResult | null, clientImage?: SessionIntakeImageRef) {
     const intake: Record<string, unknown> = {
       type: selectedSessionType,
       gender: form.gender,
     };
+    if (clientImage) {
+      intake.clientImage = clientImage;
+    }
 
     if (selectedSessionType === "mentoring") {
       intake.goals = form.mentoringTopics;
@@ -789,7 +795,10 @@ export default function Bookings() {
     setIsProcessing(true);
     try {
       const token = await getToken();
-      const bookingPayload = buildBookingPayload(isQA ? null : birthplace);
+      const clientImage = intakeImageFile
+        ? await uploadSessionIntakeImage(intakeImageFile, token)
+        : undefined;
+      const bookingPayload = buildBookingPayload(isQA ? null : birthplace, clientImage);
 
       if (isRegeneration) {
         if (isRegenerationOfferPackage) {
@@ -1061,6 +1070,7 @@ export default function Bookings() {
             label: "What you'd like to explore",
             value: normalizeText(form.qaTopics) || "No topics added yet",
           },
+          { label: "Photo", value: intakeImageFile?.name || "None added" },
           { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
         ],
       });
@@ -1110,6 +1120,7 @@ export default function Bookings() {
         title: "Optional Inputs",
         items: [
           { label: "Additional Notes", value: normalizeText(form.additionalNotes) || "None added" },
+          { label: "Photo", value: intakeImageFile?.name || "None added" },
           { label: "Consent", value: form.consentGiven ? "Confirmed" : "Please confirm before purchase" },
         ],
       });
@@ -1119,6 +1130,7 @@ export default function Bookings() {
   }, [
     availabilitySummary,
     form.additionalNotes,
+    intakeImageFile,
     form.birthDate,
     form.birthPlace,
     form.birthTime,
@@ -1568,6 +1580,7 @@ export default function Bookings() {
         validate: validateIntentStep,
         isComplete: () => normalizeText(form.qaTopics).length <= 2000,
         render: () => (
+          <>
           <FormField
             label="What would you like to explore during this session?"
             htmlFor="session-qa-topics"
@@ -1587,6 +1600,10 @@ export default function Bookings() {
               placeholder="List any questions, topics, or areas you would like to discuss. These can be personal, spiritual, practical, or curiosity-based."
             />
           </FormField>
+          <div className="mt-5">
+            <SessionIntakeImageField file={intakeImageFile} onChange={setIntakeImageFile} />
+          </div>
+          </>
         ),
       });
     } else {
@@ -1759,22 +1776,27 @@ export default function Bookings() {
           validate: validateOptionalStep,
           isComplete: () => true,
           render: () => (
-            <FormField
-              label="Additional Notes"
-              htmlFor="session-additional-notes"
-              helperText="Optional - include anything that feels useful before the session begins."
-              optional
-              isComplete={Boolean(normalizeText(form.additionalNotes))}
-            >
-              <textarea
-                id="session-additional-notes"
-                className={`${fieldClassName} min-h-[132px]`}
-                rows={5}
-                value={form.additionalNotes}
-                onChange={(event) => setFormField("additionalNotes", event.target.value)}
-                placeholder="Anything else you want us to know before the session."
-              />
-            </FormField>
+            <>
+              <FormField
+                label="Additional Notes"
+                htmlFor="session-additional-notes"
+                helperText="Optional - include anything that feels useful before the session begins."
+                optional
+                isComplete={Boolean(normalizeText(form.additionalNotes))}
+              >
+                <textarea
+                  id="session-additional-notes"
+                  className={`${fieldClassName} min-h-[132px]`}
+                  rows={5}
+                  value={form.additionalNotes}
+                  onChange={(event) => setFormField("additionalNotes", event.target.value)}
+                  placeholder="Anything else you want us to know before the session."
+                />
+              </FormField>
+              <div className="mt-5">
+                <SessionIntakeImageField file={intakeImageFile} onChange={setIntakeImageFile} />
+              </div>
+            </>
           ),
         },
       );
@@ -1870,6 +1892,7 @@ export default function Bookings() {
     fieldErrors.sessionType,
     fieldErrors.timezone,
     form,
+    intakeImageFile,
     isPlaceSelected,
     isRegeneration,
     isRegenerationMonthly,

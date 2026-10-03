@@ -25,6 +25,83 @@ function renderValue(value: string | null | undefined) {
   return value && value.trim() ? value : "—";
 }
 
+function IntakeImagePanel({
+  orderId,
+  image,
+}: {
+  orderId: string;
+  image: AdminOrder["metadata"]["intake"]["client_image"];
+}) {
+  const { getToken } = useAuth();
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    if (!image) return;
+    let active = true;
+    let objectUrl = "";
+    void (async () => {
+      try {
+        const token = await getToken();
+        const blob = await api.getBlob(`/admin/orders/${orderId}/intake-image`, token);
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "The photo could not be loaded.");
+      }
+    })();
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [getToken, image, orderId]);
+
+  if (!image) {
+    return (
+      <div className="mt-4">
+        <p className="text-xs text-white/40">Photo</p>
+        <p className="text-white/85">None added</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-xs text-white/40">Photo</p>
+      {src ? (
+        <img src={src} alt="Client intake photo" className="max-h-80 rounded-xl border border-white/10 object-contain" />
+      ) : (
+        <p className="text-sm text-white/60">{error ?? "Loading photo..."}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="truncate text-sm text-white/70">{image.file_name}</p>
+        <button
+          type="button"
+          disabled={downloading}
+          onClick={() => {
+            setDownloading(true);
+            void getToken()
+              .then((token) => api.downloadBlob(
+                `/admin/orders/${orderId}/intake-image?download=1`,
+                token,
+                image.file_name,
+              ))
+              .catch((err) => setError(err instanceof Error ? err.message : "Download failed."))
+              .finally(() => setDownloading(false));
+          }}
+          className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100 disabled:opacity-60"
+        >
+          {downloading ? "Downloading..." : "Download photo"}
+        </button>
+      </div>
+      {error && src ? <p className="text-sm text-rose-200">{error}</p> : null}
+    </div>
+  );
+}
+
 function renderList(values: string[]) {
   return values.length > 0 ? values.join(", ") : "—";
 }
@@ -1496,6 +1573,9 @@ export default function OrderDetail() {
               </button>
             ) : null}
           </div>
+          {order.type === "session" ? (
+            <IntakeImagePanel orderId={order.id} image={order.metadata.intake.client_image} />
+          ) : null}
 
           {editingIntake && intakeForm ? (
             <div className="mt-4 space-y-4">

@@ -121,6 +121,16 @@ export const api = {
     return handleResponse(res);
   },
 
+  getBlob: async (path: string, token?: string | null) => {
+    const res = await fetch(resolveApiUrl(path), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(await getErrorMessage(res));
+    }
+    return res.blob();
+  },
+
   /** Binary download (DOCX/PDF). Uses fetch blob; filename hint for save dialog. */
   downloadBlob: async (path: string, token: string | null, suggestedFilename: string) => {
     const res = await fetch(resolveApiUrl(path), {

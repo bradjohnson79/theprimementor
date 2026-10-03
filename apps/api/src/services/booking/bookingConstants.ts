@@ -81,9 +81,16 @@ export const PAST_LIFE_AKASHIC_BOOKING_TYPE_ID = "past-life-akashic-reading";
 export const OFFLINE_QUESTION_MAX_LENGTH = 1000;
 export const OFFLINE_PREPARATORY_NOTE_MAX_LENGTH = 2000;
 
+export interface BookingClientImage {
+  id: string;
+  fileName: string;
+  contentType: string;
+}
+
 export interface BookingIntakePayload {
   type: BookingSessionType;
   gender?: BookingClientGender;
+  clientImage?: BookingClientImage;
   topics?: string[] | string;
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];
