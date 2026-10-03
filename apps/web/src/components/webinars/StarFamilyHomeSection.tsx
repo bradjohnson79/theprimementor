@@ -38,10 +38,10 @@ export default function StarFamilyHomeSection() {
         initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.45 }}
-        className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/15 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(16rem,28rem)_minmax(0,1fr)]"
+        className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/15 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)] lg:items-center"
       >
-        <div className="bg-[#04050f]">
-          <StarFamilyPoster priority />
+        <div className="flex justify-center bg-[#04050f] p-4 sm:p-6">
+          <StarFamilyPoster priority portrait className="max-w-[18rem]" />
         </div>
         <div className="flex flex-col justify-center space-y-5 p-6 sm:p-8 lg:p-10">
           <div className="space-y-3">

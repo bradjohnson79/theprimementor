@@ -442,8 +442,8 @@ export default function Home() {
       <HeroSection />
       <PrimeMentorServices />
       <AdronisWebinarHomeCard />
-      <HomeShopGallery />
       <StarFamilyHomeSection />
+      <HomeShopGallery />
       <DisclosureOnDemandCompactCard />
       <RegenerationOfferHomePanel />
 
