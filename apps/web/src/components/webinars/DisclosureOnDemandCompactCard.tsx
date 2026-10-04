@@ -10,7 +10,7 @@ import { trackEvent } from "../../lib/analytics";
 import { fetchOnDemandWebinarMe, fetchPublicOnDemandWebinar } from "../../lib/onDemandWebinarApi";
 import OnDemandWebinarCheckoutButton from "./OnDemandWebinarCheckoutButton";
 
-export default function DisclosureOnDemandCompactCard() {
+export default function DisclosureOnDemandCompactCard({ className = "" }: { className?: string }) {
   const { isSignedIn, getToken } = useAuth();
   const fallback = getOnDemandWebinarById(ADRONIS_ON_DEMAND_WEBINAR_ID);
   const [catalog, setCatalog] = useState(() => (
@@ -56,7 +56,7 @@ export default function DisclosureOnDemandCompactCard() {
   if (!catalog?.published) return null;
 
   return (
-    <section aria-labelledby="disclosure-on-demand-compact-heading" className="px-4 pb-8 sm:px-6">
+    <section aria-labelledby="disclosure-on-demand-compact-heading" className={`px-4 pb-8 sm:px-6 ${className}`.trim()}>
       <div className="mx-auto flex max-w-6xl flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:p-5">
         <img
           src={catalog.posterPath}

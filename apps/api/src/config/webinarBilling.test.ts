@@ -1,4 +1,4 @@
-import { getStarFamilyWebinarPublicCatalog } from "@wisdom/utils";
+import { getStarFamilyWebinarPublicCatalog, isStarFamilyWebinarHomeVisible } from "@wisdom/utils";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -101,6 +101,11 @@ test("star family registration closes one hour before the Pacific start", () => 
     () => assertWebinarRegistrationOpen(STAR_FAMILY_WEBINAR_EVENT, new Date("2026-10-17T09:00:00-07:00")),
     /closed/i,
   );
+});
+
+test("star family homepage section leaves at 9:30am Pacific on October 17", () => {
+  assert.equal(isStarFamilyWebinarHomeVisible(new Date("2026-10-17T09:29:59-07:00")), true);
+  assert.equal(isStarFamilyWebinarHomeVisible(new Date("2026-10-17T09:30:00-07:00")), false);
 });
 
 test("star family public catalog omits the zoom registration url", () => {

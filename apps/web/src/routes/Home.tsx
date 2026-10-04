@@ -12,6 +12,7 @@ import PrimeMentorServices from "../components/home/PrimeMentorServices";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import StarFamilyHomeSection from "../components/webinars/StarFamilyHomeSection";
 import DisclosureOnDemandCompactCard from "../components/webinars/DisclosureOnDemandCompactCard";
+import { useStarFamilyHomepageVisible } from "../components/webinars/useStarFamilyHomepageVisible";
 import HomeShopGallery from "../components/home/HomeShopGallery";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
@@ -415,6 +416,7 @@ function RegenerationOfferHomePanel() {
 
 export default function Home() {
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
+  const showStarFamilyHome = useStarFamilyHomepageVisible();
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
     title: REPORT_PRODUCTS[key].displayName,
     meta: "Premium Report",
@@ -442,9 +444,9 @@ export default function Home() {
       <HeroSection />
       <PrimeMentorServices />
       <AdronisWebinarHomeCard />
-      <StarFamilyHomeSection />
+      {showStarFamilyHome ? <StarFamilyHomeSection /> : <DisclosureOnDemandCompactCard className="pt-8 sm:pt-10" />}
       <HomeShopGallery />
-      <DisclosureOnDemandCompactCard />
+      {showStarFamilyHome ? <DisclosureOnDemandCompactCard /> : null}
       <RegenerationOfferHomePanel />
 
       <LandingSection id="reports">

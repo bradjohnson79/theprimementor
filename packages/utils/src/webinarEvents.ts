@@ -42,6 +42,7 @@ export const STAR_FAMILY_WEBINAR_CURRENCY = "CAD";
 export const STAR_FAMILY_WEBINAR_TIMEZONE = "America/Los_Angeles";
 export const STAR_FAMILY_WEBINAR_STARTS_AT = "2026-10-17T10:00:00-07:00";
 export const STAR_FAMILY_WEBINAR_REGISTRATION_CLOSES_AT = "2026-10-17T09:00:00-07:00";
+export const STAR_FAMILY_WEBINAR_HOME_REMOVAL_AT = "2026-10-17T09:30:00-07:00";
 export const STAR_FAMILY_WEBINAR_DURATION_MINUTES = 90;
 export const STAR_FAMILY_WEBINAR_DISPLAY_DATE = "Saturday, October 17, 2026";
 export const STAR_FAMILY_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
@@ -87,6 +88,7 @@ export const STAR_FAMILY_WEBINAR_HOME_HIGHLIGHTS = [
 
 const REGISTRATION_CLOSES_AT_MS = Date.parse(ADRONIS_WEBINAR_REGISTRATION_CLOSES_AT);
 const STAR_FAMILY_REGISTRATION_CLOSES_AT_MS = Date.parse(STAR_FAMILY_WEBINAR_REGISTRATION_CLOSES_AT);
+const STAR_FAMILY_HOME_REMOVAL_AT_MS = Date.parse(STAR_FAMILY_WEBINAR_HOME_REMOVAL_AT);
 
 export function isAdronisWebinarRegistrationOpen(now = new Date()) {
   return now.getTime() < REGISTRATION_CLOSES_AT_MS;
@@ -94,6 +96,10 @@ export function isAdronisWebinarRegistrationOpen(now = new Date()) {
 
 export function isStarFamilyWebinarRegistrationOpen(now = new Date()) {
   return now.getTime() < STAR_FAMILY_REGISTRATION_CLOSES_AT_MS;
+}
+
+export function isStarFamilyWebinarHomeVisible(now = new Date()) {
+  return now.getTime() < STAR_FAMILY_HOME_REMOVAL_AT_MS;
 }
 
 export function formatAdronisWebinarPrice(cents = ADRONIS_WEBINAR_PRICE_CENTS, currency = ADRONIS_WEBINAR_CURRENCY) {
