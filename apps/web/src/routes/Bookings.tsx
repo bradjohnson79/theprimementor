@@ -592,25 +592,6 @@ export default function Bookings() {
     setBirthTimeEdited(false);
   }, [selectedSessionType]);
 
-  useEffect(() => {
-    if (!isQA) {
-      return;
-    }
-    setBirthplace(null);
-    setForm((current) => ({
-      ...current,
-      birthPlace: "",
-      birthTime: "00:00",
-    }));
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.birthPlace;
-      delete next.timezone;
-      delete next.birthDate;
-      return next;
-    });
-  }, [isQA]);
-
   function setFormField<K extends keyof IntakeFormState>(field: K, value: IntakeFormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => {
@@ -696,8 +677,8 @@ export default function Bookings() {
     if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
     if (!form.gender) nextErrors.gender = "Gender is required.";
     if (!isQA && !normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
-    if (!isQA && !normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
-    if (!isQA && !isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
+    if (!normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
+    if (!isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
     if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
 
     if (selectedSessionType === "mentoring" && form.mentoringTopics.length === 0) {
@@ -769,12 +750,12 @@ export default function Bookings() {
       phone: normalizeText(form.phone) || undefined,
       gender: form.gender,
       birthDate: form.birthDate || undefined,
-      birthTime: isQA ? undefined : resolveBirthTimeInput(form.birthTime),
-      birthPlace: isQA ? undefined : normalizeText(form.birthPlace),
-      birthPlaceName: isQA ? undefined : place?.name,
-      birthLat: isQA ? undefined : place?.lat,
-      birthLng: isQA ? undefined : place?.lng,
-      birthTimezone: isQA ? undefined : (timezone || undefined),
+      birthTime: resolveBirthTimeInput(form.birthTime),
+      birthPlace: normalizeText(form.birthPlace),
+      birthPlaceName: place?.name,
+      birthLat: place?.lat,
+      birthLng: place?.lng,
+      birthTimezone: timezone || undefined,
       timezoneSource,
       consentGiven: form.consentGiven,
       intake,
@@ -788,7 +769,7 @@ export default function Bookings() {
 
     const nextErrors = validateForm();
     setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0 || !selectedSessionType || !selectedBookingType || (!isQA && !birthplace)) {
+    if (Object.keys(nextErrors).length > 0 || !selectedSessionType || !selectedBookingType || !birthplace) {
       return;
     }
 
@@ -798,7 +779,7 @@ export default function Bookings() {
       const clientImage = intakeImageFile
         ? await uploadSessionIntakeImage(intakeImageFile, token)
         : undefined;
-      const bookingPayload = buildBookingPayload(isQA ? null : birthplace, clientImage);
+      const bookingPayload = buildBookingPayload(birthplace, clientImage);
 
       if (isRegeneration) {
         if (isRegenerationOfferPackage) {
@@ -901,9 +882,6 @@ export default function Bookings() {
 
   function validateBirthDetailsStep() {
     const nextErrors: ValidationErrors = {};
-    if (isQA) {
-      return createValidationResult(nextErrors);
-    }
     if (!normalizeText(form.birthDate)) nextErrors.birthDate = requiredStepMessage("Your birth date");
     if (!isPlaceSelected) nextErrors.birthPlace = "Please choose your birthplace from the list so we can keep the details precise.";
     return createValidationResult(nextErrors);
@@ -969,8 +947,8 @@ export default function Bookings() {
       email: () => (normalizeText(form.email) ? undefined : requiredStepMessage("Your email")),
       phone: () => (isQA || normalizeText(form.phone) ? undefined : requiredStepMessage("Your phone number")),
       gender: () => (form.gender ? undefined : requiredStepMessage("Gender")),
-      birthDate: () => (isQA || normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
-      birthPlace: () => (isQA || isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
+      birthDate: () => (normalizeText(form.birthDate) ? undefined : requiredStepMessage("Your birth date")),
+      birthPlace: () => (isPlaceSelected ? undefined : "Please choose your birthplace from the list so we can keep the details precise."),
       timezone: () => (timezone ? undefined : requiredStepMessage("Your timezone")),
       otherDetail: () => {
         const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
@@ -1010,7 +988,6 @@ export default function Bookings() {
           { label: "Email", value: form.email || "Not provided yet" },
           { label: "Gender", value: form.gender ? form.gender[0].toUpperCase() + form.gender.slice(1) : "Not provided yet" },
           { label: "Phone", value: form.phone || "None added" },
-          { label: "Birth Date", value: form.birthDate || "None added" },
         ],
       },
     ];
@@ -1033,17 +1010,15 @@ export default function Bookings() {
       });
     }
 
-    if (!isQA) {
-      sections.push({
-        id: "birth-details",
-        title: "Birth Details",
-        items: [
-          { label: "Birth Date", value: form.birthDate || "Not provided yet" },
-          { label: "Birth Time", value: form.birthTime || "12:00 AM" },
-          { label: "Birthplace", value: form.birthPlace || "Not provided yet" },
-        ],
-      });
-    }
+    sections.push({
+      id: "birth-details",
+      title: "Birth Details",
+      items: [
+        { label: "Birth Date", value: form.birthDate || "Not provided yet" },
+        { label: "Birth Time", value: form.birthTime || "12:00 AM" },
+        { label: "Birthplace", value: form.birthPlace || "Not provided yet" },
+      ],
+    });
 
     if (requiresAvailabilitySelection) {
       sections.push({
@@ -1328,26 +1303,6 @@ export default function Bookings() {
                   placeholder="Your phone number"
                 />
               </FormField>
-
-              {isQA ? (
-                <FormField
-                  label="Birthdate"
-                  htmlFor="session-birth-date"
-                  helperText="Optional - include it if it feels relevant for the session."
-                  optional
-                  isComplete={Boolean(normalizeText(form.birthDate))}
-                  className="md:col-span-2"
-                >
-                  <input
-                    id="session-birth-date"
-                    className={fieldClassName}
-                    type="date"
-                    value={form.birthDate}
-                    onChange={(event) => setFormField("birthDate", event.target.value)}
-                    onBlur={() => handleFieldBlur("birthDate")}
-                  />
-                </FormField>
-              ) : null}
             </div>
           </div>
         ),
@@ -1462,8 +1417,7 @@ export default function Bookings() {
       });
     }
 
-    if (!isQA) {
-      nextSteps.push({
+    nextSteps.push({
         id: "birth-details",
         title: "Birth details",
         guidance: "Enter your birth details. If you're unsure of your birth time, you can leave the default in place and continue.",
@@ -1570,7 +1524,6 @@ export default function Bookings() {
           </div>
         ),
       });
-    }
 
     if (isQA) {
       nextSteps.push({

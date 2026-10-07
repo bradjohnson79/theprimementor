@@ -84,7 +84,9 @@ test("Level 1 prerecorded rejects a live format and does not require a schedule"
 
 test("Level 2 intake requires concerns and natal fields, not a live format", () => {
   assert.equal(bookingRequiresNatalFields("prime_body_healing", "prime-body-healing-level-2"), true);
-  assert.equal(bookingRequiresNatalFields("prime_body_healing", "prime-body-healing-level-1-live"), false);
+  assert.equal(bookingRequiresNatalFields("prime_body_healing", "prime-body-healing-level-1-live"), true);
+  assert.equal(bookingRequiresNatalFields("qa_session"), true);
+  assert.equal(bookingRequiresNatalFields("email_session"), true);
   assert.throws(
     () => validatePrimeBodyHealingIntake({
       bookingTypeId: "prime-body-healing-level-2",
@@ -124,7 +126,7 @@ test("offline recorded sessions skip scheduling and require their intake fields"
   assert.equal(sessionTypeRequiresAvailabilitySelection("email_session"), false);
   assert.equal(sessionTypeRequiresAvailabilitySelection("past_life_akashic"), false);
   assert.equal(bookingRequiresPhone("email_session"), false);
-  assert.equal(bookingRequiresNatalFields("past_life_akashic"), false);
+  assert.equal(bookingRequiresNatalFields("past_life_akashic"), true);
   assert.deepEqual(
     validateEmailSessionIntake({
       questionRecipient: "adronis",

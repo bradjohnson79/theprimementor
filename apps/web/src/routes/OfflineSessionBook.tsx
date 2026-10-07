@@ -4,6 +4,7 @@ import { useAuth, useUser } from "@clerk/react";
 import { getActiveSessionOfferingByBookingTypeId } from "@wisdom/utils";
 import SessionIntakeImageField from "../components/bookings/SessionIntakeImageField";
 import FormField from "../components/forms/FormField";
+import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
@@ -85,6 +86,9 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
   const [gender, setGender] = useState<Gender | "">("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [birthTime, setBirthTime] = useState("");
+  const [birthPlace, setBirthPlace] = useState("");
+  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [recipient, setRecipient] = useState<Recipient | "">("");
   const [question1, setQuestion1] = useState("");
   const [question2, setQuestion2] = useState("");
@@ -118,11 +122,25 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
 
   const price = priceLabel(content.bookingTypeId);
   const fieldClass = "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white placeholder:text-white/35 focus:border-cyan-200/50 focus:outline-none";
+  const {
+    suggestions,
+    isSearching,
+    isResolving,
+    error: placesError,
+    selectSuggestion,
+  } = useGooglePlaces(birthPlace, (place) => {
+    setSelectedPlace(place);
+    setBirthPlace(place.name);
+  });
 
   function validate() {
     if (!fullName.trim()) return "Full name is required.";
     if (!email.trim()) return "Email is required.";
     if (!gender) return "Gender is required.";
+    if (!birthDate) return "Birth date is required.";
+    if (!selectedPlace || selectedPlace.name !== birthPlace.trim()) {
+      return "Please select a birthplace from the suggestions.";
+    }
     if (!consentGiven) return "Consent is required.";
     if (product === "email") {
       if (!recipient) return "Choose who should address your questions.";
@@ -174,7 +192,13 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
         email: email.trim(),
         phone: phone.trim() || undefined,
         gender,
-        birthDate: birthDate || undefined,
+        birthDate,
+        birthTime: birthTime || undefined,
+        birthPlace: selectedPlace?.name,
+        birthPlaceName: selectedPlace?.name,
+        birthLat: selectedPlace?.lat,
+        birthLng: selectedPlace?.lng,
+        birthTimezone: selectedPlace?.timezone || timezone,
         consentGiven: true,
         intake: {
           type: content.sessionType,
@@ -240,8 +264,46 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
             <FormField label="Phone Number" htmlFor="offline-phone" helperText="Optional." optional>
               <input id="offline-phone" className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} />
             </FormField>
-            <FormField label="Birthdate" htmlFor="offline-birthdate" helperText="Optional. Include it if it feels relevant." optional className="md:col-span-2">
-              <input id="offline-birthdate" className={fieldClass} type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
+            <FormField label="Birthdate" htmlFor="offline-birthdate" helperText="Required. This anchors the session to your core timing." className="md:col-span-2">
+              <input id="offline-birthdate" className={fieldClass} type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} required />
+            </FormField>
+            <FormField label="Birth time" htmlFor="offline-birthtime" helperText="Optional. Add it if you know it. An exact time is not required." optional>
+              <input id="offline-birthtime" className={fieldClass} type="time" value={birthTime} onChange={(event) => setBirthTime(event.target.value)} />
+            </FormField>
+            <FormField label="Place of birth" htmlFor="offline-birthplace" helperText="Start typing and choose your birthplace from the list." errorText={placesError ?? undefined} isComplete={Boolean(selectedPlace)}>
+              <div>
+                <input
+                  id="offline-birthplace"
+                  className={fieldClass}
+                  value={birthPlace}
+                  onChange={(event) => {
+                    setBirthPlace(event.target.value);
+                    setSelectedPlace(null);
+                  }}
+                  placeholder="Start typing and select your birthplace"
+                  autoComplete="off"
+                  required
+                />
+                {suggestions.length > 0 ? (
+                  <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.placeId}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => void selectSuggestion(suggestion)}
+                        className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm text-white/75 transition last:border-b-0 hover:bg-white/5 hover:text-white"
+                      >
+                        <span className="block font-medium text-white">{suggestion.primaryText}</span>
+                        {suggestion.secondaryText ? (
+                          <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {isSearching || isResolving ? <span className="mt-2 block text-xs text-white/45">Looking up places…</span> : null}
+              </div>
             </FormField>
           </div>
 
@@ -303,7 +365,9 @@ export default function OfflineSessionBook({ product }: { product: OfflineProduc
             <ReviewRow label="Email" value={email} />
             <ReviewRow label="Gender" value={gender} />
             <ReviewRow label="Phone" value={phone || "None added"} />
-            <ReviewRow label="Birthdate" value={birthDate || "None added"} />
+            <ReviewRow label="Birthdate" value={birthDate} />
+            <ReviewRow label="Birth time" value={birthTime || "Not provided"} />
+            <ReviewRow label="Place of birth" value={selectedPlace?.name || birthPlace} />
             <ReviewRow label="Photo" value={intakeImageFile?.name || "None added"} />
             {product === "email" ? (
               <>

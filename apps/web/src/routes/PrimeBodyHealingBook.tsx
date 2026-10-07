@@ -89,12 +89,12 @@ export default function PrimeBodyHealingBook() {
     if (level === 1 && !areas.some((area) => normalizeText(area))) {
       return "Enter at least one area to work on.";
     }
-    if (level === 2) {
-      if (!birthDate) return "Date of birth is required.";
-      if (!selectedPlace || selectedPlace.name !== birthPlace.trim()) {
-        return "Please select a birth location from the suggestions.";
-      }
-      if (!normalizeText(concerns)) return "Please share the concerns you would most like examined.";
+    if (!birthDate) return "Date of birth is required.";
+    if (!selectedPlace || selectedPlace.name !== birthPlace.trim()) {
+      return "Please select a birth location from the suggestions.";
+    }
+    if (level === 2 && !normalizeText(concerns)) {
+      return "Please share the concerns you would most like examined.";
     }
     return null;
   }
@@ -123,13 +123,13 @@ export default function PrimeBodyHealingBook() {
         fullName: normalizeText(fullName),
         email: normalizeText(email),
         gender,
-        birthDate: level === 2 ? birthDate : undefined,
-        birthTime: level === 2 && !birthTimeUnknown && birthTime ? birthTime : undefined,
-        birthPlace: level === 2 ? selectedPlace?.name : undefined,
-        birthPlaceName: level === 2 ? selectedPlace?.name : undefined,
-        birthLat: level === 2 ? selectedPlace?.lat : undefined,
-        birthLng: level === 2 ? selectedPlace?.lng : undefined,
-        birthTimezone: level === 2 ? (selectedPlace?.timezone || timezone) : undefined,
+        birthDate,
+        birthTime: !birthTimeUnknown && birthTime ? birthTime : undefined,
+        birthPlace: selectedPlace?.name,
+        birthPlaceName: selectedPlace?.name,
+        birthLat: selectedPlace?.lat,
+        birthLng: selectedPlace?.lng,
+        birthTimezone: selectedPlace?.timezone || timezone,
         consentGiven: true,
         notes: normalizeText(notes) || undefined,
         intake: {
@@ -139,9 +139,9 @@ export default function PrimeBodyHealingBook() {
           healingAreas,
           concerns: level === 2 ? normalizeText(concerns) : undefined,
           notes: normalizeText(notes) || undefined,
-          birthDate: level === 2 ? birthDate : undefined,
-          birthTime: level === 2 && !birthTimeUnknown && birthTime ? birthTime : undefined,
-          birthPlace: level === 2 ? selectedPlace?.name : undefined,
+          birthDate,
+          birthTime: !birthTimeUnknown && birthTime ? birthTime : undefined,
+          birthPlace: selectedPlace?.name,
         },
       };
 
@@ -182,7 +182,7 @@ export default function PrimeBodyHealingBook() {
       <p className="mt-2 text-sm text-white/60">
         {level === 2
           ? "Complete birth details and concerns. There is no live-session calendar. After purchase, Brad emails a delivery turnaround based on available dates."
-          : "Choose live or pre-recorded delivery and enter up to five areas. Live sessions are not scheduled on this page — Brad emails a booking window after purchase."}
+          : "Choose live or pre-recorded delivery, enter up to five areas, and include your birth date and birthplace. Birth time is optional. Live sessions are not scheduled on this page — Brad emails a booking window after purchase."}
       </p>
       <p className="mt-3 text-lg font-medium text-amber-100">{priceLabel}</p>
       <Link to={PRIME_BODY_HEALING_LANDING_PATH} className="mt-2 inline-block text-sm text-white/55 underline">
@@ -257,78 +257,78 @@ export default function PrimeBodyHealingBook() {
             </fieldset>
           </>
         ) : (
-          <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span>Date of birth</span>
-                <input className={fieldClass} type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} required />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span>Birth time {birthTimeUnknown ? "(unknown)" : "(optional)"}</span>
-                <input
-                  className={fieldClass}
-                  type="time"
-                  value={birthTime}
-                  disabled={birthTimeUnknown}
-                  onChange={(event) => setBirthTime(event.target.value)}
-                />
-                <label className="mt-2 flex items-center gap-2 text-xs text-white/55">
-                  <input
-                    type="checkbox"
-                    checked={birthTimeUnknown}
-                    onChange={(event) => {
-                      setBirthTimeUnknown(event.target.checked);
-                      if (event.target.checked) setBirthTime("");
-                    }}
-                  />
-                  I do not know my exact birth time. Exact time improves natal analysis.
-                </label>
-              </label>
-            </div>
-            <label className="block space-y-1 text-sm">
-              <span>Birth location</span>
-              <input
-                className={fieldClass}
-                value={birthPlace}
-                onChange={(event) => {
-                  setBirthPlace(event.target.value);
-                  setSelectedPlace(null);
-                }}
-                placeholder="Start typing and select your birthplace"
-                autoComplete="off"
-              />
-              {suggestions.length > 0 ? (
-                <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
-                  {suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion.placeId}
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => void selectSuggestion(suggestion)}
-                      className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-white/5"
-                    >
-                      <span className="block font-medium">{suggestion.primaryText}</span>
-                      {suggestion.secondaryText ? (
-                        <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {isSearching || isResolving ? <span className="text-xs text-white/45">Looking up places…</span> : null}
-              {placesError ? <span className="text-xs text-rose-300">{placesError}</span> : null}
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Current concerns</span>
-              <textarea
-                className={`${fieldClass} min-h-28`}
-                value={concerns}
-                onChange={(event) => setConcerns(event.target.value)}
-                placeholder="What would you most like examined?"
-              />
-            </label>
-          </>
+          <label className="block space-y-1 text-sm">
+            <span>Current concerns</span>
+            <textarea
+              className={`${fieldClass} min-h-28`}
+              value={concerns}
+              onChange={(event) => setConcerns(event.target.value)}
+              placeholder="What would you most like examined?"
+            />
+          </label>
         )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span>Date of birth</span>
+            <input className={fieldClass} type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} required />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span>Birth time {birthTimeUnknown ? "(unknown)" : "(optional)"}</span>
+            <input
+              className={fieldClass}
+              type="time"
+              value={birthTime}
+              disabled={birthTimeUnknown}
+              onChange={(event) => setBirthTime(event.target.value)}
+            />
+            <label className="mt-2 flex items-center gap-2 text-xs text-white/55">
+              <input
+                type="checkbox"
+                checked={birthTimeUnknown}
+                onChange={(event) => {
+                  setBirthTimeUnknown(event.target.checked);
+                  if (event.target.checked) setBirthTime("");
+                }}
+              />
+              I do not know my exact birth time. Exact time improves natal analysis.
+            </label>
+          </label>
+        </div>
+        <label className="block space-y-1 text-sm">
+          <span>Birth location</span>
+          <input
+            className={fieldClass}
+            value={birthPlace}
+            onChange={(event) => {
+              setBirthPlace(event.target.value);
+              setSelectedPlace(null);
+            }}
+            placeholder="Start typing and select your birthplace"
+            autoComplete="off"
+            required
+          />
+          {suggestions.length > 0 ? (
+            <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.placeId}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => void selectSuggestion(suggestion)}
+                  className="block w-full border-b border-white/5 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-white/5"
+                >
+                  <span className="block font-medium">{suggestion.primaryText}</span>
+                  {suggestion.secondaryText ? (
+                    <span className="mt-1 block text-xs text-white/45">{suggestion.secondaryText}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {isSearching || isResolving ? <span className="text-xs text-white/45">Looking up places…</span> : null}
+          {placesError ? <span className="text-xs text-rose-300">{placesError}</span> : null}
+        </label>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm">

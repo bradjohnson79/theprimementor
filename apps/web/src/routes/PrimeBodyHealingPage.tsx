@@ -38,9 +38,9 @@ const FAQ_ITEMS = [
       "Level 2 includes a deeper intuitive energetic scan across physical, subtle, emotional, vital, and causal levels, with relevant natal-pattern consideration when birth details are provided. Healing work is then performed on stagnant or compromised areas identified through the scan. You receive a personalized MP3 and a PDF scan report.",
   },
   {
-    question: "Why does Level 2 ask for my birth information?",
+    question: "Why does the intake ask for my birth information?",
     answer:
-      "Birth date, optional birth time, and birth location allow Brad to consider relevant natal-chart patterns when examining persistent themes or stagnant areas of life.",
+      "Birth date and birth location are required for every Prime Body Healing session. Birth time is optional. These details allow Brad to consider relevant natal-chart patterns when examining persistent themes or stagnant areas of life.",
   },
   {
     question: "Do I need to know my exact birth time?",

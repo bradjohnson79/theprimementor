@@ -43,7 +43,6 @@ import {
   validateEmailSessionIntake,
   validatePastLifeAkashicIntake,
   isOfflineQuestionRecipient,
-  isOfflineRecordedSessionType,
   isPrimeBodyHealingDeliveryFormat,
   type BookingClientGender,
   type BookingClientImage,
@@ -684,16 +683,19 @@ function normalizeSharedFields(
   const birthDate = normalizeBirthDate(input.birthDate);
   const birthTime = normalizeBirthTime(input.birthTime);
   const requiresNatal = bookingRequiresNatalFields(sessionType, bookingTypeId);
-  const birthplace = sessionType === "qa_session"
-    || isOfflineRecordedSessionType(sessionType)
-    || (sessionType === "prime_body_healing" && !requiresNatal)
-    ? null
-    : normalizeStructuredBirthplace({
+  const hasBirthplaceInput = Boolean(
+    normalizeText(input.birthPlaceName ?? input.birthPlace)
+    || input.birthLat != null
+    || input.birthLng != null,
+  );
+  const birthplace = hasBirthplaceInput
+    ? normalizeStructuredBirthplace({
       birthPlaceName: input.birthPlaceName ?? input.birthPlace,
       birthLat: input.birthLat,
       birthLng: input.birthLng,
       birthTimezone: input.birthTimezone ?? input.timezone,
-    });
+    })
+    : null;
   const consentGiven = input.consentGiven === true;
   const timezoneSource = input.timezoneSource === "suggested" || input.timezoneSource === "fallback"
     ? input.timezoneSource

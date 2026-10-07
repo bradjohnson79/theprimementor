@@ -160,12 +160,8 @@ export function expectedPrimeBodyHealingDeliveryFormat(bookingTypeId: string): P
   return null;
 }
 
-export function bookingRequiresNatalFields(sessionType: BookingSessionType, bookingTypeId?: string) {
-  if (sessionType === "qa_session" || isOfflineRecordedSessionType(sessionType)) return false;
-  if (sessionType === "prime_body_healing") {
-    return bookingTypeId === PRIME_BODY_HEALING_BOOKING_TYPE_IDS.level2;
-  }
-  return true;
+export function bookingRequiresNatalFields(sessionType: BookingSessionType, _bookingTypeId?: string) {
+  return isBookingSessionType(sessionType);
 }
 
 export function bookingRequiresPhone(sessionType: BookingSessionType) {
