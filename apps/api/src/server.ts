@@ -646,6 +646,7 @@ async function getMissingSchemaEntries(db: Database) {
         'stripe_customers',
         'subscriptions',
         'regeneration_subscriptions',
+        'regeneration_period_benefits',
         'regeneration_check_ins',
         'webhook_events',
         'notification_events',
