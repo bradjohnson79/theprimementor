@@ -95,6 +95,8 @@ export interface BookingIntakePayload {
   goals?: string[];
   healthFocusAreas?: BookingHealthFocusArea[];
   manifestationIntention?: string;
+  manifestationFeeling?: string;
+  manifestationAssumptions?: string;
   manifestationEnhancement?: BookingManifestationEnhancement;
   deliveryFormat?: PrimeBodyHealingDeliveryFormat;
   healingAreas?: string[];

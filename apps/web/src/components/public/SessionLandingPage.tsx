@@ -218,7 +218,7 @@ function AdvancedSupportServices({
   }
 
   const pageSpecificLine = theme === "regeneration"
-    ? "These advanced focus areas may be supported inside your monthly regeneration process where appropriate."
+    ? "These advanced focus areas may be supported inside your Manifestation Monthly Package where appropriate."
     : "These advanced services can be explored as an additional focus during your session if relevant.";
   const advancedSupportIntro = theme === "regeneration"
     ? "Optional focused work for stabilizing desired outcomes and clearing interference"

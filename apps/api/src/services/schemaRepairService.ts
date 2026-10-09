@@ -8,6 +8,7 @@ const REPAIRABLE_PREFIXES = [
   "orders.",
   "regeneration_subscriptions.",
   "regeneration_check_ins.",
+  "regeneration_period_benefits.",
   "subscription_admin_audit_entries.",
   "subscription_admin_notes.",
   "seo_settings.",
@@ -25,6 +26,49 @@ const REPAIRABLE_PREFIXES = [
   "webinar_recording_entitlements.",
   "webinar_recording_progress.",
   "booking_intake_images.",
+] as const;
+
+const REGENERATION_PERIOD_BENEFIT_REPAIR = [
+  `CREATE TABLE IF NOT EXISTS "regeneration_period_benefits" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "subscription_id" uuid NOT NULL,
+    "user_id" uuid NOT NULL,
+    "period_start" timestamp with time zone NOT NULL,
+    "period_end" timestamp with time zone,
+    "alignment_status" text DEFAULT 'available' NOT NULL,
+    "alignment_booking_id" uuid,
+    "alignment_availability" jsonb,
+    "alignment_scheduled_at" timestamp with time zone,
+    "reinforcement_status" text DEFAULT 'available' NOT NULL,
+    "reinforcement_booking_id" uuid,
+    "reinforcement_availability" jsonb,
+    "reinforcement_scheduled_at" timestamp with time zone,
+    "ideogram_status" text DEFAULT 'pending' NOT NULL,
+    "ideogram_file_name" text,
+    "ideogram_content_type" text,
+    "ideogram_byte_size" integer,
+    "ideogram_data" bytea,
+    "ideogram_delivered_at" timestamp with time zone,
+    "safeguarding_included" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now()
+  );`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'regeneration_period_benefits_subscription_id_regeneration_subscriptions_id_fk') THEN
+      ALTER TABLE "regeneration_period_benefits"
+        ADD CONSTRAINT "regeneration_period_benefits_subscription_id_regeneration_subscriptions_id_fk"
+        FOREIGN KEY ("subscription_id") REFERENCES "public"."regeneration_subscriptions"("id") ON DELETE cascade;
+    END IF;
+  END $$;`,
+  `DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'regeneration_period_benefits_user_id_users_id_fk') THEN
+      ALTER TABLE "regeneration_period_benefits"
+        ADD CONSTRAINT "regeneration_period_benefits_user_id_users_id_fk"
+        FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade;
+    END IF;
+  END $$;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "regeneration_period_benefits_subscription_period_uidx" ON "regeneration_period_benefits" USING btree ("subscription_id", "period_start");`,
+  `CREATE INDEX IF NOT EXISTS "regeneration_period_benefits_user_period_idx" ON "regeneration_period_benefits" USING btree ("user_id", "period_start");`,
 ] as const;
 
 const BOOKING_INTAKE_IMAGE_REPAIR = [
@@ -885,6 +929,14 @@ const TARGETED_SCHEMA_REPAIR_STATEMENTS: Record<string, readonly string[]> = {
   "booking_intake_images.byte_size": BOOKING_INTAKE_IMAGE_REPAIR,
   "booking_intake_images.data": BOOKING_INTAKE_IMAGE_REPAIR,
   "booking_intake_images.created_at": BOOKING_INTAKE_IMAGE_REPAIR,
+  "regeneration_period_benefits.id": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.subscription_id": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.user_id": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.period_start": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.alignment_status": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.reinforcement_status": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.ideogram_status": REGENERATION_PERIOD_BENEFIT_REPAIR,
+  "regeneration_period_benefits.safeguarding_included": REGENERATION_PERIOD_BENEFIT_REPAIR,
 };
 
 const KNOWN_DATA_REPAIR_STATEMENTS = [
@@ -962,7 +1014,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
   ),
   (
     'regeneration-session',
-    'Regeneration Session',
+    'Manifestation Monthly Package',
     'regeneration',
     0,
     9900,
@@ -1092,6 +1144,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "is_active" = true,
     "updated_at" = now();`,
   ...BOOKING_INTAKE_IMAGE_REPAIR,
+  ...REGENERATION_PERIOD_BENEFIT_REPAIR,
 ] as const;
 
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {

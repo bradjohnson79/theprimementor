@@ -59,7 +59,7 @@ const serviceGroups: Record<ServiceSection, ServiceItem[]> = {
       price: "$99 CAD",
       tag: "Monthly Process",
       description:
-        "A 30-day offline regeneration process with recurring billing, ongoing continuity, and priority support while the cycle is active.",
+        "The $99 CAD/month Manifestation Monthly Package: two consultations, a personal ideogram circuit, manifestation safeguarding, and priority support while the cycle is active.",
       features: [
         "Pre-screening intake",
         "30-day active cycle",

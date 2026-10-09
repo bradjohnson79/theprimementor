@@ -7,7 +7,9 @@ import { formatPacificDateOnly } from "@wisdom/utils";
 import { api } from "../lib/api";
 import { syncOwnedCheckoutSession, type CheckoutSyncEntityType } from "../lib/checkoutSessionSync";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
+import { REGENERATION_BOOKING_PATH, REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
 import TraumaCourseCard from "../components/dashboard/TraumaCourseCard";
+import ManifestationPeriodPanel from "../components/dashboard/ManifestationPeriodPanel";
 
 interface BookingSummary {
   id: string;
@@ -498,28 +500,30 @@ export default function Dashboard() {
 
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <section className="dashboard-panel cosmic-motion">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Regeneration</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">Manifestation Monthly</h2>
               <p className="mt-3 text-lg font-semibold text-white">{regenerationStatusLabel}</p>
               <p className="mt-1 text-sm text-white/60">
                 {regenerationActive
-                  ? "Your current regeneration cycle is active. Priority support remains available while access is active."
-                  : "Begin a 30-day regeneration cycle with recurring monthly support."}
+                  ? "Your monthly package is active. Two consultations, your ideogram circuit, and manifestation safeguarding stay with this period."
+                  : "Begin the Manifestation Monthly Package at $99 CAD/month."}
               </p>
               <div className="mt-4 space-y-2 text-sm text-white/70">
                 <p>Priority Support: {regeneration?.prioritySupport ? "Enabled" : "Not active"}</p>
                 <p>Current Period Ends: {regeneration?.currentPeriodEnd ? formatPacificDateOnly(regeneration.currentPeriodEnd) : "—"}</p>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link to="/sessions/regeneration" className="dashboard-action-secondary cosmic-motion">
+                <Link to={REGENERATION_LANDING_PATH} className="dashboard-action-secondary cosmic-motion">
                   View Package
                 </Link>
                 {!regenerationActive ? (
-                  <Link to="/sessions/regeneration/book" className="dashboard-action-primary cosmic-motion">
-                    Begin Cycle
+                  <Link to={REGENERATION_BOOKING_PATH} className="dashboard-action-primary cosmic-motion">
+                    Begin Your Manifestation Journey
                   </Link>
                 ) : null}
               </div>
             </section>
+
+            {regenerationActive ? <ManifestationPeriodPanel /> : null}
 
             {recordings.length > 0 ? (
               <section className="dashboard-panel cosmic-motion">

@@ -36,7 +36,7 @@ export default function RegenerationSuccess() {
         }
         refetch();
         setStatus("success");
-        setMessage("Your Manifestation Monthly Package is active and syncing into your dashboard now.");
+        setMessage("Your Manifestation Monthly Package is active. Two consultations and your ideogram circuit for this period are waiting in your dashboard. Your existing billing was not reset.");
       } catch (error) {
         if (cancelled) {
           return;

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { motion } from "framer-motion";
 import Card from "../components/Card";
+import ManifestationFulfillmentCard from "../components/ManifestationFulfillmentCard";
 import Loading from "../components/Loading";
 import OrderStatusBadge from "../components/OrderStatusBadge";
 import { api } from "../lib/api";
@@ -1126,6 +1127,8 @@ export default function OrderDetail() {
           </div>
         ) : null}
       </Card>
+
+      {isRegenerationOrder ? <ManifestationFulfillmentCard userId={order.user_id} /> : null}
 
       {subscription ? (
         <div className="grid gap-6 xl:grid-cols-2">

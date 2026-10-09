@@ -1,7 +1,7 @@
 export type SessionLandingType = "regeneration" | "qa" | "focus" | "mentoring" | "prime_body_healing";
 
 export const SESSION_LANDING_PATHS: Record<SessionLandingType, string> = {
-  regeneration: "/sessions/regeneration",
+  regeneration: "/sessions/manifestation",
   qa: "/sessions/qa",
   focus: "/sessions/focus",
   mentoring: "/sessions/mentoring",

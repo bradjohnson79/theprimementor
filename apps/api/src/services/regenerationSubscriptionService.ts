@@ -24,6 +24,7 @@ import {
 import { getFrontendUrl } from "../config/membershipBilling.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity, markPaymentPaidFromWebhook } from "./payments/paymentsService.js";
+import { ensureRegenerationPeriodBenefit } from "./regenerationPeriodBenefitService.js";
 import {
   mergeStripeMetadata,
   resolveStripeProductNaming,
@@ -766,7 +767,17 @@ export function buildRegenerationCheckoutLineItems(
 }
 
 export async function getRegenerationSubscriptionSummary(db: Database, userId: string) {
-  return serializeProjection(await getProjectionByUserId(db, userId));
+  const row = await getProjectionByUserId(db, userId);
+  if (row?.currentPeriodStart && row.accessState !== "inactive") {
+    await ensureRegenerationPeriodBenefit(db, {
+      subscriptionId: row.id,
+      userId: row.userId,
+      periodStart: row.currentPeriodStart,
+      periodEnd: row.currentPeriodEnd,
+      accessState: row.accessState,
+    });
+  }
+  return serializeProjection(row);
 }
 
 export async function createRegenerationCheckoutSession(

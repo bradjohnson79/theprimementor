@@ -131,6 +131,7 @@ export default function App() {
           <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
           <Route path="/subscriptions/initiate" element={<MembershipSignup />} />
           <Route path={REGENERATION_LANDING_PATH} element={<RegenerationSessionPage />} />
+          <Route path="/sessions/regeneration" element={<Navigate to={REGENERATION_LANDING_PATH} replace />} />
           <Route path="/regeneration-offer" element={<RegenerationOfferPage />} />
           <Route path="/regeneration-offer/success" element={<RegenerationOfferSuccess />} />
           <Route path={QA_LANDING_PATH} element={<QASessionPage />} />

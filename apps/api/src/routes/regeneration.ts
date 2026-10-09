@@ -11,6 +11,14 @@ import {
   setRegenerationAdminOverride,
   submitRegenerationCheckIn,
 } from "../services/regenerationSubscriptionService.js";
+import {
+  getRegenerationPeriodBenefitForUser,
+  isManifestationConsultationSlot,
+  readManifestationIdeogram,
+  saveManifestationIdeogram,
+  scheduleManifestationConsultation,
+  updateManifestationPeriodFulfillment,
+} from "../services/regenerationPeriodBenefitService.js";
 
 interface ConfirmCheckoutBody {
   checkoutSessionId?: string;
@@ -93,6 +101,90 @@ export async function regenerationRoutes(app: FastifyInstance) {
           experiences: request.body?.experiences ?? null,
           changesNoticed: request.body?.changesNoticed ?? null,
           challenges: request.body?.challenges ?? null,
+        }),
+      });
+    },
+  );
+
+  app.get("/member/regeneration-subscription/period-benefit", { preHandler: requireAuth }, async (request) => {
+    const db = requireDatabase(app.db);
+    return ok({
+      data: await getRegenerationPeriodBenefitForUser(db, request.dbUser!.id),
+    });
+  });
+
+  app.post<{ Body: { slot?: string; availability?: Record<string, string[]>; timezone?: string } }>(
+    "/member/regeneration-subscription/consultations",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const slot = request.body?.slot?.trim() ?? "";
+      if (!isManifestationConsultationSlot(slot)) {
+        return sendApiError(reply, 400, "Choose the beginning or midpoint consultation.");
+      }
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await scheduleManifestationConsultation(db, {
+          userId: request.dbUser!.id,
+          slot,
+          availability: request.body?.availability ?? {},
+          timezone: request.body?.timezone?.trim() || "UTC",
+        }),
+      });
+    },
+  );
+
+  app.get("/member/regeneration-subscription/ideogram", { preHandler: requireAuth }, async (request, reply) => {
+    const db = requireDatabase(app.db);
+    const file = await readManifestationIdeogram(db, request.dbUser!.id);
+    return reply
+      .header("Content-Type", file.contentType)
+      .header("Content-Disposition", `attachment; filename="${file.fileName.replace(/"/g, "")}"`)
+      .send(file.data);
+  });
+
+  app.get<{ Params: { userId: string } }>(
+    "/admin/regeneration-subscriptions/:userId/period-benefit",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+      return ok({ data: await getRegenerationPeriodBenefitForUser(db, request.params.userId) });
+    },
+  );
+
+  app.patch<{ Params: { userId: string }; Body: { alignmentStatus?: string; reinforcementStatus?: string; ideogramStatus?: string } }>(
+    "/admin/regeneration-subscriptions/:userId/period-benefit",
+    { preHandler: requireAuth },
+    async (request) => {
+      requireAdmin(request);
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await updateManifestationPeriodFulfillment(db, {
+          userId: request.params.userId,
+          alignmentStatus: request.body?.alignmentStatus,
+          reinforcementStatus: request.body?.reinforcementStatus,
+          ideogramStatus: request.body?.ideogramStatus,
+        }),
+      });
+    },
+  );
+
+  app.post<{ Params: { userId: string } }>(
+    "/admin/regeneration-subscriptions/:userId/ideogram",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      requireAdmin(request);
+      const data = await request.file({ limits: { fileSize: 8 * 1024 * 1024 } });
+      if (!data) return sendApiError(reply, 400, "Upload the ideogram circuit file.");
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const db = requireDatabase(app.db);
+      return ok({
+        data: await saveManifestationIdeogram(db, {
+          userId: request.params.userId,
+          fileName: data.filename || "ideogram-circuit",
+          contentType: data.mimetype,
+          data: Buffer.concat(chunks),
         }),
       });
     },

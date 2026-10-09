@@ -819,6 +819,13 @@ function buildNormalizedIntake(
     if (manifestationIntention) {
       normalized.manifestationIntention = manifestationIntention;
     }
+    const manifestationFeeling = normalizeText(intake.manifestationFeeling);
+    const manifestationAssumptions = normalizeText(intake.manifestationAssumptions);
+    if (!allowAdminFallbacks && (!manifestationFeeling || !manifestationAssumptions)) {
+      throw createHttpError(400, "Share how the manifestation would feel and the assumptions you want to discuss.");
+    }
+    if (manifestationFeeling) normalized.manifestationFeeling = manifestationFeeling;
+    if (manifestationAssumptions) normalized.manifestationAssumptions = manifestationAssumptions;
     const healthFocusAreas = normalizeHealthFocusAreas(intake.healthFocusAreas, {
       requireAtLeastOne: !allowAdminFallbacks,
     });

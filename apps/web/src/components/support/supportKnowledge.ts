@@ -24,10 +24,10 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "booking",
     keywords: ["book", "booking", "session", "availability", "purchase"],
     answer:
-      "To request Q&A or Mentoring sessions, choose your path from the Guided Private Sessions card, sign in or create your account if prompted, and complete the intake form. The Manifestation Monthly Package starts its own recurring checkout flow for $99 CAD/month and includes one 15-minute Zoom consultation each month. Cancel anytime.",
+      "To request Q&A or Mentoring sessions, choose your path from the Guided Private Sessions card, sign in or create your account if prompted, and complete the intake form. The Manifestation Monthly Package starts its own recurring checkout flow for $99 CAD/month and includes two 15-minute Zoom consultations, a personal ideogram circuit, and manifestation safeguarding. Cancel anytime.",
     links: [
       { label: "Go to Sessions", href: "/sessions" },
-      { label: "View Regeneration Package", href: "/sessions/regeneration" },
+      { label: "View Manifestation Package", href: "/sessions/manifestation" },
       { label: "Sign in", href: "/sign-in" },
     ],
   },
@@ -35,10 +35,10 @@ export const supportKnowledge: SupportKnowledgeItem[] = [
     id: "sessions",
     keywords: ["types", "difference", "qa", "questions", "mentoring", "regeneration", "sessions"],
     answer:
-      "There are three core service paths. Q&A Session is an open format for direct questions and fast clarity. Mentoring Session is a deeper guided session for blueprint insight, goal alignment, and longer-form support. The Manifestation Monthly Package is a $99 CAD/month subscription that includes one 15-minute Zoom consultation with Brad Johnson, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority email support. It can be used for health and wellness, personal debt elimination, financial abundance, career improvement, relationships, household improvement, personal development, selling homes/assets, and custom personal manifestation requests. Cancel anytime.",
+      "There are three core service paths. Q&A Session is an open format for direct questions and fast clarity. Mentoring Session is a deeper guided session for blueprint insight, goal alignment, and longer-form support. The Manifestation Monthly Package is a $99 CAD/month subscription with two 15-minute consultations, a personal ideogram circuit created by Brad Johnson, manifestation safeguarding, offline anti-goal clearing, personalized MP3 exercises, and priority email support. Cancel anytime.",
     links: [
       { label: "View Sessions", href: "/sessions" },
-      { label: "View Regeneration Package", href: "/sessions/regeneration" },
+      { label: "View Manifestation Package", href: "/sessions/manifestation" },
     ],
   },
   {

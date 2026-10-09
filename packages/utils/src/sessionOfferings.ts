@@ -152,7 +152,7 @@ export const CANONICAL_SESSION_OFFERINGS = [
     intakeFlow: "regeneration",
     schedulingRequired: true,
     description:
-      "Ongoing 1-to-1 manifestation support at $99 CAD/month, with a private consultation, safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and priority email support.",
+      "Ongoing manifestation support at $99 CAD/month, with two 15-minute consultations, a personal ideogram circuit, manifestation safeguarding, offline anti-goal clearing, personalized MP3 exercises, and priority email support.",
   },
   {
     productKey: "regeneration-qa-package",

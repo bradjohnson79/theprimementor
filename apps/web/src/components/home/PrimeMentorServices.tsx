@@ -444,33 +444,35 @@ function HealingCard({
 function ManifestationPanel() {
   const price = formatOfferingPrice("regeneration-session", " / month");
   const facts = [
-    "Monthly private consultation",
-    "Safeguarded manifestation work",
-    "Offline anti-goal clearing",
-    "Personalized MP3 clearing exercises",
+    "Two personal consultations each month",
+    "Personalized ideogram circuit",
+    "Manifestation safeguarding",
+    "Daily practice with your circuit",
     "Priority email support",
   ];
   return (
     <div>
       <PanelIntro
         title="Manifestation"
-        body="Ongoing 1-to-1 manifestation support with Brad Johnson."
+        body="Two consultations, a personal ideogram circuit, and manifestation safeguarding each month."
       />
-      <article className="grid overflow-hidden rounded-2xl border border-amber-200/20 bg-white/[0.04] lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-        <img
-          src="/images/manifestation-monthly-package.png"
-          alt="Manifestation Monthly Package artwork"
-          className="aspect-[4/3] h-full w-full object-cover lg:aspect-auto"
-          loading="lazy"
-          decoding="async"
-        />
+      <article className="grid overflow-hidden rounded-2xl border border-amber-200/20 bg-white/[0.04] lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] lg:items-start">
+        <div className="aspect-square w-full self-start overflow-hidden">
+          <img
+            src="/images/manifestation-monthly-package.png"
+            alt="Manifestation Monthly Package artwork"
+            className="h-full w-full object-cover object-center"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
         <div className="space-y-4 p-5">
           <div>
             <h4 className="text-lg font-semibold text-white">Manifestation Monthly Package</h4>
             <p className="mt-1 text-sm font-semibold text-amber-100">{price}</p>
           </div>
           <p className="text-sm leading-6 text-white/70">
-            Ongoing 1-to-1 manifestation support with Brad Johnson for maintaining your preferred state, clearing resistance and supporting the life changes you are actively creating.
+            Your manifestation, your alignment, and your personal circuit. Two consultations, manifestation safeguarding, and an ideogram circuit created by Brad Johnson.
           </p>
           <ul className="space-y-1.5 text-sm text-white/75">
             {facts.map((fact) => (
@@ -492,7 +494,7 @@ function ManifestationPanel() {
               })}
               className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
             >
-              Begin Monthly Cycle
+              Begin Your Manifestation Journey
             </Link>
             <Link
               to={REGENERATION_LANDING_PATH}

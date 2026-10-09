@@ -6,6 +6,7 @@ import RegenerationOfferCheckoutButton from "../components/regeneration-offer/Re
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { formatRegenerationOfferPrice } from "../lib/regenerationOffer";
+import { REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
 
 const CTA_CLASS =
   "inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:from-cyan-400 hover:via-sky-400 hover:to-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60";
@@ -239,9 +240,9 @@ export default function RegenerationOfferPage() {
                 </>
               ) : (
                 <Link
-                  to="/sessions/regeneration"
+                  to={REGENERATION_LANDING_PATH}
                   onClick={() => trackCtaClick("view_current_regeneration", "regeneration_offer_expired", {
-                    href: "/sessions/regeneration",
+                    href: REGENERATION_LANDING_PATH,
                   })}
                   className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/8"
                 >

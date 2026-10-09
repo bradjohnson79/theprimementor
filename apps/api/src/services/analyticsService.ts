@@ -116,6 +116,7 @@ const ORDER_METRIC_STATUSES = new Set(["completed"]);
 const SESSION_BOOKED_STATUSES = new Set(["paid", "scheduled", "completed"]);
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 const CONVERSION_ROUTE_LABELS = [
+  { prefix: "/sessions/manifestation", label: "Manifestation Monthly Package interest" },
   { prefix: "/sessions/regeneration", label: "Manifestation Monthly Package interest" },
   { prefix: "/subscriptions/initiate", label: "Initiate subscription interest" },
   { prefix: "/subscriptions/seeker", label: "Seeker subscription interest" },
@@ -305,7 +306,8 @@ export function buildStrategicRecommendations(input: {
 }) {
   const recommendations: string[] = [];
   const reports = findMetric(input.conversionPaths, "/reports");
-  const regeneration = findMetric(input.conversionPaths, "/sessions/regeneration");
+  const regeneration = findMetric(input.conversionPaths, "/sessions/manifestation")
+    ?? findMetric(input.conversionPaths, "/sessions/regeneration");
   const directChannel = input.channels.find((row) => /direct/i.test(row.label));
   const organicOrVideo = input.channels.find((row) => /\b(organic|search|social|video|youtube)\b/i.test(row.label));
   const mobile = input.devices.find((row) => /mobile/i.test(row.label));

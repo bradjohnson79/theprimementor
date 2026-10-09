@@ -35,6 +35,7 @@ import {
 import {
   MENTORING_LANDING_PATH,
   QA_LANDING_PATH,
+  REGENERATION_BOOKING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import {
@@ -101,6 +102,8 @@ interface IntakeFormState {
   otherDetail: string;
   manifestationEnhancementSelected: boolean | null;
   manifestationIntentions: string;
+  manifestationFeeling: string;
+  manifestationAssumptions: string;
   consentGiven: boolean;
 }
 
@@ -120,6 +123,8 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     otherDetail: "",
     manifestationEnhancementSelected: null,
     manifestationIntentions: "",
+    manifestationFeeling: "",
+    manifestationAssumptions: "",
     consentGiven: false,
   };
 }
@@ -152,7 +157,7 @@ function resolveSessionTypeFromPath(pathname: string, bookingTypeId?: string | n
     return getGuidedSessionDuration(bookingTypeId)?.option.sessionType ?? null;
   }
   if (pathname.includes(QA_LANDING_PATH)) return "qa_session";
-  if (pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
+  if (pathname.includes(REGENERATION_BOOKING_PATH) || pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
   if (pathname.includes(MENTORING_LANDING_PATH)) return "mentoring";
   return null;
 }
@@ -240,10 +245,9 @@ function RegenerationBillingNotice() {
     <div className="rounded-2xl border border-amber-300/25 bg-amber-500/10 px-5 py-4 text-sm leading-7 text-amber-50/90">
       <p className="font-semibold uppercase tracking-[0.18em] text-amber-200/90">Important</p>
       <p className="mt-2">
-        The Manifestation Monthly Package is $99 CAD/month and includes one 15-minute Zoom consultation with Brad Johnson,
-        safeguarded manifestation work, offline anti-goal clearing, personalized MP3 clearing exercises, and 30-day priority
-        email support. Your next monthly consultation is automatically scheduled approximately 30 days after your initial
-        consultation. Cancel anytime.
+        The Manifestation Monthly Package is $99 CAD/month. Each period includes two 15-minute Zoom consultations with
+        Brad Johnson, a personalized ideogram circuit, manifestation safeguarding, offline anti-goal clearing,
+        personalized MP3 clearing exercises, and 30-day priority email support. Cancel anytime.
       </p>
       <p className="mt-3">
         If you have questions about your Manifestation Monthly Package, please{" "}
@@ -583,6 +587,8 @@ export default function Bookings() {
       otherDetail: "",
       manifestationEnhancementSelected: null,
       manifestationIntentions: "",
+      manifestationFeeling: "",
+      manifestationAssumptions: "",
     }));
     setBirthplace(null);
     setTimezone("");
@@ -695,6 +701,12 @@ export default function Bookings() {
       if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
         nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
       }
+      if (!normalizeText(form.manifestationFeeling)) {
+        nextErrors.manifestationFeeling = "Share what experiencing this manifestation would feel like.";
+      }
+      if (!normalizeText(form.manifestationAssumptions)) {
+        nextErrors.manifestationAssumptions = "Share the assumptions or challenges you want to discuss.";
+      }
     }
 
     const needsOtherDetail = selectedSessionType === "mentoring" && form.mentoringTopics.includes("Other");
@@ -720,6 +732,8 @@ export default function Bookings() {
 
     if (selectedSessionType === "regeneration") {
       intake.manifestationIntention = normalizeText(form.primaryManifestationIntention);
+      intake.manifestationFeeling = normalizeText(form.manifestationFeeling);
+      intake.manifestationAssumptions = normalizeText(form.manifestationAssumptions);
       intake.healthFocusAreas = buildRegenerationFocusAreas(form.primaryManifestationIntention);
       intake.manifestationEnhancement = {
         version: 1,
@@ -918,6 +932,12 @@ export default function Bookings() {
       }
       if (form.manifestationEnhancementSelected === true && !normalizeText(form.manifestationIntentions)) {
         nextErrors.manifestationIntentions = "Share the additional manifestation request you would like supported.";
+      }
+      if (!normalizeText(form.manifestationFeeling)) {
+        nextErrors.manifestationFeeling = "Share what experiencing this manifestation would feel like.";
+      }
+      if (!normalizeText(form.manifestationAssumptions)) {
+        nextErrors.manifestationAssumptions = "Share the assumptions or challenges you want to discuss.";
       }
     }
 
@@ -1572,6 +1592,8 @@ export default function Bookings() {
           isComplete: () => {
             if (selectedSessionType === "mentoring") return form.mentoringTopics.length > 0 && (!form.mentoringTopics.includes("Other") || Boolean(normalizeText(form.otherDetail)));
             return Boolean(normalizeText(form.primaryManifestationIntention))
+              && Boolean(normalizeText(form.manifestationFeeling))
+              && Boolean(normalizeText(form.manifestationAssumptions))
               && form.manifestationEnhancementSelected !== null
               && (form.manifestationEnhancementSelected !== true || Boolean(normalizeText(form.manifestationIntentions)));
           },
@@ -1620,6 +1642,40 @@ export default function Bookings() {
                   <p className="mt-2 text-sm text-white/60">
                     Share the manifestation you want to work with during this monthly cycle.
                   </p>
+
+                  <FormField
+                    label="What would experiencing this manifestation feel like?"
+                    htmlFor="session-manifestation-feeling"
+                    helperText="Describe the real feeling of the manifestation already being present. Brad uses this when creating your ideogram circuit."
+                    errorText={fieldErrors.manifestationFeeling}
+                    isComplete={Boolean(normalizeText(form.manifestationFeeling))}
+                  >
+                    <textarea
+                      id="session-manifestation-feeling"
+                      className={`${fieldClassName} min-h-[140px]`}
+                      rows={5}
+                      value={form.manifestationFeeling}
+                      onChange={(event) => setFormField("manifestationFeeling", event.target.value)}
+                      placeholder="The feeling of this manifestation already being real."
+                    />
+                  </FormField>
+
+                  <FormField
+                    label="Assumptions or challenges to discuss"
+                    htmlFor="session-manifestation-assumptions"
+                    helperText="Share any resistance, conflicting assumptions, or questions you want Brad to work with."
+                    errorText={fieldErrors.manifestationAssumptions}
+                    isComplete={Boolean(normalizeText(form.manifestationAssumptions))}
+                  >
+                    <textarea
+                      id="session-manifestation-assumptions"
+                      className={`${fieldClassName} min-h-[140px]`}
+                      rows={5}
+                      value={form.manifestationAssumptions}
+                      onChange={(event) => setFormField("manifestationAssumptions", event.target.value)}
+                      placeholder="Assumptions, doubts, or challenges you want to discuss."
+                    />
+                  </FormField>
 
                   <FormField
                     label="Manifestation Request"

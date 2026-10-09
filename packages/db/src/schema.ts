@@ -608,6 +608,37 @@ export const regenerationSubscriptions = pgTable("regeneration_subscriptions", {
   stripeCustomerIdx: index("regeneration_subscriptions_customer_idx").on(table.stripe_customer_id),
 }));
 
+export const regenerationPeriodBenefits = pgTable("regeneration_period_benefits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscription_id: uuid("subscription_id")
+    .references(() => regenerationSubscriptions.id, { onDelete: "cascade" })
+    .notNull(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  period_start: timestamp("period_start", { withTimezone: true }).notNull(),
+  period_end: timestamp("period_end", { withTimezone: true }),
+  alignment_status: text("alignment_status").default("available").notNull(),
+  alignment_booking_id: uuid("alignment_booking_id").references(() => bookings.id, { onDelete: "set null" }),
+  alignment_availability: jsonb("alignment_availability"),
+  alignment_scheduled_at: timestamp("alignment_scheduled_at", { withTimezone: true }),
+  reinforcement_status: text("reinforcement_status").default("available").notNull(),
+  reinforcement_booking_id: uuid("reinforcement_booking_id").references(() => bookings.id, { onDelete: "set null" }),
+  reinforcement_availability: jsonb("reinforcement_availability"),
+  reinforcement_scheduled_at: timestamp("reinforcement_scheduled_at", { withTimezone: true }),
+  ideogram_status: text("ideogram_status").default("pending").notNull(),
+  ideogram_file_name: text("ideogram_file_name"),
+  ideogram_content_type: text("ideogram_content_type"),
+  ideogram_byte_size: integer("ideogram_byte_size"),
+  ideogram_data: bytea("ideogram_data"),
+  ideogram_delivered_at: timestamp("ideogram_delivered_at", { withTimezone: true }),
+  safeguarding_included: boolean("safeguarding_included").default(true).notNull(),
+  ...timestamps,
+}, (table) => ({
+  subscriptionPeriodUnique: uniqueIndex("regeneration_period_benefits_subscription_period_uidx").on(table.subscription_id, table.period_start),
+  userPeriodIdx: index("regeneration_period_benefits_user_period_idx").on(table.user_id, table.period_start),
+}));
+
 export const regenerationCheckIns = pgTable("regeneration_check_ins", {
   id: uuid("id").primaryKey().defaultRandom(),
   subscription_id: uuid("subscription_id")

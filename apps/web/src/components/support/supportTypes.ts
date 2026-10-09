@@ -1,6 +1,6 @@
 export type AllowedSupportRoute =
   | "/sessions"
-  | "/sessions/regeneration"
+  | "/sessions/manifestation"
   | "/reports"
   | "/contact"
   | "/sign-in";
