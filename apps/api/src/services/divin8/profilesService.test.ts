@@ -39,7 +39,7 @@ function createSelectChain(rows: unknown[]) {
 
 function createMockDb(options: {
   selectRows?: unknown[];
-  insertRow?: unknown;
+  insertRow?: ReturnType<typeof makeProfileRow>;
   insertError?: Error;
   deleteRows?: unknown[];
 }) {
