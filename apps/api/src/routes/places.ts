@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { ok, sendApiError } from "../apiContract.js";
+import { resolveIanaTimezoneFromCoordinates } from "../services/intake/ianaTimezoneFromCoordinates.js";
 
 interface GooglePlacesAutocompleteResponse {
   suggestions?: Array<{
@@ -189,7 +190,8 @@ export async function placesRoutes(app: FastifyInstance) {
 
     try {
       const place = await fetchPlaceDetails(apiKey, placeId, referer);
-      const timezone = await fetchTimezone(apiKey, place.latitude, place.longitude, referer);
+      const timezone = resolveIanaTimezoneFromCoordinates(place.latitude, place.longitude)
+        ?? await fetchTimezone(apiKey, place.latitude, place.longitude, referer);
 
       return ok({
         data: {

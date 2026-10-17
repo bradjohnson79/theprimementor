@@ -4,12 +4,18 @@ import {
   MAX_DIVIN8_PROFILES_PER_MESSAGE,
   extractDivin8ProfileTags,
   mergeDivin8ActiveProfileTags,
+  logger,
   type Divin8ProfileCreateRequest,
 } from "@wisdom/utils";
 import { normalizeBirthTimeToStorage } from "../blueprint/schemas.js";
 import { createHttpError } from "../booking/errors.js";
 import { assertValidDateString, assertValidTimeZone } from "../booking/timezoneService.js";
+import {
+  hasValidCoordinates,
+  resolveIanaTimezoneFromCoordinates,
+} from "../intake/ianaTimezoneFromCoordinates.js";
 import { normalizeStructuredBirthplace } from "../intake/placeSelection.js";
+import { inspectPostgresError, postgresErrorText } from "./postgresError.js";
 
 type ProfileRow = typeof profiles.$inferSelect;
 
@@ -44,6 +50,45 @@ export function generateDivin8ProfileTag(fullName: string) {
   return `@${normalized}`;
 }
 
+export function allocateDivin8ProfileTag(baseTag: string, existingTags: Iterable<string>) {
+  const taken = new Set(existingTags);
+  if (!taken.has(baseTag)) {
+    return baseTag;
+  }
+
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${baseTag}${index}`;
+    if (!taken.has(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw createHttpError(409, "That profile tag is already in use. Please choose another tag.");
+}
+
+export function toSafeProfileSaveError(error: unknown): never {
+  const inspected = inspectPostgresError(error);
+  logger.error("divin8_profile_save_failed", {
+    code: inspected.code,
+    message: inspected.message,
+    detail: inspected.detail,
+    hint: inspected.hint,
+    constraint: inspected.constraint,
+    table: inspected.table,
+    column: inspected.column,
+  });
+
+  const text = postgresErrorText(error);
+  if (inspected.code === "23505" || /profiles_user_tag_uidx|duplicate key|unique constraint/i.test(text)) {
+    throw createHttpError(409, "That profile tag is already in use. Please choose another tag.");
+  }
+  if (inspected.code === "23503" || /profiles_user_id_users_id_fk|foreign key/i.test(text)) {
+    throw createHttpError(400, "Unable to save profile. The profile could not be added because its owner record is invalid.");
+  }
+
+  throw createHttpError(500, "Profile could not be saved due to a database error. The error has been logged for diagnosis.");
+}
+
 function normalizeProfileRow(row: ProfileRow): ResolvedDivin8Profile {
   return {
     id: row.id,
@@ -75,18 +120,29 @@ function validateProfileCreateInput(input: Divin8ProfileCreateRequest) {
     birthPlaceName: input.birthPlace,
     birthLat: input.lat,
     birthLng: input.lng,
-    birthTimezone: input.timezone,
   });
+
+  if (!hasValidCoordinates(birthplace.lat, birthplace.lng)) {
+    throw createHttpError(400, "Unable to resolve the selected birthplace/timezone. Please verify the birthplace.");
+  }
+
+  const geographicTimezone = resolveIanaTimezoneFromCoordinates(birthplace.lat, birthplace.lng);
+  const submittedTimezone = typeof input.timezone === "string" ? input.timezone.trim() : "";
+  const timezone = geographicTimezone
+    ?? (submittedTimezone ? assertValidTimeZone(submittedTimezone) : null);
+  if (!timezone) {
+    throw createHttpError(400, "Unable to resolve the selected birthplace/timezone. Please verify the birthplace.");
+  }
 
   return {
     fullName,
-    tag: generateDivin8ProfileTag(fullName),
+    baseTag: generateDivin8ProfileTag(fullName),
     birthDate,
     birthTime,
     birthPlace: birthplace.name,
     lat: birthplace.lat,
     lng: birthplace.lng,
-    timezone: assertValidTimeZone(birthplace.timezone ?? input.timezone),
+    timezone: assertValidTimeZone(timezone),
   };
 }
 
@@ -104,6 +160,11 @@ export async function listDivin8Profiles(db: Database, userId: string) {
 
 export async function createDivin8Profile(db: Database, userId: string, input: Divin8ProfileCreateRequest) {
   const validated = validateProfileCreateInput(input);
+  const existingRows = await db
+    .select({ tag: profiles.tag })
+    .from(profiles)
+    .where(eq(profiles.user_id, userId));
+  const tag = allocateDivin8ProfileTag(validated.baseTag, existingRows.map((row) => row.tag));
 
   try {
     const [created] = await db
@@ -111,7 +172,7 @@ export async function createDivin8Profile(db: Database, userId: string, input: D
       .values({
         user_id: userId,
         full_name: validated.fullName,
-        tag: validated.tag,
+        tag,
         birth_date: validated.birthDate,
         birth_time: validated.birthTime,
         birth_place: validated.birthPlace,
@@ -121,13 +182,16 @@ export async function createDivin8Profile(db: Database, userId: string, input: D
       })
       .returning();
 
+    if (!created) {
+      throw createHttpError(500, "Profile could not be saved due to a database error. The error has been logged for diagnosis.");
+    }
+
     return normalizeProfileRow(created);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("profiles_user_tag_uidx")) {
-      throw createHttpError(409, `A profile with the tag ${validated.tag} already exists.`);
+    if (error && typeof error === "object" && "statusCode" in error) {
+      throw error;
     }
-    throw error;
+    toSafeProfileSaveError(error);
   }
 }
 

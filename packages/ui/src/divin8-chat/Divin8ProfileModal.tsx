@@ -190,7 +190,7 @@ export default function Divin8ProfileModal({
         birthPlace: details.formattedAddress!.trim(),
         lat: details.latitude!,
         lng: details.longitude!,
-        timezone: details.timezone?.trim() || current.timezone,
+        timezone: details.timezone?.trim() || "",
       }));
       setSuggestions([]);
       setPlaceError(null);
@@ -361,6 +361,7 @@ export default function Divin8ProfileModal({
                 onChange={(timezone) => setForm((current) => ({ ...current, timezone }))}
                 className={fieldClassName}
                 optionStyle={selectOptionStyle}
+                autoSelectBrowserTimezone={false}
                 required
               />
             </label>
@@ -379,11 +380,11 @@ export default function Divin8ProfileModal({
                     birthPlace: value,
                     lat: null,
                     lng: null,
-                    timezone: current.timezone,
+                    timezone: "",
                   }));
                 }}
                 className={fieldClassName}
-                placeholder="Start typing a city, region, or country"
+                placeholder="City, region, country — e.g. Bucharest, Romania"
                 required
               />
               {suggestions.length > 0 ? (
@@ -421,7 +422,13 @@ export default function Divin8ProfileModal({
             ) : null}
             {!placeError && !isSearchingPlaces && !isResolvingPlace && needsBirthplaceSelection ? (
               <p className={classNames("mt-2 text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
-                Select a birthplace from the dropdown so coordinates can be saved.
+                Select a city, region, and country from the dropdown so coordinates and timezone can be saved.
+              </p>
+            ) : null}
+            {!placeError && form.lat !== null && form.lng !== null ? (
+              <p className={classNames("mt-2 text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
+                {form.birthPlace} · {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
+                {form.timezone ? ` · ${form.timezone}` : ""}
               </p>
             ) : null}
           </label>

@@ -1257,7 +1257,12 @@ export function useDivin8Chat(config: UseDivin8ChatConfig): UseDivin8ChatReturn 
       setProfileError(null);
       setIsProfileModalOpen(false);
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : "Unable to save profile.");
+      const message = error instanceof Error ? error.message : "Unable to save profile.";
+      setProfileError(
+        /Failed query|insert into\s+"?profiles"?|profiles_user_tag_uidx/i.test(message)
+          ? "That profile tag is already in use. Please choose another tag."
+          : message || "Unable to save profile.",
+      );
       throw error;
     } finally {
       setIsSavingProfile(false);

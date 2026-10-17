@@ -28,6 +28,15 @@ export function TimezoneSelect({
 }: TimezoneSelectProps) {
   const autoSelectedRef = useRef(false);
   const detectedTimezone = useMemo(() => getBrowserTimezoneOption(), []);
+  const options = useMemo(() => {
+    if (!value || TIMEZONE_OPTIONS.some((option) => option.ianaName === value)) {
+      return TIMEZONE_OPTIONS;
+    }
+    return [
+      ...TIMEZONE_OPTIONS,
+      { ianaName: value, label: value, region: "Resolved" },
+    ];
+  }, [value]);
 
   useEffect(() => {
     if (!autoSelectBrowserTimezone || autoSelectedRef.current || value || disabled) {
@@ -53,7 +62,7 @@ export function TimezoneSelect({
       ].filter(Boolean).join(" ")}
     >
       <option value="" style={optionStyle}>{placeholder}</option>
-      {TIMEZONE_OPTIONS.map((option) => (
+      {options.map((option) => (
         <option key={option.ianaName} value={option.ianaName} style={optionStyle}>
           {option.ianaName === value ? "✓ " : ""}{formatTimezoneOptionLabel(option)}
         </option>
