@@ -19,6 +19,10 @@ interface AdronisWebinarCheckoutButtonProps {
   className?: string;
   children?: React.ReactNode;
   onError?: (message: string) => void;
+  eventId?: string;
+  title?: string;
+  autocheckoutPath?: string;
+  thankYouPath?: string;
 }
 
 export default function AdronisWebinarCheckoutButton({
@@ -29,6 +33,10 @@ export default function AdronisWebinarCheckoutButton({
   className,
   children,
   onError,
+  eventId = ADRONIS_WEBINAR_EVENT_ID,
+  title = ADRONIS_WEBINAR_TITLE,
+  autocheckoutPath = ADRONIS_WEBINAR_AUTOCHECKOUT_PATH,
+  thankYouPath = ADRONIS_WEBINAR_THANK_YOU_PATH,
 }: AdronisWebinarCheckoutButtonProps) {
   const { isSignedIn, getToken } = useAuth();
   const navigate = useNavigate();
@@ -43,13 +51,13 @@ export default function AdronisWebinarCheckoutButton({
     }
 
     trackCtaClick(owned ? "access_adronis_webinar" : "register_adronis_webinar", source, {
-      href: owned ? ADRONIS_WEBINAR_THANK_YOU_PATH : ADRONIS_WEBINAR_AUTOCHECKOUT_PATH,
-      title: ADRONIS_WEBINAR_TITLE,
-      eventId: ADRONIS_WEBINAR_EVENT_ID,
+      href: owned ? thankYouPath : autocheckoutPath,
+      title,
+      eventId,
     });
 
     if (owned) {
-      navigate(ADRONIS_WEBINAR_THANK_YOU_PATH);
+      navigate(thankYouPath);
       return;
     }
 
@@ -61,22 +69,22 @@ export default function AdronisWebinarCheckoutButton({
     try {
       if (!isSignedIn) {
         trackCtaClick("adronis_webinar_authentication_required", source, {
-          eventId: ADRONIS_WEBINAR_EVENT_ID,
+          eventId,
         });
-        navigate(`/sign-up?redirect_url=${encodeURIComponent(ADRONIS_WEBINAR_AUTOCHECKOUT_PATH)}`);
+        navigate(`/sign-up?redirect_url=${encodeURIComponent(autocheckoutPath)}`);
         return;
       }
 
       setStarting(true);
       trackCtaClick("adronis_webinar_checkout_started", source, {
-        eventId: ADRONIS_WEBINAR_EVENT_ID,
+        eventId,
       });
       const token = await getToken();
-      await startWebinarCheckout(ADRONIS_WEBINAR_EVENT_ID, { token });
+      await startWebinarCheckout(eventId, { token });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to open Stripe checkout.";
       if (/already been purchased|already been paid/i.test(message)) {
-        navigate(ADRONIS_WEBINAR_THANK_YOU_PATH);
+        navigate(thankYouPath);
         return;
       }
       onError?.(message);

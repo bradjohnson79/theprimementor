@@ -5,7 +5,7 @@ import {
   ADRONIS_WEBINAR_THANK_YOU_PATH,
   formatAdronisWebinarPrice,
   getAdronisWebinarPublicCatalog,
-  getOnDemandWebinarById,
+  getPublishedOnDemandWebinarForLiveEvent,
 } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import {
@@ -258,7 +258,7 @@ export async function listPurchasedLiveWebinars(db: Database, userId: string) {
   for (const event of listWebinarEvents()) {
     const state = await getWebinarStateForUser(db, userId, event.eventId);
     if (!state.joinEligible) continue;
-    const published = getOnDemandWebinarById(event.eventId);
+    const published = getPublishedOnDemandWebinarForLiveEvent(event.eventId);
     const recordingReady = published?.published === true;
     cards.push({
       eventId: event.eventId,

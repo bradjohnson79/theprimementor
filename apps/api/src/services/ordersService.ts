@@ -19,7 +19,7 @@ import {
   type Database,
 } from "@wisdom/db";
 import { desc, eq, inArray, or, sql } from "drizzle-orm";
-import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID, getOnDemandWebinarById, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
+import { ADRONIS_WEBINAR_BOOKING_TYPE_ID, PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID, STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID, getOnDemandWebinarById, getReportTierDefinition, INTERPRETATION_SECTION_KEYS, isReportTierId, SECTION_MARKDOWN_LABELS } from "@wisdom/utils";
 import { getWebinarEventById } from "../config/webinarEvents.js";
 import { reconcileOnDemandMuxReadiness } from "./mux/muxPlaybackService.js";
 import { logger } from "@wisdom/utils";
@@ -37,6 +37,15 @@ import { resolveStripeProductNaming } from "./stripe/stripeProductNamingService.
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const DEDICATED_WEBINAR_BOOKING_TYPE_IDS = new Set([
+  ADRONIS_WEBINAR_BOOKING_TYPE_ID,
+  STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID,
+  PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID,
+]);
+
+function isDedicatedWebinarBookingType(bookingTypeId: string | null | undefined) {
+  return Boolean(bookingTypeId && DEDICATED_WEBINAR_BOOKING_TYPE_IDS.has(bookingTypeId));
+}
 const PAYMENT_MATCH_WINDOW_MS = 6 * 60 * 60 * 1000;
 const DUPLICATE_PENDING_ATTEMPT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const REGENERATION_ORDER_BOOKING_FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -3097,7 +3106,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
   const sessionExecutionByOrderId = buildSessionExecutionMap(reportRows);
   const bookingBackedMentoringCircleEvents = new Set(
     bookingRows
-      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey && row.bookingTypeId !== ADRONIS_WEBINAR_BOOKING_TYPE_ID && row.bookingTypeId !== STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID)
+      .filter((row) => row.sessionType === "mentoring_circle" && row.eventKey && !isDedicatedWebinarBookingType(row.bookingTypeId))
       .map((row) => `${row.userId}:${row.eventKey}`),
   );
   const persistedOrders = persistedOrderRows
@@ -3117,7 +3126,7 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
 
   const candidates: OrderCandidate[] = [];
   for (const row of bookingRows) {
-    if (row.bookingTypeId === ADRONIS_WEBINAR_BOOKING_TYPE_ID || row.bookingTypeId === STAR_FAMILY_WEBINAR_BOOKING_TYPE_ID) {
+    if (isDedicatedWebinarBookingType(row.bookingTypeId)) {
       continue;
     }
     try {

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import {
   getOnDemandWebinarById,
   getOnDemandWebinarPublicCatalog,
+  listOnDemandAccessIds,
   listPublishedOnDemandWebinars,
 } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
@@ -9,7 +10,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireDatabase, requireDbUser } from "../routeAssertions.js";
 import { createSignedOnDemandPlayback, reconcileOnDemandMuxReadiness } from "../services/mux/muxPlaybackService.js";
 import {
-  getOnDemandWebinarEntitlement,
+  getActiveOnDemandWebinarEntitlement,
   canRequestOnDemandPlayback,
   hasActiveOnDemandWebinarEntitlement,
   listActiveOnDemandWebinarEntitlements,
@@ -66,12 +67,13 @@ export async function webinarRoutes(app: FastifyInstance) {
     const ownedIds = new Set(entitlements.map((entry) => entry.webinarId));
     const catalog = await Promise.all(listPublishedOnDemandWebinars().map(async (webinar) => {
       const readiness = await reconcileOnDemandMuxReadiness(webinar.webinarId);
-      const progress = ownedIds.has(webinar.webinarId)
+      const owned = listOnDemandAccessIds(webinar).some((webinarId) => ownedIds.has(webinarId));
+      const progress = owned
         ? await getOnDemandWebinarProgress(db, { userId: user.id, webinarId: webinar.webinarId })
         : null;
       return {
         ...getOnDemandWebinarPublicCatalog(webinar, readiness),
-        owned: ownedIds.has(webinar.webinarId),
+        owned,
         positionSeconds: progress?.positionSeconds ?? 0,
       };
     }));
@@ -90,11 +92,11 @@ export async function webinarRoutes(app: FastifyInstance) {
     const db = requireDatabase(app.db);
     const user = requireDbUser(request);
     const readiness = await reconcileOnDemandMuxReadiness(webinar.webinarId);
-    const entitlement = await getOnDemandWebinarEntitlement(db, {
+    const entitlement = await getActiveOnDemandWebinarEntitlement(db, {
       userId: user.id,
       webinarId: webinar.webinarId,
     });
-    const owned = Boolean(entitlement?.purchasedAt && !entitlement.revokedAt);
+    const owned = Boolean(entitlement);
     const progress = owned
       ? await getOnDemandWebinarProgress(db, { userId: user.id, webinarId: webinar.webinarId })
       : null;

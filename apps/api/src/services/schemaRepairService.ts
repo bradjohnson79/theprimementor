@@ -1143,6 +1143,38 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "buffer_after_minutes" = excluded."buffer_after_minutes",
     "is_active" = true,
     "updated_at" = now();`,
+  `INSERT INTO "booking_types" (
+    "id",
+    "name",
+    "session_type",
+    "duration_minutes",
+    "price_cents",
+    "currency",
+    "buffer_before_minutes",
+    "buffer_after_minutes",
+    "is_active"
+  ) VALUES (
+    'webinar-prime-alchemy-teachings',
+    'Mentoring Circle: Prime Alchemy Teachings',
+    'mentoring_circle',
+    180,
+    1999,
+    'CAD',
+    0,
+    0,
+    true
+  )
+  ON CONFLICT ("id") DO UPDATE
+  SET
+    "name" = excluded."name",
+    "session_type" = excluded."session_type",
+    "duration_minutes" = excluded."duration_minutes",
+    "price_cents" = excluded."price_cents",
+    "currency" = excluded."currency",
+    "buffer_before_minutes" = excluded."buffer_before_minutes",
+    "buffer_after_minutes" = excluded."buffer_after_minutes",
+    "is_active" = true,
+    "updated_at" = now();`,
   ...BOOKING_INTAKE_IMAGE_REPAIR,
   ...REGENERATION_PERIOD_BENEFIT_REPAIR,
 ] as const;

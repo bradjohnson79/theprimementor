@@ -1,5 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { webinarRecordingEntitlements, type Database } from "@wisdom/db";
+import { getOnDemandWebinarById, listOnDemandAccessIds } from "@wisdom/utils";
 
 export interface OnDemandWebinarEntitlementSummary {
   id: string;
@@ -64,12 +65,27 @@ export async function getOnDemandWebinarEntitlement(
   return row ? serializeEntitlement(row) : null;
 }
 
+export async function getActiveOnDemandWebinarEntitlement(
+  db: Database,
+  input: { userId: string; webinarId: string },
+) {
+  const webinar = getOnDemandWebinarById(input.webinarId);
+  const accessIds = webinar ? listOnDemandAccessIds(webinar) : [input.webinarId];
+  for (const webinarId of accessIds) {
+    const entitlement = await getOnDemandWebinarEntitlement(db, { userId: input.userId, webinarId });
+    if (isActiveOnDemandEntitlement(entitlement)) {
+      return entitlement;
+    }
+  }
+  return null;
+}
+
 export async function hasActiveOnDemandWebinarEntitlement(
   db: Database,
   input: { userId: string; webinarId: string },
 ) {
-  const entitlement = await getOnDemandWebinarEntitlement(db, input);
-  return Boolean(entitlement?.purchasedAt && !entitlement.revokedAt);
+  const entitlement = await getActiveOnDemandWebinarEntitlement(db, input);
+  return Boolean(entitlement);
 }
 
 export async function listActiveOnDemandWebinarEntitlements(db: Database, userId: string) {

@@ -13,10 +13,14 @@ import { fetchOnDemandWebinarMe } from "../lib/onDemandWebinarApi";
 const POLL_ATTEMPTS = 8;
 const POLL_INTERVAL_MS = 1500;
 
-export default function OnDemandWebinarThankYou() {
+export default function OnDemandWebinarThankYou({
+  webinarId = ADRONIS_ON_DEMAND_WEBINAR_ID,
+}: {
+  webinarId?: string;
+}) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [searchParams] = useSearchParams();
-  const webinar = getOnDemandWebinarById(ADRONIS_ON_DEMAND_WEBINAR_ID);
+  const webinar = getOnDemandWebinarById(webinarId);
   const catalog = webinar
     ? getOnDemandWebinarPublicCatalog(webinar, { assetReady: false, playbackProtected: false })
     : null;
@@ -43,12 +47,12 @@ export default function OnDemandWebinarThankYou() {
       }
 
       try {
-        const state = await fetchOnDemandWebinarMe(ADRONIS_ON_DEMAND_WEBINAR_ID, token);
+        const state = await fetchOnDemandWebinarMe(webinarId, token);
         if (cancelled) return;
         if (state.owned) {
           setStatus("ready");
           trackCtaClick("on_demand_webinar_checkout_completed", "on_demand_webinar_thank_you", {
-            webinarId: ADRONIS_ON_DEMAND_WEBINAR_ID,
+            webinarId,
           });
           return;
         }
@@ -73,7 +77,7 @@ export default function OnDemandWebinarThankYou() {
     return () => {
       cancelled = true;
     };
-  }, [checkoutSessionId, getToken, isSignedIn]);
+  }, [checkoutSessionId, getToken, isSignedIn, webinarId]);
 
   if (!isLoaded) {
     return <div className="mx-auto max-w-3xl px-6 py-16 text-white/70">Loading...</div>;

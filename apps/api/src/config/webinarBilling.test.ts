@@ -1,4 +1,4 @@
-import { getStarFamilyWebinarPublicCatalog, isStarFamilyWebinarHomeVisible } from "@wisdom/utils";
+import { getPrimeAlchemyWebinarPublicCatalog, getStarFamilyWebinarPublicCatalog, isStarFamilyWebinarHomeVisible } from "@wisdom/utils";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -10,6 +10,7 @@ import {
 import {
   ADRONIS_WEBINAR_EVENT,
   ADRONIS_WEBINAR_STRIPE_PRICE_ID,
+  PRIME_ALCHEMY_WEBINAR_EVENT,
   STAR_FAMILY_WEBINAR_EVENT,
   STAR_FAMILY_WEBINAR_STRIPE_PRICE_ID,
   resolveWebinarZoomRegistrationUrl,
@@ -122,4 +123,37 @@ test("star family zoom url stays on the server resolver and can be overridden", 
   process.env.ZOOM_REGISTRATION_URL_ADRONIS_STAR_FAMILY_COMMUNION = "https://zoom.example/register/override";
   assert.equal(resolveWebinarZoomRegistrationUrl(STAR_FAMILY_WEBINAR_EVENT), "https://zoom.example/register/override");
   assert.equal(resolveWebinarZoomRegistrationUrl(ADRONIS_WEBINAR_EVENT), ADRONIS_WEBINAR_EVENT.zoomRegistrationUrl);
+});
+
+test("prime alchemy live checkout uses its own price and stays open until 9am Pacific", () => {
+  process.env.STRIPE_SECRET_KEY = "sk_live_example";
+  delete process.env.STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS;
+  assert.equal(resolveWebinarStripePriceId(PRIME_ALCHEMY_WEBINAR_EVENT).priceId, "price_1USOJjAd5V3LaCqjMsii8snO");
+  assert.equal(PRIME_ALCHEMY_WEBINAR_EVENT.priceCents, 1999);
+  assert.equal(PRIME_ALCHEMY_WEBINAR_EVENT.grantsComplimentaryRecording, false);
+  assert.doesNotThrow(() => assertWebinarRegistrationOpen(PRIME_ALCHEMY_WEBINAR_EVENT, new Date("2026-11-01T08:59:59-08:00")));
+  assert.throws(
+    () => assertWebinarRegistrationOpen(PRIME_ALCHEMY_WEBINAR_EVENT, new Date("2026-11-01T09:00:00-08:00")),
+    /closed/i,
+  );
+});
+
+test("prime alchemy public catalog omits the zoom registration url", () => {
+  const catalog = getPrimeAlchemyWebinarPublicCatalog(new Date("2026-10-19T12:00:00-07:00"));
+  const serialized = JSON.stringify(catalog);
+  assert.equal(catalog.registrationOpen, true);
+  assert.equal(catalog.startsAt, "2026-11-01T10:00:00-08:00");
+  assert.equal(catalog.displayTime, "10:00 AM Pacific / 1:00 PM Eastern");
+  assert.equal(catalog.portraitPosterPath, "/images/webinars/prime-alchemy-teachings-9x16.jpg");
+  assert.doesNotMatch(serialized, /zoom\.us|W3SbW8mdQACjSbbU-YrHQg|price_1USOJj/i);
+});
+
+test("prime alchemy test mode never falls back to the live price", () => {
+  process.env.STRIPE_SECRET_KEY = "sk_test_example";
+  delete process.env.STRIPE_PRICE_PRIME_ALCHEMY_TEACHINGS;
+  process.env.STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS = "price_1USOJjAd5V3LaCqjMsii8snO";
+  assert.throws(
+    () => resolveWebinarStripePriceId(PRIME_ALCHEMY_WEBINAR_EVENT),
+    /Live price IDs are never used in test mode/i,
+  );
 });

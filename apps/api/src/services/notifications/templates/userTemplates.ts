@@ -530,8 +530,11 @@ export function renderWebinarConfirmedTemplate(
     ? `Hi ${payload.firstName},`
     : "Hi,";
   const amount = `$${((payload.amountCents ?? 1499) / 100).toFixed(2)} ${(payload.currency ?? "CAD").toUpperCase()}`;
+  const subject = eventTitle === "Adronis: From Disclosure to Contact"
+    ? "Your Adronis Webinar Registration — From Disclosure to Contact"
+    : `You’re Registered — ${eventTitle}`;
   return {
-    subject: "Your Adronis Webinar Registration — From Disclosure to Contact",
+    subject,
     templateVersion: "webinar-confirmed-v1",
     html: renderPrimeMentorEmail({
       eyebrow: "Webinar Registration Confirmed",

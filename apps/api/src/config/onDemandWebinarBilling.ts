@@ -18,33 +18,36 @@ export function resolveOnDemandWebinarStripePriceId(webinar?: OnDemandWebinarCat
     throw createHttpError(404, "On-demand webinar was not found.");
   }
 
+  const liveEnvKey = target.liveStripePriceEnvKey;
+  const testEnvKey = target.testStripePriceEnvKey;
+
   if (isLiveStripeMode()) {
-    const livePriceId = process.env[ADRONIS_ON_DEMAND_LIVE_PRICE_ENV_KEY]?.trim() || target.liveStripePriceId.trim();
+    const livePriceId = process.env[liveEnvKey]?.trim() || target.liveStripePriceId.trim();
     if (!livePriceId) {
       throw createHttpError(
         500,
-        `Stripe live price is not configured for ${target.webinarId}. Missing ${ADRONIS_ON_DEMAND_LIVE_PRICE_ENV_KEY} or catalog liveStripePriceId.`,
+        `Stripe live price is not configured for ${target.webinarId}. Missing ${liveEnvKey} or catalog liveStripePriceId.`,
       );
     }
     return {
       priceId: livePriceId,
-      envKey: ADRONIS_ON_DEMAND_LIVE_PRICE_ENV_KEY,
+      envKey: liveEnvKey,
       webinar: target,
-      source: process.env[ADRONIS_ON_DEMAND_LIVE_PRICE_ENV_KEY]?.trim() ? "env" as const : "catalog" as const,
+      source: process.env[liveEnvKey]?.trim() ? "env" as const : "catalog" as const,
     };
   }
 
-  const testPriceId = process.env[ADRONIS_ON_DEMAND_PRICE_ENV_KEY]?.trim() || "";
+  const testPriceId = process.env[testEnvKey]?.trim() || "";
   if (!testPriceId) {
     throw createHttpError(
       500,
-      `Stripe test price is not configured for ${target.webinarId}. Missing ${ADRONIS_ON_DEMAND_PRICE_ENV_KEY}. Live price IDs are never used in test mode.`,
+      `Stripe test price is not configured for ${target.webinarId}. Missing ${testEnvKey}. Live price IDs are never used in test mode.`,
     );
   }
 
   return {
     priceId: testPriceId,
-    envKey: ADRONIS_ON_DEMAND_PRICE_ENV_KEY,
+    envKey: testEnvKey,
     webinar: target,
     source: "env" as const,
   };

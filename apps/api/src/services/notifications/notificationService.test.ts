@@ -95,6 +95,26 @@ test("webinar confirmation email includes the event date, CAD price, and Zoom re
   assert.doesNotMatch(rendered.html, /join link has already been issued/i);
 });
 
+test("webinar confirmation subject follows the purchased event title", () => {
+  const payload = {
+    ...getSamplePayload("webinar.confirmed"),
+    eventId: "prime-alchemy-teachings",
+    eventTitle: "Mentoring Circle: Prime Alchemy Teachings",
+    displayDate: "Sunday, November 1, 2026",
+    displayTime: "10:00 AM Pacific / 1:00 PM Eastern",
+    amountCents: 1999,
+    zoomRegistrationUrl: "https://us02web.zoom.us/meeting/register/W3SbW8mdQACjSbbU-YrHQg",
+    accessPagePath: "/webinars/prime-alchemy-teachings/thank-you",
+  };
+  const rendered = renderWebinarConfirmedTemplate(payload);
+
+  assert.equal(rendered.subject, "You’re Registered — Mentoring Circle: Prime Alchemy Teachings");
+  assert.match(rendered.html, /Sunday, November 1, 2026/);
+  assert.match(rendered.html, /\$19\.99 CAD/);
+  assert.match(rendered.html, /W3SbW8mdQACjSbbU-YrHQg/);
+  assert.match(rendered.html, /Complete Your Zoom Registration/);
+});
+
 test("on-demand webinar confirmation email has no Zoom copy and includes a watch CTA", () => {
   const payload = getSamplePayload("on_demand_webinar.confirmed");
   const rendered = renderOnDemandWebinarConfirmedTemplate(payload);

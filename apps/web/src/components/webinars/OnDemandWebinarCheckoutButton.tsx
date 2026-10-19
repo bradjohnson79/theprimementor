@@ -3,10 +3,9 @@ import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { useNavigate } from "react-router-dom";
 import {
-  ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH,
-  ADRONIS_ON_DEMAND_PLAYER_PATH,
-  ADRONIS_ON_DEMAND_WEBINAR_TITLE,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
+  formatOnDemandWebinarPrice,
+  getOnDemandWebinarById,
 } from "@wisdom/utils";
 import { trackCtaClick } from "../../lib/analytics";
 import { startOnDemandWebinarCheckout } from "../../lib/onDemandWebinarApi";
@@ -35,9 +34,16 @@ export default function OnDemandWebinarCheckoutButton({
   const { isSignedIn, getToken } = useAuth();
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+  const webinar = getOnDemandWebinarById(webinarId);
+  const autocheckoutPath = webinar?.autocheckoutPath ?? "/";
+  const playerPath = webinar?.playerPath ?? `/dashboard/webinars/${webinarId}`;
+  const title = webinar?.title ?? "On-demand webinar";
+  const priceLabel = webinar
+    ? formatOnDemandWebinarPrice(webinar.priceCents, webinar.currency)
+    : "$7.99 CAD";
 
   const label = children
-    ?? (owned ? "Watch Now" : starting ? "Opening Checkout..." : "Watch On Demand — $7.99 CAD");
+    ?? (owned ? "Watch Now" : starting ? "Opening Checkout..." : `Watch On Demand — ${priceLabel}`);
 
   async function handleClick() {
     if (disabled || starting) {
@@ -45,19 +51,19 @@ export default function OnDemandWebinarCheckoutButton({
     }
 
     trackCtaClick(owned ? "watch_on_demand_webinar" : "buy_on_demand_webinar", source, {
-      href: owned ? ADRONIS_ON_DEMAND_PLAYER_PATH : ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH,
-      title: ADRONIS_ON_DEMAND_WEBINAR_TITLE,
+      href: owned ? playerPath : autocheckoutPath,
+      title,
       webinarId,
     });
 
     if (owned) {
-      navigate(`/dashboard/webinars/${webinarId}`);
+      navigate(playerPath);
       return;
     }
 
     if (!isSignedIn) {
       trackCtaClick("on_demand_webinar_authentication_required", source, { webinarId });
-      navigate(`/sign-up?redirect_url=${encodeURIComponent(ADRONIS_ON_DEMAND_AUTOCHECKOUT_PATH)}`);
+      navigate(`/sign-up?redirect_url=${encodeURIComponent(autocheckoutPath)}`);
       return;
     }
 
@@ -74,7 +80,7 @@ export default function OnDemandWebinarCheckoutButton({
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to open Stripe checkout.";
       if (/already been purchased|already been paid/i.test(message)) {
-        navigate(`/dashboard/webinars/${webinarId}`);
+        navigate(playerPath);
         return;
       }
       onError?.(message);

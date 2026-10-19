@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import MuxPlayer from "@mux/mux-player-react";
-import { ADRONIS_ON_DEMAND_PLAYER_SUMMARY, ADRONIS_ON_DEMAND_WEBINAR_ID } from "@wisdom/utils";
+import { getOnDemandWebinarById } from "@wisdom/utils";
 import { fetchOnDemandPlayback, fetchOnDemandWebinarMe, saveOnDemandProgress } from "../lib/onDemandWebinarApi";
 
 const MAX_AUTH_REFRESHES = 2;
@@ -41,11 +41,7 @@ export default function OnDemandWebinarPlayer() {
       fetchOnDemandPlayback(webinarId, authToken),
     ]);
     setTitle(me.title);
-    setSummary(
-      webinarId === ADRONIS_ON_DEMAND_WEBINAR_ID
-        ? ADRONIS_ON_DEMAND_PLAYER_SUMMARY
-        : (me.description?.trim() || null),
-    );
+    setSummary(getOnDemandWebinarById(webinarId)?.playerSummary || me.description?.trim() || null);
     setPoster(me.posterPath);
     setPlaybackId(playback.playbackId);
     setToken(playback.token);

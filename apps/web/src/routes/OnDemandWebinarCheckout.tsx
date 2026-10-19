@@ -2,10 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import {
-  ADRONIS_ON_DEMAND_FEATURE_BULLETS,
-  ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH,
   ADRONIS_ON_DEMAND_CANCEL_PATH,
-  ADRONIS_ON_DEMAND_THANK_YOU_PATH,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
   getOnDemandWebinarById,
   getOnDemandWebinarPublicCatalog,
@@ -15,15 +12,18 @@ import { usePageMeta } from "../hooks/usePageMeta";
 import { trackCtaClick } from "../lib/analytics";
 import { fetchOnDemandWebinarMe, fetchPublicOnDemandWebinar, startOnDemandWebinarCheckout } from "../lib/onDemandWebinarApi";
 
-const CANONICAL = "https://theprimementor.com/webinars/adronis-disclosure-to-contact/on-demand";
-const LANDING_OG_IMAGE = `https://theprimementor.com${ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH}`;
 const CTA_CLASS_NAME = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#D7B454] to-[#F2D88A] px-6 py-3 text-sm font-semibold text-[#07111C] shadow-[0_10px_32px_rgba(215,180,84,0.22)] transition hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
-export default function OnDemandWebinarCheckout() {
+export default function OnDemandWebinarCheckout({
+  webinarId = ADRONIS_ON_DEMAND_WEBINAR_ID,
+}: {
+  webinarId?: string;
+}) {
   const { isSignedIn, getToken } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const fallback = getOnDemandWebinarById(ADRONIS_ON_DEMAND_WEBINAR_ID);
+  const sourceWebinar = getOnDemandWebinarById(webinarId);
+  const fallback = sourceWebinar;
   const [catalog, setCatalog] = useState(() => (
     fallback
       ? getOnDemandWebinarPublicCatalog(fallback, { assetReady: false, playbackProtected: false })
@@ -37,16 +37,21 @@ export default function OnDemandWebinarCheckout() {
   const hasAccess = Boolean(isSignedIn && owned);
 
   usePageMeta({
-    title: "Adronis: From Disclosure to Contact | On Demand",
-    description:
-      "Watch the recorded Adronis webinar with Brad Johnson on humanity’s path from disclosure toward global first contact. Available now on demand for $7.99 CAD.",
-    canonical: CANONICAL,
-    ogImage: LANDING_OG_IMAGE,
+    title: sourceWebinar ? `${sourceWebinar.title} | On Demand` : "On-Demand Webinar",
+    description: sourceWebinar?.description
+      ?? "Watch this recorded Adronis webinar anytime after purchase.",
+    canonical: sourceWebinar
+      ? `https://theprimementor.com${sourceWebinar.checkoutPath}`
+      : "https://theprimementor.com",
+    ogImage: sourceWebinar
+      ? `https://theprimementor.com${sourceWebinar.landscapePosterPath}`
+      : undefined,
   });
 
   useEffect(() => {
-    void fetchPublicOnDemandWebinar(ADRONIS_ON_DEMAND_WEBINAR_ID).then(setCatalog);
-  }, []);
+    if (!webinarId) return;
+    void fetchPublicOnDemandWebinar(webinarId).then(setCatalog);
+  }, [webinarId]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -54,7 +59,7 @@ export default function OnDemandWebinarCheckout() {
     void (async () => {
       try {
         const token = await getToken();
-        const state = await fetchOnDemandWebinarMe(ADRONIS_ON_DEMAND_WEBINAR_ID, token);
+        const state = await fetchOnDemandWebinarMe(webinarId, token);
         if (cancelled) return;
         setCatalog(state);
         if (state.owned) {
@@ -67,7 +72,7 @@ export default function OnDemandWebinarCheckout() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isSignedIn, navigate]);
+  }, [getToken, isSignedIn, navigate, webinarId]);
 
   useEffect(() => {
     if (!isSignedIn || !shouldAutocheckout || autocheckoutStartedRef.current || hasAccess || !catalog?.saleable) {
@@ -83,19 +88,19 @@ export default function OnDemandWebinarCheckout() {
       try {
         const token = await getToken();
         trackCtaClick("on_demand_webinar_checkout_started", "on_demand_webinar_autocheckout", {
-          webinarId: ADRONIS_ON_DEMAND_WEBINAR_ID,
+          webinarId,
         });
-        await startOnDemandWebinarCheckout(ADRONIS_ON_DEMAND_WEBINAR_ID, { token });
+        await startOnDemandWebinarCheckout(webinarId, { token });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unable to open Stripe checkout.";
         if (/already been purchased|already been paid/i.test(message)) {
-          navigate(ADRONIS_ON_DEMAND_THANK_YOU_PATH, { replace: true });
+          navigate(sourceWebinar?.thankYouPath ?? "/dashboard/webinars", { replace: true });
           return;
         }
         setError(message);
       }
     })();
-  }, [catalog?.saleable, getToken, hasAccess, isSignedIn, navigate, searchParams, setSearchParams, shouldAutocheckout]);
+  }, [catalog?.saleable, getToken, hasAccess, isSignedIn, navigate, searchParams, setSearchParams, shouldAutocheckout, sourceWebinar?.thankYouPath, webinarId]);
 
   if (canceledCheckout) {
     return <Navigate to={ADRONIS_ON_DEMAND_CANCEL_PATH} replace />;
@@ -105,8 +110,8 @@ export default function OnDemandWebinarCheckout() {
     return <div className="mx-auto max-w-3xl px-6 py-16 text-slate-300">Webinar not found.</div>;
   }
 
-  const bullets = catalog.featureBullets.length ? catalog.featureBullets : ADRONIS_ON_DEMAND_FEATURE_BULLETS;
-  const ctaLabel = hasAccess ? "Watch in Dashboard" : "Get Instant Access — $7.99 CAD";
+  const bullets = catalog.featureBullets;
+  const ctaLabel = hasAccess ? "Watch in Dashboard" : `Get Instant Access — ${catalog.displayPrice}`;
 
   return (
     <div className="relative isolate min-h-full overflow-hidden text-[#F8FAFC]">
@@ -129,6 +134,7 @@ export default function OnDemandWebinarCheckout() {
           <div className="mt-6 space-y-3">
             <OnDemandWebinarCheckoutButton
               source="on_demand_webinar_landing_page"
+              webinarId={webinarId}
               owned={hasAccess}
               saleable={catalog.saleable}
               onError={setError}
@@ -144,7 +150,7 @@ export default function OnDemandWebinarCheckout() {
 
           <figure className="mt-10 overflow-hidden rounded-3xl border border-white/[0.09] bg-[#050a12] shadow-[0_30px_90px_rgba(0,0,0,0.48),0_0_55px_rgba(41,190,220,0.08)]">
             <img
-              src={ADRONIS_ON_DEMAND_LANDSCAPE_POSTER_PATH}
+              src={catalog.landscapePosterPath || sourceWebinar?.landscapePosterPath}
               alt={catalog.posterAlt}
               width={1672}
               height={941}
@@ -155,14 +161,12 @@ export default function OnDemandWebinarCheckout() {
           </figure>
 
           <div className="glass-card mt-10 space-y-5 p-6 sm:p-8">
-            <p className="text-base leading-8 text-[#CBD5E1] sm:text-lg">
-              The recorded Adronis webinar is now available to watch anytime. Brad Johnson channels Adronis on
-              humanity’s path from the current phase of disclosure toward global first contact — and what may
-              follow in its aftermath.
-            </p>
-            <p className="text-base leading-8 text-[#CBD5E1]">
-              {catalog.description}
-            </p>
+            {catalog.playerSummary ? (
+              <p className="text-base leading-8 text-[#CBD5E1] sm:text-lg">{catalog.playerSummary}</p>
+            ) : null}
+            {catalog.description && catalog.description !== catalog.playerSummary ? (
+              <p className="text-base leading-8 text-[#CBD5E1]">{catalog.description}</p>
+            ) : null}
             <ul className="space-y-2 text-sm leading-7 text-[#CBD5E1] sm:text-base">
               {bullets.map((bullet) => (
                 <li key={bullet} className="flex gap-3">
@@ -174,6 +178,7 @@ export default function OnDemandWebinarCheckout() {
             <div className="pt-2">
               <OnDemandWebinarCheckoutButton
                 source="on_demand_webinar_landing_page_details"
+                webinarId={webinarId}
                 owned={hasAccess}
                 saleable={catalog.saleable}
                 onError={setError}

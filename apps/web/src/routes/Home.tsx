@@ -10,10 +10,9 @@ import {
 import HeroSection from "../components/hero/HeroSection";
 import PrimeMentorServices from "../components/home/PrimeMentorServices";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
-import StarFamilyHomeSection from "../components/webinars/StarFamilyHomeSection";
-import DisclosureOnDemandCompactCard from "../components/webinars/DisclosureOnDemandCompactCard";
-import { useStarFamilyHomepageVisible } from "../components/webinars/useStarFamilyHomepageVisible";
+import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
 import HomeShopGallery from "../components/home/HomeShopGallery";
+import AdronisPatreonHomeBanner from "../components/home/AdronisPatreonHomeBanner";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
 import TestimonialsSlider from "../components/public/TestimonialsSlider";
@@ -416,7 +415,6 @@ function RegenerationOfferHomePanel() {
 
 export default function Home() {
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
-  const showStarFamilyHome = useStarFamilyHomepageVisible();
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
     title: REPORT_PRODUCTS[key].displayName,
     meta: "Premium Report",
@@ -443,11 +441,11 @@ export default function Home() {
     <div className="home-front-page relative text-white">
       <HeroSection />
       <PrimeMentorServices />
+      <OnDemandWebinarsHomeWidget />
       <AdronisWebinarHomeCard />
-      {showStarFamilyHome ? <StarFamilyHomeSection /> : <DisclosureOnDemandCompactCard className="pt-8 sm:pt-10" />}
       <HomeShopGallery />
-      {showStarFamilyHome ? <DisclosureOnDemandCompactCard /> : null}
       <RegenerationOfferHomePanel />
+      <AdronisPatreonHomeBanner />
 
       <LandingSection id="reports">
         <div className="space-y-8 text-left">

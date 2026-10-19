@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   ADRONIS_ON_DEMAND_LIVE_STRIPE_PRICE_ID,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
+  STAR_FAMILY_ON_DEMAND_LIVE_STRIPE_PRICE_ID,
+  STAR_FAMILY_ON_DEMAND_WEBINAR_ID,
   getOnDemandWebinarById,
 } from "@wisdom/utils";
 import {
@@ -45,6 +47,25 @@ test("live-mode Stripe price can use the catalog live Price ID", () => {
   process.env.STRIPE_SECRET_KEY = previousSecret;
   if (previousLive === undefined) delete process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND;
   else process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND = previousLive;
+});
+
+test("live Star Family price stays on its own Price ID", () => {
+  const previousSecret = process.env.STRIPE_SECRET_KEY;
+  const previousDisclosure = process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND;
+  const previousStarFamily = process.env.STRIPE_LIVE_PRICE_STAR_FAMILY_ON_DEMAND;
+  process.env.STRIPE_SECRET_KEY = "sk_live_example";
+  process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND = ADRONIS_ON_DEMAND_LIVE_STRIPE_PRICE_ID;
+  delete process.env.STRIPE_LIVE_PRICE_STAR_FAMILY_ON_DEMAND;
+
+  const resolved = resolveOnDemandWebinarStripePriceId(getOnDemandWebinarById(STAR_FAMILY_ON_DEMAND_WEBINAR_ID));
+  assert.equal(resolved.priceId, STAR_FAMILY_ON_DEMAND_LIVE_STRIPE_PRICE_ID);
+  assert.notEqual(resolved.priceId, ADRONIS_ON_DEMAND_LIVE_STRIPE_PRICE_ID);
+
+  process.env.STRIPE_SECRET_KEY = previousSecret;
+  if (previousDisclosure === undefined) delete process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND;
+  else process.env.STRIPE_LIVE_PRICE_ADRONIS_ON_DEMAND = previousDisclosure;
+  if (previousStarFamily === undefined) delete process.env.STRIPE_LIVE_PRICE_STAR_FAMILY_ON_DEMAND;
+  else process.env.STRIPE_LIVE_PRICE_STAR_FAMILY_ON_DEMAND = previousStarFamily;
 });
 
 test("no_payment_required is rejected unless explicitly authorized", () => {

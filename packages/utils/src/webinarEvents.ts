@@ -102,6 +102,51 @@ export function isStarFamilyWebinarHomeVisible(now = new Date()) {
   return now.getTime() < STAR_FAMILY_HOME_REMOVAL_AT_MS;
 }
 
+export const PRIME_ALCHEMY_WEBINAR_EVENT_ID = "prime-alchemy-teachings";
+export const PRIME_ALCHEMY_WEBINAR_EVENT_KEY = PRIME_ALCHEMY_WEBINAR_EVENT_ID;
+export const PRIME_ALCHEMY_WEBINAR_TITLE = "Mentoring Circle: Prime Alchemy Teachings";
+export const PRIME_ALCHEMY_WEBINAR_PRESENTER = "Brad Johnson";
+export const PRIME_ALCHEMY_WEBINAR_PRICE_CENTS = 1999;
+export const PRIME_ALCHEMY_WEBINAR_CURRENCY = "CAD";
+export const PRIME_ALCHEMY_WEBINAR_TIMEZONE = "America/Los_Angeles";
+export const PRIME_ALCHEMY_WEBINAR_STARTS_AT = "2026-11-01T10:00:00-08:00";
+export const PRIME_ALCHEMY_WEBINAR_REGISTRATION_CLOSES_AT = "2026-11-01T09:00:00-08:00";
+export const PRIME_ALCHEMY_WEBINAR_DURATION_MINUTES = 180;
+export const PRIME_ALCHEMY_WEBINAR_DISPLAY_DATE = "Sunday, November 1, 2026";
+export const PRIME_ALCHEMY_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
+export const PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH = "/images/webinars/prime-alchemy-teachings-16x9.jpg";
+export const PRIME_ALCHEMY_WEBINAR_PORTRAIT_POSTER_PATH = "/images/webinars/prime-alchemy-teachings-9x16.jpg";
+export const PRIME_ALCHEMY_WEBINAR_POSTER_PATH = PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH;
+export const PRIME_ALCHEMY_WEBINAR_POSTER_ALT =
+  "Mentoring Circle: Prime Alchemy Teachings poster with Brad Johnson for a live three-hour Zoom event on November 1, 2026.";
+export const PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH = "/webinars/prime-alchemy-teachings";
+export const PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH = "/webinars/prime-alchemy-teachings/thank-you";
+export const PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID = "webinar-prime-alchemy-teachings";
+export const PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH = `${PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH}?autocheckout=1`;
+export const PRIME_ALCHEMY_WEBINAR_LIVE_STRIPE_PRICE_ID = "price_1USOJjAd5V3LaCqjMsii8snO";
+
+export const PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS = [
+  "Join Brad Johnson live on Zoom on Sunday, November 1, 2026, for an immersive three-hour Mentoring Circle exploring Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.",
+  "The event will include live teachings, manifestation practices and demonstrations, natal-chart readings for three selected volunteers, and an interactive Q&A where attendees can bring forward their questions on spirituality, consciousness, manifestation, and personal transformation.",
+] as const;
+
+export const PRIME_ALCHEMY_WEBINAR_DESCRIPTION = PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS.join(" ");
+
+export const PRIME_ALCHEMY_WEBINAR_FEATURE_BULLETS = [
+  "A three-hour Zoom event with two giveaways: a 90-minute Mentoring Session and a 45-minute Mentoring Session",
+  "The webinar is three hours in length",
+  "Deeper levels of assumption, occupying a state of being, and live demonstrations of manifestation strategies through Theta-state breathwork and occupying your preferred state of consciousness",
+  "The practice of releasing, practicing, cultivation, and creative imagineering through Prime Alchemy",
+  "Three volunteers selected for a subject of interest read through natal charts that Divin8 will provide",
+  "Live Q&A with Brad Johnson on any personal or general topic",
+] as const;
+
+const PRIME_ALCHEMY_REGISTRATION_CLOSES_AT_MS = Date.parse(PRIME_ALCHEMY_WEBINAR_REGISTRATION_CLOSES_AT);
+
+export function isPrimeAlchemyWebinarRegistrationOpen(now = new Date()) {
+  return now.getTime() < PRIME_ALCHEMY_REGISTRATION_CLOSES_AT_MS;
+}
+
 export function formatAdronisWebinarPrice(cents = ADRONIS_WEBINAR_PRICE_CENTS, currency = ADRONIS_WEBINAR_CURRENCY) {
   const amount = new Intl.NumberFormat("en-CA", {
     style: "currency",
@@ -163,5 +208,34 @@ export function getStarFamilyWebinarPublicCatalog(now = new Date()) {
     dashboardPath: STAR_FAMILY_WEBINAR_DASHBOARD_PATH,
     registrationOpen: isStarFamilyWebinarRegistrationOpen(now),
     includesRecording: true,
+  };
+}
+
+export function getPrimeAlchemyWebinarPublicCatalog(now = new Date()) {
+  return {
+    eventId: PRIME_ALCHEMY_WEBINAR_EVENT_ID,
+    eventKey: PRIME_ALCHEMY_WEBINAR_EVENT_KEY,
+    title: PRIME_ALCHEMY_WEBINAR_TITLE,
+    presenter: PRIME_ALCHEMY_WEBINAR_PRESENTER,
+    description: PRIME_ALCHEMY_WEBINAR_DESCRIPTION,
+    descriptionParagraphs: [...PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS],
+    featureBullets: [...PRIME_ALCHEMY_WEBINAR_FEATURE_BULLETS],
+    startsAt: PRIME_ALCHEMY_WEBINAR_STARTS_AT,
+    registrationClosesAt: PRIME_ALCHEMY_WEBINAR_REGISTRATION_CLOSES_AT,
+    displayDate: PRIME_ALCHEMY_WEBINAR_DISPLAY_DATE,
+    displayTime: PRIME_ALCHEMY_WEBINAR_DISPLAY_TIME,
+    durationMinutes: PRIME_ALCHEMY_WEBINAR_DURATION_MINUTES,
+    timezone: PRIME_ALCHEMY_WEBINAR_TIMEZONE,
+    priceCents: PRIME_ALCHEMY_WEBINAR_PRICE_CENTS,
+    currency: PRIME_ALCHEMY_WEBINAR_CURRENCY,
+    displayPrice: formatAdronisWebinarPrice(PRIME_ALCHEMY_WEBINAR_PRICE_CENTS, PRIME_ALCHEMY_WEBINAR_CURRENCY),
+    posterPath: PRIME_ALCHEMY_WEBINAR_POSTER_PATH,
+    landscapePosterPath: PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH,
+    portraitPosterPath: PRIME_ALCHEMY_WEBINAR_PORTRAIT_POSTER_PATH,
+    posterAlt: PRIME_ALCHEMY_WEBINAR_POSTER_ALT,
+    checkoutPath: PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH,
+    thankYouPath: PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH,
+    autocheckoutPath: PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH,
+    registrationOpen: isPrimeAlchemyWebinarRegistrationOpen(now),
   };
 }
