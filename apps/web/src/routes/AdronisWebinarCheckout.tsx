@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import {
   ADRONIS_WEBINAR_AUTOCHECKOUT_PATH,
   ADRONIS_WEBINAR_EVENT_ID,
@@ -113,7 +114,7 @@ export default function AdronisWebinarCheckout() {
           className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950"
         />
         {!owned ? (
-          <p className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+          <p className="text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
         ) : null}
       </div>
     </div>

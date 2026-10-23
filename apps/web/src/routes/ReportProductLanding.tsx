@@ -6,6 +6,7 @@ import {
   divin8ReportProductListPrice,
 } from "@wisdom/utils";
 import ReportCover from "../components/reports/ReportCover";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import ReportOrderLink from "../components/reports/ReportOrderLink";
 import ReportSampleAction from "../components/reports/ReportSampleAction";
 import SampleReportDialog from "../components/reports/SampleReportDialog";
@@ -135,7 +136,7 @@ function ReportProductLandingView({
                 onOpen={() => setSampleOpen(true)}
               />
             </div>
-            <p className="mt-3 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+            <p className="mt-3 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
         </div>
       </section>

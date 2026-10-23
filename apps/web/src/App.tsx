@@ -7,6 +7,7 @@ import RootLayout from "./layouts/RootLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import MemberLayout from "./layouts/MemberLayout";
 import Home from "./routes/Home";
+import StartHerePage from "./routes/StartHerePage";
 import SignInPage from "./routes/SignInPage";
 import SignUpPage from "./routes/SignUpPage";
 import ContactPublic from "./routes/ContactPublic";
@@ -112,6 +113,7 @@ export default function App() {
       <Routes>
         <Route element={<RootLayout />}>
           <Route index element={<Home />} />
+          <Route path="/start-here" element={<StartHerePage />} />
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
           <Route path="/contact" element={<ContactPublic />} />

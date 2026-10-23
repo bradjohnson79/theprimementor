@@ -39,6 +39,7 @@ const SHOP_NAV_FALLBACK: NavItem[] = [
 ];
 
 const NAV_GROUPS: NavGroup[] = [
+  { label: "Start Here", href: "/start-here" },
   {
     label: "Sessions",
     href: "/#sessions",
@@ -52,15 +53,19 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // Audit fix: every Reports dropdown item used to skip the public /reports
+    // sales page and jump straight to a /dashboard/reports/* sign-in wall.
+    // Introductory and Compatibility have dedicated public landing pages;
+    // the rest link to their section on the public /reports catalogue page.
     label: "Reports",
     href: "/reports",
     items: [
-      { label: "3 Questions Report", href: "/dashboard/reports/three-questions" },
-      { label: "Compatibility Report", href: "/dashboard/reports/compatibility" },
-      { label: "12 Month Annual Report", href: "/dashboard/reports/annual-12-month" },
-      { label: "Introductory Report", href: "/dashboard/reports/intro" },
-      { label: "Deep Dive Report", href: "/dashboard/reports/deep-dive" },
-      { label: "Initiate Report", href: "/dashboard/reports/initiate" },
+      { label: "3 Questions Report", href: "/reports#choose-reports" },
+      { label: "Compatibility Report", href: "/reports/compatibility" },
+      { label: "12 Month Annual Report", href: "/reports#choose-reports" },
+      { label: "Introductory Report", href: "/reports/introductory" },
+      { label: "Deep Dive Report", href: "/reports#choose-reports" },
+      { label: "Initiate Report", href: "/reports#choose-reports" },
     ],
   },
   {
@@ -76,19 +81,26 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // Audit fix: "Mentoring Circle" used to land directly on a sign-in wall
+    // with no price or date visible first. Point to the next public, priced,
+    // dated event (Prime Alchemy, Nov 1, 2026) instead. See open questions in
+    // REPORT.md about whether to build a dedicated public Mentoring Circle page.
     label: "Events",
-    href: "/#events",
+    href: "/webinars/prime-alchemy-teachings",
     items: [
-      { label: "Mentoring Circle", href: "/events/mentoring-circle" },
+      { label: "Mentoring Circle: Prime Alchemy (Nov 1, 2026)", href: "/webinars/prime-alchemy-teachings" },
     ],
   },
   {
+    // Audit fix: these hrefs previously didn't load (traumatranscendence.com,
+    // rayd8.com) or pointed to a "Launching Soon" placeholder (aetherx.app).
+    // Matched to the working URLs already used in the homepage Links section.
     label: "Links",
     href: "/#links",
     items: [
-      { label: "Trauma Transcendence Technique Book", href: "https://traumatranscendence.com", external: true },
-      { label: "RAYD8", href: "https://rayd8.com", external: true },
-      { label: "AetherX", href: "https://aetherx.app", external: true },
+      { label: "Trauma Transcendence Technique Book", href: "https://a.co/d/0962vuVE", external: true },
+      { label: "RAYD8", href: "https://www.rayd8app.com", external: true },
+      { label: "AetherX", href: "https://www.aetherx.co", external: true },
     ],
   },
   {
@@ -127,6 +139,7 @@ export default function RootLayout() {
   const [shopItems, setShopItems] = useState<NavItem[]>(SHOP_NAV_FALLBACK);
   const isMarketingSurface =
     location.pathname === "/"
+    || location.pathname === "/start-here"
     || location.pathname === "/about"
     || location.pathname === "/media"
     || isReportsMarketingPath(location.pathname)
@@ -242,7 +255,12 @@ export default function RootLayout() {
             </a>
 
             <div className="flex min-w-0 items-center justify-center">
-              <nav className="hidden lg:block" aria-label="Primary navigation">
+              {/* BRAD-ANSWERS.md #7c: the full nav turning on at the lg (1024px)
+                  breakpoint left no room for "Start Here" plus the logo, and
+                  "Contact" collided with Sign In/Up. Pushed to xl (1280px) so
+                  the compact menu button covers the crowded 1024–1279px range
+                  instead, with no change to the visual style itself. */}
+              <nav className="hidden xl:block" aria-label="Primary navigation">
                 <ul className="flex items-center gap-1">
                   {navGroups.map((group) => (
                     <li key={group.label} className="relative group">
@@ -306,7 +324,7 @@ export default function RootLayout() {
                 </ul>
               </nav>
 
-              <div className="relative lg:hidden">
+              <div className="relative xl:hidden">
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen((open) => !open)}
@@ -482,13 +500,13 @@ export default function RootLayout() {
                 <>
                   <Link
                     to="/sign-in"
-                    className={`hidden text-sm lg:inline ${isMarketingSurface ? "text-white/72 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
+                    className={`hidden text-sm xl:inline ${isMarketingSurface ? "text-white/72 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/sign-up"
-                    className={`hidden rounded-xl px-4 py-2 text-sm transition lg:inline-flex ${
+                    className={`hidden rounded-xl px-4 py-2 text-sm transition xl:inline-flex ${
                       isMarketingSurface
                         ? "border border-white/18 bg-white/10 text-white backdrop-blur-md hover:bg-white/18"
                         : "bg-gray-900 text-white hover:bg-gray-800"

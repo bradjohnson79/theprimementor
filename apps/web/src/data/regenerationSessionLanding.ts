@@ -124,7 +124,7 @@ export const regenerationSessionLandingContent: SessionLandingContent = {
       label: "Cancellation / No Obligation",
       title: "Monthly support without a long-term obligation.",
       paragraphs: [
-        "The Manifestation Monthly Package remains $99 CAD/month. There is no long-term obligation, and you may cancel anytime. Existing subscribers keep their current billing and subscription history.",
+        "The Manifestation Monthly Package is $99 CAD/month. There is no long-term obligation, and you may cancel anytime.",
       ],
       density: "spacious",
     },

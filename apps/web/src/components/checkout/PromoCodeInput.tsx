@@ -27,7 +27,7 @@ export default function PromoCodeInput({
   finalEstimate = null,
   currency = null,
   title = "Promo Code",
-  subtitle = "Apply one promo code before checkout. Stripe will remain the final pricing authority.",
+  subtitle = "Have a promo code? Apply it here before checkout.",
 }: PromoCodeInputProps) {
   const fieldClassName = "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm text-white placeholder:text-white/40 focus:border-accent-cyan/50 focus:outline-none focus:ring-1 focus:ring-accent-cyan/30";
 

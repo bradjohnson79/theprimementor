@@ -1,6 +1,7 @@
 import type { MembershipSignupPlan } from "../../config/membershipSignupPlans";
 import { getMembershipPlanPriceLabel } from "../../config/membershipSignupPlans";
 import type { BillingInterval } from "@wisdom/utils";
+import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 
 interface MembershipPlanCardProps {
   plan: MembershipSignupPlan;
@@ -90,7 +91,7 @@ export default function MembershipPlanCard({
       >
         {isBusy ? "Redirecting…" : plan.ctaLabel}
       </button>
-      <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+      <p className="mt-2 text-center text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
     </div>
   );
 }

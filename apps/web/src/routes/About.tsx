@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical } from "../lib/siteMeta";
 
 const spiritualLivingImage = "/about/spiritual_living.jpg";
 const spiritualityNowImage = "/about/spirituality_now.jpg";
@@ -167,6 +169,14 @@ function NewsweekCards() {
 }
 
 export default function About() {
+  usePageMeta({
+    title: "About Brad Johnson | The Prime Mentor",
+    description:
+      "Brad Johnson has spent more than 18 years helping people understand themselves more deeply and move forward with clarity, through private sessions, Divin8 reports, and The Prime Mentor.",
+    canonical: pageCanonical("/about"),
+    ogImage: pageCanonical("/about/bradjohnson.png"),
+  });
+
   return (
     <main className="relative overflow-hidden text-white">
       <section className="relative overflow-hidden border-b border-white/8 px-6 py-20 sm:py-28">
@@ -177,11 +187,15 @@ export default function About() {
             <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em] text-white sm:text-6xl">
               International Metaphysical Expert, Consciousness Researcher, Speaker & Founder of The Prime Mentor
             </h1>
+            {/*
+              Rewrite from /Users/bradjohnson/Documents/primementor-revamp/prime-mentor-strengths-brief.md,
+              Section 5 ("About Brad" rewrite). Draft pending Brad's sign-off; sourced only from
+              verified facts already on the About/Home pages.
+            */}
             <div className="mt-6 space-y-4 text-base leading-8 text-white/68">
-              <p>For over 18 years, Brad Johnson has dedicated his life to the exploration of consciousness, manifestation, personal transformation, ancient spiritual systems, and the deeper mechanics of reality.</p>
-              <p>As the founder of <strong className="text-white">The Prime Mentor</strong>, Brad helps individuals explore practical metaphysics, inner transformation, regeneration, and what he refers to as the <strong className="text-white">Prime Mind</strong>—a heightened state of awareness centered around alignment, intentionality, consciousness, and authentic living.</p>
-              <p>Known for his grounded yet expansive approach to spirituality, Brad has spent nearly two decades researching, applying, teaching, and refining transformational methods that bridge ancient wisdom with modern consciousness work.</p>
-              <p>His work explores the relationship between mind, energy, identity, intuition, manifestation, and human potential—helping people better understand how inner state influences outer experience.</p>
+              <p>Brad Johnson has spent more than 18 years helping people understand themselves more deeply and move forward with clarity. His own path began in 2008 with a curiosity about consciousness and humanity&apos;s place in a larger universe. It grew into a lifelong practice: he is an initiated Kriya Yoga practitioner and has studied qigong, Taoism, meditation, and Vedic, Western and Chinese astrology.</p>
+              <p>Through <strong className="text-white">The Prime Mentor</strong>, Brad brings those years into private sessions and written reports that read your life as one connected picture, then turns that insight into steps you can actually live. His goal isn&apos;t to make you depend on him. It&apos;s to help you reconnect with the wisdom already in you.</p>
+              <p>Brad has been featured in two Newsweek special editions and on Vice TV, has made more than 100 media appearances, has taught in seven countries, and has two bestselling books published in Japan.</p>
             </div>
             <blockquote className="mt-8 rounded-3xl border border-cyan-200/20 bg-cyan-300/10 p-5 text-xl font-semibold tracking-[-0.02em] text-cyan-50">
               Transformation happens when wisdom becomes lived experience.
@@ -345,7 +359,9 @@ export default function About() {
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Continue the Journey</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">Continue the Journey</h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-white/68">Whether you are exploring manifestation, consciousness, transformation, intuition, regeneration, dream work, or spiritual understanding, Brad welcomes you to explore the evolving work of <strong className="text-white">The Prime Mentor</strong>.</p>
-          <p className="mt-5 text-xl font-semibold text-white">The journey inward is often the beginning of the greatest transformation.</p>
+            <p className="mt-5 text-xl font-semibold text-white">The journey inward is often the beginning of the greatest transformation.</p>
+          {/* Option 4 from the strengths brief, used as the About page's closing line (draft). */}
+          <p className="mt-3 text-base leading-7 text-white/68">You don&apos;t need someone to depend on. You need to see what&apos;s already in you.</p>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Link to="/media" className="rounded-full bg-cyan-200 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white">Explore Media Kit</Link>
             <a href="/#contact" className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Contact The Prime Mentor</a>

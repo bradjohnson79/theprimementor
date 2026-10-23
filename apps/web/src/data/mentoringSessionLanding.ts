@@ -9,7 +9,7 @@ export const mentoringSessionLandingContent: SessionLandingContent = {
     eyebrow: "Mentoring Session",
     title: "Mentoring Session: Transform Your Path. Embody Your Prime State.",
     subtitle:
-      "A 90-minute, high-level mentoring experience designed to guide you through deep pattern transformation, expanded awareness, and long-term alignment.",
+      "A 45 or 90-minute, high-level mentoring experience designed to guide you through deep pattern transformation, expanded awareness, and long-term alignment. $199 CAD (45 minutes) or $299 CAD (90 minutes).",
     supportingLine:
       "This is where clarity becomes integration and where your path becomes something you live, not just understand.",
     cta: {
@@ -132,9 +132,7 @@ export const mentoringSessionLandingContent: SessionLandingContent = {
       label: "Positioning",
       title: "This is the highest-depth session in the system.",
       paragraphs: [
-        "Regeneration stabilizes your state of wellness.",
-        "Focus brings clarity to your direction.",
-        "Mentoring transforms your path.",
+        "Clarity you can live, not just understand: Mentoring is built for people who already understand their patterns and are ready to change them, not just name them.",
         "This session is for those ready to move beyond cycles and step fully into alignment.",
       ],
       density: "default",

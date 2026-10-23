@@ -7,7 +7,9 @@ import type { SupportMessage } from "./supportTypes";
 
 const RESPONSE_DELAY_MS = 300;
 const INITIAL_MESSAGE = "Hi - need help navigating the site?";
-const rootBaseClassName = "fixed bottom-6 z-[9999]";
+// Raised on small screens so the bubble doesn't sit on top of hero/CTA buttons
+// near the bottom of a short mobile viewport (audit quick win #7).
+const rootBaseClassName = "fixed bottom-20 sm:bottom-6 z-[9999]";
 
 function shouldUseLeftAnchor(pathname: string) {
   return pathname === "/dashboard"

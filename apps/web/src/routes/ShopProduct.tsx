@@ -10,6 +10,11 @@ import { shopMediaSrc } from "../lib/shop";
 import { shopCheckoutErrorMessage, shopPurchaseReturnPath, startShopCheckout } from "../lib/shopCheckout";
 import ShopRelatedProducts from "../components/shop/ShopRelatedProducts";
 import ShopTestimonials from "../components/shop/ShopTestimonials";
+import { sanitizeShopCopy } from "../lib/shopAvailability";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
+import { filterCompliantTestimonials } from "../lib/testimonialCompliance";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 function formatInline(text: string) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => (
@@ -50,6 +55,12 @@ export default function ShopProduct() {
   const { isSignedIn, getToken } = useAuth();
   const promo = usePromoCode(getToken);
   const [product, setProduct] = useState<ShopPublicProduct | null>(null);
+  usePageMeta({
+    title: product ? `${product.name} | The Prime Mentor Shop` : "The Prime Mentor Shop",
+    description: product?.quickSummary || "Digital tools for personal spiritual wellness practice, created by Brad Johnson.",
+    canonical: pageCanonical(`/shop/${slug ?? ""}`),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   const [purchased, setPurchased] = useState(false);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +256,9 @@ export default function ShopProduct() {
               </button>
             ) : null}
           </div>
+          {!purchased && !product?.purchased ? (
+            <p className="mt-3 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
+          ) : null}
           <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/40">This is a digital edition, not a physical product.</p>
         </div>
       </div>
@@ -252,14 +266,15 @@ export default function ShopProduct() {
       {product?.fullDescription ? (
         <section className="mx-auto mt-16 max-w-6xl border-t border-white/10 pt-12">
           <h2 className="text-3xl font-semibold">About this product</h2>
-          <ShopCopy text={product.fullDescription} />
+          <ShopCopy text={sanitizeShopCopy(product.fullDescription)} />
         </section>
       ) : null}
 
       {product?.includedItems ? (
         <section className="mx-auto mt-12 max-w-6xl">
           <h2 className="text-2xl font-semibold">Included</h2>
-          <ShopCopy className="mt-3 space-y-3 text-base leading-8 text-white/72" text={product.includedItems} />
+          <ShopCopy className="mt-3 space-y-3 text-base leading-8 text-white/72" text={sanitizeShopCopy(product.includedItems)} />
+          <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/40">Delivered as a digital download after purchase.</p>
         </section>
       ) : null}
 
@@ -291,7 +306,10 @@ export default function ShopProduct() {
           heading={product.testimonialSection.heading}
           subtitle={product.testimonialSection.subtitle}
           disclaimer={product.testimonialSection.disclaimer}
-          testimonials={product.testimonials}
+          // Defense-in-depth per BRAD-ANSWERS.md / strengths brief: strip any
+          // medical, health or income-claim testimonial before it renders
+          // publicly, without touching the underlying seed/DB data.
+          testimonials={filterCompliantTestimonials(product.testimonials)}
         />
       ) : null}
 

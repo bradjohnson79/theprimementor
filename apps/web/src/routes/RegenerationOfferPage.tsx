@@ -6,6 +6,7 @@ import RegenerationOfferCheckoutButton from "../components/regeneration-offer/Re
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { formatRegenerationOfferPrice } from "../lib/regenerationOffer";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
 
 const CTA_CLASS =
@@ -47,6 +48,12 @@ export default function RegenerationOfferPage() {
   const [error, setError] = useState<string | null>(null);
   const active = status?.active === true;
   const priceLabel = formatRegenerationOfferPrice(status);
+  // Audit fix: this page previously hardcoded "Available until August 31, 2026",
+  // an expired date. Use the live status.endsAt from the API when available;
+  // otherwise fall back to generic copy rather than inventing a new date.
+  const availabilityLabel = status?.endsAt
+    ? `Available until ${new Date(status.endsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+    : "One-time purchase while supplies last.";
 
   useEffect(() => {
     if (active) {
@@ -99,7 +106,7 @@ export default function RegenerationOfferPage() {
                 {priceLabel} CAD · One-time purchase · No subscription
               </p>
               <p className="mt-3 text-sm text-white/58">
-                Available until August 31, 2026 at 11:59 PM Pacific.
+                {availabilityLabel}
               </p>
 
               {active ? (
@@ -109,7 +116,7 @@ export default function RegenerationOfferPage() {
                     onError={setError}
                     className={CTA_CLASS}
                   />
-                  <p className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+                  <p className="text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
                   {error ? <p className="text-sm text-cyan-100/80">{error}</p> : null}
                 </div>
               ) : (
@@ -226,7 +233,7 @@ export default function RegenerationOfferPage() {
               Order the Regeneration Q&A Package
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/66 sm:text-base">
-              {priceLabel} CAD one-time. Offer ends August 31, 2026 at 11:59 PM America/Vancouver time.
+              {priceLabel} CAD one-time. {availabilityLabel}
             </p>
             <div className="mt-8 space-y-3">
               {active ? (
@@ -236,7 +243,7 @@ export default function RegenerationOfferPage() {
                     onError={setError}
                     className={CTA_CLASS}
                   />
-                  <p className="text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+                  <p className="text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
                 </>
               ) : (
                 <Link

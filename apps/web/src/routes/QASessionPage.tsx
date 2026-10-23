@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import SessionLandingPage from "../components/public/SessionLandingPage";
 import { qaSessionLandingContent } from "../data/qaSessionLanding";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { QA_LANDING_PATH } from "../lib/sessionLandingPaths";
+import { pageCanonical } from "../lib/siteMeta";
 import {
   buildGuidedSessionBookingPath,
   formatGuidedSessionDisplayPrice,
@@ -117,6 +120,14 @@ export default function QASessionPage() {
   }, [qaOfferings, searchParams]);
 
   const bookingPath = buildQaBookingPath(selectedOffering);
+
+  usePageMeta({
+    title: "Q&A Session | The Prime Mentor",
+    description:
+      "Bring your biggest question. Leave with a clear answer. Live Q&A on Zoom with Brad Johnson or Adronis, from $139 CAD, recording included.",
+    canonical: pageCanonical(QA_LANDING_PATH),
+    ogImage: pageCanonical("/images/Q&A Session.png"),
+  });
 
   return (
     <SessionLandingPage

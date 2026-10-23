@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
+import { REGISTER_REASSURANCE } from "../lib/purchaseReassurance";
 import {
   PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH,
   PRIME_ALCHEMY_WEBINAR_EVENT_ID,
@@ -123,7 +124,7 @@ export default function PrimeAlchemyWebinarLearnMore() {
               {ctaLabel}
             </AdronisWebinarCheckoutButton>
             {owned ? null : (
-              <p className="text-sm text-[#94A3B8]">Create a Free Account or Sign-in to Register</p>
+              <p className="text-sm text-[#94A3B8]">{REGISTER_REASSURANCE}</p>
             )}
             {error ? <p className="text-sm text-[#F0D78A]">{error}</p> : null}
           </div>

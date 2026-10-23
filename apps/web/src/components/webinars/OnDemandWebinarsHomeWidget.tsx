@@ -15,8 +15,9 @@ import { fetchWebinarMe } from "../../lib/webinarApi";
 import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
 import OnDemandWebinarCheckoutButton from "./OnDemandWebinarCheckoutButton";
 
-const PURCHASE_NOTE = "Create a Free Account or Sign-in to Purchase";
-const REGISTER_NOTE = "Create a Free Account or Sign-in to Register";
+import { PURCHASE_REASSURANCE, REGISTER_REASSURANCE } from "../../lib/purchaseReassurance";
+const PURCHASE_NOTE = PURCHASE_REASSURANCE;
+const REGISTER_NOTE = REGISTER_REASSURANCE;
 const UPCOMING_TAB_ID = "upcoming";
 
 function fallbackCatalog(webinar: OnDemandWebinarCatalogEntry) {

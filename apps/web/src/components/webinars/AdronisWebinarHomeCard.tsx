@@ -6,6 +6,7 @@ import {
   ADRONIS_WEBINAR_FEATURE_BULLETS,
   getAdronisWebinarPublicCatalog,
 } from "@wisdom/utils";
+import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 import { trackEventOnce } from "../../lib/analytics";
 import { fetchPublicWebinar, fetchWebinarMe } from "../../lib/webinarApi";
 import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
@@ -132,7 +133,7 @@ export default function AdronisWebinarHomeCard() {
             {error ? <p className="text-sm text-amber-100">{error}</p> : null}
             {!owned ? (
               <p className="text-xs leading-5 text-white/55">
-                Create a Free Account or Sign-in to Purchase
+                {PURCHASE_REASSURANCE}
               </p>
             ) : null}
           </div>

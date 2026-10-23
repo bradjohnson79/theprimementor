@@ -9,6 +9,8 @@ import {
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
 import PrimeMentorServices from "../components/home/PrimeMentorServices";
+import StartHereDoors from "../components/home/StartHereDoors";
+import HomeFaq from "../components/home/HomeFaq";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
 import HomeShopGallery from "../components/home/HomeShopGallery";
@@ -32,6 +34,11 @@ import RegenerationOfferCheckoutButton from "../components/regeneration-offer/Re
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { REGENERATION_OFFER_ROUTE, formatRegenerationOfferPrice } from "../lib/regenerationOffer";
+import { PURCHASE_REASSURANCE, REGISTER_REASSURANCE } from "../lib/purchaseReassurance";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { HOME_META } from "../lib/siteMeta";
+import { FACEBOOK_URL, INSTAGRAM_URL, THREADS_URL, YOUTUBE_URL } from "../lib/socialLinks";
+import { FacebookIcon, InstagramIcon, ThreadsIcon, YouTubeIcon } from "../components/public/SocialIcons";
 import { ContactPublicContent } from "./ContactPublic";
 
 
@@ -56,8 +63,6 @@ interface SocialWidgetCardProps {
   buttonLabel: string;
   children?: React.ReactNode;
 }
-
-const SERVICE_PURCHASE_NOTE = "Create a Free Account or Sign-in to Purchase";
 
 const REPORT_CARD_IMAGES: Record<ReportProductKey, string> = {
   three_questions: introductoryReportImage,
@@ -104,13 +109,16 @@ const CASUAL_REPORT_CARDS: ReportCardData[] = [
   },
 ];
 
+// Audit fix: "Mentoring Circle" used to link to a sign-in-walled page and the
+// description below referenced a stale date ("Saturday, May 30"). Now points
+// to the next public, priced, dated event (Prime Alchemy, Nov 1, 2026).
 const EVENT_ITEMS = [
   {
-    title: "Mentoring Circle Monthly",
+    title: "Mentoring Circle: Prime Alchemy Teachings",
     description:
-      "Join the upcoming Mentoring Circle webinar for Prime Law teachings, REP - Rest Energy Practice, volunteer Divin8 Chart reviews, a free mentoring session giveaway, and Q&A.",
-    cta: { label: "Register", href: "/events/mentoring-circle", external: false },
-    ctaNote: SERVICE_PURCHASE_NOTE,
+      "Join the next live Mentoring Circle webinar for Prime Alchemy teachings, volunteer Divin8 Chart reviews, and Q&A. Sunday, November 1, 2026.",
+    cta: { label: "Register", href: "/webinars/prime-alchemy-teachings", external: false },
+    ctaNote: REGISTER_REASSURANCE,
   },
   {
     title: "Prime Mentor Podcast",
@@ -118,7 +126,7 @@ const EVENT_ITEMS = [
       "Join our free weekly podcast where Brad Johnson takes personal questions by donation and addresses a broad range of spiritual topics.",
     cta: {
       label: "View Channel",
-      href: "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA",
+      href: YOUTUBE_URL,
       external: true,
     },
   },
@@ -139,7 +147,7 @@ const LINK_ITEMS = [
   {
     title: "RAYD8",
     description:
-      "RAYD8, created by Brad Johnson, is the world's first Bio-Scalar Digital Wellness system that is designed to charge your cells delivering full body rejuvenation.",
+      "RAYD8, created by Brad Johnson, is a Bio-Scalar Digital Wellness system designed for full body rejuvenation.",
     imageSrc: rayd8WellnessImage,
     imageAlt: "RAYD8 Bio-Scalar Digital Wellness system",
     cta: {
@@ -185,8 +193,6 @@ const ABOUT_ITEMS = [
   },
 ];
 
-const PRIME_MENTOR_FACEBOOK_URL = "https://www.facebook.com/primementorfacebook";
-const PRIME_MENTOR_YOUTUBE_URL = "https://www.youtube.com/channel/UCQeHcVNo6CPWpgJaqEObrqA";
 const PRIME_MENTOR_YOUTUBE_FEATURED_VIDEO_URL = "https://www.youtube.com/embed/Gs_LDlzSwEw?rel=0&modestbranding=1";
 const TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC = "/images/Trauma-Transcendence-Technique-banner.png";
 
@@ -257,24 +263,8 @@ function ReportCard({ title, meta, priceLabel, description, imageSrc, href, ctaL
       >
         {ctaLabel}
       </Link>
-      <p className="mt-2 text-center text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
+      <p className="mt-2 text-center text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
     </div>
-  );
-}
-
-function FacebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
-      <path d="M13.5 21v-7h2.3l.4-3h-2.7V9.1c0-.9.3-1.5 1.6-1.5H16V4.9c-.5-.1-1.4-.2-2.4-.2-2.4 0-4 1.5-4 4.2V11H7v3h2.5v7h4Z" />
-    </svg>
-  );
-}
-
-function YouTubeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-current">
-      <path d="M23 12s0-3.2-.4-4.7a3 3 0 0 0-2.1-2.1C19 4.8 12 4.8 12 4.8s-7 0-8.5.4a3 3 0 0 0-2.1 2.1C1 8.8 1 12 1 12s0 3.2.4 4.7a3 3 0 0 0 2.1 2.1c1.5.4 8.5.4 8.5.4s7 0 8.5-.4a3 3 0 0 0 2.1-2.1C23 15.2 23 12 23 12Zm-14 3.9V8.1l6.2 3.9L9 15.9Z" />
-    </svg>
   );
 }
 
@@ -395,8 +385,8 @@ function RegenerationOfferHomePanel() {
             </Link>
           </div>
           {error ? <p className="text-sm text-amber-100">{error}</p> : null}
-          <p className="text-xs text-white/55">{SERVICE_PURCHASE_NOTE}</p>
-          <p className="text-xs uppercase tracking-[0.24em] text-white/45">Available until August 31, 2026 · One-time purchase · No subscription</p>
+          <p className="text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-white/45">One-time purchase while supplies last · No subscription</p>
         </div>
 
         <div className="relative min-h-72 overflow-hidden border-t border-white/10 lg:border-l lg:border-t-0">
@@ -414,6 +404,13 @@ function RegenerationOfferHomePanel() {
 }
 
 export default function Home() {
+  usePageMeta({
+    title: HOME_META.title,
+    description: HOME_META.description,
+    canonical: "https://theprimementor.com/",
+    ogImage: "https://theprimementor.com/images/divin8-reports-og.webp",
+  });
+
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);
   const premiumReportItems: ReportCardData[] = PREMIUM_REPORT_PRODUCT_KEYS.map((key) => ({
     title: REPORT_PRODUCTS[key].displayName,
@@ -440,12 +437,75 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
+
+      {/* Monthly events get top billing, right after the hero and above the
+          five featured services (BRAD-ANSWERS.md #6). This is the existing
+          Mentoring Circle / Prime Alchemy webinar + weekly podcast content,
+          not new or invented. */}
+      <LandingSection id="events">
+        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+          <SectionMediaPanel
+            eyebrow="Events"
+            title="Live Field"
+            description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
+            imageSrc={mentoringCircleImage}
+            imageAlt="The Mentoring Circle — The Prime Mentor, Brad Johnson"
+            imageHd169Frame
+            className="min-h-[19rem]"
+          />
+
+          <SectionContentBlock
+            label="Events"
+            title="Monthly Webinar & Live Weekly Podcast"
+            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast, or register for the next Mentoring Circle webinar below."
+          >
+            <CompactCardGrid
+              items={EVENT_ITEMS.map((item) => item.cta ? {
+                ...item,
+                cta: {
+                  ...item.cta,
+                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
+                    href: item.cta?.href,
+                    title: item.title,
+                  }),
+                },
+              } : item)}
+              columns={2}
+            />
+          </SectionContentBlock>
+        </div>
+      </LandingSection>
+
+      {/* Start here: Brad's named featured offers (BRAD-ANSWERS.md #1). */}
+      <LandingSection id="start-here">
+        <StartHereDoors />
+      </LandingSection>
+
       <PrimeMentorServices />
+
+      {/* Proof moved up (was ~9,000px down, now right after the services chooser).
+          Only the "safe" testimonials from the strengths brief appear here. */}
+      <section id="testimonials" className="relative scroll-mt-28 border-t border-white/8 py-16">
+        <div className="relative mx-auto max-w-6xl px-6">
+          <div className="space-y-8 text-left">
+            <div className="space-y-3">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Testimonials</p>
+              <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white">
+                Feedback from our Clients
+              </h2>
+              <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
+                Real reflections from people who have stepped into the work—exploring blueprint insight, Divin8, sessions,
+                and the wider Prime Mentor ecosystem.
+              </p>
+            </div>
+
+            <TestimonialsSlider items={HOME_TESTIMONIALS} className="pt-1" />
+            <InlineBackToTop />
+          </div>
+        </div>
+      </section>
+
       <OnDemandWebinarsHomeWidget />
-      <AdronisWebinarHomeCard />
-      <HomeShopGallery />
-      <RegenerationOfferHomePanel />
-      <AdronisPatreonHomeBanner />
 
       <LandingSection id="reports">
         <div className="space-y-8 text-left">
@@ -504,6 +564,15 @@ export default function Home() {
 
       <OverviewSection />
 
+      <HomeShopGallery />
+
+      <RegenerationOfferHomePanel />
+
+      {/* Brad leads; Adronis is secondary everywhere (BRAD-ANSWERS.md #3).
+          Adronis-specific sections sit below Brad's core offers, reports and proof. */}
+      <AdronisWebinarHomeCard />
+      <AdronisPatreonHomeBanner />
+
       <LandingSection id="courses">
         <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
           <SectionMediaPanel
@@ -559,38 +628,8 @@ export default function Home() {
         </div>
       </LandingSection>
 
-      <LandingSection id="events">
-        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-          <SectionMediaPanel
-            eyebrow="Events"
-            title="Live Field"
-            description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
-            imageSrc={mentoringCircleImage}
-            imageAlt="The Mentoring Circle — The Prime Mentor, Brad Johnson"
-            imageHd169Frame
-            className="min-h-[19rem]"
-          />
-
-          <SectionContentBlock
-            label="Events"
-            title="Monthly Webinar & Live Weekly Podcast"
-            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast. Register for the upcoming Mentoring Circle on Saturday, May 30 at 9:30 AM Pacific Daylight Time."
-          >
-            <CompactCardGrid
-              items={EVENT_ITEMS.map((item) => item.cta ? {
-                ...item,
-                cta: {
-                  ...item.cta,
-                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
-                    href: item.cta?.href,
-                    title: item.title,
-                  }),
-                },
-              } : item)}
-              columns={2}
-            />
-          </SectionContentBlock>
-        </div>
+      <LandingSection id="faq">
+        <HomeFaq />
       </LandingSection>
 
       <section className="w-full border-t border-white/8 px-6 py-16">
@@ -638,26 +677,6 @@ export default function Home() {
 
           <p className="mt-4 text-sm text-white/50">We respect your email privacy.</p>
           <div className="mt-8 flex justify-end">
-            <InlineBackToTop />
-          </div>
-        </div>
-      </section>
-
-      <section id="testimonials" className="relative scroll-mt-28 border-t border-white/8 py-16">
-        <div className="relative mx-auto max-w-6xl px-6">
-          <div className="space-y-8 text-left">
-            <div className="space-y-3">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Testimonials</p>
-              <h2 className="max-w-3xl text-3xl font-semibold tracking-[-0.035em] text-white">
-                Feedback from our Clients
-              </h2>
-              <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-                Real reflections from people who have stepped into the work—exploring blueprint insight, Divin8, sessions,
-                and the wider Prime Mentor ecosystem.
-              </p>
-            </div>
-
-            <TestimonialsSlider items={HOME_TESTIMONIALS} className="pt-1" />
             <InlineBackToTop />
           </div>
         </div>
@@ -746,31 +765,12 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <SocialWidgetCard
-                icon={<FacebookIcon />}
-                title="Prime Mentor on Facebook"
-                description="Conscious insight, mentorship, and live transmissions"
-                subtext="Join hundreds following the Prime Mentor journey"
-                href={PRIME_MENTOR_FACEBOOK_URL}
-                buttonLabel="Follow on Facebook"
-              >
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <img
-                    src={thePrimeMentorLogoGold}
-                    alt="The Prime Mentor logo"
-                    className="mx-auto h-auto max-h-56 w-full object-contain"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-              </SocialWidgetCard>
-
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <SocialWidgetCard
                 icon={<YouTubeIcon />}
                 title="Prime Mentor on YouTube"
-                description="Latest transmissions, live conversations, and archived teachings from the channel."
-                href={PRIME_MENTOR_YOUTUBE_URL}
+                description="The primary channel: thousands of teaching videos since 2011, plus live conversations and archived teachings."
+                href={YOUTUBE_URL}
                 buttonLabel="Subscribe on YouTube"
               >
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -785,6 +785,60 @@ export default function Home() {
                       allowFullScreen
                     />
                   </div>
+                </div>
+              </SocialWidgetCard>
+
+              <SocialWidgetCard
+                icon={<FacebookIcon />}
+                title="Prime Mentor on Facebook"
+                description="Conscious insight, mentorship, and live transmissions."
+                href={FACEBOOK_URL}
+                buttonLabel="Follow on Facebook"
+              >
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <img
+                    src={thePrimeMentorLogoGold}
+                    alt="The Prime Mentor logo"
+                    className="mx-auto h-auto max-h-56 w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              </SocialWidgetCard>
+
+              <SocialWidgetCard
+                icon={<InstagramIcon />}
+                title="Prime Mentor on Instagram"
+                description="Follow along for shorter-form teachings and behind-the-scenes updates."
+                href={INSTAGRAM_URL}
+                buttonLabel="Follow on Instagram"
+              >
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <img
+                    src={thePrimeMentorLogoGold}
+                    alt="The Prime Mentor logo"
+                    className="mx-auto h-auto max-h-56 w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              </SocialWidgetCard>
+
+              <SocialWidgetCard
+                icon={<ThreadsIcon />}
+                title="Prime Mentor on Threads"
+                description="Short-form reflections and conversation, cross-posted from the Prime Mentor community."
+                href={THREADS_URL}
+                buttonLabel="Follow on Threads"
+              >
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <img
+                    src={thePrimeMentorLogoGold}
+                    alt="The Prime Mentor logo"
+                    className="mx-auto h-auto max-h-56 w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
               </SocialWidgetCard>
             </div>
@@ -808,6 +862,20 @@ export default function Home() {
             <p className="text-sm font-medium text-white/80">The Prime Mentor</p>
             <p className="mt-1 text-xs text-white/42">&copy; {new Date().getFullYear()} Brad Johnson. All rights reserved.</p>
           </div>
+          <div className="flex items-center gap-4 text-white/55">
+            <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="transition hover:text-white/85">
+              <YouTubeIcon />
+            </a>
+            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="transition hover:text-white/85">
+              <FacebookIcon />
+            </a>
+            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="transition hover:text-white/85">
+              <InstagramIcon />
+            </a>
+            <a href={THREADS_URL} target="_blank" rel="noopener noreferrer" aria-label="Threads" className="transition hover:text-white/85">
+              <ThreadsIcon />
+            </a>
+          </div>
           <div className="flex items-center gap-5 text-xs text-white/52">
             <Link to="/privacy" className="transition hover:text-white/82">Privacy</Link>
             <Link to="/terms" className="transition hover:text-white/82">Terms</Link>
@@ -816,7 +884,7 @@ export default function Home() {
         </div>
       </footer>
       {showFloatingBackToTop ? (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-6 left-6 z-40">
           <button
             type="button"
             onClick={scrollToTop}

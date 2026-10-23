@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { FACEBOOK_URL, INSTAGRAM_URL, THREADS_URL, YOUTUBE_URL } from "../lib/socialLinks";
+import { FacebookIcon, InstagramIcon, ThreadsIcon, YouTubeIcon } from "../components/public/SocialIcons";
 
 const BETA_NOTICE_EXPIRES_AT = Date.parse("2026-05-01T07:01:00.000Z");
 
@@ -117,6 +119,22 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
           </button>
         </form>
       )}
+
+      <div className="mt-10 flex items-center gap-4 border-t border-white/10 pt-6 text-white/55">
+        <span className="text-xs uppercase tracking-[0.24em] text-white/40">Connect</span>
+        <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="transition hover:text-white/85">
+          <YouTubeIcon />
+        </a>
+        <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="transition hover:text-white/85">
+          <FacebookIcon />
+        </a>
+        <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="transition hover:text-white/85">
+          <InstagramIcon />
+        </a>
+        <a href={THREADS_URL} target="_blank" rel="noopener noreferrer" aria-label="Threads" className="transition hover:text-white/85">
+          <ThreadsIcon />
+        </a>
+      </div>
     </div>
   );
 }

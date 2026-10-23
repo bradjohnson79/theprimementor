@@ -6,6 +6,7 @@ import {
   PAST_LIFE_AKASHIC_BOOKING_PATH,
   PAST_LIFE_AKASHIC_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { getActiveSessionOfferingByBookingTypeId } from "@wisdom/utils";
 
 type OfflineProduct = "email" | "pastLife";
@@ -90,7 +91,7 @@ export default function OfflineSessionPage({ product }: { product: OfflineProduc
           >
             {content.cta}
           </Link>
-          <p className="text-xs text-white/50">Create a Free Account or Sign-in to Purchase</p>
+          <p className="text-xs text-white/50">{PURCHASE_REASSURANCE}</p>
         </div>
         <img
           src={content.image}

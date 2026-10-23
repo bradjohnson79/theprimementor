@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/react";
 import { api } from "../../lib/api";
 import type { ShopPublicProduct } from "../../lib/shop";
 import { shopMediaSrc, unwrapShopProducts } from "../../lib/shop";
+import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 
 function GalleryCard({ product, eager }: { product: ShopPublicProduct; eager: boolean }) {
   const image = product.images.find((item) => item.isPrimary) ?? product.images[0];
@@ -38,7 +39,7 @@ function GalleryCard({ product, eager }: { product: ShopPublicProduct; eager: bo
       <span className="mt-auto inline-flex justify-center rounded-xl bg-gradient-to-r from-amber-300 to-yellow-500 px-4 py-2.5 text-sm font-semibold text-slate-950">
         View Product
       </span>
-      <span className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</span>
+      <span className="mt-2 text-center text-xs text-white/55">{PURCHASE_REASSURANCE}</span>
     </Link>
   );
 }

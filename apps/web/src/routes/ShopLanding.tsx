@@ -3,8 +3,17 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { ShopPublicProduct } from "../lib/shop";
 import { shopMediaSrc } from "../lib/shop";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 export default function ShopLanding() {
+  usePageMeta({
+    title: "Shop | Digital Spiritual Tools | The Prime Mentor",
+    description: "Digital tools for personal spiritual wellness practice, created by Brad Johnson for focused intention and at-home energy work.",
+    canonical: pageCanonical("/shop"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   const [products, setProducts] = useState<ShopPublicProduct[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +87,7 @@ export default function ShopLanding() {
                     >
                       View Product
                     </Link>
-                    <p className="mt-2 text-center text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+                    <p className="mt-2 text-center text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
                   </article>
                 );
               })}

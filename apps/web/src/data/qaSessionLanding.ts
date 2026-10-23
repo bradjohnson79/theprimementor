@@ -1,17 +1,21 @@
 import { type SessionLandingContent } from "../components/public/SessionLandingPage";
 import { QA_BOOKING_PATH } from "../lib/sessionLandingPaths";
+import { QA_PROMISE, QA_PROMISE_SUPPORTING } from "../lib/brandCopy";
 
 const qaSessionImage = "/images/Q&A Session.png";
 
+// Hero copy uses Option 5 from the strengths brief
+// (/Users/bradjohnson/Documents/primementor-revamp/prime-mentor-strengths-brief.md,
+// Section 4), a draft pending Brad's sign-off.
 export const qaSessionLandingContent: SessionLandingContent = {
   theme: "qa",
   pageTitle: "qa_session",
   hero: {
     eyebrow: "Q&A Session",
-    title: "Q&A Session",
-    subtitle: "Open Q&A Sessions for Clarity, Insight & Direct Connection",
+    title: QA_PROMISE,
+    subtitle: QA_PROMISE_SUPPORTING,
     supportingLine:
-      "Bring the questions that matter most right now and choose the amount of space you need for direct conversation, clarity, and immediate perspective.",
+      "From $139 CAD for 30 minutes. Choose the amount of space you need for direct conversation, clarity, and immediate perspective.",
     cta: {
       label: "Book Q&A Session",
       href: QA_BOOKING_PATH,

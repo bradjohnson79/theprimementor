@@ -16,6 +16,8 @@ import { api } from "../lib/api";
 import { trackEvent, trackEventOnce } from "../lib/analytics";
 import { startMembershipCheckoutSession } from "../lib/membershipCheckout";
 import PromoCodeInput from "../components/checkout/PromoCodeInput";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 function resolveTierFromPath(pathname: string): MembershipSignupTierKey | null {
   if (pathname.endsWith("/seeker")) return "seeker";
@@ -30,6 +32,12 @@ interface MentorTrainingEligibilityData {
 }
 
 export default function MembershipSignup() {
+  usePageMeta({
+    title: "Membership | The Prime Mentor",
+    description: "Join The Prime Mentor as a Seeker or Initiate member for ongoing Divin8 guidance, member savings, and course support.",
+    canonical: pageCanonical("/membership"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   const { isSignedIn, isLoaded, getToken, userId } = useAuth();
   const { tierState, refetch } = useCurrentUser();
   const location = useLocation();
@@ -310,7 +318,7 @@ export default function MembershipSignup() {
       <section className="border-t border-white/8 px-6 py-12 sm:py-14">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm leading-relaxed text-white/58 sm:text-base">
-            Premium Membership is the main access path for ongoing Divin8 guidance, member savings, and upcoming Prime Mentor course support.
+            Premium Membership is one access path for ongoing Divin8 guidance, member savings, and upcoming Prime Mentor course support.
           </p>
         </div>
       </section>

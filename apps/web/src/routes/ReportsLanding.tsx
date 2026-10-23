@@ -13,6 +13,7 @@ import ReportSampleAction from "../components/reports/ReportSampleAction";
 import SampleReportDialog from "../components/reports/SampleReportDialog";
 import ReportsFaq from "../components/reports/ReportsFaq";
 import { GoldDivider, SystemsConstellation } from "../components/reports/CelestialMarks";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import {
   PATHWAY_A_KEYS,
   PATHWAY_B_ANNUAL_KEY,
@@ -149,7 +150,7 @@ function ReportActions({
           onOpen={onOpenSample}
         />
       </div>
-      <p className="mt-2 text-xs text-white/55">Create a Free Account or Sign-in to Purchase</p>
+      <p className="mt-2 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
     </div>
   );
 }

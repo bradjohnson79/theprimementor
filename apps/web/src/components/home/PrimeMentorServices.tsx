@@ -18,21 +18,26 @@ import {
   REGENERATION_BOOKING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../../lib/sessionLandingPaths";
+import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 
 type ServiceCategoryId = "live" | "offline" | "healing" | "manifestation";
 
+// Manifestation leads (BRAD-ANSWERS.md #7b): it's Brad's best seller, so the
+// tab sits first in the sidebar and is the default selected tab.
 const CATEGORIES: Array<{
   id: ServiceCategoryId;
   label: string;
   icon: typeof Video;
 }> = [
+  { id: "manifestation", label: "Manifestation", icon: Sparkles },
   { id: "live", label: "Live Sessions", icon: Video },
   { id: "offline", label: "Offline Sessions", icon: Mail },
   { id: "healing", label: "Healing Sessions", icon: HeartPulse },
-  { id: "manifestation", label: "Manifestation", icon: Sparkles },
 ];
 
-const PURCHASE_NOTE = "Create a Free Account or Sign-in to Purchase";
+// Brad confirmed (BRAD-ANSWERS.md #1) Manifestation Monthly is his best seller
+// and should carry the only "Most Popular" badge among these session offers.
+const PURCHASE_NOTE = PURCHASE_REASSURANCE;
 
 function formatOfferingPrice(bookingTypeId: string, suffix = "") {
   const offering = getActiveSessionOfferingByBookingTypeId(bookingTypeId);
@@ -67,7 +72,7 @@ function useTabOrientation() {
 }
 
 export default function PrimeMentorServices() {
-  const [active, setActive] = useState<ServiceCategoryId>("live");
+  const [active, setActive] = useState<ServiceCategoryId>("manifestation");
   const orientation = useTabOrientation();
   const baseId = useId();
   const panelId = `${baseId}-panel`;
@@ -140,7 +145,14 @@ export default function PrimeMentorServices() {
                     <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${selected ? "border-cyan-200/40 text-cyan-100" : "border-white/10 text-white/55"}`} aria-hidden="true">
                       <Icon className="h-4 w-4" />
                     </span>
-                    <span className="text-sm font-semibold leading-5">{category.label}</span>
+                    <span className="flex items-center gap-1.5 text-sm font-semibold leading-5">
+                      {category.label}
+                      {category.id === "manifestation" ? (
+                        <span className="rounded-full border border-amber-200/45 bg-amber-300/15 px-1.5 py-0.5 text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-amber-100">
+                          Popular
+                        </span>
+                      ) : null}
+                    </span>
                     {selected ? <span className="ml-auto hidden h-2 w-2 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(165,243,252,0.8)] lg:inline-block" aria-hidden="true" /> : null}
                   </button>
                 );
@@ -468,7 +480,12 @@ function ManifestationPanel() {
         </div>
         <div className="space-y-4 p-5">
           <div>
-            <h4 className="text-lg font-semibold text-white">Manifestation Monthly Package</h4>
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-lg font-semibold text-white">Manifestation Monthly Package</h4>
+              <span className="inline-flex rounded-full border border-amber-200/45 bg-amber-300/15 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-amber-100">
+                Most Popular
+              </span>
+            </div>
             <p className="mt-1 text-sm font-semibold text-amber-100">{price}</p>
           </div>
           <p className="text-sm leading-6 text-white/70">
@@ -492,9 +509,11 @@ function ManifestationPanel() {
                 service_name: "Manifestation Monthly Package",
                 price,
               })}
-              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
+              className="inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
             >
-              Begin Your Manifestation Journey
+              {/* BRAD-ANSWERS.md #7d: shortened from "Begin Your Manifestation
+                  Journey", which wrapped awkwardly next to "Learn More". */}
+              Begin Your Journey
             </Link>
             <Link
               to={REGENERATION_LANDING_PATH}

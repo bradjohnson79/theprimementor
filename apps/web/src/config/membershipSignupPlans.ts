@@ -56,7 +56,9 @@ export const MEMBERSHIP_SIGNUP_PLANS: MembershipSignupPlan[] = [
       "Eligible for the Mentor Training Packages after a completed Mentoring Session",
     ],
     ctaLabel: "Become an Initiate",
-    recommended: true,
+    // Only one tier should carry the "Most popular" badge at a time (Premium).
+    // Audit fix: both tiers previously had recommended: true.
+    recommended: false,
     priceLabel: MEMBER_PRICING.initiate.monthly.label,
     annualPriceLabel: MEMBER_PRICING.initiate.annual.label,
   },

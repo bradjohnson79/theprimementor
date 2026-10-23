@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ContactPublicContent } from "./ContactPublic";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 const spiritualLivingImage = "/about/spiritual_living.jpg";
 const spiritualityNowImage = "/about/spirituality_now.jpg";
@@ -336,6 +338,12 @@ function LazyYouTubeEmbed({ video }: { video: (typeof videos)[number] }) {
 }
 
 export default function Media() {
+  usePageMeta({
+    title: "Media Kit | Brad Johnson, The Prime Mentor",
+    description: "Book Brad Johnson for your podcast or show: official bios, interview topics, and media assets for International Metaphysical Expert, Consciousness Researcher & Speaker.",
+    canonical: pageCanonical("/media"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   return (
     <main className="relative overflow-hidden text-white">
       <section className="relative overflow-hidden border-b border-white/8 px-6 py-20 sm:py-28">
@@ -462,7 +470,7 @@ export default function Media() {
 
       <Section id="official-bios" eyebrow="Copy-Ready Assets" title="Official Bios">
         <div className="mb-5 rounded-3xl border border-amber-200/18 bg-amber-300/10 p-5 text-sm leading-7 text-amber-50/90">
-          Download Media Kit points here until the final PDF asset is available. The copy-ready official bios, intro scripts, and host questions below are the current media-kit assets.
+          Copy-ready official bios, intro scripts, and host questions for your show notes or press materials.
         </div>
         <div className="grid gap-5 lg:grid-cols-2">
           {bios.map((bio) => (

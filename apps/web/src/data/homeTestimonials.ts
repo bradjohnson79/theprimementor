@@ -1,5 +1,15 @@
 import type { TestimonialItem } from "../components/public/TestimonialsSlider";
 
+/**
+ * Homepage testimonials.
+ *
+ * Only the "safe" quotes from Section 2 of
+ * /Users/bradjohnson/Documents/primementor-revamp/prime-mentor-strengths-brief.md
+ * appear here. Two quotes are trimmed to the safe excerpt that brief calls out;
+ * the removed sentences (health/medical or mental-health comparisons) are noted
+ * inline below and in REPORT.md. The regeneration/autism testimonial that was
+ * previously here has been removed entirely — it is on the brief's DO NOT USE list.
+ */
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -17,15 +27,18 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
   },
   {
     id: "3",
-    quote:
-      "Within a single session, Brad helped me to heal parts of myself I never realized were out of touch. That session transformed my life. He did what years of therapists and thousands of dollars couldn't do.",
+    // Trimmed: the brief flags the next sentence ("He did what years of therapists...")
+    // as an implied mental-health comparison and keeps it off ads/landing pages.
+    quote: "Within a single session, Brad helped me to heal parts of myself I never realized were out of touch. That session transformed my life.",
     name: "Gregory Hudson",
     role: "Halifax, NS",
   },
   {
     id: "4",
+    // Trimmed to the brief's safe excerpt only; the removed sentence about the
+    // "healing part" of the session reads as a physical-health claim.
     quote:
-      "My session with Brad was amazing, I feel extremely grateful as well as surprised at how fast my questions were answered. I feel a sense of peace after my session as I'd learned many different things about myself. The healing part of the session was incredible and I felt better immediately. I will be doing this again!",
+      "My session with Brad was amazing, I feel extremely grateful as well as surprised at how fast my questions were answered. I feel a sense of peace after my session as I'd learned many different things about myself. I will be doing this again!",
     name: "Sarah Bresman Cosme",
     role: "Florida",
   },
@@ -35,13 +48,6 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
       "heartfelt thanks to Brad and Adronis for the wonderful session. The suggestions and insights we gained from the session helped us understand ourselves and the world we live in even more. We look forward to our next interaction.",
     name: "Robert Grifa",
     role: "Texas",
-  },
-  {
-    id: "6",
-    quote:
-      "I ordered a regeneration session for my 12 year old mildly autistic son. The night of the scan he slept 16 hours (unheard of for him) and since then we've experienced the following improvements - more energy, better moods and healthier overall appearance. What has stunned me the most is my son had a terrible sleep routine he would be up half the night and he was completely out of sync. Since the scan he has been completely in sync and choosing to go to bed at a decent time, it's astounding!",
-    name: "Nicola Bourne",
-    role: "East Sussex, UK",
   },
   {
     id: "7",

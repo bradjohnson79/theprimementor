@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
+import {
+  BRAND_PROMISE,
+  HERO_SUBLINE_SUPPORTING,
+  QA_PROMISE,
+  QA_PROMISE_SUPPORTING,
+} from "../../lib/brandCopy";
 
 interface HeroContentProps {
   onExploreReports?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
@@ -43,55 +49,49 @@ const SECONDARY_CTA_CLASS_NAME = [
 const ROTATION_INTERVAL_MS = 15_000;
 const ROTATION_TRANSITION_MS = 700;
 
-const MEMBERSHIP_CTAS: HeroCta[] = [
-  { label: "Join Premium", to: "/subscriptions/seeker", variant: "primary" },
-  { label: "Explore Sessions", to: "/#sessions", variant: "secondary" },
-  { label: "Explore Reports", to: "/#reports", variant: "secondary", onExploreReports: true },
-];
-
-const MEMBERSHIP_PRICE_NOTE = "Only $14.99/month or $144/year";
-
 const HERO_TEXT_SLIDES: HeroSlide[] = [
   {
-    eyebrow: "18+ YEARS OF METAPHYSICAL EXPERIENCE",
-    headline: ["Guidance Built on", "Experience, Insight &", "Practical Wisdom"],
-    body:
-      "For more than 18 years, Brad Johnson has worked with people around the world through intuitive guidance, private sessions, consciousness research, metaphysical study, and transformational teaching — helping people gain clarity, understand themselves more deeply, and move forward with greater direction.",
+    eyebrow: BRAND_PROMISE,
+    headline: ["Stuck at a crossroads?", "Get a clear read on your", "path, and your next move."],
+    body: HERO_SUBLINE_SUPPORTING,
     benefits: [
-      "18+ Years of Metaphysical Knowledge & Practice",
-      "Intuitive Guidance & Private Mentoring",
-      "Practical Insight for Personal Transformation",
+      "A free account to start, no payment needed to look around",
+      "Reports delivered within 24 hours, Monday–Friday",
+      "Every live session includes a recording",
     ],
     ctas: [
-      { label: "Meet Brad", to: "/about", variant: "primary" },
-      { label: "Explore Sessions", to: "/#sessions", variant: "secondary" },
+      { label: "Find your starting point", to: "/start-here", variant: "primary" },
+      { label: "See a sample report", to: "/reports", variant: "secondary", onExploreReports: true },
     ],
   },
   {
-    eyebrow: "THE PRIME MENTOR MEMBERSHIP",
-    headline: ["Unlock Your Premium", "Path to Guidance,", "Insight & Growth"],
+    eyebrow: "DIVIN8 WRITTEN REPORTS",
+    headline: ["See your patterns", "in one written", "report, not one sign"],
     body:
-      "Get full access to Divin8 Chat, member savings, webinar discounts, and exclusive course pricing — designed to help you move forward with greater clarity and direction.",
+      "Divin8 reports bring astrology, numerology and other traditions together into one picture of why the same situations keep showing up for you — delivered as a written report in your dashboard.",
     benefits: [
-      "Full Access to Divin8 Chat (200 prompts/month)",
-      "20% Off Monthly Mentoring Circle Webinars",
-      "Exclusive Discounts on Upcoming Prime Mentor E-Courses",
+      "From $39 CAD for a focused 3-question report",
+      "Up to $199 CAD for the full Initiate synthesis",
+      "Sample reports available before you buy",
     ],
-    ctas: MEMBERSHIP_CTAS,
-    priceNote: MEMBERSHIP_PRICE_NOTE,
+    ctas: [
+      { label: "View all reports", to: "/reports", variant: "primary" },
+      { label: "Find your starting point", to: "/start-here", variant: "secondary" },
+    ],
   },
   {
-    eyebrow: "PRIVATE SESSIONS & REPORTS",
-    headline: ["Gain Clarity Through", "Private Sessions &", "Advanced Reports"],
-    body:
-      "Book a one-on-one Q&A or Mentoring Session, or explore personalized reports designed to bring insight, direction, and practical understanding to your path.",
+    eyebrow: QA_PROMISE,
+    headline: ["Bring your biggest", "question. Leave with", "a clear answer."],
+    body: QA_PROMISE_SUPPORTING,
     benefits: [
-      "Q&A & Mentoring Sessions",
-      "Divin8 Synthesis Reports",
-      "Personalized Guidance & Direction",
+      "Live Q&A on Zoom from $139 CAD, 30 to 60 minutes",
+      "Mentoring Session: $199 CAD (45 min) or $299 CAD (90 min)",
+      "Ask Brad directly, or a channeled exchange with Adronis",
     ],
-    ctas: MEMBERSHIP_CTAS,
-    priceNote: MEMBERSHIP_PRICE_NOTE,
+    ctas: [
+      { label: "Book a Q&A", to: "/sessions/qa", variant: "primary" },
+      { label: "See Mentoring", to: "/sessions/mentoring", variant: "secondary" },
+    ],
   },
 ];
 
@@ -168,7 +168,7 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...transition, delay: prefersReducedMotion ? 0 : 0.08 }}
-                className="hero-headline mt-5 text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl lg:text-[4.05rem] lg:leading-[0.96]"
+                className="hero-headline mt-5 text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl lg:text-[3.85rem] lg:leading-[0.98]"
               >
                 {slide.headline.map((line) => (
                   <span key={line} className="block">
