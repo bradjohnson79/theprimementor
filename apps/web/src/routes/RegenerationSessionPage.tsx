@@ -9,6 +9,9 @@ export default function RegenerationSessionPage() {
     description:
       "A $99 CAD/month manifestation package with two consultations, a personal ideogram circuit created by Brad Johnson, and manifestation safeguarding.",
     canonical: `https://theprimementor.com${REGENERATION_LANDING_PATH}`,
+    // BRAD-ANSWERS.md Round 3 #3: this route previously had no og:image.
+    // Use the same product artwork already shown on this page.
+    ogImage: "https://theprimementor.com/images/manifestation-monthly-package.png",
   });
   return <SessionLandingPage content={regenerationSessionLandingContent} />;
 }

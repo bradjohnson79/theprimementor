@@ -12,7 +12,7 @@ type LibraryTab = "mine" | "explore";
 function LiveWebinarCard({ webinar }: { webinar: LiveWebinarLibraryCard }) {
   return (
     <article className="overflow-hidden rounded-3xl border border-cyan-200/15 bg-white/[0.03]">
-      <img src={webinar.posterPath} alt={webinar.posterAlt} className="mx-auto h-auto w-full max-h-[22rem] object-contain bg-slate-950" />
+      <img src={webinar.posterPath} alt={webinar.posterAlt} className="mx-auto h-auto w-full max-h-[22rem] object-contain bg-slate-950" loading="lazy" decoding="async" />
       <div className="space-y-3 p-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100/70">Live Webinar · Purchased</p>
         <h2 className="text-xl font-semibold text-white">{webinar.title}</h2>
@@ -53,6 +53,8 @@ function WebinarCard({
         src={webinar.posterPath}
         alt={webinar.posterAlt}
         className="mx-auto h-auto w-full max-h-[22rem] object-contain bg-slate-950"
+        loading="lazy"
+        decoding="async"
       />
       <div className="space-y-4 p-5">
         <div className="space-y-2">

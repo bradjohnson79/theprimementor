@@ -58,6 +58,8 @@ export default function SectionMediaPanel({
                 src={imageSrc}
                 alt={imageAlt ?? title}
                 className={["h-full w-full object-contain object-center", imageClassName].filter(Boolean).join(" ")}
+                loading="lazy"
+                decoding="async"
               />
             </div>
           </div>
@@ -74,6 +76,8 @@ export default function SectionMediaPanel({
               src={imageSrc}
               alt={imageAlt ?? title}
               className={["h-full w-full object-cover object-center", imageClassName].filter(Boolean).join(" ")}
+              loading="lazy"
+              decoding="async"
             />
           </div>
         )

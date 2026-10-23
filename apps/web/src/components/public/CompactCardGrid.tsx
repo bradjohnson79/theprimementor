@@ -7,6 +7,8 @@ interface CompactCardItem {
   imageSrc?: string;
   imageAlt?: string;
   meta?: string;
+  /** Optional small pill badge shown next to the title (e.g. "Most Popular"). */
+  badge?: string;
   href?: string;
   external?: boolean;
   /** Optional button below the description (card stays a block; use instead of wrapping the whole card in `href`). */
@@ -92,9 +94,16 @@ export default function CompactCardGrid({ items, columns = 3, variant = "default
 
         const defaultBody = (
           <>
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-base font-semibold text-white">{item.title}</h3>
-              {item.meta ? <span className="shrink-0 text-xs font-medium text-cyan-100/80">{item.meta}</span> : null}
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 className="min-w-0 break-words text-base font-semibold text-white">{item.title}</h3>
+                {item.badge ? (
+                  <span className="inline-flex rounded-full border border-amber-200/45 bg-amber-300/15 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-amber-100">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </div>
+              {item.meta ? <span className="min-w-0 max-w-full break-words pt-0.5 text-xs font-medium text-cyan-100/80">{item.meta}</span> : null}
             </div>
             {imageBlock}
             <p className={`text-sm leading-6 text-white/62 ${item.imageSrc ? "mt-3" : "mt-2"}`}>{item.description}</p>

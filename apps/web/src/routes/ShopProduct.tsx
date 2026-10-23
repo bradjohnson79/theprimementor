@@ -172,6 +172,8 @@ export default function ShopProduct() {
             src={shopMediaSrc(image.url)}
             alt={image.altText || product?.name || "Product image"}
             className="w-[15rem] shrink-0 rounded-3xl border border-amber-300/25 object-contain shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
+            loading="eager"
+            decoding="async"
           />
         ) : (
           <div className="flex h-64 w-[15rem] shrink-0 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/45">Digital Edition</div>

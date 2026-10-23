@@ -8,6 +8,8 @@ import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { formatRegenerationOfferPrice } from "../lib/regenerationOffer";
 import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical } from "../lib/siteMeta";
 
 const CTA_CLASS =
   "inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:from-cyan-400 hover:via-sky-400 hover:to-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60";
@@ -43,6 +45,14 @@ const FAQ_ITEMS = [
 ];
 
 export default function RegenerationOfferPage() {
+  usePageMeta({
+    title: "Regeneration Q&A Package | Limited-Time Offer | The Prime Mentor",
+    description:
+      "A limited-time Regeneration Q&A Package: one personalized Regeneration Session, 30 days of priority email support, and a private 30-minute Q&A session.",
+    canonical: pageCanonical("/regeneration-offer"),
+    ogImage: pageCanonical(regenerationOfferImage),
+  });
+
   const prefersReducedMotion = useReducedMotion();
   const { status, loading } = useRegenerationOfferStatus();
   const [error, setError] = useState<string | null>(null);

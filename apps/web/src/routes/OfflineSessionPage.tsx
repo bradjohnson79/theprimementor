@@ -97,6 +97,8 @@ export default function OfflineSessionPage({ product }: { product: OfflineProduc
           src={content.image}
           alt=""
           className="w-full rounded-3xl border border-cyan-200/15 object-cover shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
+          loading="eager"
+          decoding="async"
         />
       </div>
     </div>

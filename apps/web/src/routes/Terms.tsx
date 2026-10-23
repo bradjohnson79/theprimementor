@@ -1,4 +1,14 @@
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+
 export default function Terms() {
+  usePageMeta({
+    title: "Terms and Conditions | The Prime Mentor",
+    description: "The terms and conditions for using The Prime Mentor platform, sessions, reports, and memberships.",
+    canonical: pageCanonical("/terms"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   return (
     <div className="bg-[#050510] py-20 text-white">
       <div className="mx-auto max-w-3xl px-6">

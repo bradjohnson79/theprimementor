@@ -377,7 +377,10 @@ export default function Media() {
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <img src={spiritualLivingImage} alt="Newsweek Spiritual Living cover" className="h-auto w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
-              <img src={spiritualityNowImage} alt="Newsweek Spirituality Now cover" className="h-auto w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
+              {/* BRAD-ANSWERS.md Round 3 #2: no proof yet of a named "Spirituality
+                  Now" feature, so the alt text stays generalized until Brad has
+                  that proof; the cover image itself is unchanged. */}
+              <img src={spiritualityNowImage} alt="Newsweek special edition cover" className="h-auto w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
             </div>
           </Card>
         </div>
@@ -407,16 +410,19 @@ export default function Media() {
       <Section id="featured-in" eyebrow="Social Proof" title="Featured In">
         <div className="space-y-5">
           <Card>
-            <p className="text-base leading-8 text-white/68">Brad Johnson was featured in both Newsweek Special Edition publications:</p>
+            <p className="text-base leading-8 text-white/68">Brad Johnson has been featured in Newsweek special editions, including a confirmed feature in <em>Spiritual Living</em>:</p>
             <div className="mt-5 grid gap-5 md:grid-cols-2">
               <div>
                 <img src={spiritualLivingImage} alt="Newsweek Spiritual Living cover" className="mx-auto h-auto max-h-[34rem] w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
                 <h3 className="mt-5 text-xl font-semibold text-white">Spiritual Living</h3>
                 <p className="mt-2 text-sm leading-6 text-white/62">sharing insight into lucid dreaming, dream interpretation, and expanded consciousness.</p>
               </div>
+              {/* BRAD-ANSWERS.md Round 3 #2: relabeled from "Spirituality Now" —
+                  no proof yet exists for a feature under that specific title,
+                  per Brad. The cover image is unchanged. */}
               <div>
-                <img src={spiritualityNowImage} alt="Newsweek Spirituality Now cover" className="mx-auto h-auto max-h-[34rem] w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
-                <h3 className="mt-5 text-xl font-semibold text-white">Spirituality Now</h3>
+                <img src={spiritualityNowImage} alt="Newsweek special edition cover" className="mx-auto h-auto max-h-[34rem] w-full rounded-2xl object-contain shadow-2xl" loading="lazy" decoding="async" />
+                <h3 className="mt-5 text-xl font-semibold text-white">Newsweek Special Editions</h3>
                 <p className="mt-2 text-sm leading-6 text-white/62">sharing perspectives on consciousness and spiritual communication.</p>
               </div>
             </div>

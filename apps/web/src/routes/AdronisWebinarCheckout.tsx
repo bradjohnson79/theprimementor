@@ -13,6 +13,8 @@ import AdronisWebinarCheckoutButton from "../components/webinars/AdronisWebinarC
 import { trackCtaClick } from "../lib/analytics";
 import { startWebinarCheckout } from "../lib/webinarCheckout";
 import { fetchWebinarMe } from "../lib/webinarApi";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical } from "../lib/siteMeta";
 
 export default function AdronisWebinarCheckout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -20,6 +22,13 @@ export default function AdronisWebinarCheckout() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog] = useState(getAdronisWebinarPublicCatalog);
+
+  usePageMeta({
+    title: `${ADRONIS_WEBINAR_TITLE} | The Prime Mentor`,
+    description: Array.isArray(catalog.description) ? catalog.description.join(" ") : catalog.description,
+    canonical: pageCanonical("/webinars/adronis-disclosure-to-contact"),
+    ogImage: pageCanonical(catalog.posterPath),
+  });
   const [error, setError] = useState<string | null>(null);
   const [owned, setOwned] = useState(false);
   const autocheckoutStartedRef = useRef(false);

@@ -162,10 +162,10 @@ export default function PrimeBodyHealingPage() {
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2">
             <figure className="overflow-hidden rounded-[1.6rem] border border-amber-200/20 bg-white/[0.03] p-2">
-              <img src={LEVEL_1_IMAGE} alt="Prime Body Healing Level 1 artwork" className="h-full w-full object-contain" />
+              <img src={LEVEL_1_IMAGE} alt="Prime Body Healing Level 1 artwork" className="h-full w-full object-contain" loading="eager" decoding="async" />
             </figure>
             <figure className="overflow-hidden rounded-[1.6rem] border border-violet-200/20 bg-white/[0.03] p-2">
-              <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" />
+              <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" loading="eager" decoding="async" />
             </figure>
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function PrimeBodyHealingPage() {
       <section id="level-1" className="scroll-mt-28 border-t border-white/8 px-6 py-16">
         <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <figure className="overflow-hidden rounded-[1.6rem] border border-amber-200/20 bg-white/[0.03] p-2">
-            <img src={LEVEL_1_IMAGE} alt="Prime Body Healing Level 1 artwork" className="h-full w-full object-contain" />
+            <img src={LEVEL_1_IMAGE} alt="Prime Body Healing Level 1 artwork" className="h-full w-full object-contain" loading="lazy" decoding="async" />
           </figure>
           <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-6 sm:p-8">
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-amber-200/72">Level 1</p>
@@ -249,7 +249,7 @@ export default function PrimeBodyHealingPage() {
             <p className="mt-2 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
           <figure className="overflow-hidden rounded-[1.6rem] border border-violet-200/20 bg-white/[0.03] p-2">
-            <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" />
+            <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" loading="lazy" decoding="async" />
           </figure>
         </div>
       </section>

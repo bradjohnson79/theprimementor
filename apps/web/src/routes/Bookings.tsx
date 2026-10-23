@@ -38,6 +38,8 @@ import {
   REGENERATION_BOOKING_PATH,
   REGENERATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 import {
   GUIDED_SESSION_BOOKING_PATH,
   getGuidedSessionDuration,
@@ -310,6 +312,13 @@ export default function Bookings() {
   const { user: clerkUser } = useUser();
   const { user: dbUser } = useCurrentUser();
   const location = useLocation();
+
+  usePageMeta({
+    title: "Book a Session | The Prime Mentor",
+    description: "Book a private session with Brad Johnson: choose your session type, pick a time, and complete your intake form.",
+    canonical: pageCanonical(location.pathname),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   const [searchParams] = useSearchParams();
   const [bookingTypes, setBookingTypes] = useState<BookingType[]>([]);
   const [selectedSessionType, setSelectedSessionType] = useState<SessionType | null>(null);

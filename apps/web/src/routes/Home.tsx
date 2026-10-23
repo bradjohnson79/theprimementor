@@ -23,10 +23,15 @@ import SectionMediaPanel from "../components/public/SectionMediaPanel";
 import deepDiveReportImage from "../assets/deep-dive-report.webp";
 import initiatesReportImage from "../assets/initiates-report.webp";
 import introductoryReportImage from "../assets/introductory-report.webp";
-import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
-import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
-import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
-import aetherxImage from "../assets/aetherx-3x3.png";
+// Performance (BRAD-ANSWERS.md Round 3 #1a): these four images are only ever
+// displayed at well under 400px, but the source PNGs are 900-1024px
+// lossless originals (0.57-1MB each). Use compressed 640px-wide WebP copies
+// sized for their actual display size instead; the original PNGs stay in
+// the repo untouched (e.g. for future re-exports at larger sizes).
+import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold-640.webp";
+import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book-640.webp";
+import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness-640.webp";
+import aetherxImage from "../assets/aetherx-3x3-640.webp";
 import regenerationOfferImage from "../assets/regeneration-qa-package.png";
 import { HOME_TESTIMONIALS } from "../data/homeTestimonials";
 import RegenerationOfferCheckoutButton from "../components/regeneration-offer/RegenerationOfferCheckoutButton";

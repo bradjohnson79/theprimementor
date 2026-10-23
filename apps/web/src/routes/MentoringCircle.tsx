@@ -14,6 +14,8 @@ import {
   MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
   MENTORING_CIRCLE_ZOOM_REGISTER_URL,
 } from "../lib/mentoringCircleConstants";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 interface MentoringCircleEventState {
   eventId: string;
@@ -75,6 +77,13 @@ function CopyIcon() {
 }
 
 export default function MentoringCircle() {
+  usePageMeta({
+    title: "Mentoring Circle | The Prime Mentor",
+    description: "Join the live Mentoring Circle with Brad Johnson for teachings, volunteer chart reviews, and group Q&A.",
+    canonical: pageCanonical("/mentoring-circle"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   const { getToken } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [circleState, setCircleState] = useState<MentoringCircleState | null>(null);

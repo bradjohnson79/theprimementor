@@ -1,4 +1,14 @@
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+
 export default function Privacy() {
+  usePageMeta({
+    title: "Privacy Policy | The Prime Mentor",
+    description: "How The Prime Mentor collects, uses, and protects your personal information.",
+    canonical: pageCanonical("/privacy"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   return (
     <div className="bg-[#050510] py-20 text-white">
       <div className="mx-auto max-w-3xl px-6">

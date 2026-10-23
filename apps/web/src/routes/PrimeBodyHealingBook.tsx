@@ -7,7 +7,9 @@ import { startSessionCheckout } from "../lib/sessionCheckout";
 import { uploadSessionIntakeImage } from "../lib/uploadSessionIntakeImage";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { useGooglePlaces, type PlaceResult } from "../hooks/useGooglePlaces";
-import { PRIME_BODY_HEALING_LANDING_PATH } from "../lib/sessionLandingPaths";
+import { PRIME_BODY_HEALING_BOOKING_PATH, PRIME_BODY_HEALING_LANDING_PATH } from "../lib/sessionLandingPaths";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 type DeliveryFormat = "live" | "prerecorded";
 type Gender = "male" | "female";
@@ -28,6 +30,13 @@ function normalizeText(value: string) {
 }
 
 export default function PrimeBodyHealingBook() {
+  usePageMeta({
+    title: "Prime Body Healing Intake | The Prime Mentor",
+    description: "Book your Prime Body Healing Level 1 or Level 2 session: choose a format, share your areas of focus, and complete your intake form.",
+    canonical: pageCanonical(PRIME_BODY_HEALING_BOOKING_PATH),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   const [searchParams] = useSearchParams();
   const requestedLevel = searchParams.get("level") === "2" ? 2 : 1;
   const { getToken } = useAuth();

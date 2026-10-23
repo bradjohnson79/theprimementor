@@ -115,6 +115,8 @@ export default function ShopSuccess() {
                 src={shopMediaSrc(view.productImage.url)}
                 alt={view.productImage.altText || view.productName || "Purchased product"}
                 className="mb-6 max-h-72 w-full rounded-2xl object-contain"
+                loading="lazy"
+                decoding="async"
               />
             ) : null}
             {view.productName ? <h2 className="text-2xl font-semibold">{view.productName}</h2> : null}

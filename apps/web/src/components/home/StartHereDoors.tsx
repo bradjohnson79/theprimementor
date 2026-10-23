@@ -20,7 +20,8 @@ import {
 const FEATURED_ITEMS = [
   {
     title: "Manifestation Monthly",
-    meta: "$99 CAD / month · Most Popular",
+    meta: "$99 CAD / month",
+    badge: "Most Popular",
     description: "Two 15-minute consultations, manifestation tools, and 30 days of email support each month. Brad's best seller.",
     cta: { label: "Begin Your Journey", href: REGENERATION_LANDING_PATH },
   },
@@ -50,8 +51,8 @@ const FEATURED_ITEMS = [
   },
   {
     title: "Mentoring Session",
-    meta: "$199 CAD (45 min) or $299 CAD (90 min)",
-    description: "A deeper guided session for blueprint insight, goal alignment, and longer-form support.",
+    meta: "From $199 CAD",
+    description: "A deeper guided session for blueprint insight, goal alignment, and longer-form support. 45 min ($199 CAD) or 90 min ($299 CAD).",
     cta: { label: "Book a Consultation", href: MENTORING_LANDING_PATH },
   },
 ] as const;

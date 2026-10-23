@@ -39,6 +39,8 @@ export default function ShopRelatedProducts({
                     src={shopMediaSrc(image.url)}
                     alt={image.altText || product.name}
                     className="aspect-[3/4] w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
               ) : (
