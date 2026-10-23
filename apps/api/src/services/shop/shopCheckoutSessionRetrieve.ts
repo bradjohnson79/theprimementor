@@ -1,5 +1,6 @@
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { createHttpError } from "../booking/errors.js";
+import { createStripeClient } from "../stripe/stripeClientFactory.js";
 
 export interface ShopCheckoutSessionOwner {
   userId: string;
@@ -17,7 +18,7 @@ function getStripeClient() {
   if (!key) {
     throw createHttpError(503, "Stripe is not configured.");
   }
-  return new Stripe(key);
+  return createStripeClient(key);
 }
 
 export async function retrieveShopCheckoutSession(

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { checkoutPaymentMethodTypesParam } from "./stripe/stripeClientFactory.js";
 import { bookingTypes, bookings, mentorTrainingOrders, payments, reports, subscriptions, type Database } from "@wisdom/db";
 import { and, desc, eq } from "drizzle-orm";
 import {
@@ -71,6 +72,7 @@ import {
   createPendingRegenerationOfferOrder,
   getRegenerationOfferIntakeBooking,
 } from "./regenerationOfferService.js";
+import { createStripeClient } from "./stripe/stripeClientFactory.js";
 
 type CheckoutType = "webinar" | "on_demand_webinar" | "session" | "report" | "subscription" | "mentor_training" | "mentoring_circle" | "course" | "shop" | "regeneration_offer";
 type CheckoutTier = "seeker" | "initiate";
@@ -82,7 +84,7 @@ function getStripe(): Stripe {
   if (!stripeInstance) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY not set");
-    stripeInstance = new Stripe(key);
+    stripeInstance = createStripeClient(key);
   }
   return stripeInstance;
 }
@@ -545,7 +547,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: bookingId,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -691,7 +693,7 @@ async function createMentorTrainingCheckoutSession(db: Database, input: CreateCh
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: trainingOrderId,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -810,7 +812,7 @@ async function createCourseCheckoutSession(db: Database, input: CreateCheckoutSe
   const description = "Lifetime access to The Resonant Dowsing Course by Brad Johnson.";
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: courseEntitlementId,
     line_items: [buildResonantDowsingCheckoutLineItem()],
@@ -952,7 +954,7 @@ async function createShopCheckoutSession(db: Database, input: CreateCheckoutSess
   });
   const frontendUrl = getFrontendUrl();
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: shopEntitlementId,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -1103,7 +1105,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: booking.id,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -1247,7 +1249,7 @@ async function createWebinarCheckoutSession(db: Database, input: CreateCheckoutS
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: booking.id,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -1360,7 +1362,7 @@ async function createRegenerationOfferCheckoutSession(db: Database, input: Creat
   let session: Stripe.Checkout.Session;
   try {
     session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+      ...checkoutPaymentMethodTypesParam(),
       mode: "payment",
       client_reference_id: pending.orderId,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -1514,7 +1516,7 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: reportId,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -1667,7 +1669,7 @@ async function createMembershipCheckoutSession(db: Database, input: CreateChecko
   const returnPath = `/subscriptions/${membership.tier}`;
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "subscription",
     client_reference_id: membershipId,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -1761,7 +1763,7 @@ async function createOnDemandWebinarCheckoutSession(db: Database, input: CreateC
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: webinar.webinarId,
     line_items: [{ price: priceId, quantity: 1 }],

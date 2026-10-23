@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { checkoutPaymentMethodTypesParam } from "./stripe/stripeClientFactory.js";
 import { and, desc, eq } from "drizzle-orm";
 import {
   bookings,
@@ -25,6 +26,7 @@ import { getFrontendUrl } from "../config/membershipBilling.js";
 import { ensureStripeCustomerId } from "./payments/stripeCustomerService.js";
 import { createPaymentRecordForEntity, markPaymentPaidFromWebhook } from "./payments/paymentsService.js";
 import { ensureRegenerationPeriodBenefit } from "./regenerationPeriodBenefitService.js";
+import { createStripeClient } from "./stripe/stripeClientFactory.js";
 import {
   mergeStripeMetadata,
   resolveStripeProductNaming,
@@ -124,7 +126,7 @@ function getStripe() {
     if (!key) {
       throw new Error("STRIPE_SECRET_KEY not set");
     }
-    stripeInstance = new Stripe(key);
+    stripeInstance = createStripeClient(key);
   }
   return stripeInstance;
 }
@@ -915,7 +917,7 @@ export async function createRegenerationCheckoutSession(
   });
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
+    ...checkoutPaymentMethodTypesParam(),
     mode: "subscription",
     client_reference_id: createdOrUpdated.id,
     line_items: lineItems,

@@ -1,12 +1,13 @@
 import Stripe from "stripe";
 import { createHttpError } from "../booking/errors.js";
+import { createStripeClient, isStripeMockModeActive } from "../stripe/stripeClientFactory.js";
 
 export function getShopStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) {
     throw createHttpError(503, "STRIPE_SECRET_KEY is not configured.");
   }
-  return new Stripe(key);
+  return createStripeClient(key);
 }
 
 export function isLiveStripeSecret(): boolean {
@@ -53,6 +54,22 @@ export async function retrieveAndVerifyShopPrice(
   const priceId = input.priceId.trim();
   if (!priceId.startsWith("price_")) {
     throw createHttpError(400, "A valid Stripe Price ID is required.");
+  }
+
+  // Guest-checkout local testing only (never true in production): stripe-mock returns one fixed
+  // canned Price fixture for every ID (fixed currency/amount/type), so this strict
+  // catalog-vs-Stripe comparison can never pass against it. Only bypassed when BOTH a mock host
+  // is configured AND the key is a test key — trust the local DB catalog values instead of
+  // comparing against the live API.
+  if (isStripeMockModeActive()) {
+    return {
+      priceId,
+      productId: input.expectedProductId ?? null,
+      unitAmount: input.expectedCents,
+      currency: input.expectedCurrency.toLowerCase(),
+      active: true,
+      type: "one_time",
+    };
   }
 
   let price: Stripe.Price;
