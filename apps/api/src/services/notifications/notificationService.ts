@@ -198,6 +198,7 @@ async function resolveUserRecipients(db: NotificationDbLike, userId: string): Pr
   const [user] = await db
     .select({
       clerkId: users.clerk_id,
+      email: users.email,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -205,6 +206,18 @@ async function resolveUserRecipients(db: NotificationDbLike, userId: string): Pr
 
   if (!user?.clerkId) {
     throw new Error(`User ${userId} is missing a Clerk identity.`);
+  }
+
+  // Guest checkout (additive): guest placeholder users never have a real Clerk identity
+  // (their clerk_id is a "guest_<uuid>" placeholder — see guestUserService.ts), so a Clerk
+  // lookup would always fail for them. Use their stored email directly instead. Real,
+  // Clerk-backed users are completely unaffected and keep resolving via Clerk as before.
+  if (user.clerkId.startsWith("guest_")) {
+    const email = user.email?.trim().toLowerCase();
+    if (!email) {
+      throw new Error(`Guest user ${userId} is missing an email address.`);
+    }
+    return [email];
   }
 
   const secretKey = process.env.CLERK_SECRET_KEY?.trim();
