@@ -86,7 +86,7 @@ export default function PrimeAlchemyWebinarLearnMore() {
     return <Navigate to={PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH} replace />;
   }
 
-  const ctaLabel = owned ? "Access Webinar Registration" : `Purchase — ${catalog.displayPrice}`;
+  const ctaLabel = owned ? "Access Webinar Registration" : `Register — ${catalog.displayPrice}`;
 
   return (
     <div className="relative isolate min-h-full overflow-hidden text-[#F8FAFC]">
@@ -123,7 +123,7 @@ export default function PrimeAlchemyWebinarLearnMore() {
               {ctaLabel}
             </AdronisWebinarCheckoutButton>
             {owned ? null : (
-              <p className="text-sm text-[#94A3B8]">Create a Free Account or Sign-in to Purchase</p>
+              <p className="text-sm text-[#94A3B8]">Create a Free Account or Sign-in to Register</p>
             )}
             {error ? <p className="text-sm text-[#F0D78A]">{error}</p> : null}
           </div>

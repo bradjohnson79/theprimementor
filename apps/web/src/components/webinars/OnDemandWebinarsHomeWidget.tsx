@@ -16,6 +16,7 @@ import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
 import OnDemandWebinarCheckoutButton from "./OnDemandWebinarCheckoutButton";
 
 const PURCHASE_NOTE = "Create a Free Account or Sign-in to Purchase";
+const REGISTER_NOTE = "Create a Free Account or Sign-in to Register";
 const UPCOMING_TAB_ID = "upcoming";
 
 function fallbackCatalog(webinar: OnDemandWebinarCatalogEntry) {
@@ -239,7 +240,7 @@ export default function OnDemandWebinarsHomeWidget() {
                         onError={setError}
                         className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
-                        {upcomingOwned ? "Access Webinar Registration" : `Purchase — ${upcoming.displayPrice}`}
+                        {upcomingOwned ? "Access Webinar Registration" : `Register — ${upcoming.displayPrice}`}
                       </AdronisWebinarCheckoutButton>
                       <Link
                         to={upcoming.checkoutPath}
@@ -248,8 +249,8 @@ export default function OnDemandWebinarsHomeWidget() {
                         Learn More
                       </Link>
                     </div>
-                    {upcomingOwned ? null : <p className="text-xs text-white/50">{PURCHASE_NOTE}</p>}
-                    {checkoutCanceled ? <p className="text-sm text-amber-200">Checkout was canceled. You can purchase whenever you are ready.</p> : null}
+                    {upcomingOwned ? null : <p className="text-xs text-white/50">{REGISTER_NOTE}</p>}
+                    {checkoutCanceled ? <p className="text-sm text-amber-200">Checkout was canceled. You can register whenever you are ready.</p> : null}
                     {error ? <p className="text-sm text-amber-200">{error}</p> : null}
                   </div>
                 </article>

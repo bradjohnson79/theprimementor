@@ -25,7 +25,7 @@ test.describe("Star Family public pages are retired", () => {
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: From Disclosure to Contact" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Purchase — $19.99 CAD" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Register — $19.99 CAD" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Learn More" })).toHaveAttribute("href", PRIME_ALCHEMY);
     await expect(page.getByRole("heading", { name: "Adronis: Star Family Communion" })).toHaveCount(0);
     await expect(page.locator(`a[href="${STAR_FAMILY}"]`)).toHaveCount(0);
@@ -76,7 +76,7 @@ test.describe("Disclosure on-demand remains isolated", () => {
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings", level: 1 })).toBeVisible();
     await expect(page.getByText("Sunday, November 1, 2026").first()).toBeVisible();
     await expect(page.getByText("10:00 AM Pacific / 1:00 PM Eastern").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Purchase — $19.99 CAD" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Register — $19.99 CAD" }).first()).toBeVisible();
     await expect(page.getByText(/90-minute Mentoring Session/)).toBeVisible();
     await expect(page.getByText(/45-minute Mentoring Session/)).toBeVisible();
     await expect(page.getByText(/natal charts that Divin8 will provide/)).toBeVisible();
