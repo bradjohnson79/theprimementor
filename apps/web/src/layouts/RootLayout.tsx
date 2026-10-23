@@ -155,7 +155,8 @@ export default function RootLayout() {
     || location.pathname === MENTORING_LANDING_PATH
     || location.pathname === PRIME_BODY_HEALING_LANDING_PATH
     || location.pathname === EMAIL_SESSION_LANDING_PATH
-    || location.pathname === PAST_LIFE_AKASHIC_LANDING_PATH;
+    || location.pathname === PAST_LIFE_AKASHIC_LANDING_PATH
+    || location.pathname.startsWith("/order/");
 
   useUserSync();
 

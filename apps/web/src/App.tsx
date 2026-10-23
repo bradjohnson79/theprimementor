@@ -65,6 +65,7 @@ const ShopSuccess = lazy(() => import("./routes/ShopSuccess"));
 const MemberPurchases = lazy(() => import("./routes/MemberPurchases"));
 const MembershipSignup = lazy(() => import("./routes/MembershipSignup"));
 const WebsiteErrorPage = lazy(() => import("./routes/WebsiteErrorPage"));
+const GuestOrderPage = lazy(() => import("./routes/GuestOrderPage"));
 const RegenerationSessionPage = lazy(() => import("./routes/RegenerationSessionPage"));
 const RegenerationSuccess = lazy(() => import("./routes/RegenerationSuccess"));
 const RegenerationOfferPage = lazy(() => import("./routes/RegenerationOfferPage"));
@@ -137,6 +138,7 @@ export default function App() {
             <Route path="/shop/success" element={<ShopSuccess />} />
             <Route path="/shop/:slug" element={<ShopProduct />} />
             <Route path="/error" element={<WebsiteErrorPage />} />
+            <Route path="/order/:token" element={<GuestOrderPage />} />
             <Route path="/membership-signup" element={<MembershipSignup />} />
             <Route path="/subscriptions" element={<Navigate to="/subscriptions/seeker" replace />} />
             <Route path="/subscriptions/seeker" element={<MembershipSignup />} />
