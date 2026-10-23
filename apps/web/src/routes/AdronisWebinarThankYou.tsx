@@ -9,11 +9,20 @@ import {
 import { trackCtaClick } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { fetchWebinarMe } from "../lib/webinarApi";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 const POLL_ATTEMPTS = 8;
 const POLL_INTERVAL_MS = 1500;
 
 export default function AdronisWebinarThankYou() {
+  usePageMeta({
+    title: "Registration Confirmed | Adronis Webinar | The Prime Mentor",
+    description: "Confirm your Adronis webinar registration and complete your Zoom sign-up.",
+    canonical: pageCanonical("/webinars/adronis-disclosure-to-contact/thank-you"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();

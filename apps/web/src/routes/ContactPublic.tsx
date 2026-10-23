@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { FACEBOOK_URL, INSTAGRAM_URL, THREADS_URL, YOUTUBE_URL } from "../lib/socialLinks";
 import { FacebookIcon, InstagramIcon, ThreadsIcon, YouTubeIcon } from "../components/public/SocialIcons";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 const BETA_NOTICE_EXPIRES_AT = Date.parse("2026-05-01T07:01:00.000Z");
 
@@ -140,6 +142,13 @@ export function ContactPublicContent({ headingAs: Heading = "h1" }: ContactPubli
 }
 
 export default function ContactPublic() {
+  usePageMeta({
+    title: "Contact | The Prime Mentor",
+    description: "Have a question or want to connect with Brad Johnson or The Prime Mentor team? Send a message and we will get back to you.",
+    canonical: pageCanonical("/contact"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
   return (
     <div className="bg-[#050510] py-20 text-white">
       <ContactPublicContent />

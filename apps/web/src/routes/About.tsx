@@ -7,6 +7,11 @@ const spiritualLivingImage = "/about/spiritual_living.jpg";
 const spiritualityNowImage = "/about/spirituality_now.jpg";
 const bradJohnsonImage = "/about/bradjohnson.png";
 
+// Proof links confirmed in prime-mentor-strengths-brief.md Section 5
+// (BRAD-ANSWERS.md #11) — verified Oct 23, 2026.
+const NEWSWEEK_SPIRITUAL_LIVING_URL = "https://www.amazon.com/dp/B01GXLG48Q";
+const VICE_TV_URL = "https://www.youtube.com/watch?v=YtoFJ0zroN8";
+
 const ancientSystems = [
   "Ancient ritual magick",
   "Western Astrology",
@@ -38,7 +43,7 @@ const evolutionItems = [
   "documentaries",
   "published books",
   "media appearances",
-  "thousands of interactions with individuals seeking deeper understanding surrounding spirituality and consciousness.",
+  "over 10,000 clients since 2008, individually and in groups, seeking deeper understanding surrounding spirituality and consciousness.",
 ];
 
 const broaderExploration = [
@@ -71,7 +76,9 @@ const manifestationItems = [
 const mediaHighlights = [
   "100+ media appearances since 2008",
   "Featured in Newsweek Spiritual Living",
-  "Featured in Newsweek Spirituality Now",
+  // BRAD-ANSWERS.md #11: no proof yet of a Newsweek "Spirituality Now"
+  // feature, so this is generalized until Brad has that proof.
+  "Featured in Newsweek special editions",
   "Featured on Vice TV’s Mr. Tachyon",
   "Featured in They Call Us Channelers documentary",
   "Featured guest on Dr. Michael Salla’s Exopolitics platform (2025–2026)",
@@ -152,17 +159,27 @@ function NewsweekCards() {
         />
         <h3 className="mt-5 text-xl font-semibold text-white">Spiritual Living</h3>
         <p className="mt-2 text-sm leading-6 text-white/62">Featured in Newsweek Spiritual Living</p>
+        <a
+          href={NEWSWEEK_SPIRITUAL_LIVING_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-xs font-semibold text-cyan-200 underline-offset-4 hover:underline"
+        >
+          View the issue →
+        </a>
       </GlassCard>
       <GlassCard>
         <img
           src={spiritualityNowImage}
-          alt="Newsweek Spirituality Now cover"
+          alt="Newsweek special edition cover"
           className="mx-auto h-auto max-h-[34rem] w-full rounded-2xl object-contain shadow-2xl"
           loading="lazy"
           decoding="async"
         />
-        <h3 className="mt-5 text-xl font-semibold text-white">Spirituality Now</h3>
-        <p className="mt-2 text-sm leading-6 text-white/62">Featured in Newsweek Spirituality Now</p>
+        {/* BRAD-ANSWERS.md #11: no proof yet for a named "Spirituality Now"
+            feature, so this caption stays generalized until Brad has that proof. */}
+        <h3 className="mt-5 text-xl font-semibold text-white">Newsweek Special Editions</h3>
+        <p className="mt-2 text-sm leading-6 text-white/62">Featured in Newsweek special editions</p>
       </GlassCard>
     </div>
   );
@@ -188,14 +205,24 @@ export default function About() {
               International Metaphysical Expert, Consciousness Researcher, Speaker & Founder of The Prime Mentor
             </h1>
             {/*
-              Rewrite from /Users/bradjohnson/Documents/primementor-revamp/prime-mentor-strengths-brief.md,
-              Section 5 ("About Brad" rewrite). Draft pending Brad's sign-off; sourced only from
-              verified facts already on the About/Home pages.
+              Finalized Oct 23, 2026 from prime-mentor-strengths-brief.md Section 5
+              ("About Brad" rewrite), incorporating Brad's interview answers
+              (BRAD-ANSWERS.md #11). No longer a draft.
             */}
             <div className="mt-6 space-y-4 text-base leading-8 text-white/68">
-              <p>Brad Johnson has spent more than 18 years helping people understand themselves more deeply and move forward with clarity. His own path began in 2008 with a curiosity about consciousness and humanity&apos;s place in a larger universe. It grew into a lifelong practice: he is an initiated Kriya Yoga practitioner and has studied qigong, Taoism, meditation, and Vedic, Western and Chinese astrology.</p>
-              <p>Through <strong className="text-white">The Prime Mentor</strong>, Brad brings those years into private sessions and written reports that read your life as one connected picture, then turns that insight into steps you can actually live. His goal isn&apos;t to make you depend on him. It&apos;s to help you reconnect with the wisdom already in you.</p>
-              <p>Brad has been featured in two Newsweek special editions and on Vice TV, has made more than 100 media appearances, has taught in seven countries, and has two bestselling books published in Japan.</p>
+              <p>Brad Johnson has spent more than 18 years helping people understand themselves more deeply and move forward with clarity. His path began in 2008, when research for a novel led him to a library book called <em>Learn How to Meditate</em>. He did every exercise in it for weeks, and it opened a lifelong practice: he is an initiated Kriya Yoga practitioner and has studied qigong, Taoism, and Vedic, Western and Chinese astrology.</p>
+              <p>Brad worked on himself first, then began offering sessions to others. Since then he has worked with more than 10,000 people, one-on-one and in groups. Through <strong className="text-white">The Prime Mentor</strong>, he reads your life as one connected picture, then turns that insight into steps you can actually live. His goal isn&apos;t to make you depend on him. It&apos;s to help you reconnect with the wisdom already in you.</p>
+              <p>
+                Brad has been featured in{" "}
+                <a href={NEWSWEEK_SPIRITUAL_LIVING_URL} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline-offset-4 hover:underline">
+                  Newsweek special editions
+                </a>{" "}
+                and on{" "}
+                <a href={VICE_TV_URL} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline-offset-4 hover:underline">
+                  VICE TV
+                </a>
+                , has made more than 100 media appearances, has taught in seven countries, and has two bestselling books published in Japan.
+              </p>
             </div>
             <blockquote className="mt-8 rounded-3xl border border-cyan-200/20 bg-cyan-300/10 p-5 text-xl font-semibold tracking-[-0.02em] text-cyan-50">
               Transformation happens when wisdom becomes lived experience.
@@ -213,6 +240,24 @@ export default function About() {
           </GlassCard>
         </div>
       </section>
+
+      {/*
+        Origin story (5a), in Brad's own words, from prime-mentor-strengths-brief.md
+        "Website version" (198 words), finalized Oct 23, 2026 (BRAD-ANSWERS.md #11).
+        Per the brief's usage rules, the ET-novel/channelers detail and the "rays of
+        light" dream imagery are website-only, never for ads; the anxiety-about-sleep
+        detail Brad mentioned is intentionally left out here too.
+      */}
+      <Section id="origin-story" eyebrow="In Brad's Words" title="How It Began">
+        <GlassCard className="space-y-5 text-base leading-8 text-white/72">
+          <p>
+            In 2008 I was writing a science-fiction novel about extraterrestrials. The research led me to channelers, mediums and psychics, and many of them said their work began in meditation. So I put the book aside, went to my local library, and borrowed a book called <em>Learn How to Meditate</em>. I did every exercise in it for weeks. I had never meditated before, and it turned out to be the missing part of my life. I felt calmer, I began letting go of old problems, and I saw myself more clearly than ever. Some nights I went into deep dream states that felt like being educated by rays of light, and I&apos;d wake up knowing things I hadn&apos;t known before.
+          </p>
+          <p>
+            I worked on myself first, like a guinea pig. It wasn&apos;t easy. After leaving a relationship I was alone, and my family was upset with me. I had to work through loneliness, fear, anxiety and needing other people&apos;s approval. Then I began offering sessions to others: free at first, then by donation, then at set rates. Eighteen years and more than 10,000 clients later, the methods I teach make that inner work far faster than it was for me.
+          </p>
+        </GlassCard>
+      </Section>
 
       <Section id="journey" eyebrow="Section 1" title="A Journey Into Consciousness">
         <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
@@ -309,7 +354,18 @@ export default function About() {
           <GlassCard><p className="text-base leading-8 text-white/68">Brad Johnson has been featured internationally across podcasts, radio, documentaries, television, speaking events, magazines, and conferences for over 18 years.</p></GlassCard>
           <NewsweekCards />
           <div className="grid gap-5 lg:grid-cols-2">
-            <GlassCard><h3 className="mb-4 text-lg font-semibold text-white">Media Highlights</h3><BulletGrid items={mediaHighlights} /></GlassCard>
+            <GlassCard>
+              <h3 className="mb-4 text-lg font-semibold text-white">Media Highlights</h3>
+              <BulletGrid items={mediaHighlights} />
+              <a
+                href={VICE_TV_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline"
+              >
+                Watch the VICE TV segment →
+              </a>
+            </GlassCard>
             <GlassCard><h3 className="mb-4 text-lg font-semibold text-white">International Speaking</h3><p className="mb-4 text-sm leading-7 text-white/64">Brad has hosted lectures, seminars, workshops, and speaking engagements in:</p><BulletGrid items={countries} /></GlassCard>
           </div>
         </div>

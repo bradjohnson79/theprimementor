@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import {
   ADRONIS_ON_DEMAND_WEBINAR_ID,
@@ -9,6 +9,8 @@ import {
 import { trackCtaClick } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
 import { fetchOnDemandWebinarMe } from "../lib/onDemandWebinarApi";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
 const POLL_ATTEMPTS = 8;
 const POLL_INTERVAL_MS = 1500;
@@ -19,11 +21,19 @@ export default function OnDemandWebinarThankYou({
   webinarId?: string;
 }) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const webinar = getOnDemandWebinarById(webinarId);
   const catalog = webinar
     ? getOnDemandWebinarPublicCatalog(webinar, { assetReady: false, playbackProtected: false })
     : null;
+
+  usePageMeta({
+    title: `Purchase Confirmed | ${catalog?.title ?? "On-Demand Webinar"} | The Prime Mentor`,
+    description: "Confirm your on-demand webinar purchase and watch the recording anytime in your dashboard.",
+    canonical: pageCanonical(location.pathname),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
   const checkoutSessionId = searchParams.get("checkoutSessionId");
   const [status, setStatus] = useState<"loading" | "processing" | "ready" | "denied">("loading");
 

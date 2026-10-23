@@ -23,7 +23,6 @@ import SectionMediaPanel from "../components/public/SectionMediaPanel";
 import deepDiveReportImage from "../assets/deep-dive-report.webp";
 import initiatesReportImage from "../assets/initiates-report.webp";
 import introductoryReportImage from "../assets/introductory-report.webp";
-import mentoringCircleImage from "../assets/mentoring-circle.webp";
 import thePrimeMentorLogoGold from "../assets/the-prime-mentor-logo-gold.png";
 import traumaTranscendenceBookCover from "../assets/trauma-transcendence-technique-book.png";
 import rayd8WellnessImage from "../assets/rayd8-bio-scalar-wellness.png";
@@ -34,7 +33,7 @@ import RegenerationOfferCheckoutButton from "../components/regeneration-offer/Re
 import { useRegenerationOfferStatus } from "../hooks/useRegenerationOfferStatus";
 import { trackCtaClick, trackEventOnce } from "../lib/analytics";
 import { REGENERATION_OFFER_ROUTE, formatRegenerationOfferPrice } from "../lib/regenerationOffer";
-import { PURCHASE_REASSURANCE, REGISTER_REASSURANCE } from "../lib/purchaseReassurance";
+import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { HOME_META } from "../lib/siteMeta";
 import { FACEBOOK_URL, INSTAGRAM_URL, THREADS_URL, YOUTUBE_URL } from "../lib/socialLinks";
@@ -106,29 +105,6 @@ const CASUAL_REPORT_CARDS: ReportCardData[] = [
     priceLabel: divin8ReportProductListPrice("annual_12_month"),
     badge: "Quick Insight",
     variant: "casual",
-  },
-];
-
-// Audit fix: "Mentoring Circle" used to link to a sign-in-walled page and the
-// description below referenced a stale date ("Saturday, May 30"). Now points
-// to the next public, priced, dated event (Prime Alchemy, Nov 1, 2026).
-const EVENT_ITEMS = [
-  {
-    title: "Mentoring Circle: Prime Alchemy Teachings",
-    description:
-      "Join the next live Mentoring Circle webinar for Prime Alchemy teachings, volunteer Divin8 Chart reviews, and Q&A. Sunday, November 1, 2026.",
-    cta: { label: "Register", href: "/webinars/prime-alchemy-teachings", external: false },
-    ctaNote: REGISTER_REASSURANCE,
-  },
-  {
-    title: "Prime Mentor Podcast",
-    description:
-      "Join our free weekly podcast where Brad Johnson takes personal questions by donation and addresses a broad range of spiritual topics.",
-    cta: {
-      label: "View Channel",
-      href: YOUTUBE_URL,
-      external: true,
-    },
   },
 ];
 
@@ -438,43 +414,15 @@ export default function Home() {
     <div className="home-front-page relative text-white">
       <HeroSection />
 
-      {/* Monthly events get top billing, right after the hero and above the
-          five featured services (BRAD-ANSWERS.md #6). This is the existing
-          Mentoring Circle / Prime Alchemy webinar + weekly podcast content,
-          not new or invented. */}
-      <LandingSection id="events">
-        <div className="grid items-center gap-6 text-left lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-          <SectionMediaPanel
-            eyebrow="Events"
-            title="Live Field"
-            description="Ongoing touchpoints that keep the ecosystem relational, current, and alive."
-            imageSrc={mentoringCircleImage}
-            imageAlt="The Mentoring Circle — The Prime Mentor, Brad Johnson"
-            imageHd169Frame
-            className="min-h-[19rem]"
-          />
-
-          <SectionContentBlock
-            label="Events"
-            title="Monthly Webinar & Live Weekly Podcast"
-            description="Join us every Wednesday on YouTube live for the Prime Mentor Podcast, or register for the next Mentoring Circle webinar below."
-          >
-            <CompactCardGrid
-              items={EVENT_ITEMS.map((item) => item.cta ? {
-                ...item,
-                cta: {
-                  ...item.cta,
-                  onClick: () => trackCtaClick(item.cta?.label ?? "cta_click", "home_events", {
-                    href: item.cta?.href,
-                    title: item.title,
-                  }),
-                },
-              } : item)}
-              columns={2}
-            />
-          </SectionContentBlock>
-        </div>
-      </LandingSection>
+      {/* BRAD-ANSWERS.md #10 (TOP PRIORITY, replaces the earlier #6/#8 "Events"
+          card section): the homepage no longer renders its own "Monthly
+          Webinar & Live Weekly Podcast" card section. Directly under the
+          hero we instead render the existing Upcoming/archive events panel
+          (OnDemandWebinarsHomeWidget) unmodified — same component, same tabs
+          ("Upcoming" plus the Adronis webinar archive), same live Prime
+          Alchemy event detail card and data source as before, just moved to
+          the top of the page. See REPORT.md "Round 2" for the data source. */}
+      <OnDemandWebinarsHomeWidget />
 
       {/* Start here: Brad's named featured offers (BRAD-ANSWERS.md #1). */}
       <LandingSection id="start-here">
@@ -504,8 +452,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <OnDemandWebinarsHomeWidget />
 
       <LandingSection id="reports">
         <div className="space-y-8 text-left">

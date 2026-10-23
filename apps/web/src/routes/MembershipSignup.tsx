@@ -32,15 +32,18 @@ interface MentorTrainingEligibilityData {
 }
 
 export default function MembershipSignup() {
+  const location = useLocation();
+  // Audit fix: canonical previously pointed to "/membership", a path that
+  // doesn't exist in the router. Use the real /subscriptions/seeker or
+  // /subscriptions/initiate path instead (BRAD-ANSWERS.md #11b).
   usePageMeta({
     title: "Membership | The Prime Mentor",
     description: "Join The Prime Mentor as a Seeker or Initiate member for ongoing Divin8 guidance, member savings, and course support.",
-    canonical: pageCanonical("/membership"),
+    canonical: pageCanonical(location.pathname),
     ogImage: DEFAULT_OG_IMAGE,
   });
   const { isSignedIn, isLoaded, getToken, userId } = useAuth();
   const { tierState, refetch } = useCurrentUser();
-  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prefersReducedMotion = useReducedMotion();

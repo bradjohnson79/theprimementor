@@ -97,6 +97,29 @@ export const mentoringSessionLandingContent: SessionLandingContent = {
       },
       density: "spacious",
     },
+    // Added from prime-mentor-strengths-brief.md Sections 5b and 5c
+    // (Brad's interview answers, Oct 23, 2026), placed above "What You
+    // Receive" per BRAD-ANSWERS.md #11.
+    {
+      id: "who-i-work-best-with",
+      label: "Who I Work Best With",
+      title: "A session with me is a relationship and a cooperation.",
+      paragraphs: [
+        "I work best with people who are ready to take part. A session with me is a relationship and a cooperation, not something done to you while you sit back. If you have the drive to grow, to understand yourself and to step into your own power, we'll work well together.",
+        "I'm not the right fit if you're not really ready to listen, if part of you doesn't want to be there, or if you're hoping someone else will fix everything without you doing anything. That isn't how real change happens.",
+        "Bring your willingness, and I'll bring 18 years of experience to help you see clearly and move forward.",
+      ],
+      density: "default",
+    },
+    {
+      id: "the-first-ten-minutes",
+      label: "How A Session Begins",
+      title: "The first ten minutes",
+      paragraphs: [
+        "Before we talk about what's going on in your life, I look at your birth chart through three lenses: Vedic astrology, numerology and Chinese BaZi. Together they give me an overview of your soul imprint, the patterns you came into this life with. From there I tune in intuitively to what comes through for you. That way, everything we explore in the session starts from your own patterns, not a general reading.",
+      ],
+      density: "default",
+    },
     {
       id: "benefits",
       label: "What You Receive",

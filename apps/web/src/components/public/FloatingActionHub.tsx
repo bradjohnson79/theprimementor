@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { YOUTUBE_URL } from "../../lib/socialLinks";
 
 interface MenuItem {
   label: string;
@@ -106,10 +107,13 @@ const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
     ],
   },
   {
+    // BRAD-ANSWERS.md #10: the homepage "#events" section was removed and
+    // replaced by the Upcoming/archive events panel, which now lives at
+    // "#on-demand-webinars" directly under the hero.
     title: "Events",
     items: [
-      { label: "Mentoring Circle Monthly", anchor: "#events" },
-      { label: "Prime Mentor Podcast", anchor: "#events" },
+      { label: "Mentoring Circle Monthly", anchor: "#on-demand-webinars" },
+      { label: "Prime Mentor Podcast", href: YOUTUBE_URL, external: true },
     ],
   },
 ];
