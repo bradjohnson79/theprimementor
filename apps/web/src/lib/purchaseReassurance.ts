@@ -1,5 +1,5 @@
 export const PURCHASE_REASSURANCE =
-  "Takes 30 seconds. Your recordings and reports live in your free dashboard.";
+  "No account needed. We'll email your confirmation and access links.";
 
 export const REGISTER_REASSURANCE =
-  "Takes 30 seconds. Your ticket and recordings live in your free dashboard.";
+  "No account needed. We'll email your ticket and access links.";

@@ -15,6 +15,7 @@ import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { filterCompliantTestimonials } from "../lib/testimonialCompliance";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+import GuestCheckoutModal from "../components/guest/GuestCheckoutModal";
 
 function formatInline(text: string) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => (
@@ -66,6 +67,7 @@ export default function ShopProduct() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const purchaseInFlight = useRef(false);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -239,6 +241,15 @@ export default function ShopProduct() {
                     : "Loading..."}
               </button>
             )}
+            {product && !isSignedIn && !purchased && !product.purchased && product.canPurchase !== false ? (
+              <button
+                type="button"
+                onClick={() => setGuestModalOpen(true)}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Continue as guest
+              </button>
+            ) : null}
             {product?.publicBooklet ? (
               <a
                 href={shopMediaSrc(product.publicBooklet.url)}
@@ -317,6 +328,17 @@ export default function ShopProduct() {
 
       {product?.relatedProducts && product.relatedProducts.length > 0 ? (
         <ShopRelatedProducts products={product.relatedProducts} collection={product.collection} />
+      ) : null}
+
+      {product ? (
+        <GuestCheckoutModal
+          open={guestModalOpen}
+          onClose={() => setGuestModalOpen(false)}
+          endpoint="/guest/shop/checkout"
+          extraBody={{ productId: product.id, ...(promo.validation?.code ? { promoCode: promo.validation.code } : {}) }}
+          title="Continue as guest"
+          itemLabel={`${product.name} — ${product.priceLabel}`}
+        />
       ) : null}
     </main>
   );

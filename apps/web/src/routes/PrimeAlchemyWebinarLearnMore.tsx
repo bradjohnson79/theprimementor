@@ -13,6 +13,7 @@ import { usePageMeta } from "../hooks/usePageMeta";
 import { trackCtaClick } from "../lib/analytics";
 import { startWebinarCheckout } from "../lib/webinarCheckout";
 import { fetchWebinarMe } from "../lib/webinarApi";
+import GuestCheckoutModal from "../components/guest/GuestCheckoutModal";
 
 const CTA_CLASS_NAME = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#D7B454] to-[#F2D88A] px-6 py-3 text-sm font-semibold text-[#07111C] shadow-[0_10px_32px_rgba(215,180,84,0.22)] transition hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
@@ -23,6 +24,7 @@ export default function PrimeAlchemyWebinarLearnMore() {
   const catalog = getPrimeAlchemyWebinarPublicCatalog();
   const [owned, setOwned] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
   const autocheckoutStartedRef = useRef(false);
   const shouldAutocheckout = searchParams.get("autocheckout") === "1";
 
@@ -123,6 +125,15 @@ export default function PrimeAlchemyWebinarLearnMore() {
             >
               {ctaLabel}
             </AdronisWebinarCheckoutButton>
+            {!owned && !isSignedIn ? (
+              <button
+                type="button"
+                onClick={() => setGuestModalOpen(true)}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 sm:w-auto"
+              >
+                Continue as guest
+              </button>
+            ) : null}
             {owned ? null : (
               <p className="text-sm text-[#94A3B8]">{REGISTER_REASSURANCE}</p>
             )}
@@ -174,6 +185,14 @@ export default function PrimeAlchemyWebinarLearnMore() {
           </div>
         </div>
       </section>
+      <GuestCheckoutModal
+        open={guestModalOpen}
+        onClose={() => setGuestModalOpen(false)}
+        endpoint="/guest/webinar-checkout"
+        extraBody={{ eventId: catalog.eventId }}
+        title="Continue as guest"
+        itemLabel={`${catalog.title} — ${catalog.displayPrice}`}
+      />
     </div>
   );
 }
