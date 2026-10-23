@@ -72,7 +72,7 @@ export default function StartHereDoors({
           {heading}
         </h2>
         <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-          Brad's five most-booked offers. Manifestation Monthly is his best seller; everything here is a sensible first step.
+          Brad's most-booked offers. Manifestation Monthly is his best seller; everything here is a sensible first step.
         </p>
       </div>
 
