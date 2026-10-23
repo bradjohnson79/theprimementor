@@ -44,6 +44,8 @@ import { shopRoutes } from "./routes/shop.js";
 import { adminEmailsRoutes } from "./routes/adminEmails.js";
 import { brevoWebhookRoutes } from "./routes/brevoWebhook.js";
 import { adminAdsRoutes } from "./routes/adminAds.js";
+import { guestCheckoutRoutes } from "./routes/guestCheckout.js";
+import { guestOrderRoutes } from "./routes/guestOrder.js";
 import { deleteStalePhysiognomyUploads } from "./services/physiognomyImageStorage.js";
 import { initSwissEphemeris } from "./services/blueprint/swissEphemerisService.js";
 import { assertMembershipStripeConfig } from "./config/membershipBilling.js";
@@ -926,6 +928,8 @@ export async function buildApp() {
   await app.register(adminAdsRoutes, { prefix: "/api" });
   await app.register(stripeRoutes, { prefix: "/api" });
   await app.register(clerkWebhookRoutes, { prefix: "/api" });
+  await app.register(guestCheckoutRoutes, { prefix: "/api" });
+  await app.register(guestOrderRoutes, { prefix: "/api" });
 
   return app;
 }
