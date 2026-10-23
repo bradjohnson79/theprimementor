@@ -349,8 +349,18 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   phone: text("phone"),
   role: text("role").default("client").notNull(),
+  /**
+   * Guest checkout (additive, nullable/defaulted — see Round 4 guest-checkout migration).
+   * Guest placeholder rows use a unique `clerk_id` of the form "guest_<uuid>" rather than a
+   * real Clerk identity, so `clerk_id` itself never needs to change shape or constraint.
+   */
+  is_guest: boolean("is_guest").default(false).notNull(),
+  guest_claimed_at: timestamp("guest_claimed_at", { withTimezone: true }),
   ...timestamps,
-});
+}, (table) => ({
+  emailIdx: index("users_email_idx").on(table.email),
+  guestIdx: index("users_is_guest_idx").on(table.is_guest),
+}));
 
 export const memberEntitlements = pgTable("member_entitlements", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1892,4 +1902,55 @@ export const adsGoogleConnections = pgTable("ads_google_connections", {
   ...timestamps,
 }, (table) => ({
   accountKeyUnique: uniqueIndex("ads_google_connections_account_key_uidx").on(table.account_key),
+}));
+
+// --- Guest checkout (new tables, additive only; see Round 4 guest-checkout migration) ---
+
+/**
+ * Signed, expiring, revocable magic-link tokens that let a guest buyer reach their own
+ * `/order/:token` page (and resend themselves a fresh one) without creating an account.
+ * Only a SHA-256 hash of the token is stored; the raw token is only ever in the signed link
+ * itself. `purpose` distinguishes the reusable order-page link from the one-time
+ * "verify this email to link a purchase" link used in the cross-account merge edge case.
+ */
+export const guestOrderAccessTokens = pgTable("guest_order_access_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  token_hash: text("token_hash").notNull(),
+  purpose: text("purpose").default("order_page").notNull(),
+  email: text("email").notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  last_used_at: timestamp("last_used_at", { withTimezone: true }),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex("guest_order_access_tokens_token_hash_uidx").on(table.token_hash),
+  userIdx: index("guest_order_access_tokens_user_idx").on(table.user_id),
+  emailIdx: index("guest_order_access_tokens_email_idx").on(table.email),
+}));
+
+/**
+ * Audit trail for guest -> real-account identity resolution. `in_place_claim` means a guest
+ * placeholder row's own clerk_id was rewritten to the real Clerk id in place (same user.id,
+ * same row, no cross-table re-parenting needed — the common case: sign-up with the same
+ * email used at checkout). `cross_account_merge` means a guest placeholder and an existing,
+ * different, already-signed-up account were reconciled via the email-verification flow, and
+ * `reparented_tables` in metadata lists which tables had rows moved from guest_user_id to
+ * target_user_id.
+ */
+export const guestClaimAudit = pgTable("guest_claim_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  guest_user_id: uuid("guest_user_id").references(() => users.id, { onDelete: "set null" }),
+  target_user_id: uuid("target_user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  matched_email: text("matched_email").notNull(),
+  real_clerk_id: text("real_clerk_id"),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  guestUserIdx: index("guest_claim_audit_guest_user_idx").on(table.guest_user_id),
+  targetUserIdx: index("guest_claim_audit_target_user_idx").on(table.target_user_id),
 }));
