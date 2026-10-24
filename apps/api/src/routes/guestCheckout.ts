@@ -5,8 +5,15 @@ import { logger } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireDatabase } from "../routeAssertions.js";
 import { createHttpError } from "../services/booking/errors.js";
-import { createBooking } from "../services/booking/bookingService.js";
-import { createMemberReportOrder } from "../services/reportPurchaseService.js";
+import { createBooking, createDeferredIntakeBooking } from "../services/booking/bookingService.js";
+import { createDeferredIntakeReportOrder, createMemberReportOrder } from "../services/reportPurchaseService.js";
+import {
+  buildGuestIntakeFormUrl,
+  buildGuestThankYouUrl,
+  issueGuestIntakeToken,
+  type GuestIntakeEntityType,
+} from "../services/guest/guestIntakeService.js";
+import { registerGuestIntakeRoutes } from "./guestIntake.js";
 import { prepareShopEntitlementForCheckout } from "../services/shop/shopEntitlementService.js";
 import { createCheckoutSession } from "../services/paymentService.js";
 import { createRegenerationCheckoutSession } from "../services/regenerationSubscriptionService.js";
@@ -61,7 +68,7 @@ async function resolveGuestActor(db: Database, body: Record<string, unknown> | u
   return resolveOrCreateGuestUser(db, { email, name });
 }
 
-async function issueAndSendOrderAccess(db: Database, input: { userId: string; email: string; isResend?: boolean }) {
+async function issueAndSendOrderAccess(db: Database, input: { userId: string; email: string; isResend?: boolean; intakeLink?: { url: string; kind: "services" | "reports" } }) {
   // Per-address throttle (cooldown + hourly cap) so checkout or link endpoints can't be used to
   // flood someone's inbox. A skipped email is harmless: every order-page link shows ALL of the
   // guest's orders, so the most recent email's link already covers this order too.
@@ -83,8 +90,55 @@ async function issueAndSendOrderAccess(db: Database, input: { userId: string; em
     orderPageUrl,
     summaryLines: lines.length > 0 ? lines : ["Your order"],
     isResend: input.isResend,
+    intakeLink: input.intakeLink,
   });
   return { sent: true as const };
+}
+
+/** Same-site path the guest came from (for Stripe's cancel_url). Anything else falls back to the default. */
+function sanitizeReturnPath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || trimmed.length > 160) return null;
+  if (!/^\/[A-Za-z0-9\-_/]*$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
+ * Guest pay-first: mint the per-order intake token and point Stripe's success_url at the public
+ * thank-you page (instead of a signed-in page the guest can't open). The raw token only ever
+ * lives in that redirect URL and in the post-payment email.
+ */
+async function buildGuestIntakeRedirects(
+  db: Database,
+  input: {
+    userId: string;
+    email: string;
+    entityType: GuestIntakeEntityType;
+    entityId: string;
+    product: string | null;
+    returnPath: unknown;
+  },
+) {
+  const { token } = await issueGuestIntakeToken(db, {
+    userId: input.userId,
+    email: input.email,
+    entityType: input.entityType,
+    entityId: input.entityId,
+  });
+  const returnPath = sanitizeReturnPath(input.returnPath);
+  return {
+    successUrlOverride: buildGuestThankYouUrl({
+      token,
+      kind: input.entityType === "report" ? "reports" : "services",
+      product: input.product,
+    }),
+    cancelUrlOverride: returnPath ? `${getFrontendUrl()}${returnPath}?checkout=canceled` : undefined,
+    intakeLink: {
+      url: buildGuestIntakeFormUrl(token, input.entityType === "report" ? "reports" : "services"),
+      kind: input.entityType === "report" ? ("reports" as const) : ("services" as const),
+    },
+  };
 }
 
 /** Prevents duplicate-submission/double-click bookings for non-event-keyed session types. */
@@ -139,10 +193,24 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
       }
 
       let booking;
-      const existing = bookingTypeId
+      // New pay-first flow: only email/name now, the intake comes after payment via the
+      // thank-you page / email link. Its placeholder reuse is handled inside
+      // createDeferredIntakeBooking (guest placeholders only — never an account's own draft).
+      const deferIntake = body.deferIntake === true;
+      if (deferIntake && !bookingTypeId) {
+        return sendApiError(reply, 400, "bookingTypeId is required");
+      }
+      const existing = bookingTypeId && !deferIntake
         ? await findRecentReusableBooking(db, { userId: guest.user.id, bookingTypeId })
         : null;
-      if (existing) {
+      if (deferIntake) {
+        booking = await createDeferredIntakeBooking(db, {
+          userId: guest.user.id,
+          bookingTypeId: bookingTypeId as string,
+          fullName: typeof body.fullName === "string" ? body.fullName : null,
+          timezone: body.timezone,
+        });
+      } else if (existing) {
         booking = existing;
         logger.info("guest_booking_deduped", { bookingId: existing.id, userId: guest.user.id });
       } else {
@@ -171,6 +239,14 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         });
       }
 
+      const { intakeLink, ...redirects } = await buildGuestIntakeRedirects(db, {
+        userId: guest.user.id,
+        email: guest.user.email,
+        entityType: "session",
+        entityId: booking.id,
+        product: bookingTypeId ?? sessionType ?? null,
+        returnPath: body.returnPath,
+      });
       const session = await createCheckoutSession(db, {
         type: "session",
         bookingId: booking.id,
@@ -178,10 +254,11 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         userEmail: guest.user.email,
         clerkId: guest.user.clerk_id,
         promoCode: typeof body.promoCode === "string" ? body.promoCode : undefined,
+        ...redirects,
       });
 
       if (!guest.attachedToExistingAccount) {
-        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email, intakeLink: deferIntake ? intakeLink : undefined });
       }
 
       return ok({
@@ -211,7 +288,14 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         throw error;
       }
 
-      const report = await createMemberReportOrder(db, {
+      const report = body.deferIntake === true
+        ? await createDeferredIntakeReportOrder(db, {
+          userId: guest.user.id,
+          tier: body.tier,
+          reportType: body.reportType,
+          fullName: typeof body.fullName === "string" ? body.fullName : null,
+        })
+        : await createMemberReportOrder(db, {
         userId: guest.user.id,
         tier: body.tier,
         reportType: body.reportType,
@@ -242,6 +326,14 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         areasOfInterest: body.areasOfInterest,
       });
 
+      const { intakeLink, ...redirects } = await buildGuestIntakeRedirects(db, {
+        userId: guest.user.id,
+        email: guest.user.email,
+        entityType: "report",
+        entityId: report.id,
+        product: report.interpretation_tier,
+        returnPath: body.returnPath,
+      });
       const session = await createCheckoutSession(db, {
         type: "report",
         reportId: report.id,
@@ -249,10 +341,11 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         userEmail: guest.user.email,
         clerkId: guest.user.clerk_id,
         promoCode: typeof body.promoCode === "string" ? body.promoCode : undefined,
+        ...redirects,
       });
 
       if (!guest.attachedToExistingAccount) {
-        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email, intakeLink: body.deferIntake === true ? intakeLink : undefined });
       }
 
       return ok({
@@ -317,7 +410,7 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
   );
 
   // ---- Manifestation Monthly (Regeneration) subscription ----
-  app.post<{ Body: { email?: string; fullName?: string; website?: string } }>(
+  app.post<{ Body: { email?: string; fullName?: string; website?: string; timezone?: string; returnPath?: string } }>(
     "/guest/regeneration-subscription/checkout",
     { config: { rateLimit: GUEST_RATE_LIMIT } },
     async (request) => {
@@ -333,13 +426,32 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         throw error;
       }
 
+      // Pay-first: a placeholder regeneration booking carries the intake (intention, feeling,
+      // assumptions, birth details, availability) which the guest fills in after payment.
+      const booking = await createDeferredIntakeBooking(db, {
+        userId: guest.user.id,
+        bookingTypeId: "regeneration-session",
+        fullName: typeof body.fullName === "string" ? body.fullName : null,
+        timezone: typeof body.timezone === "string" ? body.timezone : null,
+        deferPaymentRecord: true,
+      });
+      const { intakeLink, ...redirects } = await buildGuestIntakeRedirects(db, {
+        userId: guest.user.id,
+        email: guest.user.email,
+        entityType: "session",
+        entityId: booking.id,
+        product: "regeneration-session",
+        returnPath: body.returnPath,
+      });
       const session = await createRegenerationCheckoutSession(db, {
         userId: guest.user.id,
         clerkId: guest.user.clerk_id,
+        bookingId: booking.id,
+        ...redirects,
       });
 
       if (!guest.attachedToExistingAccount) {
-        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email, intakeLink: intakeLink });
       }
 
       return ok({
@@ -467,4 +579,6 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
     { config: { rateLimit: GUEST_RESEND_RATE_LIMIT } },
     async (request) => respondToGuestLinkRequest((request.body ?? {}) as Record<string, unknown>, "issue"),
   );
+
+  registerGuestIntakeRoutes(app);
 }

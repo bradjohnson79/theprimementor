@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireDatabase, requireDbUser } from "../routeAssertions.js";
 import { verifyOrderAccessToken } from "../services/guest/orderAccessTokenService.js";
 import { getGuestOrderSummary } from "../services/guest/guestOrderSummaryService.js";
+import { issueGuestIntakeToken } from "../services/guest/guestIntakeService.js";
 import { assertGuestSchemaReady } from "../services/guest/guestSchemaGuard.js";
 import { createGuestBillingPortalSession } from "../services/guest/guestBillingPortalService.js";
 import { requestLinkPurchaseByEmail, confirmLinkPurchaseByEmail } from "../services/guest/guestMergeService.js";
@@ -52,6 +53,35 @@ export async function guestOrderRoutes(app: FastifyInstance) {
       } catch (error) {
         return sendApiError(reply, (error as { statusCode?: number })?.statusCode ?? 502, error instanceof Error ? error.message : "Could not open billing portal.");
       }
+    },
+  );
+
+  // ---- Fresh intake-form link for one pending item on this guest's order page ----
+  app.post<{ Params: { token: string }; Body: { kind?: string; id?: string } }>(
+    "/order/:token/intake-link",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const verified = await verifyOrderAccessToken(db, request.params.token, "order_page");
+      const kind = request.body?.kind;
+      const id = request.body?.id;
+      const summary = await getGuestOrderSummary(db, verified.userId);
+      const item = summary.items.find((entry) =>
+        (kind === "session" && entry.kind === "session" && entry.bookingId === id)
+        || (kind === "session" && entry.kind === "manifestation_monthly" && entry.intakeBookingId === id)
+        || (kind === "report" && entry.kind === "report" && entry.reportId === id));
+      if (!item || !("intakePending" in item) || !item.intakePending || typeof id !== "string") {
+        return sendApiError(reply, 404, "Nothing to fill in for this item.");
+      }
+      const entityType = kind === "report" ? "report" : "session";
+      const { token } = await issueGuestIntakeToken(db, {
+        userId: verified.userId,
+        email: verified.email,
+        entityType,
+        entityId: id,
+      });
+      reply.header("Cache-Control", "no-store");
+      return ok({ path: `/intake/${entityType === "report" ? "reports" : "services"}/${encodeURIComponent(token)}` });
     },
   );
 

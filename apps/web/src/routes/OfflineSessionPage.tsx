@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { usePageMeta } from "../hooks/usePageMeta";
+import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
 import {
   EMAIL_SESSION_BOOKING_PATH,
   EMAIL_SESSION_LANDING_PATH,
@@ -91,6 +92,13 @@ export default function OfflineSessionPage({ product }: { product: OfflineProduc
           >
             {content.cta}
           </Link>
+          <div>
+            <GuestPayFirstButton
+              endpoint="/guest/bookings"
+              extraBody={{ bookingTypeId: content.bookingTypeId, deferIntake: true }}
+              itemLabel={`${content.title} — ${price}`}
+            />
+          </div>
           <p className="text-xs text-white/50">{PURCHASE_REASSURANCE}</p>
         </div>
         <img

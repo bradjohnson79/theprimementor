@@ -20,14 +20,17 @@ interface GuestCheckoutModalProps {
   title: string;
   /** Short line describing what they're buying, shown above the form */
   itemLabel?: string;
+  /** Optional picker (e.g. session length, live vs pre-recorded); the chosen option's body is merged in. */
+  choices?: Array<{ label: string; extraBody: Record<string, unknown> }>;
+  choiceLabel?: string;
 }
 
 /**
  * Shared "Continue as guest" checkout modal: collects email + name only (no account), posts to
  * the given guest-checkout endpoint, and redirects straight to Stripe Checkout on success. Used
- * for product flows that don't need extra intake (shop, Manifestation Monthly, webinar tickets).
- * Session bookings and reports need richer intake and are not wired to this component yet — see
- * GUEST-CHECKOUT-PLAN.md.
+ * for product flows that don't need extra intake before payment (shop, webinar tickets) and for the
+ * pay-first session / Divin8 report / Manifestation Monthly flows, where the intake form is filled
+ * in after payment from the thank-you page or the purchase email (deferIntake).
  */
 export default function GuestCheckoutModal({
   open,
@@ -36,7 +39,10 @@ export default function GuestCheckoutModal({
   extraBody,
   title,
   itemLabel,
+  choices,
+  choiceLabel,
 }: GuestCheckoutModalProps) {
+  const [choiceIndex, setChoiceIndex] = useState(0);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [website, setWebsite] = useState(""); // honeypot — real users never see/fill this
@@ -57,6 +63,7 @@ export default function GuestCheckoutModal({
         fullName: fullName.trim() || undefined,
         website: website.trim() || undefined,
         ...extraBody,
+        ...(choices?.[choiceIndex]?.extraBody ?? {}),
       })) as GuestCheckoutResponse;
       const data = (response?.data as GuestCheckoutResponse | undefined) ?? response;
       if (data.url && data.requiresPayment !== false) {
@@ -115,6 +122,23 @@ export default function GuestCheckoutModal({
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <p className="text-xs text-white/55">No account needed. We'll email your confirmation and access links.</p>
+            {choices && choices.length > 1 ? (
+              <div>
+                <label htmlFor="guest-checkout-choice" className="block text-xs font-medium uppercase tracking-wide text-white/50">
+                  {choiceLabel ?? "Option"}
+                </label>
+                <select
+                  id="guest-checkout-choice"
+                  value={choiceIndex}
+                  onChange={(event) => setChoiceIndex(Number(event.target.value))}
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-white px-4 py-3 text-sm text-slate-900 focus:border-cyan-300/50 focus:outline-none"
+                >
+                  {choices.map((choice, index) => (
+                    <option key={choice.label} value={index}>{choice.label}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <div>
               <label htmlFor="guest-checkout-email" className="block text-xs font-medium uppercase tracking-wide text-white/50">
                 Email

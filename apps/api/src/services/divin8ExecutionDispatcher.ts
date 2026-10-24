@@ -1,4 +1,5 @@
-import type { Database } from "@wisdom/db";
+import { bookings, reports, type Database } from "@wisdom/db";
+import { eq } from "drizzle-orm";
 import type { AdminOrder } from "./ordersService.js";
 import { getAdminOrderById } from "./ordersService.js";
 import { runDivin8Execution } from "./divin8EngineService.js";
@@ -25,7 +26,7 @@ type DispatcherLogger = {
 
 export interface DispatchOrderExecutionOptions {
   force?: boolean;
-  trigger?: "admin" | "webhook";
+  trigger?: "admin" | "webhook" | "guest_intake";
   logger?: DispatcherLogger;
   retryDelaysMs?: number[];
 }
@@ -102,6 +103,34 @@ async function loadOrderWithRetry(
     }
   }
   return null;
+}
+
+async function isGuestIntakePendingForOrder(db: Database, order: AdminOrder): Promise<boolean> {
+  try {
+    if (order.type === "report") {
+      const [row] = await db
+        .select({ intake: reports.purchase_intake })
+        .from(reports)
+        .where(eq(reports.id, order.source_id))
+        .limit(1);
+      return isIntakePendingValue(row?.intake);
+    }
+    if (order.type === "session") {
+      const [row] = await db
+        .select({ intake: bookings.intake })
+        .from(bookings)
+        .where(eq(bookings.id, order.source_id))
+        .limit(1);
+      return isIntakePendingValue(row?.intake);
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function isIntakePendingValue(value: unknown) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).intakePending === true);
 }
 
 function getExistingOutput(order: AdminOrder | null): AdminOrder["execution"]["output"] {
@@ -187,6 +216,21 @@ export async function dispatchOrderExecution(
   }
   if (isQaSessionOrder(order)) {
     throw createError(400, "Divin8 generation is not supported for Q&A Session orders.");
+  }
+
+  if (await isGuestIntakePendingForOrder(db, order)) {
+    // Guest pay-first checkout: the client hasn't submitted their intake (birth details etc.)
+    // yet. Generation is started again by the intake submit endpoint.
+    logger?.info({ orderId, trigger: options.trigger }, "divin8_awaiting_guest_intake");
+    return {
+      order_id: orderId,
+      outcome: "awaiting_input",
+      order,
+      output: getExistingOutput(order),
+      report_id: null,
+      statusCode: 202,
+      message: "Waiting for the client's intake form.",
+    };
   }
 
   const existingReport = await getOrderExecutionReport(db, order);

@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import {
+  bookingIntakeImages,
   bookings,
   courseEntitlements,
   guestClaimAudit,
@@ -70,6 +71,8 @@ const REPARENT_TABLES = [
   { table: courseEntitlements, column: courseEntitlements.user_id, name: "course_entitlements" },
   { table: mentorTrainingOrders, column: mentorTrainingOrders.user_id, name: "mentor_training_orders" },
   { table: invoices, column: invoices.user_id, name: "invoices" },
+  // Intake photos uploaded on the guest pay-first intake form travel with their booking.
+  { table: bookingIntakeImages, column: bookingIntakeImages.user_id, name: "booking_intake_images" },
 ] as const;
 
 export interface ConfirmLinkPurchaseResult {

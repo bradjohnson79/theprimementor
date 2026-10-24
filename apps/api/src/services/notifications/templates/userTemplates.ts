@@ -1,4 +1,4 @@
-import type { NotificationPayloadMap } from "../events.js";
+import type { GuestOrderEmailLinks, NotificationPayloadMap } from "../events.js";
 import {
   buildFrontendUrl,
   money,
@@ -84,9 +84,87 @@ export function renderShopDigitalFulfillmentTemplate(
   };
 }
 
+/**
+ * Guest pay-first orders: the purchase is in but the intake usually is not. One template for the
+ * post-payment emails so the intake link is the primary action, the guest order page replaces
+ * /dashboard (or sign-in for a real account that used guest checkout).
+ */
+function renderGuestPurchaseTemplate(input: {
+  links: GuestOrderEmailLinks;
+  subjectPrefix: string;
+  templateVersion: string;
+  rows: Array<{ label: string; value: string | null | undefined }>;
+  detailNote?: string | null;
+}): RenderedTemplate {
+  const { links } = input;
+  const product = text(links.productLabel, "your order");
+  const formLabel = links.intakeKind === "reports" ? "Divin8 Reports Intake Form" : "Services Intake Form";
+  const viewAction = links.orderPageUrl
+    ? { label: "View your order", url: links.orderPageUrl }
+    : links.dashboardUrl
+      ? { label: "Sign in to your account", url: links.dashboardUrl }
+      : undefined;
+  const intakePending = Boolean(links.intakeUrl);
+  const sections = [
+    renderInfoCard("Order details", renderKeyValueTable(input.rows)),
+    intakePending
+      ? renderParagraph(
+        links.intakeKind === "reports"
+          ? `Next step: complete your ${formLabel} with your full name and birth details. Your report is prepared as soon as it is in.`
+          : `Next step: complete your ${formLabel} with your full name, birth details, availability and (optionally) a photo, so everything is ready for your session.`,
+      )
+      : renderParagraph("We have your intake form. There is nothing else you need to do right now."),
+  ];
+  if (input.detailNote) sections.push(renderParagraph(input.detailNote));
+  if (intakePending) {
+    sections.push(renderParagraph("This link is private to your order. If it ever stops working, use the order page link below or reply to this email."));
+  }
+  return {
+    subject: `${input.subjectPrefix} - ${product}`,
+    templateVersion: input.templateVersion,
+    html: renderPrimeMentorEmail({
+      eyebrow: "Purchase Confirmed",
+      title: intakePending ? "Thank you! One more step" : "Thank you for your purchase",
+      intro: `We have received your purchase of ${product}.`,
+      sections,
+      callToAction: intakePending
+        ? { label: `Complete your ${formLabel}`, url: links.intakeUrl as string }
+        : viewAction,
+      secondaryCallToAction: intakePending ? viewAction : { label: "Contact Support", url: buildFrontendUrl("/contact") },
+      footerNote: "If you have any questions, simply reply to this email and we will help.",
+    }),
+  };
+}
+
+function guestDetailNote(sessionType: string | null | undefined) {
+  if (sessionType === "email_session" || sessionType === "past_life_akashic") {
+    return "This session is completed offline. There is no calendar appointment. Brad will email the completed MP3 recording when it is ready.";
+  }
+  if (sessionType === "prime_body_healing") {
+    return "Brad will review your details and email a booking window for Level 1 Live, or a delivery turnaround for Level 1 Pre-Recorded and Level 2.";
+  }
+  if (sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration") {
+    return "Once your intake is in, Brad will review it and follow up with the scheduling details based on your availability.";
+  }
+  return null;
+}
+
 export function renderPaymentSucceededTemplate(
   payload: NotificationPayloadMap["payment.succeeded"],
 ): RenderedTemplate {
+  if (payload.guestLinks) {
+    return renderGuestPurchaseTemplate({
+      links: payload.guestLinks,
+      subjectPrefix: "Payment received",
+      templateVersion: "guest-payment-succeeded-v1",
+      rows: [
+        { label: "Product", value: payload.guestLinks.productLabel },
+        { label: "Amount", value: money(payload.amount, payload.currency) },
+        { label: "Payment reference", value: text(payload.paymentId, "Unavailable") },
+        { label: "Order ID", value: payload.orderId ?? undefined },
+      ],
+    });
+  }
   const product = text(payload.product, "your order");
   return {
     subject: `Payment received for ${product}`,
@@ -250,6 +328,21 @@ function renderMentoringSessionBookingCreatedTemplate(
 export function renderBookingCreatedTemplate(
   payload: NotificationPayloadMap["booking.created"],
 ): RenderedTemplate {
+  if (payload.guestLinks) {
+    return renderGuestPurchaseTemplate({
+      links: payload.guestLinks,
+      subjectPrefix: "Purchase confirmed",
+      templateVersion: "guest-booking-confirmed-v1",
+      rows: [
+        { label: "Client", value: payload.fullName ?? undefined },
+        { label: "Email", value: payload.email ?? undefined },
+        { label: "Service", value: payload.bookingType ?? payload.guestLinks.productLabel },
+        { label: "Duration", value: payload.durationMinutes ? formatDurationLabel(payload.durationMinutes) : undefined },
+        { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+      ],
+      detailNote: guestDetailNote(payload.sessionType),
+    });
+  }
   if (payload.purchaseConfirmed && payload.sessionType === "qa_session") {
     return renderQaSessionBookingCreatedTemplate(payload);
   }

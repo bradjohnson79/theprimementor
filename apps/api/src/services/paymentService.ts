@@ -119,6 +119,9 @@ export interface CreateCheckoutSessionInput {
   eventId?: string;
   webinarId?: string;
   promoCode?: string;
+  /** Guest pay-first checkout: land on the public thank-you page instead of a signed-in page. */
+  successUrlOverride?: string;
+  cancelUrlOverride?: string;
 }
 
 function buildCheckoutMetadata(
@@ -557,8 +560,8 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
       description: naming.description,
       metadata,
     },
-    success_url: `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
+    success_url: input.successUrlOverride ?? `${frontendUrl}${returnPath}?checkout=success&bookingId=${encodeURIComponent(bookingId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: input.cancelUrlOverride ?? `${frontendUrl}${returnPath}?checkout=canceled&bookingId=${encodeURIComponent(bookingId)}`,
     customer: stripeCustomerId,
   });
 
@@ -1526,8 +1529,8 @@ async function createReportCheckoutSession(db: Database, input: CreateCheckoutSe
       description: naming.description,
       metadata,
     },
-    success_url: `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
+    success_url: input.successUrlOverride ?? `${frontendUrl}${returnPath}?checkout=success&reportId=${encodeURIComponent(reportId)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: input.cancelUrlOverride ?? `${frontendUrl}${returnPath}?checkout=canceled&reportId=${encodeURIComponent(reportId)}`,
     customer: stripeCustomerId,
   });
 

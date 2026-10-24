@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useAuth } from "@clerk/react";
 import SessionLandingPage from "../components/public/SessionLandingPage";
 import { qaSessionLandingContent } from "../data/qaSessionLanding";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { QA_LANDING_PATH } from "../lib/sessionLandingPaths";
 import { pageCanonical } from "../lib/siteMeta";
-import GuestSessionBookingModal from "../components/guest/GuestSessionBookingModal";
+import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
 import {
   buildGuidedSessionBookingPath,
   formatGuidedSessionDisplayPrice,
@@ -65,9 +64,6 @@ function QaDurationSelector({
   selectedOffering: GuidedSessionDurationOption | null;
   onSelect: (offering: GuidedSessionDurationOption) => void;
 }) {
-  const { isSignedIn } = useAuth();
-  const [guestModalOpen, setGuestModalOpen] = useState(false);
-
   if (offerings.length === 0) {
     return null;
   }
@@ -109,22 +105,14 @@ function QaDurationSelector({
           );
         })}
       </div>
-      {!isSignedIn && selectedOffering ? (
-        <button
-          type="button"
-          onClick={() => setGuestModalOpen(true)}
-          className="mt-4 inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-        >
-          Continue as guest
-        </button>
-      ) : null}
       {selectedOffering ? (
-        <GuestSessionBookingModal
-          open={guestModalOpen}
-          onClose={() => setGuestModalOpen(false)}
-          bookingTypeId={selectedOffering.bookingTypeId}
-          itemLabel={`Q&A Session — ${selectedOffering.minutes} minutes`}
-        />
+        <div className="mt-4">
+          <GuestPayFirstButton
+            endpoint="/guest/bookings"
+            extraBody={{ bookingTypeId: selectedOffering.bookingTypeId, deferIntake: true }}
+            itemLabel={`Q&A Session — ${selectedOffering.minutes} minutes · ${formatGuidedSessionDisplayPrice(selectedOffering)}`}
+          />
+        </div>
       ) : null}
     </div>
   );

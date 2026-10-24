@@ -22,6 +22,7 @@ import {
 } from "./notificationSettingsService.js";
 import { sendResendEmail } from "./providers/resendProvider.js";
 import { resolveNotificationTemplate } from "./templates/index.js";
+import { buildGuestOrderEmailLinks } from "../guest/guestIntakeService.js";
 
 type NotificationDbLike = Pick<Database, "select" | "insert" | "update" | "execute">;
 
@@ -304,6 +305,34 @@ function logNotificationTestSend(input: {
   });
 }
 
+/**
+ * Guest pay-first orders: add the intake-form link (and the guest order page link) to the
+ * post-payment emails. Only the rendered template sees these; input.payload — which is what gets
+ * stored in notification_events — is left untouched, so no live token is ever persisted.
+ */
+async function withGuestOrderLinks<TEvent extends NotificationRequest["event"]>(
+  db: Database,
+  input: SendNotificationInput<TEvent>,
+): Promise<SendNotificationInput<TEvent>["payload"]> {
+  if (input.event !== "payment.succeeded" && input.event !== "booking.created") return input.payload;
+  if (input.dryRun || input.testContext) return input.payload;
+  try {
+    const guestLinks = await buildGuestOrderEmailLinks(db, {
+      event: input.event,
+      payload: input.payload as Record<string, unknown>,
+      userId: input.userId ?? null,
+    });
+    if (!guestLinks) return input.payload;
+    return { ...(input.payload as Record<string, unknown>), guestLinks } as SendNotificationInput<TEvent>["payload"];
+  } catch (error) {
+    logger.warn("guest_order_email_links_failed", {
+      event: input.event,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return input.payload;
+  }
+}
+
 export async function sendNotification<TEvent extends NotificationRequest["event"]>(
   dbOrTransaction: Database,
   input: SendNotificationInput<TEvent>,
@@ -323,7 +352,7 @@ export async function sendNotification<TEvent extends NotificationRequest["event
     return { success: true, skipped: true };
   }
 
-  const template = resolveNotificationTemplate(input.event, input.payload);
+  const template = resolveNotificationTemplate(input.event, await withGuestOrderLinks(db, input));
   const deliveryPolicy = getNotificationDeliveryPolicy();
   let recipients: NotificationRecipients;
 

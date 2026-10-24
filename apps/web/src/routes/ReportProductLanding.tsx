@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@clerk/react";
-import GuestReportModal from "../components/guest/GuestReportModal";
+import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
 import {
   DIVIN8_REPORT_PRICE_CENTS_BY_PRODUCT,
   REPORT_PRODUCTS,
@@ -54,8 +53,6 @@ function ReportProductLandingView({
   sampleOpen: boolean;
   setSampleOpen: (open: boolean) => void;
 }) {
-  const { isSignedIn } = useAuth();
-  const [guestModalOpen, setGuestModalOpen] = useState(false);
   const product = REPORT_PRODUCTS[landing.productKey];
   const priceLabel = divin8ReportProductListPrice(landing.productKey);
   const sample = getReportSample(landing.productKey);
@@ -139,15 +136,11 @@ function ReportProductLandingView({
                 pageSource={pageSource}
                 onOpen={() => setSampleOpen(true)}
               />
-              {!isSignedIn && landing.productKey === "intro" ? (
-                <button
-                  type="button"
-                  onClick={() => setGuestModalOpen(true)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                >
-                  Continue as guest
-                </button>
-              ) : null}
+              <GuestPayFirstButton
+                endpoint="/guest/reports"
+                extraBody={{ reportType: landing.productKey, deferIntake: true }}
+                itemLabel={`${product.displayName} — ${priceLabel}`}
+              />
             </div>
             <p className="mt-3 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
@@ -245,15 +238,6 @@ function ReportProductLandingView({
         pageSource={pageSource}
       />
 
-      {landing.productKey === "intro" ? (
-        <GuestReportModal
-          open={guestModalOpen}
-          onClose={() => setGuestModalOpen(false)}
-          tier="intro"
-          reportType="intro"
-          itemLabel={`${product.displayName} — ${priceLabel}`}
-        />
-      ) : null}
     </main>
   );
 }

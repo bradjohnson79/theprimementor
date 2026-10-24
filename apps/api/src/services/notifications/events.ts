@@ -1,3 +1,12 @@
+/** Links for guest pay-first order emails: intake form + order page (guests) or sign-in (accounts). */
+export interface GuestOrderEmailLinks {
+  intakeUrl: string | null;
+  intakeKind: "services" | "reports" | null;
+  productLabel: string;
+  orderPageUrl: string | null;
+  dashboardUrl: string | null;
+}
+
 export type NotificationEvent =
   | "payment.succeeded"
   | "payment.failed"
@@ -34,6 +43,8 @@ export interface NotificationPayloadMap {
     currency: string;
     product: string;
     orderId?: string | null;
+    /** Render-time only (guest pay-first orders); never persisted in notification_events. */
+    guestLinks?: GuestOrderEmailLinks | null;
   };
   "payment.failed": {
     entityId: string;
@@ -58,6 +69,8 @@ export interface NotificationPayloadMap {
     durationMinutes?: number | null;
     intakeSummaryLines?: string[];
     purchaseConfirmed?: boolean;
+    /** Render-time only (guest pay-first orders); never persisted in notification_events. */
+    guestLinks?: GuestOrderEmailLinks | null;
   };
   "booking.confirmed": {
     entityId: string;

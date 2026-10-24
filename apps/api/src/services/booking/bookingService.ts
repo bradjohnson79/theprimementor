@@ -1860,3 +1860,388 @@ export async function cancelBooking(
 
   return serializeBooking(summary, now);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Guest pay-first checkout: deferred intake.
+//
+// Signed-in clients fill the intake BEFORE paying (createBooking above). Guests pay first with
+// only an email + name, so the booking is created with an intake placeholder and the real
+// intake is submitted afterwards through a per-order token link. completeDeferredBookingIntake
+// runs the exact same normalizers/validators as createBooking so a guest booking ends up with
+// the same columns, intake and intake_snapshot as a signed-in one ("ready for session booking").
+// ---------------------------------------------------------------------------------------------
+
+export const GUEST_INTAKE_SOURCE = "guest_checkout";
+
+export const GUEST_INTAKE_SESSION_TYPES: readonly BookingSessionType[] = [
+  "qa_session",
+  "mentoring",
+  "prime_body_healing",
+  "email_session",
+  "past_life_akashic",
+  "regeneration",
+];
+
+/** True when a booking's stored intake is still the guest pay-first placeholder. */
+export function isDeferredGuestIntake(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return (value as Record<string, unknown>).intakePending === true;
+}
+
+export function isGuestCheckoutIntake(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return (value as Record<string, unknown>).intakeSource === GUEST_INTAKE_SOURCE;
+}
+
+export interface CreateDeferredIntakeBookingInput {
+  userId: string;
+  bookingTypeId: string;
+  fullName?: string | null;
+  timezone?: string | null;
+  deferPaymentRecord?: boolean;
+  now?: Date;
+}
+
+function safeTimeZone(value: string | null | undefined) {
+  try {
+    return assertValidTimeZone(value ?? "");
+  } catch {
+    return "UTC";
+  }
+}
+
+export async function createDeferredIntakeBooking(
+  db: Database,
+  input: CreateDeferredIntakeBookingInput,
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const targetUser = await getTargetUserOrThrow(db, input.userId);
+  const { bookingType, sessionType } = await resolveBookingTypeAndSessionType(db, {
+    actorUserId: input.userId,
+    actorRole: "client",
+    bookingTypeId: input.bookingTypeId,
+  });
+  if (!GUEST_INTAKE_SESSION_TYPES.includes(sessionType)) {
+    throw createHttpError(400, "This session is not available for guest checkout.");
+  }
+  const sessionDurationMinutes = getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
+  const sessionMetadata = getSessionMetadataTags(sessionType);
+  const timezone = safeTimeZone(input.timezone);
+  const fullName = typeof input.fullName === "string" && input.fullName.trim() ? input.fullName.trim().slice(0, 200) : null;
+  const email = targetUser.email;
+  const intake = {
+    type: sessionType,
+    intakePending: true,
+    intakeSource: GUEST_INTAKE_SOURCE,
+  } as unknown as BookingIntakePayload;
+  const intakeSnapshot = buildBookingIntakeSnapshot({
+    bookingTypeId: bookingType.id,
+    sessionType,
+    sessionDurationMinutes,
+    priceSnapshotCents: bookingType.price_cents,
+    priceSnapshotCurrency: bookingType.currency,
+    timezone,
+    availability: null,
+    fullName,
+    email,
+    phone: null,
+    gender: null,
+    birthDate: null,
+    birthTime: "00:00",
+    birthPlace: null,
+    birthPlaceName: null,
+    birthLat: null,
+    birthLng: null,
+    birthTimezone: null,
+    timezoneSource: "fallback",
+    consentGiven: false,
+    intake,
+    notes: null,
+  });
+
+  const paymentMetadata = {
+    source: "guest_booking_create",
+    bookingTypeId: bookingType.id,
+    sessionType,
+    sessionDurationMinutes,
+    priceSnapshotCents: bookingType.price_cents,
+    priceSnapshotCurrency: bookingType.currency,
+    price_snapshot_cents: bookingType.price_cents,
+    price_snapshot_currency: bookingType.currency,
+    sessionTier: sessionMetadata.sessionTier,
+    upgradeEligible: sessionMetadata.upgradeEligible,
+    upgradeTarget: sessionMetadata.upgradeTarget,
+  };
+
+  // Double-clicks / back-button re-submits reuse the same unpaid placeholder booking.
+  const reusableBookingId = await findReusablePendingPaymentBooking(db, {
+    userId: input.userId,
+    bookingTypeId: bookingType.id,
+    sessionType,
+    intakeSnapshot,
+  });
+  if (reusableBookingId) {
+    const existingPayment = await getReusablePaymentForBooking(db, reusableBookingId);
+    if (!existingPayment && input.deferPaymentRecord !== true) {
+      await createPaymentRecordForBooking(db, {
+        userId: input.userId,
+        bookingId: reusableBookingId,
+        amountCents: bookingType.price_cents,
+        currency: bookingType.currency,
+        status: "pending",
+        metadata: { ...paymentMetadata, source: "guest_booking_reuse" },
+      });
+    }
+    const existingSummary = await getBookingSummaryById(db, reusableBookingId);
+    if (!existingSummary) {
+      throw createHttpError(500, "Reusable booking could not be loaded");
+    }
+    return serializeBooking(existingSummary, now);
+  }
+
+  const inserted = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(bookings)
+      .values({
+        user_id: input.userId,
+        booking_type_id: bookingType.id,
+        session_type: sessionType,
+        start_time_utc: null,
+        end_time_utc: null,
+        timezone,
+        status: "pending_payment",
+        availability: null,
+        full_name: fullName,
+        email,
+        phone: null,
+        birth_date: null,
+        birth_time: "00:00",
+        birth_place: null,
+        birth_place_name: null,
+        birth_lat: null,
+        birth_lng: null,
+        birth_timezone: null,
+        consent_given: false,
+        intake,
+        intake_snapshot: intakeSnapshot,
+        notes: null,
+      })
+      .returning({ id: bookings.id });
+
+    if (input.deferPaymentRecord !== true) {
+      await createPaymentRecordForBooking(tx, {
+        userId: input.userId,
+        bookingId: created.id,
+        amountCents: bookingType.price_cents,
+        currency: bookingType.currency,
+        status: "pending",
+        metadata: paymentMetadata,
+      });
+    }
+    return created;
+  });
+
+  const summary = await getBookingSummaryById(db, inserted.id);
+  if (!summary) {
+    throw createHttpError(500, "Booking created but could not be loaded");
+  }
+  // No client/admin "booking created" emails here: the intake is not in yet. The post-payment
+  // emails (webhook) carry the intake link, and the admin is notified when the intake lands.
+  return serializeBooking(summary, now);
+}
+
+export interface DeferredBookingIntakeContext {
+  id: string;
+  userId: string;
+  bookingTypeId: string;
+  bookingTypeName: string;
+  sessionType: BookingSessionType;
+  status: BookingStatus;
+  durationMinutes: number;
+  fullName: string | null;
+  email: string | null;
+  intakePending: boolean;
+  guestCheckout: boolean;
+  requiresAvailability: boolean;
+  requiresPhone: boolean;
+}
+
+export async function getDeferredBookingIntakeContext(
+  db: Database,
+  bookingId: string,
+): Promise<DeferredBookingIntakeContext | null> {
+  const row = await getBookingSummaryById(db, bookingId);
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.userId,
+    bookingTypeId: row.bookingTypeId,
+    bookingTypeName: row.bookingTypeName,
+    sessionType: row.sessionType,
+    status: row.status,
+    durationMinutes: row.durationMinutes,
+    fullName: row.fullName,
+    email: row.email ?? row.userEmail ?? null,
+    intakePending: isDeferredGuestIntake(row.intake),
+    guestCheckout: isGuestCheckoutIntake(row.intake),
+    requiresAvailability: sessionTypeRequiresAvailabilitySelection(row.sessionType),
+    requiresPhone: bookingRequiresPhone(row.sessionType),
+  };
+}
+
+export type CompleteDeferredBookingIntakeFields = Omit<
+  CreateBookingInput,
+  "actorUserId" | "actorRole" | "userId" | "bookingTypeId" | "sessionType" | "deferPaymentRecord" | "now" | "email"
+>;
+
+/**
+ * Fills a guest pay-first booking with the client's intake. Same validation as the signed-in
+ * createBooking path (no admin fallbacks). Single use: the UPDATE only matches while the intake
+ * placeholder is still pending, so a replayed/raced submit gets a 409.
+ */
+export async function completeDeferredBookingIntake(
+  db: Database,
+  input: {
+    bookingId: string;
+    fields: CompleteDeferredBookingIntakeFields;
+    now?: Date;
+  },
+): Promise<BookingSummary> {
+  const now = input.now ?? new Date();
+  const row = await getBookingSummaryById(db, input.bookingId);
+  if (!row) {
+    throw createHttpError(404, "This link has expired or is no longer valid.");
+  }
+  if (!isDeferredGuestIntake(row.intake)) {
+    throw createHttpError(409, "Your intake form has already been received. Contact us if anything needs to change.");
+  }
+  if (row.status !== "pending_payment" && row.status !== "paid") {
+    throw createHttpError(409, "This order can no longer accept an intake form. Please contact us.");
+  }
+
+  const bookingType = await getBookingTypeOrThrow(db, row.bookingTypeId);
+  const sessionType = row.sessionType;
+  const sessionDurationMinutes = getEnforcedSessionDurationMinutes(sessionType, bookingType.duration_minutes);
+  const timezone = assertValidTimeZone(input.fields.timezone ?? "");
+  const lockedEmail = row.email ?? row.userEmail ?? "";
+  const fieldInput: CreateBookingInput = {
+    ...input.fields,
+    actorUserId: row.userId,
+    actorRole: "client",
+    bookingTypeId: row.bookingTypeId,
+    sessionType,
+    // The order's email is fixed at checkout; the intake form cannot redirect it.
+    email: lockedEmail,
+  };
+  const sharedFields = normalizeSharedFields(sessionType, fieldInput, lockedEmail, false, bookingType.id);
+  const rawIntake = input.fields.intake && typeof input.fields.intake === "object" && !Array.isArray(input.fields.intake)
+    ? { ...(input.fields.intake as Record<string, unknown>), type: sessionType } as Record<string, unknown>
+    : { type: sessionType } as Record<string, unknown>;
+  if (sessionType === "regeneration") {
+    // The $29 Manifestation Enhancement add-on is priced into checkout; guests already paid
+    // the base price, so it can't be switched on after payment.
+    rawIntake.manifestationEnhancement = { version: 1, selected: false, intentions: null };
+  }
+  const { intake, notes } = buildNormalizedIntake(sessionType, rawIntake, input.fields.notes, false, bookingType.id);
+  if (sessionType === "prime_body_healing") {
+    if (sharedFields.birthDate && !intake.birthDate) intake.birthDate = sharedFields.birthDate;
+    if (sharedFields.birthTime && sharedFields.birthTime !== "00:00" && !intake.birthTime) {
+      intake.birthTime = sharedFields.birthTime;
+    }
+    if (sharedFields.birthPlace && !intake.birthPlace) intake.birthPlace = sharedFields.birthPlace;
+  }
+  if (sharedFields.gender && !intake.gender) {
+    intake.gender = sharedFields.gender;
+  }
+  const normalizedAvailability = normalizeBookingAvailability(input.fields.availability, {
+    requireSelection: sessionTypeRequiresAvailabilitySelection(sessionType),
+  });
+  const storedIntake = {
+    ...intake,
+    intakeSource: GUEST_INTAKE_SOURCE,
+    intakeSubmittedAt: now.toISOString(),
+  } as unknown as BookingIntakePayload;
+  const intakeSnapshot = buildBookingIntakeSnapshot({
+    bookingTypeId: bookingType.id,
+    sessionType,
+    sessionDurationMinutes,
+    priceSnapshotCents: bookingType.price_cents,
+    priceSnapshotCurrency: bookingType.currency,
+    timezone,
+    availability: normalizedAvailability,
+    fullName: sharedFields.fullName,
+    email: sharedFields.email,
+    phone: sharedFields.phone,
+    gender: sharedFields.gender,
+    birthDate: sharedFields.birthDate,
+    birthTime: sharedFields.birthTime,
+    birthPlace: sharedFields.birthPlace,
+    birthPlaceName: sharedFields.birthplace?.name ?? null,
+    birthLat: sharedFields.birthplace?.lat ?? null,
+    birthLng: sharedFields.birthplace?.lng ?? null,
+    birthTimezone: timezone,
+    timezoneSource: sharedFields.timezoneSource,
+    consentGiven: sharedFields.consentGiven,
+    intake,
+    notes,
+  });
+
+  await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(bookings)
+      .set({
+        timezone,
+        availability: normalizedAvailability,
+        full_name: sharedFields.fullName,
+        email: sharedFields.email,
+        phone: sharedFields.phone,
+        birth_date: sharedFields.birthDate,
+        birth_time: sharedFields.birthTime,
+        birth_place: sharedFields.birthPlace,
+        birth_place_name: sharedFields.birthplace?.name ?? null,
+        birth_lat: sharedFields.birthplace?.lat ?? null,
+        birth_lng: sharedFields.birthplace?.lng ?? null,
+        birth_timezone: timezone,
+        consent_given: sharedFields.consentGiven,
+        intake: storedIntake,
+        intake_snapshot: intakeSnapshot,
+        notes,
+        updated_at: now,
+      })
+      .where(and(
+        eq(bookings.id, row.id),
+        eq(bookings.user_id, row.userId),
+        sql`(${bookings.intake} ->> 'intakePending') = 'true'`,
+      ))
+      .returning({ id: bookings.id });
+    if (updated.length === 0) {
+      throw createHttpError(409, "Your intake form has already been received. Contact us if anything needs to change.");
+    }
+    if (intake.clientImage) {
+      await claimBookingIntakeImage(tx, {
+        imageId: intake.clientImage.id,
+        userId: row.userId,
+        bookingId: row.id,
+      });
+    }
+  });
+
+  const summary = await getBookingSummaryById(db, row.id);
+  if (!summary) {
+    throw createHttpError(500, "Intake saved but the booking could not be loaded");
+  }
+
+  void sendAdminNewBookingNotification(db, {
+    bookingId: summary.id,
+    userId: summary.userId,
+    bookingType: summary.bookingTypeName,
+    timezone: summary.timezone,
+    fullName: summary.fullName,
+    email: summary.email ?? summary.userEmail ?? null,
+    availability: parseStoredAvailability(summary.availability),
+  }).catch(() => {
+    logger.error("admin_booking_notification_failed", { bookingId: summary.id });
+  });
+
+  return serializeBooking(summary, now);
+}

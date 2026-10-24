@@ -3,6 +3,13 @@ import { mentoringSessionLandingContent } from "../data/mentoringSessionLanding"
 import { usePageMeta } from "../hooks/usePageMeta";
 import { MENTORING_LANDING_PATH } from "../lib/sessionLandingPaths";
 import { pageCanonical } from "../lib/siteMeta";
+import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
+import { formatGuidedSessionDisplayPrice, getSessionOfferingsByType } from "../lib/sessionCatalog";
+
+const MENTORING_GUEST_CHOICES = getSessionOfferingsByType("mentoring").map((offering) => ({
+  label: `${offering.minutes} minutes — ${formatGuidedSessionDisplayPrice(offering)}`,
+  extraBody: { bookingTypeId: offering.bookingTypeId, deferIntake: true },
+}));
 
 export default function MentoringSessionPage() {
   usePageMeta({
@@ -12,5 +19,17 @@ export default function MentoringSessionPage() {
     canonical: pageCanonical(MENTORING_LANDING_PATH),
     ogImage: pageCanonical("/images/mentoring-session.webp"),
   });
-  return <SessionLandingPage content={mentoringSessionLandingContent} />;
+  return (
+    <SessionLandingPage
+      content={mentoringSessionLandingContent}
+      heroCtaAdjacentContent={MENTORING_GUEST_CHOICES.length > 0 ? (
+        <GuestPayFirstButton
+          endpoint="/guest/bookings"
+          choices={MENTORING_GUEST_CHOICES}
+          choiceLabel="Session length"
+          itemLabel="Mentoring Session"
+        />
+      ) : undefined}
+    />
+  );
 }

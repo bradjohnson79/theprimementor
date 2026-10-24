@@ -3,10 +3,12 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { guestOrderAccessTokens, type Database } from "@wisdom/db";
 import { createHttpError } from "../booking/errors.js";
 
-export type OrderAccessTokenPurpose = "order_page" | "email_verify_merge";
+export type OrderAccessTokenPurpose = "order_page" | "email_verify_merge" | "order_intake";
 
 const DEFAULT_ORDER_PAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, resend any time
 const DEFAULT_MERGE_VERIFY_TTL_MS = 60 * 60 * 1000; // 1 hour, one-time use
+/** Per-order intake links (thank-you page + post-payment email). Bound to ONE booking/report via metadata. */
+const DEFAULT_ORDER_INTAKE_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 
 function getTokenSecret(): string {
   const secret = process.env.GUEST_ORDER_TOKEN_SECRET?.trim();
@@ -42,7 +44,13 @@ export async function issueOrderAccessToken(
 ): Promise<IssuedOrderAccessToken> {
   const rawToken = generateRawToken();
   const tokenHash = hashToken(rawToken);
-  const ttlMs = input.ttlMs ?? (input.purpose === "email_verify_merge" ? DEFAULT_MERGE_VERIFY_TTL_MS : DEFAULT_ORDER_PAGE_TTL_MS);
+  const ttlMs = input.ttlMs ?? (
+    input.purpose === "email_verify_merge"
+      ? DEFAULT_MERGE_VERIFY_TTL_MS
+      : input.purpose === "order_intake"
+        ? DEFAULT_ORDER_INTAKE_TTL_MS
+        : DEFAULT_ORDER_PAGE_TTL_MS
+  );
   const expiresAt = new Date(Date.now() + ttlMs);
 
   const [row] = await db

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { usePageMeta } from "../hooks/usePageMeta";
 
@@ -60,6 +60,8 @@ export default function GuestOrderPage() {
   const [resendEmail, setResendEmail] = useState("");
   const [resendSent, setResendSent] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [intakeBusy, setIntakeBusy] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   usePageMeta({
     title: "Your order | The Prime Mentor",
@@ -104,6 +106,20 @@ export default function GuestOrderPage() {
       setError(err instanceof Error ? err.message : "Could not open the billing portal.");
     } finally {
       setPortalBusy(false);
+    }
+  }
+
+  async function openIntake(kind: "session" | "report", id: string) {
+    if (!token || intakeBusy) return;
+    setIntakeBusy(id);
+    try {
+      const res = (await api.post(`/order/${encodeURIComponent(token)}/intake-link`, { kind, id })) as { path?: string; data?: { path?: string } };
+      const path = res?.path ?? res?.data?.path;
+      if (path) navigate(path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open your intake form.");
+    } finally {
+      setIntakeBusy(null);
     }
   }
 
@@ -162,6 +178,16 @@ export default function GuestOrderPage() {
               <div key={index} className="rounded-xl border border-white/10 bg-white/5 p-5">
                 <h2 className="font-semibold text-white">{title}</h2>
                 <p className="mt-1 text-sm text-white/60">{detail}</p>
+                {item.intakePending === true && (item.kind === "session" || item.kind === "report" || item.kind === "manifestation_monthly") ? (
+                  <button
+                    type="button"
+                    disabled={intakeBusy !== null}
+                    onClick={() => void openIntake(item.kind === "report" ? "report" : "session", String(item.kind === "report" ? item.reportId : item.kind === "manifestation_monthly" ? item.intakeBookingId : item.bookingId))}
+                    className="mt-3 inline-flex rounded-lg bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
+                  >
+                    {intakeBusy ? "Opening…" : item.kind === "report" ? "Complete your Divin8 Reports Intake Form" : "Complete your Services Intake Form"}
+                  </button>
+                ) : null}
                 {typeof item.downloadUrl === "string" ? (
                   <a href={item.downloadUrl} className="mt-3 inline-flex rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950">
                     Download

@@ -38,7 +38,20 @@ export async function sendGuestOrderAccessEmail(input: {
   orderPageUrl: string;
   summaryLines: string[];
   isResend?: boolean;
+  /** Guest pay-first orders: the per-order intake form link. */
+  intakeLink?: { url: string; kind: "services" | "reports" };
 }): Promise<void> {
+  const intakeLabel = input.intakeLink?.kind === "reports" ? "Divin8 Reports Intake Form" : "Services Intake Form";
+  const intakeBlock = input.intakeLink
+    ? `
+    <p style="margin:0 0 8px;font-weight:bold;">Next step: your ${intakeLabel}</p>
+    <p style="margin:0 0 12px;">Once your payment goes through, share your full name, birth details and the rest of your intake so everything is ready. No account needed.</p>
+    <p style="margin:0 0 20px;">
+      <a href="${input.intakeLink.url}" style="display:inline-block;background:#5fe3ff;color:#0a0b1a;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;">
+        Complete your ${intakeLabel}
+      </a>
+    </p>`
+    : "";
   const greetingName = input.firstName?.trim() ? `, ${input.firstName.trim()}` : "";
   const heading = input.isResend ? "Here are your access links again" : "Thank you for your order";
   const html = wrapEmail(`
@@ -46,7 +59,7 @@ export async function sendGuestOrderAccessEmail(input: {
     <p style="margin:0 0 16px;">No account needed — we've put everything together on one page for you:</p>
     <ul style="margin:0 0 16px;padding-left:20px;">
       ${input.summaryLines.map((line) => `<li style="margin-bottom:6px;">${line}</li>`).join("")}
-    </ul>
+    </ul>${intakeBlock}
     <p style="margin:0 0 20px;">
       <a href="${input.orderPageUrl}" style="display:inline-block;background:#0a0b1a;color:#5fe3ff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;">
         View your order

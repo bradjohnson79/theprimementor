@@ -66,6 +66,9 @@ const MemberPurchases = lazy(() => import("./routes/MemberPurchases"));
 const MembershipSignup = lazy(() => import("./routes/MembershipSignup"));
 const WebsiteErrorPage = lazy(() => import("./routes/WebsiteErrorPage"));
 const GuestOrderPage = lazy(() => import("./routes/GuestOrderPage"));
+const GuestThankYouPage = lazy(() => import("./routes/GuestThankYouPage"));
+const GuestServicesIntakePage = lazy(() => import("./routes/GuestServicesIntakePage"));
+const GuestReportsIntakePage = lazy(() => import("./routes/GuestReportsIntakePage"));
 const RegenerationSessionPage = lazy(() => import("./routes/RegenerationSessionPage"));
 const RegenerationSuccess = lazy(() => import("./routes/RegenerationSuccess"));
 const RegenerationOfferPage = lazy(() => import("./routes/RegenerationOfferPage"));
@@ -138,7 +141,10 @@ export default function App() {
             <Route path="/shop/success" element={<ShopSuccess />} />
             <Route path="/shop/:slug" element={<ShopProduct />} />
             <Route path="/error" element={<WebsiteErrorPage />} />
+            <Route path="/order/thank-you" element={<GuestThankYouPage />} />
             <Route path="/order/:token" element={<GuestOrderPage />} />
+            <Route path="/intake/services/:token" element={<GuestServicesIntakePage />} />
+            <Route path="/intake/reports/:token" element={<GuestReportsIntakePage />} />
             <Route path="/membership-signup" element={<MembershipSignup />} />
             <Route path="/subscriptions" element={<Navigate to="/subscriptions/seeker" replace />} />
             <Route path="/subscriptions/seeker" element={<MembershipSignup />} />

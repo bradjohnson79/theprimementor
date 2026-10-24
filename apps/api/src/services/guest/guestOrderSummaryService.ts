@@ -20,6 +20,8 @@ export interface GuestOrderSessionItem {
   startTimeUtc: string | null;
   timezone: string;
   joinUrl: string | null;
+  /** Guest pay-first order whose intake form hasn't been submitted yet. */
+  intakePending: boolean;
 }
 
 export interface GuestOrderReportItem {
@@ -29,6 +31,7 @@ export interface GuestOrderReportItem {
   status: string;
   title: string;
   fullMarkdown: string | null;
+  intakePending: boolean;
 }
 
 export interface GuestOrderShopItem {
@@ -54,6 +57,9 @@ export interface GuestOrderSubscriptionItem {
   status: string;
   accessState: string;
   hasStripeCustomer: boolean;
+  /** Guest pay-first: the paid regeneration booking still waiting for its Services Intake Form. */
+  intakePending: boolean;
+  intakeBookingId: string | null;
 }
 
 export type GuestOrderItem =
@@ -84,6 +90,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
   }
 
   const items: GuestOrderItem[] = [];
+  let pendingRegenerationBookingId: string | null = null;
 
   const sessionRows = await db
     .select({
@@ -95,6 +102,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       joinUrl: bookings.join_url,
       eventKey: bookings.event_key,
       bookingTypeName: bookingTypes.name,
+      intake: bookings.intake,
     })
     .from(bookings)
     .innerJoin(bookingTypes, eq(bookings.booking_type_id, bookingTypes.id))
@@ -104,6 +112,9 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
   for (const row of sessionRows) {
     if (row.status !== "paid" && row.status !== "scheduled" && row.status !== "completed") {
       continue;
+    }
+    if (row.sessionType === "regeneration" && !pendingRegenerationBookingId && isIntakePending(row.intake)) {
+      pendingRegenerationBookingId = row.id;
     }
     if (row.eventKey) {
       items.push({
@@ -126,6 +137,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
         startTimeUtc: row.startTimeUtc?.toISOString() ?? null,
         timezone: row.timezone,
         joinUrl: row.joinUrl,
+        intakePending: isIntakePending(row.intake),
       });
     }
   }
@@ -137,6 +149,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       memberStatus: reports.member_status,
       displayTitle: reports.display_title,
       fullMarkdown: reports.full_markdown,
+      purchaseIntake: reports.purchase_intake,
     })
     .from(reports)
     .where(and(eq(reports.user_id, userId), inArray(reports.member_status, ["paid", "fulfilled"])))
@@ -150,6 +163,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       status: row.memberStatus,
       title: row.displayTitle || row.tier,
       fullMarkdown: row.fullMarkdown,
+      intakePending: isIntakePending(row.purchaseIntake),
     });
   }
 
@@ -192,6 +206,8 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       status: subscriptionRow.status,
       accessState: subscriptionRow.accessState,
       hasStripeCustomer: Boolean(subscriptionRow.stripeCustomerId),
+      intakePending: Boolean(pendingRegenerationBookingId),
+      intakeBookingId: pendingRegenerationBookingId,
     });
   }
 
@@ -220,4 +236,8 @@ export function summarizeForEmail(summary: GuestOrderSummary): string[] {
         return "Order item";
     }
   });
+}
+
+function isIntakePending(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).intakePending === true);
 }

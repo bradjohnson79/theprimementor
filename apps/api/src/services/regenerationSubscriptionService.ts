@@ -788,6 +788,9 @@ export async function createRegenerationCheckoutSession(
     userId: string;
     clerkId: string;
     bookingId?: string | null;
+    /** Guest pay-first checkout: public thank-you page instead of the signed-in success page. */
+    successUrlOverride?: string;
+    cancelUrlOverride?: string;
   },
 ) {
   await ensureLocalUserExists(db, input.userId);
@@ -927,8 +930,8 @@ export async function createRegenerationCheckoutSession(
       metadata,
       description: naming.description,
     },
-    success_url: `${frontendUrl}/sessions/regeneration/success?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}/sessions/regeneration/book?checkout=canceled${booking ? `&bookingId=${encodeURIComponent(booking.id)}` : ""}`,
+    success_url: input.successUrlOverride ?? `${frontendUrl}/sessions/regeneration/success?success=regeneration&regenerationSubscriptionId=${encodeURIComponent(createdOrUpdated.id)}&checkoutSessionId={CHECKOUT_SESSION_ID}`,
+    cancel_url: input.cancelUrlOverride ?? `${frontendUrl}/sessions/regeneration/book?checkout=canceled${booking ? `&bookingId=${encodeURIComponent(booking.id)}` : ""}`,
     customer: stripeCustomerId,
   });
 

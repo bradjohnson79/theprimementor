@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { trackCtaClick } from "../lib/analytics";
+import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
 import {
   PRIME_BODY_HEALING_BOOKING_PATH,
   PRIME_BODY_HEALING_LANDING_PATH,
@@ -213,6 +214,17 @@ export default function PrimeBodyHealingPage() {
             >
               Book Level 1 — $79 CAD
             </Link>
+            <div className="mt-3">
+              <GuestPayFirstButton
+                endpoint="/guest/bookings"
+                choiceLabel="Delivery"
+                choices={[
+                  { label: "Live 15-minute session", extraBody: { bookingTypeId: "prime-body-healing-level-1-live", deferIntake: true } },
+                  { label: "Pre-recorded MP3", extraBody: { bookingTypeId: "prime-body-healing-level-1-prerecorded", deferIntake: true } },
+                ]}
+                itemLabel="Prime Body Healing Level 1 — $79 CAD"
+              />
+            </div>
             <p className="mt-2 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
         </div>
@@ -246,6 +258,13 @@ export default function PrimeBodyHealingPage() {
             >
               Order Level 2 — $179 CAD
             </Link>
+            <div className="mt-3">
+              <GuestPayFirstButton
+                endpoint="/guest/bookings"
+                extraBody={{ bookingTypeId: "prime-body-healing-level-2", deferIntake: true }}
+                itemLabel="Prime Body Healing Level 2 — $179 CAD"
+              />
+            </div>
             <p className="mt-2 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
           <figure className="overflow-hidden rounded-[1.6rem] border border-violet-200/20 bg-white/[0.03] p-2">
