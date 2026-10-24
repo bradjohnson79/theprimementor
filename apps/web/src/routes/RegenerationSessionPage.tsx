@@ -22,6 +22,7 @@ export default function RegenerationSessionPage() {
           <GuestPayFirstButton
             endpoint="/guest/regeneration-subscription/checkout"
             itemLabel="Manifestation Monthly Package — $99 CAD/month"
+            manifestationAddOn
           />
         )}
       />

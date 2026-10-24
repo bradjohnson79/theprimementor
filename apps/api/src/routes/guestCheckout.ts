@@ -158,6 +158,17 @@ async function findRecentReusableBooking(db: Database, input: { userId: string; 
   return row ?? null;
 }
 
+async function isRegenerationBookingRequest(db: Database, body: Record<string, unknown>): Promise<boolean> {
+  if (body.sessionType === "regeneration") return true;
+  if (typeof body.bookingTypeId !== "string" || !body.bookingTypeId) return false;
+  const [type] = await db
+    .select({ sessionType: bookingTypes.session_type })
+    .from(bookingTypes)
+    .where(eq(bookingTypes.id, body.bookingTypeId))
+    .limit(1);
+  return type?.sessionType === "regeneration";
+}
+
 export async function guestCheckoutRoutes(app: FastifyInstance) {
   app.addHook("preHandler", async (request) => {
     if (request.url.startsWith("/api/guest/")) {
@@ -173,6 +184,11 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const db = requireDatabase(app.db);
       const body = request.body ?? {};
+      // Manifestation Monthly is a subscription with its own checkout (and the only product with
+      // the $29 first-month add-on). It must never go through the one-time session checkout here.
+      if (await isRegenerationBookingRequest(db, body)) {
+        return sendApiError(reply, 400, "Manifestation Monthly uses its own checkout.");
+      }
       let guest;
       try {
         guest = await resolveGuestActor(db, body);
@@ -410,12 +426,17 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
   );
 
   // ---- Manifestation Monthly (Regeneration) subscription ----
-  app.post<{ Body: { email?: string; fullName?: string; website?: string; timezone?: string; returnPath?: string } }>(
+  app.post<{ Body: { email?: string; fullName?: string; website?: string; timezone?: string; returnPath?: string; manifestationEnhancement?: unknown } }>(
     "/guest/regeneration-subscription/checkout",
     { config: { rateLimit: GUEST_RATE_LIMIT } },
     async (request) => {
       const db = requireDatabase(app.db);
       const body = request.body ?? {};
+      // Optional $29 first-month add-on (Manifestation Monthly only). Same choice the signed-in
+      // intake asks for; it is priced into this checkout, so it's taken here instead of after payment.
+      if (body.manifestationEnhancement !== undefined && typeof body.manifestationEnhancement !== "boolean") {
+        throw createHttpError(400, "Choose whether you would like to include the optional first-month add-on.");
+      }
       let guest;
       try {
         guest = await resolveGuestActor(db, body);
@@ -434,6 +455,7 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         fullName: typeof body.fullName === "string" ? body.fullName : null,
         timezone: typeof body.timezone === "string" ? body.timezone : null,
         deferPaymentRecord: true,
+        manifestationEnhancementSelected: body.manifestationEnhancement === true,
       });
       const { intakeLink, ...redirects } = await buildGuestIntakeRedirects(db, {
         userId: guest.user.id,

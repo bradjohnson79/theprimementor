@@ -20,6 +20,8 @@ export interface GuestIntakeView {
     durationMinutes: number;
     requiresAvailability: boolean;
     requiresPhone: boolean;
+    /** Manifestation Monthly: the $29 first-month add-on was chosen and charged at checkout. */
+    manifestationEnhancementSelected?: boolean;
   };
   report?: { reportType: string };
 }

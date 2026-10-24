@@ -60,6 +60,8 @@ export interface GuestOrderSubscriptionItem {
   /** Guest pay-first: the paid regeneration booking still waiting for its Services Intake Form. */
   intakePending: boolean;
   intakeBookingId: string | null;
+  /** The optional $29 first-month add-on was included at checkout. */
+  manifestationEnhancementSelected: boolean;
 }
 
 export type GuestOrderItem =
@@ -195,6 +197,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       status: regenerationSubscriptions.status,
       accessState: regenerationSubscriptions.access_state,
       stripeCustomerId: regenerationSubscriptions.stripe_customer_id,
+      metadata: regenerationSubscriptions.metadata,
     })
     .from(regenerationSubscriptions)
     .where(eq(regenerationSubscriptions.user_id, userId))
@@ -208,6 +211,7 @@ export async function getGuestOrderSummary(db: Database, userId: string): Promis
       hasStripeCustomer: Boolean(subscriptionRow.stripeCustomerId),
       intakePending: Boolean(pendingRegenerationBookingId),
       intakeBookingId: pendingRegenerationBookingId,
+      manifestationEnhancementSelected: readManifestationEnhancementSelected(subscriptionRow.metadata),
     });
   }
 
@@ -236,6 +240,12 @@ export function summarizeForEmail(summary: GuestOrderSummary): string[] {
         return "Order item";
     }
   });
+}
+
+function readManifestationEnhancementSelected(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const enhancement = (metadata as Record<string, unknown>).manifestationEnhancement;
+  return Boolean(enhancement && typeof enhancement === "object" && (enhancement as Record<string, unknown>).selected === true);
 }
 
 function isIntakePending(value: unknown): boolean {

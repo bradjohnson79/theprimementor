@@ -23,6 +23,7 @@ export default function GuestPayFirstButton({
   itemLabel,
   className,
   label = "Continue as guest",
+  manifestationAddOn,
 }: {
   endpoint: string;
   extraBody?: Record<string, unknown>;
@@ -31,6 +32,8 @@ export default function GuestPayFirstButton({
   itemLabel?: string;
   className?: string;
   label?: string;
+  /** Manifestation Monthly only: show the optional $29 first-month add-on choice. */
+  manifestationAddOn?: boolean;
 }) {
   const { isSignedIn } = useAuth();
   const [open, setOpen] = useState(false);
@@ -57,6 +60,7 @@ export default function GuestPayFirstButton({
         choiceLabel={choiceLabel}
         title="Continue as guest"
         itemLabel={itemLabel}
+        manifestationAddOn={manifestationAddOn}
       />
     </>
   );

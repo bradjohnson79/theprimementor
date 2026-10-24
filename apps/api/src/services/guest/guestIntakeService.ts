@@ -1,5 +1,5 @@
-import { and, desc, eq, or } from "drizzle-orm";
-import { guestClaimAudit, payments, users, type Database } from "@wisdom/db";
+import { and, desc, eq, or, sql } from "drizzle-orm";
+import { bookings, guestClaimAudit, payments, users, type Database } from "@wisdom/db";
 import { logger } from "@wisdom/utils";
 import { createHttpError } from "../booking/errors.js";
 import {
@@ -137,6 +137,8 @@ export interface GuestIntakeView {
     durationMinutes: number;
     requiresAvailability: boolean;
     requiresPhone: boolean;
+    /** Manifestation Monthly: the $29 first-month add-on was chosen and charged at checkout. */
+    manifestationEnhancementSelected: boolean;
   };
   report?: {
     reportType: string;
@@ -162,6 +164,7 @@ export async function getGuestIntakeView(db: Database, rawToken: string): Promis
         durationMinutes: b.durationMinutes,
         requiresAvailability: b.requiresAvailability,
         requiresPhone: b.requiresPhone,
+        manifestationEnhancementSelected: b.manifestationEnhancementSelected,
       },
     };
   }
@@ -211,6 +214,9 @@ export async function submitGuestIntake(
   if (resolved.entityType === "session") {
     const fields = pickBookingFields(body);
     await completeDeferredBookingIntake(db, { bookingId: resolved.booking.id, fields });
+    if (resolved.booking.sessionType === "regeneration" && resolved.booking.manifestationEnhancementSelected) {
+      await syncGuestManifestationEnhancementIntentions(db, resolved.booking.id);
+    }
     logger.info("guest_intake_submitted", { kind: "services", bookingId: resolved.booking.id });
     return { kind: "services", productLabel: resolved.booking.bookingTypeName, intakeStatus: "submitted" };
   }
@@ -222,6 +228,48 @@ export async function submitGuestIntake(
     options.onReportReady?.(result.id);
   }
   return { kind: "reports", productLabel: resolved.report.displayTitle, intakeStatus: "submitted" };
+}
+
+/**
+ * Signed-in clients write the add-on's request text before checkout, so it lands in the
+ * subscription, payment and order metadata at checkout time. Guests pay first and write it on the
+ * intake form, so copy it into the same places once the intake is in (selected stays as charged).
+ */
+async function syncGuestManifestationEnhancementIntentions(db: Database, bookingId: string) {
+  const [row] = await db
+    .select({ intake: bookings.intake })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  const intake = row?.intake && typeof row.intake === "object" ? row.intake as Record<string, unknown> : null;
+  const enhancement = intake?.manifestationEnhancement && typeof intake.manifestationEnhancement === "object"
+    ? intake.manifestationEnhancement as Record<string, unknown>
+    : null;
+  const intentions = enhancement?.selected === true && typeof enhancement.intentions === "string" ? enhancement.intentions : null;
+  if (!intentions) return;
+  const setIntentions = (column: unknown) =>
+    sql`jsonb_set(${column}, '{manifestationEnhancement,intentions}', to_jsonb(${intentions}::text), true)`;
+  try {
+    await db.execute(sql`
+      UPDATE regeneration_subscriptions SET metadata = ${setIntentions(sql.raw("metadata"))}, updated_at = now()
+      WHERE metadata->>'bookingId' = ${bookingId}
+        AND metadata->'manifestationEnhancement'->>'selected' = 'true'`);
+    await db.execute(sql`
+      UPDATE payments SET metadata = ${setIntentions(sql.raw("metadata"))}, updated_at = now()
+      WHERE booking_id = ${bookingId}::uuid AND entity_type = 'regeneration_subscription'
+        AND metadata->'manifestationEnhancement'->>'selected' = 'true'`);
+    await db.execute(sql`
+      UPDATE orders SET metadata = ${setIntentions(sql.raw("metadata"))}, updated_at = now()
+      WHERE subscription_id IN (
+        SELECT id::text FROM regeneration_subscriptions WHERE metadata->>'bookingId' = ${bookingId}
+      ) AND metadata->'manifestationEnhancement'->>'selected' = 'true'`);
+  } catch (error) {
+    // The booking intake (source of truth for the session) is already saved; this only mirrors it.
+    logger.warn("guest_manifestation_enhancement_sync_failed", {
+      bookingId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function str(value: unknown): string | undefined {

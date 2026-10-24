@@ -1888,6 +1888,23 @@ export function isDeferredGuestIntake(value: unknown): boolean {
   return (value as Record<string, unknown>).intakePending === true;
 }
 
+/**
+ * Guest Manifestation Monthly: whether the optional $29 first-month add-on was chosen (and priced
+ * into Stripe Checkout) at the guest checkout step. Stored on the placeholder intake exactly as the
+ * signed-in intake stores it, so createRegenerationCheckoutSession charges it the same way.
+ */
+/** Placeholder for a paid guest add-on until the guest writes the request on the intake form. */
+export const GUEST_MANIFESTATION_ENHANCEMENT_PENDING_TEXT =
+  "Pending: the client will share this request on the Services Intake Form after payment.";
+
+export function deferredManifestationEnhancementSelected(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (record.type !== "regeneration") return false;
+  const enhancement = record.manifestationEnhancement;
+  return Boolean(enhancement && typeof enhancement === "object" && (enhancement as Record<string, unknown>).selected === true);
+}
+
 export function isGuestCheckoutIntake(value: unknown): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   return (value as Record<string, unknown>).intakeSource === GUEST_INTAKE_SOURCE;
@@ -1899,6 +1916,8 @@ export interface CreateDeferredIntakeBookingInput {
   fullName?: string | null;
   timezone?: string | null;
   deferPaymentRecord?: boolean;
+  /** Manifestation Monthly only: the optional $29 first-month add-on chosen at guest checkout. */
+  manifestationEnhancementSelected?: boolean;
   now?: Date;
 }
 
@@ -1933,6 +1952,16 @@ export async function createDeferredIntakeBooking(
     type: sessionType,
     intakePending: true,
     intakeSource: GUEST_INTAKE_SOURCE,
+    // Same shape normalizeManifestationEnhancement produces for the signed-in intake. Guests pay
+    // first, so the request text is a marked placeholder until the guest intake form replaces it
+    // (the shared intake parser requires text whenever the add-on is selected).
+    ...(sessionType === "regeneration"
+      ? {
+        manifestationEnhancement: input.manifestationEnhancementSelected === true
+          ? { version: 1, selected: true, intentions: GUEST_MANIFESTATION_ENHANCEMENT_PENDING_TEXT, priceCents: 2900, currency: "CAD" }
+          : { version: 1, selected: false, intentions: null, priceCents: 2900, currency: "CAD" },
+      }
+      : {}),
   } as unknown as BookingIntakePayload;
   const intakeSnapshot = buildBookingIntakeSnapshot({
     bookingTypeId: bookingType.id,
@@ -2064,6 +2093,8 @@ export interface DeferredBookingIntakeContext {
   guestCheckout: boolean;
   requiresAvailability: boolean;
   requiresPhone: boolean;
+  /** Manifestation Monthly: the $29 first-month add-on was paid for at checkout. */
+  manifestationEnhancementSelected: boolean;
 }
 
 export async function getDeferredBookingIntakeContext(
@@ -2086,6 +2117,7 @@ export async function getDeferredBookingIntakeContext(
     guestCheckout: isGuestCheckoutIntake(row.intake),
     requiresAvailability: sessionTypeRequiresAvailabilitySelection(row.sessionType),
     requiresPhone: bookingRequiresPhone(row.sessionType),
+    manifestationEnhancementSelected: deferredManifestationEnhancementSelected(row.intake),
   };
 }
 
@@ -2138,9 +2170,20 @@ export async function completeDeferredBookingIntake(
     ? { ...(input.fields.intake as Record<string, unknown>), type: sessionType } as Record<string, unknown>
     : { type: sessionType } as Record<string, unknown>;
   if (sessionType === "regeneration") {
-    // The $29 Manifestation Enhancement add-on is priced into checkout; guests already paid
-    // the base price, so it can't be switched on after payment.
-    rawIntake.manifestationEnhancement = { version: 1, selected: false, intentions: null };
+    // The $29 add-on is chosen and charged at guest checkout (stored on the placeholder intake).
+    // The intake form can't switch it on or off after payment; it only supplies the additional
+    // request text, which the signed-in intake requires whenever the add-on is selected.
+    const paidAddOn = deferredManifestationEnhancementSelected(row.intake);
+    const submitted = rawIntake.manifestationEnhancement;
+    const intentions = paidAddOn && submitted && typeof submitted === "object" && !Array.isArray(submitted)
+      ? normalizeText((submitted as Record<string, unknown>).intentions)
+      : null;
+    if (paidAddOn && (!intentions || intentions === GUEST_MANIFESTATION_ENHANCEMENT_PENDING_TEXT)) {
+      throw createHttpError(400, "Share the additional manifestation request you would like supported.");
+    }
+    rawIntake.manifestationEnhancement = paidAddOn
+      ? { version: 1, selected: true, intentions }
+      : { version: 1, selected: false, intentions: null };
   }
   const { intake, notes } = buildNormalizedIntake(sessionType, rawIntake, input.fields.notes, false, bookingType.id);
   if (sessionType === "prime_body_healing") {

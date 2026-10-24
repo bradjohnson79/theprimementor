@@ -136,6 +136,7 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
   const isQA = sessionType === "qa_session";
   const isMentoring = sessionType === "mentoring";
   const isRegeneration = sessionType === "regeneration";
+  const hasManifestationAddOn = isRegeneration && session.manifestationEnhancementSelected === true;
   const isPBH = sessionType === "prime_body_healing";
   const isPBHLevel2 = isPBH && session.bookingTypeId === PBH_LEVEL_2_ID;
   const isEmailSession = sessionType === "email_session";
@@ -156,6 +157,7 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
   const [manifestationIntention, setManifestationIntention] = useState("");
   const [manifestationFeeling, setManifestationFeeling] = useState("");
   const [manifestationAssumptions, setManifestationAssumptions] = useState("");
+  const [manifestationIntentions, setManifestationIntentions] = useState("");
   const [areas, setAreas] = useState(["", "", "", "", ""]);
   const [concerns, setConcerns] = useState("");
   const [recipient, setRecipient] = useState<(typeof RECIPIENTS)[number]["value"]>("brad_johnson");
@@ -201,6 +203,9 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
       if (!manifestationIntention.trim()) next.manifestationIntention = "Share the manifestation you want to work with.";
       if (!manifestationFeeling.trim()) next.manifestationFeeling = "Share how you want to feel.";
       if (!manifestationAssumptions.trim()) next.manifestationAssumptions = "Share the assumptions or challenges you want to discuss.";
+      if (hasManifestationAddOn && !manifestationIntentions.trim()) {
+        next.manifestationIntentions = "Share the additional manifestation request you would like supported.";
+      }
     }
     if (isPBH && !isPBHLevel2 && !areas[0].trim()) next.areas = "Please add at least one area to work on.";
     if (isPBHLevel2 && !concerns.trim()) next.concerns = "Please share the concerns you would most like examined.";
@@ -239,6 +244,13 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
         intake.manifestationFeeling = manifestationFeeling.trim();
         intake.manifestationAssumptions = manifestationAssumptions.trim();
         intake.healthFocusAreas = [{ name: manifestationIntention.trim(), severity: 10 }];
+        intake.manifestationEnhancement = {
+          version: 1,
+          selected: hasManifestationAddOn,
+          intentions: hasManifestationAddOn ? manifestationIntentions.trim() : undefined,
+          priceCents: 2900,
+          currency: "CAD",
+        };
       }
       if (isPBH) {
         Object.assign(intake, {
@@ -441,6 +453,28 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
             <FormField label="Assumptions or challenges you want to discuss" htmlFor="gi-assumptions" errorText={errors.manifestationAssumptions}>
               <textarea id="gi-assumptions" className={`${FIELD_CLASS} min-h-24`} value={manifestationAssumptions} onChange={(e) => setManifestationAssumptions(e.target.value)} />
             </FormField>
+            {hasManifestationAddOn ? (
+              <div className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.06] p-4" data-testid="guest-intake-add-on">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200/80">Optional First-Month Add-On — included in your order</p>
+                <p className="mt-2 text-sm leading-6 text-white/70">Additional Manifestation Request for First Month (+$29 CAD)</p>
+                <div className="mt-4">
+                  <FormField
+                    label="Additional Manifestation Request"
+                    htmlFor="gi-add-on-intentions"
+                    helperText="Describe the additional manifestation you would like supported, safeguarded, and amplified during this first monthly cycle."
+                    errorText={errors.manifestationIntentions}
+                  >
+                    <textarea
+                      id="gi-add-on-intentions"
+                      className={`${FIELD_CLASS} min-h-24`}
+                      value={manifestationIntentions}
+                      onChange={(e) => setManifestationIntentions(e.target.value)}
+                      placeholder="Share the additional desired outcome you would like supported during this first monthly cycle."
+                    />
+                  </FormField>
+                </div>
+              </div>
+            ) : null}
           </Section>
         ) : null}
 

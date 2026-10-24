@@ -41,7 +41,7 @@ function describeItem(item: GuestOrderItem): { title: string; detail: string } {
     case "manifestation_monthly":
       return {
         title: "Manifestation Monthly Package",
-        detail: `Status: ${status}`,
+        detail: `Status: ${status}${item.manifestationEnhancementSelected === true ? " · Includes Additional Manifestation Request for First Month (+$29 CAD)" : ""}`,
       };
     default:
       return { title: "Order item", detail: `Status: ${status}` };

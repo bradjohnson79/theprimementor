@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 
 export interface GuestCheckoutResponse {
@@ -23,7 +24,25 @@ interface GuestCheckoutModalProps {
   /** Optional picker (e.g. session length, live vs pre-recorded); the chosen option's body is merged in. */
   choices?: Array<{ label: string; extraBody: Record<string, unknown> }>;
   choiceLabel?: string;
+  /**
+   * Manifestation Monthly only: ask the same optional $29 first-month add-on question the signed-in
+   * intake asks. Guests pay first, so the choice is made here and priced into Stripe Checkout.
+   */
+  manifestationAddOn?: boolean;
 }
+
+const MANIFESTATION_ADD_ON_OPTIONS = [
+  {
+    selected: true,
+    title: "Yes - Add Additional Manifestation Request (+$29 CAD)",
+    description: "Add one additional manifestation request during the first monthly cycle.",
+  },
+  {
+    selected: false,
+    title: "No - Continue with Regeneration Only",
+    description: "Continue with the standard Manifestation Monthly Package.",
+  },
+] as const;
 
 /**
  * Shared "Continue as guest" checkout modal: collects email + name only (no account), posts to
@@ -41,8 +60,11 @@ export default function GuestCheckoutModal({
   itemLabel,
   choices,
   choiceLabel,
+  manifestationAddOn = false,
 }: GuestCheckoutModalProps) {
   const [choiceIndex, setChoiceIndex] = useState(0);
+  const [addOnSelected, setAddOnSelected] = useState<boolean | null>(null);
+  const [addOnError, setAddOnError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [website, setWebsite] = useState(""); // honeypot — real users never see/fill this
@@ -55,6 +77,10 @@ export default function GuestCheckoutModal({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
+    if (manifestationAddOn && addOnSelected === null) {
+      setAddOnError("Choose whether you would like to include the optional first-month add-on.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -64,6 +90,7 @@ export default function GuestCheckoutModal({
         website: website.trim() || undefined,
         ...extraBody,
         ...(choices?.[choiceIndex]?.extraBody ?? {}),
+        ...(manifestationAddOn ? { manifestationEnhancement: addOnSelected === true } : {}),
       })) as GuestCheckoutResponse;
       const data = (response?.data as GuestCheckoutResponse | undefined) ?? response;
       if (data.url && data.requiresPayment !== false) {
@@ -83,16 +110,17 @@ export default function GuestCheckoutModal({
     }
   }
 
-  return (
+  // Portal to <body> so the dialog sits above the sticky site header (which is outside <main>).
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.1),_transparent_48%),linear-gradient(180deg,rgba(9,13,24,0.98),rgba(4,6,15,0.97))] p-6 shadow-[0_32px_80px_rgba(0,0,0,0.55)]"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.1),_transparent_48%),linear-gradient(180deg,rgba(9,13,24,0.98),rgba(4,6,15,0.97))] p-6 shadow-[0_32px_80px_rgba(0,0,0,0.55)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -137,6 +165,49 @@ export default function GuestCheckoutModal({
                     <option key={choice.label} value={index}>{choice.label}</option>
                   ))}
                 </select>
+              </div>
+            ) : null}
+            {manifestationAddOn ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" data-testid="guest-manifestation-add-on">
+                <h3 className="text-sm font-semibold text-white">Would you like to add one additional manifestation request for your first month?</h3>
+                <p className="mt-2 text-xs leading-6 text-white/62">
+                  For +$29 CAD, Brad can safeguard and amplify one extra desired outcome within the same monthly cycle.
+                </p>
+                <div className="mt-3 grid gap-2" role="radiogroup" aria-label="Optional First-Month Add-On">
+                  {MANIFESTATION_ADD_ON_OPTIONS.map((option) => {
+                    const active = addOnSelected === option.selected;
+                    return (
+                      <button
+                        key={option.title}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setAddOnSelected(option.selected);
+                          setAddOnError(null);
+                        }}
+                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                          active
+                            ? "border-cyan-300/60 bg-cyan-400/12 text-white shadow-[0_0_22px_rgba(34,211,238,0.12)]"
+                            : "border-white/10 bg-white/[0.03] text-white/72 hover:border-white/20 hover:text-white"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{option.title}</span>
+                        <span className="mt-1 block text-xs leading-5 text-white/58">{option.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {addOnError ? <p className="mt-2 text-sm text-amber-200">{addOnError}</p> : null}
+                {addOnSelected === true ? (
+                  <p className="mt-3 text-xs leading-5 text-white/58">You'll describe your additional manifestation request on your intake form after payment.</p>
+                ) : null}
+                <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-sm">
+                  <span className="text-white/60">Today's Total</span>
+                  <span className="font-semibold text-white" data-testid="guest-manifestation-total">
+                    {addOnSelected === true ? "$128 CAD" : "$99 CAD"}
+                  </span>
+                </div>
               </div>
             ) : null}
             <div>
@@ -191,6 +262,7 @@ export default function GuestCheckoutModal({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
