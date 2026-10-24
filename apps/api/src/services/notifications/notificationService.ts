@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import {
   notificationEvents,
+  resolveRootDb,
   users,
   type Database,
 } from "@wisdom/db";
@@ -304,9 +305,13 @@ function logNotificationTestSend(input: {
 }
 
 export async function sendNotification<TEvent extends NotificationRequest["event"]>(
-  db: Database,
+  dbOrTransaction: Database,
   input: SendNotificationInput<TEvent>,
 ) {
+  // Notifications only read config/recipients and write their own notification_events rows, and
+  // are often fired-and-forgotten from inside a webhook transaction. Always run them on the root
+  // pool so they never touch a transaction handle that may already be committed/released.
+  const db = resolveRootDb(dbOrTransaction);
   const entityId = getNotificationEntityId(input.event, input.payload);
   const notificationEnabled = await isNotificationEnabled(db, input.event);
   if (!notificationEnabled) {

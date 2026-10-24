@@ -1,4 +1,4 @@
-import { bookingTypes, bookings, clients, users, type Database } from "@wisdom/db";
+import { bookingTypes, bookings, clients, resolveRootDb, users, type Database } from "@wisdom/db";
 import { desc, eq } from "drizzle-orm";
 import { logger } from "@wisdom/utils";
 import { sendNotification } from "../notifications/notificationService.js";
@@ -90,6 +90,7 @@ export async function sendBookingCreatedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   const contact = await getBookingNotificationContact(db, payload);
   await sendNotification(db, {
     event: "booking.created",
@@ -184,6 +185,7 @@ export async function sendSessionPurchaseConfirmedNotification(
     userId: string;
   },
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   const [booking] = await db
     .select({
       bookingId: bookings.id,
@@ -237,6 +239,7 @@ export async function sendAdminNewBookingNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   const contact = await getBookingNotificationContact(db, payload);
 
   await sendNotification(db, {
@@ -260,6 +263,7 @@ export async function sendBookingConfirmedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   if (!payload.startTimeUtc || !payload.endTimeUtc) {
     logger.warn("booking_notification_missing_schedule", {
       bookingId: payload.bookingId,
@@ -292,6 +296,7 @@ export async function sendWebinarConfirmedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   if (!payload.eventId || !payload.eventTitle || !payload.joinUrl) {
     logger.warn("webinar_notification_missing_event", {
       bookingId: payload.bookingId,
@@ -330,6 +335,7 @@ export async function sendStarFamilyWebinarConfirmedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   if (!payload.eventId || !payload.eventTitle || !payload.joinUrl) {
     logger.warn("star_family_webinar_notification_missing_event", {
       bookingId: payload.bookingId,
@@ -369,6 +375,7 @@ export async function sendMentoringCircleConfirmedNotification(
   db: Database,
   payload: BookingNotificationPayload,
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   if (!payload.startTimeUtc || !payload.endTimeUtc || !payload.eventId || !payload.eventTitle || !payload.joinUrl) {
     logger.warn("mentoring_circle_notification_missing_schedule", {
       bookingId: payload.bookingId,
@@ -403,6 +410,7 @@ export async function sendMentoringCircleReminderNotification(
     reminderWindow: "24h" | "1h";
   },
 ): Promise<void> {
+  db = resolveRootDb(db); // may be called fire-and-forget with a webhook transaction handle
   if (!payload.startTimeUtc || !payload.eventId || !payload.eventTitle || !payload.joinUrl) {
     logger.warn("mentoring_circle_reminder_missing_schedule", {
       bookingId: payload.bookingId,
