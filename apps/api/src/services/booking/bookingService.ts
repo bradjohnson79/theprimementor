@@ -517,7 +517,7 @@ function normalizeBookingAvailability(
   return normalized;
 }
 
-function parseStoredIntake(value: unknown): BookingIntakePayload | null {
+export function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   const type = typeof raw.type === "string" && isBookingSessionType(raw.type) ? raw.type : null;
@@ -559,6 +559,16 @@ function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (goals.length > 0) intake.goals = goals;
   if (healthFocusAreas.length > 0) intake.healthFocusAreas = healthFocusAreas;
   if (manifestationEnhancement) intake.manifestationEnhancement = manifestationEnhancement;
+  if (type === "regeneration") {
+    // Required by buildNormalizedIntake for client bookings; previously dropped here, so every
+    // non-admin Manifestation Monthly booking failed with a 400.
+    const manifestationIntention = normalizeText(raw.manifestationIntention);
+    const manifestationFeeling = normalizeText(raw.manifestationFeeling);
+    const manifestationAssumptions = normalizeText(raw.manifestationAssumptions);
+    if (manifestationIntention) intake.manifestationIntention = manifestationIntention;
+    if (manifestationFeeling) intake.manifestationFeeling = manifestationFeeling;
+    if (manifestationAssumptions) intake.manifestationAssumptions = manifestationAssumptions;
+  }
   if (deliveryFormat) intake.deliveryFormat = deliveryFormat;
   if (healingAreas.length > 0) intake.healingAreas = healingAreas;
   if (concerns) intake.concerns = concerns;
@@ -739,7 +749,7 @@ function normalizeSharedFields(
   };
 }
 
-function buildNormalizedIntake(
+export function buildNormalizedIntake(
   sessionType: BookingSessionType,
   rawIntake: unknown,
   legacyNotes: string | undefined,
