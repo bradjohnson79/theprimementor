@@ -750,6 +750,11 @@ function startPhysiognomyCleanupLoop() {
   }, PHYSIOGNOMY_CLEANUP_INTERVAL_MS);
 }
 
+export function resolveTrustProxyHops(raw: string | undefined): number | false {
+  const hops = Number.parseInt(raw?.trim() ?? "", 10);
+  return Number.isInteger(hops) && hops > 0 && hops <= 5 ? hops : false;
+}
+
 export async function buildApp() {
   assertMembershipStripeConfig();
   assertMentorTrainingStripeConfig();
@@ -772,6 +777,9 @@ export async function buildApp() {
     },
     // Enforce 2MB JSON body limit — images must use /api/images/upload (multipart)
     bodyLimit: 2 * 1024 * 1024,
+    // Opt-in: number of trusted reverse-proxy hops (e.g. Render's edge) so request.ip (used by
+    // @fastify/rate-limit) is the real client IP instead of the proxy's. Unset = unchanged (false).
+    trustProxy: resolveTrustProxyHops(process.env.TRUST_PROXY_HOPS),
   });
 
   const allowedOrigins = buildAllowedOrigins();
@@ -814,7 +822,13 @@ export async function buildApp() {
   await app.register(rateLimit, {
     max: process.env.NODE_ENV === "production" ? 100 : 1000,
     timeWindow: "1 minute",
-    errorResponseBuilder: () => fail("Too many requests, please try again later"),
+    // The builder's return value is thrown; without a statusCode the error handler turned every
+    // rate-limited request into a 500. Carry the plugin's status (429) through.
+    errorResponseBuilder: (_request, context) => ({
+      ...fail("Too many requests, please try again later"),
+      statusCode: context.statusCode,
+      message: "Too many requests, please try again later",
+    }),
   });
 
   if (!process.env.DATABASE_URL) {

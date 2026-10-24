@@ -15,8 +15,15 @@ import { assertGuestSchemaReady } from "../services/guest/guestSchemaGuard.js";
 import { issueOrderAccessToken } from "../services/guest/orderAccessTokenService.js";
 import { getGuestOrderSummary, summarizeForEmail } from "../services/guest/guestOrderSummaryService.js";
 import { sendGuestOrderAccessEmail, sendGuestResendLinksEmail } from "../services/guest/guestNotify.js";
+import {
+  GUEST_LINK_GENERIC_MESSAGE,
+  decideGuestLinkThrottle,
+  getRecentGuestLinkIssues,
+  handleGuestLinkRequest,
+} from "../services/guest/guestLinkRequestService.js";
 
 const GUEST_RATE_LIMIT = { max: 10, timeWindow: "1 minute" } as const;
+/** Per-IP limit for link-request endpoints (resend-links, order-access/issue). Per-address limits live in guestLinkRequestService. */
 const GUEST_RESEND_RATE_LIMIT = { max: 5, timeWindow: "10 minutes" } as const;
 
 function getFrontendUrl(): string {
@@ -55,6 +62,14 @@ async function resolveGuestActor(db: Database, body: Record<string, unknown> | u
 }
 
 async function issueAndSendOrderAccess(db: Database, input: { userId: string; email: string; isResend?: boolean }) {
+  // Per-address throttle (cooldown + hourly cap) so checkout or link endpoints can't be used to
+  // flood someone's inbox. A skipped email is harmless: every order-page link shows ALL of the
+  // guest's orders, so the most recent email's link already covers this order too.
+  const decision = decideGuestLinkThrottle(await getRecentGuestLinkIssues(db, input.email));
+  if (!decision.allowed) {
+    logger.info("guest_order_access_email_throttled", { userId: input.userId, reason: decision.reason });
+    return { sent: false as const };
+  }
   const { token } = await issueOrderAccessToken(db, {
     userId: input.userId,
     email: input.email,
@@ -69,7 +84,7 @@ async function issueAndSendOrderAccess(db: Database, input: { userId: string; em
     summaryLines: lines.length > 0 ? lines : ["Your order"],
     isResend: input.isResend,
   });
-  return { token, orderPageUrl };
+  return { sent: true as const };
 }
 
 /** Prevents duplicate-submission/double-click bookings for non-event-keyed session types. */
@@ -165,9 +180,9 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         promoCode: typeof body.promoCode === "string" ? body.promoCode : undefined,
       });
 
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
 
       return ok({
         success: true,
@@ -175,7 +190,6 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         bookingId: booking.id,
         sessionId: session.id,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
@@ -237,9 +251,9 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         promoCode: typeof body.promoCode === "string" ? body.promoCode : undefined,
       });
 
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
 
       return ok({
         success: true,
@@ -247,7 +261,6 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         reportId: report.id,
         sessionId: session.id,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
@@ -288,9 +301,9 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         promoCode: body.promoCode,
       });
 
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
 
       return ok({
         alreadyPaid: false,
@@ -299,7 +312,6 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         shopEntitlementId: prepared.entitlement.id,
         sessionId: session.id,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
@@ -311,23 +323,30 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
     async (request) => {
       const db = requireDatabase(app.db);
       const body = request.body ?? {};
-      const guest = await resolveGuestActor(db, body);
+      let guest;
+      try {
+        guest = await resolveGuestActor(db, body);
+      } catch (error) {
+        if ((error as { statusCode?: number })?.statusCode === 202) {
+          return ok({ success: true, requiresPayment: false });
+        }
+        throw error;
+      }
 
       const session = await createRegenerationCheckoutSession(db, {
         userId: guest.user.id,
         clerkId: guest.user.clerk_id,
       });
 
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
 
       return ok({
         success: true,
         requiresPayment: true,
         sessionId: session.sessionId,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
@@ -361,16 +380,15 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         clerkId: guest.user.clerk_id,
       });
 
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
 
       return ok({
         success: true,
         requiresPayment: true,
         sessionId: session.id,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
@@ -401,72 +419,52 @@ export async function guestCheckoutRoutes(app: FastifyInstance) {
         userEmail: guest.user.email,
         clerkId: guest.user.clerk_id,
       });
-      const orderAccess = guest.attachedToExistingAccount
-        ? null
-        : await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      if (!guest.attachedToExistingAccount) {
+        await issueAndSendOrderAccess(db, { userId: guest.user.id, email: guest.user.email });
+      }
       return ok({
         success: true,
         requiresPayment: true,
         sessionId: session.id,
         url: session.url,
-        orderPageUrl: orderAccess?.orderPageUrl ?? null,
       });
     },
   );
 
-  // ---- Resend my links (always the same response regardless of whether anything is found) ----
+  // ---- Link requests: "resend my links" and the legacy order-access/issue endpoint ----
+  // Both behave identically: the same response for every outcome (unknown email, real account,
+  // no orders, throttled, honeypot, error), never create a guest row, never mint a link into a
+  // real account, and respect per-IP (route rate limit) + per-address (cooldown/hourly cap) limits.
+  async function respondToGuestLinkRequest(body: Record<string, unknown>, source: "resend" | "issue") {
+    const db = requireDatabase(app.db);
+    const outcome = await handleGuestLinkRequest({
+      normalizeEmail: normalizeGuestEmail,
+      findUser: async (email) => {
+        const found = await findExistingGuestOrRealUser(db, { email });
+        return found ? { userId: found.user.id, isRealAccount: found.attachedToExistingAccount } : null;
+      },
+      hasOrders: async (userId) => (await getGuestOrderSummary(db, userId)).items.length > 0,
+      recentIssues: (email) => getRecentGuestLinkIssues(db, email),
+      send: async (userId, email) => {
+        await issueAndSendOrderAccess(db, { userId, email, isResend: true });
+      },
+    }, { email: body.email, honeypotTripped: isHoneypotTripped(body) });
+    logger.info("guest_link_request", { source, outcome });
+    return ok({ success: true, message: GUEST_LINK_GENERIC_MESSAGE });
+  }
+
   app.post<{ Body: { email?: string; website?: string } }>(
     "/guest/resend-links",
     { config: { rateLimit: GUEST_RESEND_RATE_LIMIT } },
-    async (request) => {
-      const SAME_RESPONSE = ok({ success: true, message: "If we found an order for that email, a fresh link is on its way." });
-      try {
-        const db = requireDatabase(app.db);
-        const body = request.body ?? {};
-        if (isHoneypotTripped(body)) {
-          return SAME_RESPONSE;
-        }
-        const email = normalizeGuestEmail(body.email);
-        const result = await findExistingGuestOrRealUser(db, { email });
-        if (!result) {
-          // Nothing on file yet for this email — never create a guest row from a resend
-          // request, and never reveal whether anything exists either way.
-          return SAME_RESPONSE;
-        }
-        if (result.attachedToExistingAccount) {
-          // This email belongs to a real account — never issue a passwordless magic link into
-          // a real account's order history. Same outward response either way; only the
-          // (non-guest-checkout) sign-in flow can grant access to a real account.
-          return SAME_RESPONSE;
-        }
-        const summary = await getGuestOrderSummary(db, result.user.id);
-        if (summary.items.length === 0) {
-          return SAME_RESPONSE;
-        }
-        const { orderPageUrl } = await issueAndSendOrderAccess(db, { userId: result.user.id, email, isResend: true });
-        logger.info("guest_resend_links_sent", { userId: result.user.id, orderPageUrl });
-      } catch (error) {
-        logger.error("guest_resend_links_failed", { error: error instanceof Error ? error.message : String(error) });
-      }
-      return SAME_RESPONSE;
-    },
+    async (request) => respondToGuestLinkRequest((request.body ?? {}) as Record<string, unknown>, "resend"),
   );
 
-  // ---- Generic order-access issuance, used right after a guest checkout starts so the
-  // frontend can show "we emailed you a link" even before Stripe redirects back. ----
-  app.post<{ Body: { email?: string } }>(
+  // Kept for backwards compatibility (no frontend caller). Previously it created a guest row for
+  // any email, emailed it a link, and returned hasAccount:true for real accounts (account
+  // enumeration). It is now just an alias of resend-links.
+  app.post<{ Body: { email?: string; website?: string } }>(
     "/guest/order-access/issue",
-    { config: { rateLimit: GUEST_RATE_LIMIT } },
-    async (request, reply) => {
-      const db = requireDatabase(app.db);
-      const email = normalizeGuestEmail(request.body?.email);
-      const result = await resolveOrCreateGuestUser(db, { email });
-      if (result.attachedToExistingAccount) {
-        // Never reveal that a real account exists — tell them to check email + sign in.
-        return ok({ success: true, hasAccount: true });
-      }
-      await issueAndSendOrderAccess(db, { userId: result.user.id, email });
-      return ok({ success: true, hasAccount: false });
-    },
+    { config: { rateLimit: GUEST_RESEND_RATE_LIMIT } },
+    async (request) => respondToGuestLinkRequest((request.body ?? {}) as Record<string, unknown>, "issue"),
   );
 }
