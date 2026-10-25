@@ -6,9 +6,10 @@ import AnalyticsMetricList, { type AnalyticsMetricListItem } from "../components
 import { analyticsHelperText, getConversionRouteLabel, utmEmptyState, utmExample } from "../components/analytics/analyticsCopy";
 import { useAdminSettings } from "../context/AdminSettingsContext";
 import { api } from "../lib/api";
+import { formatAnalyticsCount, goatCounterConnectionLabel } from "../lib/analyticsDisplay";
 
 type AnalyticsRange = "24h" | "7d" | "30d";
-type AnalyticsStatus = "ok" | "degraded";
+type AnalyticsStatus = "ok" | "degraded" | "unconfigured";
 type InsightSectionStatus = "ok" | "degraded" | "unsupported";
 type TrendDirection = "up" | "down" | "neutral";
 
@@ -25,23 +26,24 @@ interface SummaryResponse {
   status: AnalyticsStatus;
   warning?: string;
   traffic: {
-    visitors: number;
-    pageviews: number;
-    sessions: number;
-    bounces: number;
-    totalTimeSeconds: number;
-    averageSessionSeconds: number;
-    activeVisitors: number;
+    visitors: number | null;
+    pageviews: number | null;
+    sessions: number | null;
+    bounces: number | null;
+    totalTimeSeconds: number | null;
+    averageSessionSeconds: number | null;
+    activeVisitors: number | null;
   };
   trends: {
-    visitors: TrendMetric;
-    pageviews: TrendMetric;
-    sessions: TrendMetric;
+    visitors: TrendMetric | null;
+    pageviews: TrendMetric | null;
+    sessions: TrendMetric | null;
   };
   goatcounter: {
     siteUrl: string;
     dashboardUrl: string;
     connected: boolean;
+    reason?: string;
   };
 }
 
@@ -67,15 +69,15 @@ interface EventsResponse {
   status: AnalyticsStatus;
   warning?: string;
   totals: {
-    events: number;
-    visitors: number;
-    visits: number;
-    uniqueEvents: number;
+    events: number | null;
+    visitors: number | null;
+    visits: number | null;
+    uniqueEvents: number | null;
     comparison: {
-      events: number;
-      visitors: number;
-      visits: number;
-      uniqueEvents: number;
+      events: number | null;
+      visitors: number | null;
+      visits: number | null;
+      uniqueEvents: number | null;
     };
   };
   items: Array<{
@@ -304,7 +306,10 @@ function SectionCard({
   );
 }
 
-function TrendPill({ metric, isLightTheme }: { metric: TrendMetric; isLightTheme: boolean }) {
+function TrendPill({ metric, isLightTheme }: { metric: TrendMetric | null; isLightTheme: boolean }) {
+  if (!metric) {
+    return null;
+  }
   const tone = metric.direction === "up"
     ? isLightTheme
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -496,10 +501,10 @@ export default function Analytics() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.summary.traffic.visitors)}
+                    {formatAnalyticsCount(data.summary.traffic.visitors)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Unique visits in this period
+                    {data.summary.traffic.visitors === null ? "Visitor data is unavailable" : "Unique visits in this period"}
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.visitors} isLightTheme={isLightTheme} />
@@ -509,10 +514,12 @@ export default function Analytics() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.summary.traffic.pageviews)}
+                    {formatAnalyticsCount(data.summary.traffic.pageviews)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Same unique-visit count as GoatCounter
+                    {data.summary.traffic.pageviews === null
+                      ? "GoatCounter does not provide a separate pageview total"
+                      : "Pageviews in this period"}
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.pageviews} isLightTheme={isLightTheme} />
@@ -522,10 +529,10 @@ export default function Analytics() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.summary.traffic.sessions)}
+                    {formatAnalyticsCount(data.summary.traffic.sessions)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Session length is not tracked
+                    Session totals are not reported
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.sessions} isLightTheme={isLightTheme} />
@@ -560,7 +567,7 @@ export default function Analytics() {
                     )}
                   />
                   <p className={classNames("text-sm font-medium", isLightTheme ? "text-slate-800" : "text-white")}>
-                    {data.summary.goatcounter.connected ? "Connected" : "Not configured"}
+                    {goatCounterConnectionLabel(data.summary.goatcounter)}
                   </p>
                 </div>
                 <p className={classNames("text-sm", isLightTheme ? "text-slate-600" : "text-white/60")}>
@@ -854,25 +861,25 @@ export default function Analytics() {
                 <div className={classNames("rounded-2xl border p-4", isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
                   <p className="text-xs uppercase tracking-wide text-accent-cyan">Events</p>
                   <p className={classNames("mt-2 text-2xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.events.totals.events)}
+                    {formatAnalyticsCount(data.events.totals.events)}
                   </p>
                 </div>
                 <div className={classNames("rounded-2xl border p-4", isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
                   <p className="text-xs uppercase tracking-wide text-accent-cyan">Visitors</p>
                   <p className={classNames("mt-2 text-2xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.events.totals.visitors)}
+                    {formatAnalyticsCount(data.events.totals.visitors)}
                   </p>
                 </div>
                 <div className={classNames("rounded-2xl border p-4", isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
                   <p className="text-xs uppercase tracking-wide text-accent-cyan">Visits</p>
                   <p className={classNames("mt-2 text-2xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.events.totals.visits)}
+                    {formatAnalyticsCount(data.events.totals.visits)}
                   </p>
                 </div>
                 <div className={classNames("rounded-2xl border p-4", isLightTheme ? "border-slate-200 bg-slate-50" : "border-white/10 bg-white/5")}>
                   <p className="text-xs uppercase tracking-wide text-accent-cyan">Unique</p>
                   <p className={classNames("mt-2 text-2xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
-                    {formatNumber(data.events.totals.uniqueEvents)}
+                    {formatAnalyticsCount(data.events.totals.uniqueEvents)}
                   </p>
                 </div>
               </div>

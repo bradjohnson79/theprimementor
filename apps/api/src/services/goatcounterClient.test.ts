@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   metricRowsFromHits,
   metricRowsFromStats,
+  pageviewCountFromTotal,
   seriesFromGoatCounterStats,
+  visitorCountFromTotal,
 } from "./goatcounterClient.js";
 
 test("metricRowsFromHits keeps page paths and drops events", () => {
@@ -38,6 +40,14 @@ test("metricRowsFromStats maps name and share", () => {
   assert.equal(rows[0]?.label, "Direct");
   assert.equal(rows[0]?.share, 80);
   assert.equal(rows[1]?.visitors, 2);
+});
+
+test("visitor totals stay distinct from missing pageviews", () => {
+  assert.equal(visitorCountFromTotal({ total: 12, total_events: 3 }), 9);
+  assert.equal(visitorCountFromTotal({ total: 0, total_events: 0 }), 0);
+  assert.equal(visitorCountFromTotal({}), null);
+  assert.equal(pageviewCountFromTotal({ total: 12 }), null);
+  assert.equal(pageviewCountFromTotal({ total: 12, pageviews: 40 }), 40);
 });
 
 test("seriesFromGoatCounterStats expands hourly and daily rows", () => {

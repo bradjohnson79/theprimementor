@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildConversionPathInsights,
   buildStrategicRecommendations,
+  getAdminAnalyticsSummary,
   loadInsightsSubsection,
   normalizeExpandedRows,
+  reportingCalendarBounds,
   type AnalyticsRangeWindow,
 } from "./analyticsService.js";
 import { buildGoatCounterAuthHeaders } from "./goatcounterClient.js";
@@ -160,4 +162,113 @@ test("loadInsightsSubsection degrades without throwing when GoatCounter returns 
       process.env.GOATCOUNTER_SITE_URL = previousSite;
     }
   }
+});
+
+const adminActor = { actorRole: "admin" };
+
+async function withGoatCounterFetch(
+  token: string | undefined,
+  fetchImpl: typeof fetch,
+  run: () => Promise<void>,
+) {
+  const originalFetch = globalThis.fetch;
+  const previousToken = process.env.GOATCOUNTER_API_TOKEN;
+  const previousSite = process.env.GOATCOUNTER_SITE_URL;
+  if (token === undefined) {
+    delete process.env.GOATCOUNTER_API_TOKEN;
+  } else {
+    process.env.GOATCOUNTER_API_TOKEN = token;
+  }
+  process.env.GOATCOUNTER_SITE_URL = "https://example.goatcounter.com";
+  globalThis.fetch = fetchImpl;
+  logger.warnings = [];
+  try {
+    await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousToken === undefined) {
+      delete process.env.GOATCOUNTER_API_TOKEN;
+    } else {
+      process.env.GOATCOUNTER_API_TOKEN = previousToken;
+    }
+    if (previousSite === undefined) {
+      delete process.env.GOATCOUNTER_SITE_URL;
+    } else {
+      process.env.GOATCOUNTER_SITE_URL = previousSite;
+    }
+  }
+}
+
+test("summary stays unavailable when GoatCounter credentials are missing", async () => {
+  await withGoatCounterFetch(undefined, async () => {
+    throw new Error("fetch should not run");
+  }, async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "7d", logger);
+    assert.equal(result.status, "unconfigured");
+    assert.equal(result.traffic.visitors, null);
+    assert.equal(result.traffic.pageviews, null);
+    assert.equal(result.trends.visitors, null);
+    assert.match(result.warning ?? "", /not configured/i);
+  });
+});
+
+test("summary reports authentication, rate limit, timeout, and invalid payloads without zeros", async () => {
+  await withGoatCounterFetch("secret-token", async () => new Response("no", { status: 401 }), async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "24h", logger);
+    assert.equal(result.status, "degraded");
+    assert.equal(result.goatcounter.reason, "unauthorized");
+    assert.equal(result.traffic.visitors, null);
+    assert.equal(JSON.stringify(logger.warnings).includes("secret-token"), false);
+  });
+
+  await withGoatCounterFetch("secret-token", async () => new Response("slow", { status: 429 }), async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "24h", logger);
+    assert.equal(result.goatcounter.reason, "rate_limited");
+    assert.equal(result.traffic.pageviews, null);
+  });
+
+  await withGoatCounterFetch("secret-token", async () => {
+    const error = new Error("timed out");
+    error.name = "TimeoutError";
+    throw error;
+  }, async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "24h", logger);
+    assert.equal(result.goatcounter.reason, "timeout");
+    assert.equal(result.traffic.visitors, null);
+  });
+
+  await withGoatCounterFetch("secret-token", async () => new Response("not-json", { status: 200 }), async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "24h", logger);
+    assert.equal(result.goatcounter.reason, "invalid_response");
+    assert.equal(result.traffic.visitors, null);
+  });
+});
+
+test("summary keeps a genuine zero and compares it with the previous period", async () => {
+  await withGoatCounterFetch("secret-token", async (input) => {
+    const url = new URL(String(input));
+    const start = Date.parse(url.searchParams.get("start") ?? "");
+    const previous = start < Date.now() - (45 * 24 * 60 * 60 * 1000);
+    return Response.json(previous
+      ? { total: 4, total_events: 0 }
+      : { total: 0, total_events: 0, pageviews: 0 });
+  }, async () => {
+    const result = await getAdminAnalyticsSummary(adminActor, "30d", logger);
+    assert.equal(result.status, "ok");
+    assert.equal(result.traffic.visitors, 0);
+    assert.equal(result.traffic.pageviews, 0);
+    assert.equal(result.trends.visitors?.previous, 4);
+    assert.equal(result.trends.visitors?.direction, "down");
+    assert.equal(result.goatcounter.connected, true);
+  });
+});
+
+test("reporting calendar uses Pacific days", () => {
+  const beforePacificMidnight = reportingCalendarBounds(new Date("2026-10-25T05:00:00.000Z"));
+  assert.equal(beforePacificMidnight.startOfToday.toISOString(), "2026-10-24T07:00:00.000Z");
+  assert.equal(beforePacificMidnight.startOfMonth.toISOString(), "2026-10-01T07:00:00.000Z");
+
+  const duringPacificDay = reportingCalendarBounds(new Date("2026-10-25T16:00:00.000Z"));
+  assert.equal(duringPacificDay.startOfToday.toISOString(), "2026-10-25T07:00:00.000Z");
+  assert.equal(duringPacificDay.startOfWeek.toISOString(), "2026-10-19T07:00:00.000Z");
 });

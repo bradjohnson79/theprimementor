@@ -1087,8 +1087,9 @@ function buildPageAnalyticsInputs(args: {
   const purchaseEvents = args.events.items.find((item) => item.name === "purchase")?.total ?? 0;
   const sessionBookedEvents = args.events.items.find((item) => item.name === "session_booked")?.total ?? 0;
   const subscriptionEvents = args.events.items.find((item) => item.name === "subscription_started")?.total ?? 0;
-  const defaultTrend = args.summary.status === "ok"
-    ? (args.summary.trends.pageviews.direction === "neutral" ? "stable" : args.summary.trends.pageviews.direction)
+  const pageviewTrend = args.summary.trends.pageviews;
+  const defaultTrend = args.summary.status === "ok" && pageviewTrend
+    ? (pageviewTrend.direction === "neutral" ? "stable" : pageviewTrend.direction)
     : "stable";
 
   return SEO_PAGE_OPTIONS

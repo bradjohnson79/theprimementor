@@ -26,12 +26,27 @@ export interface GoatCounterTotalResponse {
   total?: number;
   total_events?: number;
   total_utc?: number;
+  pageviews?: number;
+  total_pageviews?: number;
   stats?: Array<{
     day?: string;
     daily?: number;
     hourly?: number[];
   }>;
 }
+
+export type GoatCounterFailureReason =
+  | "unconfigured"
+  | "unauthorized"
+  | "forbidden"
+  | "rate_limited"
+  | "timeout"
+  | "unavailable"
+  | "invalid_response";
+
+export type GoatCounterFetchResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: GoatCounterFailureReason };
 
 export interface GoatCounterHitsResponse {
   hits?: GoatCounterHit[];
@@ -47,6 +62,7 @@ export interface GoatCounterStatsResponse {
 const DEFAULT_GOATCOUNTER_SITE_URL = "https://primementor.goatcounter.com";
 const DEFAULT_GOATCOUNTER_SCRIPT_URL = "https://gc.zgo.at/count.js";
 const MAX_CONCURRENT = 3;
+const REQUEST_TIMEOUT_MS = 8_000;
 
 let activeRequests = 0;
 const waiters: Array<() => void> = [];
@@ -121,12 +137,55 @@ function buildRequestUrl(
   return url;
 }
 
+export function goatCounterFailureMessage(reason: GoatCounterFailureReason, subject: string) {
+  switch (reason) {
+    case "unconfigured":
+      return `GoatCounter is not configured, so ${subject} cannot be loaded.`;
+    case "unauthorized":
+    case "forbidden":
+      return `GoatCounter rejected the API credentials, so ${subject} cannot be loaded.`;
+    case "rate_limited":
+      return `GoatCounter rate limit was reached while loading ${subject}.`;
+    case "timeout":
+      return `GoatCounter timed out while loading ${subject}.`;
+    case "invalid_response":
+      return `GoatCounter returned an unexpected response for ${subject}.`;
+    default:
+      return `GoatCounter is temporarily unavailable, so ${subject} cannot be loaded.`;
+  }
+}
+
+function failureReasonForStatus(status: number): GoatCounterFailureReason {
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 429) return "rate_limited";
+  return "unavailable";
+}
+
+export function visitorCountFromTotal(total: GoatCounterTotalResponse | null | undefined) {
+  if (!total || typeof total.total !== "number" || !Number.isFinite(total.total)) {
+    return null;
+  }
+  const events = typeof total.total_events === "number" && Number.isFinite(total.total_events)
+    ? total.total_events
+    : 0;
+  return Math.max(0, total.total - events);
+}
+
+export function pageviewCountFromTotal(total: GoatCounterTotalResponse | null | undefined) {
+  const candidate = total?.pageviews ?? total?.total_pageviews;
+  if (typeof candidate !== "number" || !Number.isFinite(candidate)) {
+    return null;
+  }
+  return Math.max(0, candidate);
+}
+
 export async function fetchGoatCounterJson<T>(input: {
   pathname: string;
   params?: Record<string, string | number | boolean | undefined>;
   logger: GoatCounterLogger;
   operation: string;
-}): Promise<T | null> {
+}): Promise<GoatCounterFetchResult<T>> {
   const apiToken = getGoatCounterApiToken();
   const url = buildRequestUrl(input.pathname, input.params ?? {});
 
@@ -134,42 +193,60 @@ export async function fetchGoatCounterJson<T>(input: {
     input.logger.warn(
       {
         operation: input.operation,
+        reason: "unconfigured",
         hasApiToken: Boolean(apiToken),
         hasSiteUrl: Boolean(getGoatCounterSiteUrl()),
       },
       "GoatCounter analytics running in degraded mode",
     );
-    return null;
+    return { ok: false, reason: "unconfigured" };
   }
 
   return withRateLimit(async () => {
     try {
       const response = await fetch(url, {
         headers: buildGoatCounterAuthHeaders(apiToken),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (!response.ok) {
-        const body = await response.text().catch(() => "");
+        const reason = failureReasonForStatus(response.status);
         input.logger.warn(
           {
             operation: input.operation,
+            reason,
             status: response.status,
-            url: url.toString(),
-            body: body.slice(0, 200),
+            pathname: input.pathname,
           },
           "GoatCounter analytics request failed",
         );
-        return null;
+        return { ok: false, reason };
       }
-      return (await response.json()) as T;
+      try {
+        return { ok: true, data: await response.json() as T };
+      } catch {
+        input.logger.warn(
+          {
+            operation: input.operation,
+            reason: "invalid_response",
+            status: response.status,
+            pathname: input.pathname,
+          },
+          "GoatCounter analytics request failed",
+        );
+        return { ok: false, reason: "invalid_response" };
+      }
     } catch (error) {
+      const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+      const reason: GoatCounterFailureReason = timedOut ? "timeout" : "unavailable";
       input.logger.warn(
         {
           operation: input.operation,
-          error: error instanceof Error ? error.message : "unknown_error",
+          reason,
+          error: error instanceof Error ? error.name : "unknown_error",
         },
         "GoatCounter analytics request failed",
       );
-      return null;
+      return { ok: false, reason };
     }
   });
 }

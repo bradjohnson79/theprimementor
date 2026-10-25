@@ -90,8 +90,28 @@ export function getGoatCounterScriptUrl() {
   return import.meta.env.VITE_GOATCOUNTER_SCRIPT_URL?.trim() || DEFAULT_GOATCOUNTER_SCRIPT_URL;
 }
 
+const SENSITIVE_ANALYTICS_QUERY = /token|email|session|intake|code|secret|password|phone/i;
+
+export function sanitizeAnalyticsPath(path: string) {
+  try {
+    const url = new URL(path, "https://theprimementor.com");
+    if (url.origin !== "https://theprimementor.com") {
+      return "/";
+    }
+    for (const key of [...url.searchParams.keys()]) {
+      if (SENSITIVE_ANALYTICS_QUERY.test(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+    const query = url.searchParams.toString();
+    return `${url.pathname}${query ? `?${query}` : ""}`;
+  } catch {
+    return "/";
+  }
+}
+
 function currentPath() {
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return sanitizeAnalyticsPath(`${window.location.pathname}${window.location.search}`);
 }
 
 function whenGoatCounterReady(work: () => void) {
@@ -164,7 +184,7 @@ export function installGoatCounterScript() {
 export function trackPageview(path?: string) {
   whenGoatCounterReady(() => {
     window.goatcounter?.count?.({
-      path: path || currentPath(),
+      path: sanitizeAnalyticsPath(path || currentPath()),
       title: document.title,
     });
     window.goatcounter?.bind_events?.();

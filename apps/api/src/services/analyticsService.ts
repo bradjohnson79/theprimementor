@@ -13,16 +13,21 @@ import {
   formatGoatCounterRange,
   getGoatCounterDashboardUrl,
   getGoatCounterSiteUrl,
+  goatCounterFailureMessage,
   metricRowsFromHits,
   metricRowsFromStats,
+  pageviewCountFromTotal,
   seriesFromGoatCounterStats,
+  visitorCountFromTotal,
+  type GoatCounterFailureReason,
+  type GoatCounterFetchResult,
   type GoatCounterHitsResponse,
   type GoatCounterStatsResponse,
   type GoatCounterTotalResponse,
 } from "./goatcounterClient.js";
 
 export type AnalyticsRange = "24h" | "7d" | "30d";
-export type AnalyticsStatus = "ok" | "degraded";
+export type AnalyticsStatus = "ok" | "degraded" | "unconfigured";
 
 interface AnalyticsActor {
   actorRole: string;
@@ -198,15 +203,68 @@ function setCachedValue<T>(cacheKey: string, value: T) {
   });
 }
 
-async function getCachedOrLoad<T>(cacheKey: string, loader: () => Promise<T>) {
+async function getCachedOrLoad<T>(
+  cacheKey: string,
+  loader: () => Promise<T>,
+  shouldCache: (value: T) => boolean = () => true,
+) {
   const cached = getCachedValue<T>(cacheKey);
   if (cached) {
     return cached;
   }
 
   const value = await loader();
-  setCachedValue(cacheKey, value);
+  if (shouldCache(value)) {
+    setCachedValue(cacheKey, value);
+  }
   return value;
+}
+
+export function zonedDayStart(timeZone: string, now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  const utcGuess = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  const zoned = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(utcGuess);
+  const hour = Number(zoned.find((part) => part.type === "hour")?.value);
+  const localAsUtc = Date.UTC(
+    Number(zoned.find((part) => part.type === "year")?.value),
+    Number(zoned.find((part) => part.type === "month")?.value) - 1,
+    Number(zoned.find((part) => part.type === "day")?.value),
+    hour === 24 ? 0 : hour,
+    Number(zoned.find((part) => part.type === "minute")?.value),
+    Number(zoned.find((part) => part.type === "second")?.value),
+  );
+  return new Date(utcGuess.getTime() - (localAsUtc - utcGuess.getTime()));
+}
+
+export function reportingCalendarBounds(now = new Date(), timeZone = ANALYTICS_TIMEZONE) {
+  const startOfToday = zonedDayStart(timeZone, now);
+  const startOfWeek = new Date(startOfToday.getTime() - (6 * 24 * 60 * 60 * 1000));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const startOfMonth = zonedDayStart(timeZone, new Date(`${year}-${month}-01T12:00:00.000Z`));
+  return { startOfToday, startOfWeek, startOfMonth };
 }
 
 function getTrendMetric(current: number, previous: number, unitLabel: string): TrendMetric {
@@ -360,19 +418,22 @@ const GOATCOUNTER_STAT_PAGES: Partial<Record<InsightMetricType, string>> = {
   channel: "campaigns",
 };
 
-function goatcounterConnection(connected: boolean) {
+function goatcounterConnection(connected: boolean, reason: GoatCounterFailureReason | "ok" = connected ? "ok" : "unconfigured") {
   const siteUrl = getGoatCounterSiteUrl();
   return {
     siteUrl,
     dashboardUrl: getGoatCounterDashboardUrl(),
     connected,
+    reason,
   };
 }
 
-function pageVisitCount(total: GoatCounterTotalResponse | null | undefined) {
-  const visits = Number(total?.total) || 0;
-  const events = Number(total?.total_events) || 0;
-  return Math.max(0, visits - events);
+function firstFailure(results: Array<GoatCounterFetchResult<unknown>>) {
+  return results.find((result) => !result.ok) ?? null;
+}
+
+function cacheSuccessful<T extends { status: string }>(value: T) {
+  return value.status === "ok";
 }
 
 
@@ -403,14 +464,16 @@ export async function loadInsightsSubsection(input: {
         logger: input.logger,
         operation: input.operation,
       });
-      if (!payload) {
+      if (!payload.ok) {
         input.logger.warn(
-          { operation: input.operation, metricType: input.metricType, status: "degraded" },
+          { operation: input.operation, metricType: input.metricType, status: "degraded", reason: payload.reason },
           "analytics_insights_subsection_degraded",
         );
         return {
           status: "degraded",
-          warning: input.emptyWarning,
+          warning: payload.reason === "unconfigured"
+            ? goatCounterFailureMessage(payload.reason, "this breakdown")
+            : input.emptyWarning,
           metricType: input.metricType,
           items: [],
         };
@@ -418,7 +481,7 @@ export async function loadInsightsSubsection(input: {
       return {
         status: "ok",
         metricType: input.metricType,
-        items: metricRowsFromHits(payload.hits, false).slice(0, input.limit),
+        items: metricRowsFromHits(payload.data.hits, false).slice(0, input.limit),
       };
     }
 
@@ -438,14 +501,16 @@ export async function loadInsightsSubsection(input: {
       logger: input.logger,
       operation: input.operation,
     });
-    if (!payload) {
+    if (!payload.ok) {
       input.logger.warn(
-        { operation: input.operation, metricType: input.metricType, status: "degraded" },
+        { operation: input.operation, metricType: input.metricType, status: "degraded", reason: payload.reason },
         "analytics_insights_subsection_degraded",
       );
       return {
         status: "degraded",
-        warning: input.emptyWarning,
+        warning: payload.reason === "unconfigured"
+          ? goatCounterFailureMessage(payload.reason, "this breakdown")
+          : input.emptyWarning,
         metricType: input.metricType,
         items: [],
       };
@@ -454,7 +519,7 @@ export async function loadInsightsSubsection(input: {
     return {
       status: "ok",
       metricType: input.metricType,
-      items: metricRowsFromStats(payload.stats).slice(0, input.limit),
+      items: metricRowsFromStats(payload.data.stats).slice(0, input.limit),
     };
   } catch (error) {
     input.logger.warn(
@@ -553,51 +618,64 @@ export async function getAdminAnalyticsSummary(
       }),
     ]);
 
-    if (!current) {
-      return {
-        range,
-        ...buildDegradedMeta("GoatCounter traffic summary is temporarily unavailable."),
-        traffic: {
-          visitors: 0,
-          pageviews: 0,
-          sessions: 0,
-          bounces: 0,
-          totalTimeSeconds: 0,
-          averageSessionSeconds: 0,
-          activeVisitors: 0,
-        },
-        trends: {
-          visitors: getTrendMetric(0, 0, "previous period"),
-          pageviews: getTrendMetric(0, 0, "previous period"),
-          sessions: getTrendMetric(0, 0, "previous period"),
-        },
-        goatcounter: goatcounterConnection(false),
-      };
+    if (!current.ok) {
+      return unavailableTraffic(range, current.reason);
     }
 
-    const visits = pageVisitCount(current);
-    const previousVisits = pageVisitCount(previous);
+    const visits = visitorCountFromTotal(current.data);
+    if (visits === null) {
+      return unavailableTraffic(range, "invalid_response");
+    }
+    const previousVisits = previous.ok ? visitorCountFromTotal(previous.data) : null;
+    const pageviews = pageviewCountFromTotal(current.data);
+    const previousPageviews = previous.ok ? pageviewCountFromTotal(previous.data) : null;
 
     return {
       range,
       status: "ok" as const,
       traffic: {
         visitors: visits,
-        pageviews: visits,
-        sessions: visits,
-        bounces: 0,
-        totalTimeSeconds: 0,
-        averageSessionSeconds: 0,
-        activeVisitors: 0,
+        pageviews,
+        sessions: null,
+        bounces: null,
+        totalTimeSeconds: null,
+        averageSessionSeconds: null,
+        activeVisitors: null,
       },
       trends: {
-        visitors: getTrendMetric(visits, previousVisits, "previous period"),
-        pageviews: getTrendMetric(visits, previousVisits, "previous period"),
-        sessions: getTrendMetric(visits, previousVisits, "previous period"),
+        visitors: previousVisits === null ? null : getTrendMetric(visits, previousVisits, "previous period"),
+        pageviews: pageviews === null || previousPageviews === null
+          ? null
+          : getTrendMetric(pageviews, previousPageviews, "previous period"),
+        sessions: null,
       },
-      goatcounter: goatcounterConnection(true),
+      goatcounter: goatcounterConnection(true, "ok"),
     };
-  });
+  }, cacheSuccessful);
+}
+
+function unavailableTraffic(range: AnalyticsRange, reason: GoatCounterFailureReason) {
+  return {
+    range,
+    status: reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+    reason,
+    warning: goatCounterFailureMessage(reason, "the traffic summary"),
+    traffic: {
+      visitors: null,
+      pageviews: null,
+      sessions: null,
+      bounces: null,
+      totalTimeSeconds: null,
+      averageSessionSeconds: null,
+      activeVisitors: null,
+    },
+    trends: {
+      visitors: null,
+      pageviews: null,
+      sessions: null,
+    },
+    goatcounter: goatcounterConnection(false, reason),
+  };
 }
 
 export async function getAdminAnalyticsPageviews(
@@ -625,10 +703,24 @@ export async function getAdminAnalyticsPageviews(
       }),
     ]);
 
-    if (!totals || !hits) {
+    const failure = firstFailure([totals, hits]);
+    if (failure && !failure.ok) {
       return {
         range,
-        ...buildDegradedMeta("GoatCounter pageview metrics are temporarily unavailable."),
+        status: failure.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: failure.reason,
+        warning: goatCounterFailureMessage(failure.reason, "page metrics"),
+        series: {
+          pageviews: [],
+          sessions: [],
+        },
+        topPages: [],
+      };
+    }
+    if (!totals.ok || !hits.ok) {
+      return {
+        range,
+        ...buildDegradedMeta(goatCounterFailureMessage("unavailable", "page metrics")),
         series: {
           pageviews: [],
           sessions: [],
@@ -637,16 +729,16 @@ export async function getAdminAnalyticsPageviews(
       };
     }
 
-    const series = seriesFromGoatCounterStats(totals.stats, window.unit);
+    const series = seriesFromGoatCounterStats(totals.data.stats, window.unit);
 
     return {
       range,
       status: "ok" as const,
       series: {
         pageviews: series,
-        sessions: series,
+        sessions: [],
       },
-      topPages: metricRowsFromHits(hits.hits, false).slice(0, 8).map((row) => ({
+      topPages: metricRowsFromHits(hits.data.hits, false).slice(0, 8).map((row) => ({
         path: row.label,
         visitors: row.visitors,
         pageviews: row.pageviews,
@@ -654,7 +746,7 @@ export async function getAdminAnalyticsPageviews(
         bounceRate: row.bounceRate,
       })),
     };
-  });
+  }, cacheSuccessful);
 }
 
 export async function getAdminAnalyticsEvents(
@@ -689,20 +781,44 @@ export async function getAdminAnalyticsEvents(
       }),
     ]);
 
-    if (!current || !hits) {
+    const failure = firstFailure([current, hits]);
+    if (failure && !failure.ok) {
       return {
         range,
-        ...buildDegradedMeta("GoatCounter event tracking is temporarily unavailable."),
+        status: failure.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: failure.reason,
+        warning: goatCounterFailureMessage(failure.reason, "event tracking"),
         totals: {
-          events: 0,
-          visitors: 0,
-          visits: 0,
-          uniqueEvents: 0,
+          events: null,
+          visitors: null,
+          visits: null,
+          uniqueEvents: null,
           comparison: {
-            events: 0,
-            visitors: 0,
-            visits: 0,
-            uniqueEvents: 0,
+            events: null,
+            visitors: null,
+            visits: null,
+            uniqueEvents: null,
+          },
+        },
+        items: [],
+        series: [],
+        recent: [],
+      };
+    }
+    if (!current.ok || !hits.ok) {
+      return {
+        range,
+        ...buildDegradedMeta(goatCounterFailureMessage("unavailable", "event tracking")),
+        totals: {
+          events: null,
+          visitors: null,
+          visits: null,
+          uniqueEvents: null,
+          comparison: {
+            events: null,
+            visitors: null,
+            visits: null,
+            uniqueEvents: null,
           },
         },
         items: [],
@@ -711,10 +827,10 @@ export async function getAdminAnalyticsEvents(
       };
     }
 
-    const eventRows = metricRowsFromHits(hits.hits, true).slice(0, 12);
-    const eventHits = (hits.hits ?? []).filter((hit) => Boolean(hit.event));
-    const currentEvents = Number(current.total_events) || 0;
-    const previousEvents = Number(previous?.total_events) || 0;
+    const eventRows = metricRowsFromHits(hits.data.hits, true).slice(0, 12);
+    const eventHits = (hits.data.hits ?? []).filter((hit) => Boolean(hit.event));
+    const currentEvents = typeof current.data.total_events === "number" ? current.data.total_events : null;
+    const previousEvents = previous.ok && typeof previous.data.total_events === "number" ? previous.data.total_events : null;
 
     return {
       range,
@@ -745,7 +861,7 @@ export async function getAdminAnalyticsEvents(
       )),
       recent: [],
     };
-  });
+  }, cacheSuccessful);
 }
 
 export async function getAdminAnalyticsReferrers(
@@ -765,10 +881,12 @@ export async function getAdminAnalyticsReferrers(
       operation: "referrers",
     });
 
-    if (!referrers) {
+    if (!referrers.ok) {
       return {
         range,
-        ...buildDegradedMeta("GoatCounter referrer data is temporarily unavailable."),
+        status: referrers.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: referrers.reason,
+        warning: goatCounterFailureMessage(referrers.reason, "referrer data"),
         items: [],
       };
     }
@@ -776,7 +894,7 @@ export async function getAdminAnalyticsReferrers(
     return {
       range,
       status: "ok" as const,
-      items: metricRowsFromStats(referrers.stats).slice(0, 8).map((row) => ({
+      items: metricRowsFromStats(referrers.data.stats).slice(0, 8).map((row) => ({
         referrer: row.label || "Direct",
         visitors: row.visitors,
         pageviews: row.pageviews,
@@ -784,7 +902,7 @@ export async function getAdminAnalyticsReferrers(
         share: row.share,
       })),
     };
-  });
+  }, cacheSuccessful);
 }
 
 function aggregateInsightStatus(sections: Array<{ status: InsightsSubsectionStatus }>) {
@@ -944,7 +1062,7 @@ export async function getAdminAnalyticsInsights(
         status: "ok" as const,
       },
     };
-  });
+  }, cacheSuccessful);
 }
 
 export async function getAdminAnalyticsOverview(
@@ -1051,11 +1169,7 @@ export async function getAdminAnalyticsOverview(
       .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
       .slice(0, 12);
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const startOfWeek = new Date(startOfToday);
-    startOfWeek.setDate(startOfWeek.getDate() - 6);
-    const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+    const { startOfToday, startOfWeek, startOfMonth } = reportingCalendarBounds();
 
     const ordersToday = completedOrders.filter((row) => row.createdAt >= startOfToday).length;
     const ordersThisWeek = completedOrders.filter((row) => row.createdAt >= startOfWeek).length;
