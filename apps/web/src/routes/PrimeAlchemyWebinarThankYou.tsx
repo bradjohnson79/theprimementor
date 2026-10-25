@@ -8,7 +8,7 @@ import {
 } from "@wisdom/utils";
 import { trackCtaClick } from "../lib/analytics";
 import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
-import { fetchWebinarMe } from "../lib/webinarApi";
+import { fetchWebinarCheckoutConfirmation, fetchWebinarMe } from "../lib/webinarApi";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 
@@ -30,6 +30,45 @@ export default function PrimeAlchemyWebinarThankYou() {
   const checkoutSessionId = searchParams.get("checkoutSessionId");
   const [status, setStatus] = useState<"loading" | "processing" | "ready" | "denied">("loading");
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded || isSignedIn || !checkoutSessionId) return;
+    let cancelled = false;
+
+    async function loadGuestAccess(attempt = 0): Promise<void> {
+      try {
+        const confirmation = await fetchWebinarCheckoutConfirmation(PRIME_ALCHEMY_WEBINAR_EVENT_ID, checkoutSessionId!);
+        if (cancelled) return;
+        if (confirmation.status === "ready" && confirmation.zoomRegistrationUrl) {
+          setZoomUrl(confirmation.zoomRegistrationUrl);
+          setStatus("ready");
+          trackCtaClick("adronis_webinar_checkout_completed", "prime_alchemy_webinar_thank_you", {
+            eventId: PRIME_ALCHEMY_WEBINAR_EVENT_ID,
+          });
+          return;
+        }
+        if (attempt < POLL_ATTEMPTS) {
+          setStatus("processing");
+          await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+          return loadGuestAccess(attempt + 1);
+        }
+        setStatus("processing");
+      } catch {
+        if (cancelled) return;
+        if (attempt < POLL_ATTEMPTS) {
+          setStatus("processing");
+          await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+          return loadGuestAccess(attempt + 1);
+        }
+        setStatus("denied");
+      }
+    }
+
+    void loadGuestAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutSessionId, isLoaded, isSignedIn]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -87,27 +126,20 @@ export default function PrimeAlchemyWebinarThankYou() {
     };
   }, [checkoutSessionId, getToken, isSignedIn]);
 
-  if (!isSignedIn) {
-    const redirectUrl = `${location.pathname}${location.search}${location.hash}`;
-    if (isLoaded) {
-      return <Navigate to={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`} replace />;
-    }
+  if (!isLoaded) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-16">
         <div className="space-y-4 rounded-[2rem] border border-white/10 bg-[#07111f]/80 p-6 sm:p-8">
-          <h1 className="text-3xl font-semibold text-white">Sign in to view webinar access</h1>
-          <p className="text-white/70">
-            This page does not disclose webinar registration details until your Prime Mentor account and purchase are verified.
-          </p>
-          <Link
-            to={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950"
-          >
-            Sign In
-          </Link>
+          <h1 className="text-3xl font-semibold text-white">Thank You for Registering</h1>
+          <p className="text-white/70">Confirming your registration access…</p>
         </div>
       </div>
     );
+  }
+
+  if (!isSignedIn && !checkoutSessionId) {
+    const redirectUrl = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`} replace />;
   }
 
   return (
@@ -128,7 +160,7 @@ export default function PrimeAlchemyWebinarThankYou() {
 
           {status === "processing" ? (
             <p className="text-white/70">
-              Your payment was received and your registration access is being prepared.
+              Confirming your payment and preparing your Zoom registration.
             </p>
           ) : null}
 

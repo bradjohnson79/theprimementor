@@ -38,6 +38,18 @@ export async function fetchWebinarMe(eventId: string, token: string | null) {
   return unwrapData<WebinarEventState>(payload);
 }
 
+export interface WebinarCheckoutConfirmation {
+  status: "processing" | "ready";
+  zoomRegistrationUrl?: string | null;
+}
+
+export async function fetchWebinarCheckoutConfirmation(eventId: string, checkoutSessionId: string) {
+  const payload = await api.get(
+    `/webinars/${encodeURIComponent(eventId)}/checkout-confirmation?checkoutSessionId=${encodeURIComponent(checkoutSessionId)}`,
+  );
+  return unwrapData<WebinarCheckoutConfirmation>(payload);
+}
+
 export async function fetchWebinarAccess(eventId: string, token: string | null) {
   const payload = await api.get(`/webinars/${encodeURIComponent(eventId)}/access`, token);
   return unwrapData<WebinarEventState>(payload);

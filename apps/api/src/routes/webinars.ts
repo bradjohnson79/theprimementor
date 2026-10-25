@@ -1,4 +1,7 @@
 import type { FastifyInstance } from "fastify";
+import Stripe from "stripe";
+import { createStripeClient } from "../services/stripe/stripeClientFactory.js";
+import { planWebinarCheckoutConfirmation } from "../services/webinarCheckoutConfirmation.js";
 import {
   getOnDemandWebinarById,
   getOnDemandWebinarPublicCatalog,
@@ -34,6 +37,14 @@ interface EventParams {
 
 interface OnDemandParams {
   webinarId: string;
+}
+
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY not set");
+  }
+  return createStripeClient(key);
 }
 
 function statusFromError(error: unknown, fallback = 500) {
@@ -179,6 +190,43 @@ export async function webinarRoutes(app: FastifyInstance) {
       return sendApiError(reply, statusCode, error instanceof Error ? error.message : "Webinar event not found");
     }
   });
+
+  app.get<{ Params: EventParams; Querystring: { checkoutSessionId?: string } }>(
+    "/webinars/:eventId/checkout-confirmation",
+    async (request, reply) => {
+      const checkoutSessionId = request.query.checkoutSessionId?.trim() ?? "";
+      if (!/^cs_(?:live|test)_[A-Za-z0-9]+$/.test(checkoutSessionId)) {
+        return sendApiError(reply, 400, "checkoutSessionId is required");
+      }
+
+      let event;
+      try {
+        event = getWebinarEventOrThrow(request.params.eventId);
+      } catch (error) {
+        return sendApiError(reply, statusFromError(error, 404), error instanceof Error ? error.message : "Webinar event not found");
+      }
+
+      let session;
+      try {
+        session = await getStripe().checkout.sessions.retrieve(checkoutSessionId);
+      } catch {
+        return sendApiError(reply, 404, "Checkout confirmation was not found");
+      }
+
+      const plan = planWebinarCheckoutConfirmation({
+        event,
+        mode: session.mode,
+        paymentStatus: session.payment_status,
+        sessionStatus: session.status,
+        metadataEventId: session.metadata?.eventId ?? null,
+        metadataType: session.metadata?.type ?? null,
+      });
+      if (plan.status === "unavailable") {
+        return sendApiError(reply, 404, "Checkout confirmation was not found");
+      }
+      return ok(plan);
+    },
+  );
 
   app.get<{ Params: EventParams }>("/webinars/:eventId/me", { preHandler: requireAuth }, async (request) => {
     const db = requireDatabase(app.db);

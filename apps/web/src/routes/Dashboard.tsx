@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { formatPacificDateOnly } from "@wisdom/utils";
+import { formatPacificDateOnly, getPrimeAlchemyWebinarPublicCatalog } from "@wisdom/utils";
 import { api } from "../lib/api";
 import { syncOwnedCheckoutSession, type CheckoutSyncEntityType } from "../lib/checkoutSessionSync";
 import { MENTORING_CIRCLE_SESSION_FALLBACK_ISO } from "../lib/mentoringCircleConstants";
@@ -157,6 +157,7 @@ export default function Dashboard() {
         ? mentoringCircle.activeEventForPurchase
         : null;
   const purchasableCircleEvent = mentoringCircle?.activeEventForPurchase ?? mentoringCircle?.currentEvent ?? mentoringCircle?.nextEvent ?? null;
+  const upcomingMentoringCircle = getPrimeAlchemyWebinarPublicCatalog();
 
   const memberTier = tierState;
   const usage = dbUser?.member?.usage;
@@ -653,15 +654,20 @@ export default function Dashboard() {
                       ? `Mentoring Circle: ${formatPacificDateOnly(
                         purchasableCircleEvent.sessionDate ?? MENTORING_CIRCLE_SESSION_FALLBACK_ISO,
                       )}`
-                      : "No event scheduled"}
+                      : upcomingMentoringCircle.title}
                   </p>
                   <p className="mt-1 text-sm text-white/60">
                     {purchasableCircleEvent?.purchaseStatus === "pending_payment"
                       ? "Payment is processing. Your access will appear here shortly."
-                      : "Join upcoming circles and purchase access to live sessions."}
+                      : purchasableCircleEvent
+                        ? "Join upcoming circles and purchase access to live sessions."
+                        : `${upcomingMentoringCircle.displayDate} · ${upcomingMentoringCircle.displayTime} · ${upcomingMentoringCircle.displayPrice}`}
                   </p>
-                  <Link to="/mentoring-circle" className="cosmic-motion mt-4 inline-block rounded-md border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5">
-                    View Circle
+                  <Link
+                    to={purchasableCircleEvent ? "/mentoring-circle" : upcomingMentoringCircle.checkoutPath}
+                    className="cosmic-motion mt-4 inline-block rounded-md border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5"
+                  >
+                    {purchasableCircleEvent ? "View Circle" : `Register — ${upcomingMentoringCircle.displayPrice}`}
                   </Link>
                 </>
               )}

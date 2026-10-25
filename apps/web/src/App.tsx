@@ -46,7 +46,6 @@ const Dashboard = lazy(() => import("./routes/Dashboard"));
 const MemberDivin8Chat = lazy(() => import("./routes/MemberDivin8Chat"));
 const Bookings = lazy(() => import("./routes/Bookings"));
 const Recordings = lazy(() => import("./routes/Recordings"));
-const MentoringCircle = lazy(() => import("./routes/MentoringCircle"));
 const AdronisWebinarCheckout = lazy(() => import("./routes/AdronisWebinarCheckout"));
 const AdronisWebinarThankYou = lazy(() => import("./routes/AdronisWebinarThankYou"));
 const PrimeAlchemyWebinarLearnMore = lazy(() => import("./routes/PrimeAlchemyWebinarLearnMore"));
@@ -162,6 +161,8 @@ export default function App() {
             <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
             <Route path="/webinars/prime-alchemy-teachings" element={<PrimeAlchemyWebinarLearnMore />} />
             <Route path="/webinars/prime-alchemy-teachings/thank-you" element={<PrimeAlchemyWebinarThankYou />} />
+            <Route path="/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings" replace />} />
+            <Route path="/events/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings" replace />} />
             <Route path="/webinars/adronis-star-family-communion" element={<Navigate to="/" replace />} />
             <Route path="/webinars/adronis-star-family-communion/thank-you" element={<Navigate to="/" replace />} />
             <Route path="/webinars/adronis-star-family-communion/on-demand" element={<OnDemandWebinarCheckout webinarId={STAR_FAMILY_ON_DEMAND_WEBINAR_ID} />} />
@@ -192,8 +193,6 @@ export default function App() {
               <Route path="/reports/intro" element={<Navigate to="/dashboard/reports/intro" replace />} />
               <Route path="/reports/deep-dive" element={<Navigate to="/dashboard/reports/deep-dive" replace />} />
               <Route path="/reports/initiate" element={<Navigate to="/dashboard/reports/initiate" replace />} />
-              <Route path="/mentoring-circle" element={<MentoringCircle />} />
-              <Route path="/events/mentoring-circle" element={<MentoringCircle />} />
               <Route path="/mentor-training" element={<MentorTraining />} />
               <Route path="/dashboard/webinars" element={<DashboardWebinars />} />
               <Route path="/dashboard/webinars/:webinarId" element={<OnDemandWebinarPlayer />} />
