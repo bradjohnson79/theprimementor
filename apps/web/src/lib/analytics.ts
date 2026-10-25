@@ -1,35 +1,14 @@
 declare global {
   interface Window {
-    goatcounter?: {
-      count?: (options?: GoatCounterCountOptions) => void;
-      url?: (options?: GoatCounterCountOptions) => string;
-      filter?: () => string | false;
-      bind_events?: () => void;
-      get_query?: (name: string) => string | undefined;
-      endpoint?: string;
-      no_onload?: boolean;
-      no_events?: boolean;
-      allow_local?: boolean;
-      allow_frame?: boolean;
-      path?: string | ((path: string) => string | null);
-      title?: string;
-      referrer?: string | (() => string);
-      event?: boolean;
+    umami?: {
+      track: (event?: string | Record<string, unknown> | ((props: Record<string, unknown>) => Record<string, unknown>)) => Promise<void> | void;
     };
   }
 
   interface ImportMetaEnv {
-    readonly VITE_GOATCOUNTER_ENDPOINT?: string;
-    readonly VITE_GOATCOUNTER_SCRIPT_URL?: string;
+    readonly VITE_UMAMI_SCRIPT_URL?: string;
+    readonly VITE_UMAMI_WEBSITE_ID?: string;
   }
-}
-
-interface GoatCounterCountOptions {
-  path?: string | ((path: string) => string | null);
-  title?: string;
-  referrer?: string;
-  event?: boolean;
-  no_session?: boolean;
 }
 
 export const ANALYTICS_EVENT_NAMES = {
@@ -61,8 +40,8 @@ export const ANALYTICS_EVENT_NAMES = {
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENT_NAMES;
 
-const DEFAULT_GOATCOUNTER_ENDPOINT = "https://primementor.goatcounter.com/count";
-const DEFAULT_GOATCOUNTER_SCRIPT_URL = "https://gc.zgo.at/count.js";
+const PUBLIC_HOSTS = new Set(["theprimementor.com", "www.theprimementor.com"]);
+const PRIVATE_PATH_PREFIXES = ["/dashboard", "/account", "/admin", "/settings", "/members"];
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -82,12 +61,17 @@ function markTrackedKey(key: string) {
   window.sessionStorage.setItem(key, "1");
 }
 
-export function getGoatCounterEndpoint() {
-  return import.meta.env.VITE_GOATCOUNTER_ENDPOINT?.trim() || DEFAULT_GOATCOUNTER_ENDPOINT;
+export function getUmamiScriptUrl() {
+  return import.meta.env.VITE_UMAMI_SCRIPT_URL?.trim() || "";
 }
 
-export function getGoatCounterScriptUrl() {
-  return import.meta.env.VITE_GOATCOUNTER_SCRIPT_URL?.trim() || DEFAULT_GOATCOUNTER_SCRIPT_URL;
+export function getUmamiWebsiteId() {
+  return import.meta.env.VITE_UMAMI_WEBSITE_ID?.trim() || "";
+}
+
+export function isPublicAnalyticsPath(path: string) {
+  const pathname = path.split("?")[0] || "/";
+  return !PRIVATE_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 const SENSITIVE_ANALYTICS_QUERY = /token|email|session|intake|code|secret|password|phone/i;
@@ -114,19 +98,23 @@ function currentPath() {
   return sanitizeAnalyticsPath(`${window.location.pathname}${window.location.search}`);
 }
 
-function whenGoatCounterReady(work: () => void) {
-  if (!isBrowser()) {
+function trackingHostAllowed() {
+  return PUBLIC_HOSTS.has(window.location.hostname);
+}
+
+function whenUmamiReady(work: () => void) {
+  if (!isBrowser() || !trackingHostAllowed()) {
     return;
   }
 
-  if (typeof window.goatcounter?.count === "function") {
+  if (typeof window.umami?.track === "function") {
     work();
     return;
   }
 
   const startedAt = Date.now();
   const timer = window.setInterval(() => {
-    if (typeof window.goatcounter?.count === "function") {
+    if (typeof window.umami?.track === "function") {
       window.clearInterval(timer);
       work();
       return;
@@ -137,43 +125,31 @@ function whenGoatCounterReady(work: () => void) {
   }, 100);
 }
 
-export function installGoatCounterScript() {
-  if (!isBrowser()) {
+export function installAnalyticsScript() {
+  if (!isBrowser() || !trackingHostAllowed()) {
     return () => undefined;
   }
 
-  const endpoint = getGoatCounterEndpoint();
-  if (!endpoint) {
+  const scriptUrl = getUmamiScriptUrl();
+  const websiteId = getUmamiWebsiteId();
+  if (!scriptUrl || !websiteId) {
     return () => undefined;
   }
 
-  window.goatcounter = {
-    ...(window.goatcounter ?? {}),
-    no_onload: true,
-    allow_local: import.meta.env.DEV,
-    endpoint,
-    referrer() {
-      return window.goatcounter?.get_query?.("ref")
-        || window.goatcounter?.get_query?.("utm_campaign")
-        || window.goatcounter?.get_query?.("utm_source")
-        || document.referrer;
-    },
-  };
-
-  if (document.querySelector("script[data-goatcounter]")) {
-    return () => undefined;
-  }
-
-  const scriptId = "prime-mentor-goatcounter";
+  const scriptId = "prime-mentor-umami";
   if (document.getElementById(scriptId)) {
     return () => undefined;
   }
 
   const script = document.createElement("script");
   script.id = scriptId;
-  script.async = true;
-  script.src = getGoatCounterScriptUrl();
-  script.setAttribute("data-goatcounter", endpoint);
+  script.defer = true;
+  script.src = scriptUrl;
+  script.setAttribute("data-website-id", websiteId);
+  script.setAttribute("data-auto-track", "false");
+  script.setAttribute("data-domains", "theprimementor.com,www.theprimementor.com");
+  script.setAttribute("data-exclude-search", "true");
+  script.setAttribute("data-exclude-hash", "true");
   document.head.appendChild(script);
 
   return () => {
@@ -182,22 +158,26 @@ export function installGoatCounterScript() {
 }
 
 export function trackPageview(path?: string) {
-  whenGoatCounterReady(() => {
-    window.goatcounter?.count?.({
-      path: sanitizeAnalyticsPath(path || currentPath()),
+  const safePath = sanitizeAnalyticsPath(path || currentPath());
+  if (!isPublicAnalyticsPath(safePath)) {
+    return;
+  }
+  whenUmamiReady(() => {
+    const website = getUmamiWebsiteId();
+    if (!website) {
+      return;
+    }
+    void window.umami?.track({
+      website,
+      url: safePath,
       title: document.title,
     });
-    window.goatcounter?.bind_events?.();
   });
 }
 
-export function trackEvent(eventName: AnalyticsEventName, payload?: Record<string, unknown>) {
-  whenGoatCounterReady(() => {
-    window.goatcounter?.count?.({
-      path: ANALYTICS_EVENT_NAMES[eventName],
-      title: payload ? JSON.stringify(payload) : eventName,
-      event: true,
-    });
+export function trackEvent(eventName: AnalyticsEventName, _payload?: Record<string, unknown>) {
+  whenUmamiReady(() => {
+    void window.umami?.track(ANALYTICS_EVENT_NAMES[eventName]);
   });
 }
 

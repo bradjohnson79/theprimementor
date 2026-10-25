@@ -5,7 +5,24 @@ export function formatAnalyticsCount(value: number | null | undefined) {
   return new Intl.NumberFormat("en-CA").format(value);
 }
 
+export function formatAnalyticsDuration(seconds: number | null | undefined) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) {
+    return "Unavailable";
+  }
+  const rounded = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(rounded / 60);
+  const remainder = rounded % 60;
+  if (minutes <= 0) {
+    return `${remainder}s`;
+  }
+  return `${minutes}m ${remainder}s`;
+}
+
 export function goatCounterConnectionLabel(input: { connected: boolean; reason?: string | null }) {
+  return analyticsConnectionLabel(input);
+}
+
+export function analyticsConnectionLabel(input: { connected: boolean; reason?: string | null }) {
   if (input.connected) {
     return "Connected";
   }

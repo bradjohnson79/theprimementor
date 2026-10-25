@@ -25,6 +25,18 @@ import {
   type GoatCounterStatsResponse,
   type GoatCounterTotalResponse,
 } from "./goatcounterClient.js";
+import {
+  fetchUmamiActiveVisitors,
+  fetchUmamiEventStats,
+  fetchUmamiExpandedMetrics,
+  fetchUmamiPageviewSeries,
+  fetchUmamiStats,
+  isUmamiConfigured,
+  probeUmamiHealth,
+  umamiFailureMessage,
+  type UmamiFailureReason,
+  type UmamiHealthSnapshot,
+} from "./umamiClient.js";
 
 export type AnalyticsRange = "24h" | "7d" | "30d";
 export type AnalyticsStatus = "ok" | "degraded" | "unconfigured";
@@ -66,6 +78,7 @@ type InsightMetricType =
   | "exit"
   | "device"
   | "browser"
+  | "os"
   | "country"
   | "region"
   | "channel"
@@ -410,7 +423,19 @@ export function buildStrategicRecommendations(input: {
   return recommendations.slice(0, 6);
 }
 
-const GOATCOUNTER_UNSUPPORTED_METRICS = new Set<InsightMetricType>(["entry", "exit", "region", "query"]);
+const GOATCOUNTER_UNSUPPORTED_METRICS = new Set<InsightMetricType>(["entry", "exit", "region", "query", "os"]);
+const UMAMI_METRIC_TYPES: Record<InsightMetricType, string> = {
+  path: "path",
+  entry: "entry",
+  exit: "exit",
+  device: "device",
+  browser: "browser",
+  os: "os",
+  country: "country",
+  region: "region",
+  channel: "channel",
+  query: "utmCampaign",
+};
 const GOATCOUNTER_STAT_PAGES: Partial<Record<InsightMetricType, string>> = {
   device: "systems",
   browser: "browsers",
@@ -437,6 +462,112 @@ function cacheSuccessful<T extends { status: string }>(value: T) {
 }
 
 
+function analyticsSource(input: {
+  provider: "umami" | "goatcounter";
+  siteUrl: string;
+  dashboardUrl: string;
+  connected: boolean;
+  reason: string;
+  health: UmamiHealthSnapshot;
+}) {
+  return input;
+}
+
+function averageVisitSeconds(stats: { visits: number; totaltime: number }) {
+  if (stats.visits <= 0) {
+    return null;
+  }
+  return Math.round(stats.totaltime / stats.visits);
+}
+
+function bounceRate(stats: { visits: number; bounces: number }) {
+  if (stats.visits <= 0) {
+    return null;
+  }
+  return Math.round((stats.bounces / stats.visits) * 100);
+}
+
+function pageGroups(rows: AnalyticsMetricRow[]) {
+  return {
+    servicePages: rows.filter((row) => /^\/(services|sessions|subscriptions|healing|mentoring)/.test(row.label)).slice(0, 8),
+    webinarPages: rows.filter((row) => row.label.toLowerCase().includes("webinar")).slice(0, 8),
+  };
+}
+
+async function loadUmamiInsightSubsection(input: {
+  window: AnalyticsRangeWindow;
+  metricType: InsightMetricType;
+  limit: number;
+  logger: AnalyticsLogger;
+  operation: string;
+  emptyWarning: string;
+}): Promise<AnalyticsInsightSubsection> {
+  const payload = await fetchUmamiExpandedMetrics({
+    type: UMAMI_METRIC_TYPES[input.metricType],
+    startAt: input.window.startAt,
+    endAt: input.window.endAt,
+    limit: input.limit,
+    unit: input.window.unit,
+    logger: input.logger,
+    operation: input.operation,
+  });
+  if (!payload.ok) {
+    input.logger.warn(
+      { operation: input.operation, metricType: input.metricType, status: "degraded", reason: payload.reason },
+      "analytics_insights_subsection_degraded",
+    );
+    return {
+      status: "degraded",
+      warning: umamiFailureMessage(payload.reason, "this breakdown"),
+      metricType: input.metricType,
+      items: [],
+    };
+  }
+  return {
+    status: "ok",
+    metricType: input.metricType,
+    items: normalizeExpandedRows(payload.data).slice(0, input.limit),
+  };
+}
+
+function unavailableUmamiTraffic(range: AnalyticsRange, reason: UmamiFailureReason, health: UmamiHealthSnapshot) {
+  return {
+    range,
+    status: reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+    reason,
+    warning: umamiFailureMessage(reason, "the traffic summary"),
+    traffic: {
+      visitors: null,
+      pageviews: null,
+      sessions: null,
+      bounces: null,
+      totalTimeSeconds: null,
+      averageSessionSeconds: null,
+      activeVisitors: null,
+      bounceRate: null,
+    },
+    trends: {
+      visitors: null,
+      pageviews: null,
+      sessions: null,
+    },
+    source: analyticsSource({
+      provider: "umami",
+      siteUrl: process.env.UMAMI_BASE_URL?.trim() ?? "",
+      dashboardUrl: process.env.UMAMI_BASE_URL?.trim() ?? "",
+      connected: false,
+      reason,
+      health,
+    }),
+    goatcounter: {
+      siteUrl: "",
+      dashboardUrl: "",
+      connected: false,
+      reason,
+    },
+  };
+}
+
 export async function loadInsightsSubsection(input: {
   window: AnalyticsRangeWindow;
   metricType: InsightMetricType;
@@ -445,6 +576,9 @@ export async function loadInsightsSubsection(input: {
   operation: string;
   emptyWarning: string;
 }): Promise<AnalyticsInsightSubsection> {
+  if (isUmamiConfigured()) {
+    return loadUmamiInsightSubsection(input);
+  }
   if (GOATCOUNTER_UNSUPPORTED_METRICS.has(input.metricType)) {
     return {
       status: "unsupported",
@@ -592,12 +726,82 @@ function toMoney(valueInCents: number) {
   return Number((valueInCents / 100).toFixed(2));
 }
 
+async function getUmamiAdminAnalyticsSummary(
+  range: AnalyticsRange,
+  logger: AnalyticsLogger,
+) {
+  const window = buildRangeWindow(range);
+  return getCachedOrLoad(`analytics:umami:summary:${range}`, async () => {
+    const [stats, active, probed] = await Promise.all([
+      fetchUmamiStats({
+        startAt: window.startAt,
+        endAt: window.endAt,
+        logger,
+        operation: "summary",
+      }),
+      fetchUmamiActiveVisitors(logger),
+      probeUmamiHealth(logger),
+    ]);
+    if (!stats.ok) {
+      return unavailableUmamiTraffic(range, stats.reason, {
+        ...probed,
+        reporting: "degraded",
+        database: "unavailable",
+      });
+    }
+    const current = stats.data.current;
+    const previous = stats.data.previous;
+    const health: UmamiHealthSnapshot = {
+      ...probed,
+      service: probed.service === "unconfigured" ? "degraded" : probed.service,
+      database: "ok",
+      reporting: "ok",
+    };
+    return {
+      range,
+      status: "ok" as const,
+      traffic: {
+        visitors: current.visitors,
+        pageviews: current.pageviews,
+        sessions: current.visits,
+        bounces: current.bounces,
+        totalTimeSeconds: current.totaltime,
+        averageSessionSeconds: averageVisitSeconds(current),
+        activeVisitors: active.ok ? active.data.visitors : null,
+        bounceRate: bounceRate(current),
+      },
+      trends: {
+        visitors: previous ? getTrendMetric(current.visitors, previous.visitors, "previous period") : null,
+        pageviews: previous ? getTrendMetric(current.pageviews, previous.pageviews, "previous period") : null,
+        sessions: previous ? getTrendMetric(current.visits, previous.visits, "previous period") : null,
+      },
+      source: analyticsSource({
+        provider: "umami",
+        siteUrl: process.env.UMAMI_BASE_URL?.trim() ?? "",
+        dashboardUrl: process.env.UMAMI_BASE_URL?.trim() ?? "",
+        connected: true,
+        reason: "ok",
+        health,
+      }),
+      goatcounter: {
+        siteUrl: "",
+        dashboardUrl: "",
+        connected: false,
+        reason: "retired",
+      },
+    };
+  }, cacheSuccessful);
+}
+
 export async function getAdminAnalyticsSummary(
   actor: AnalyticsActor,
   range: AnalyticsRange,
   logger: AnalyticsLogger,
 ) {
   assertAdminAccess(actor);
+  if (isUmamiConfigured()) {
+    return getUmamiAdminAnalyticsSummary(range, logger);
+  }
   const window = buildRangeWindow(range);
   const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
   const previousRange = formatGoatCounterRange(window.previousStartAt, window.previousEndAt);
@@ -641,6 +845,7 @@ export async function getAdminAnalyticsSummary(
         totalTimeSeconds: null,
         averageSessionSeconds: null,
         activeVisitors: null,
+        bounceRate: null,
       },
       trends: {
         visitors: previousVisits === null ? null : getTrendMetric(visits, previousVisits, "previous period"),
@@ -668,6 +873,7 @@ function unavailableTraffic(range: AnalyticsRange, reason: GoatCounterFailureRea
       totalTimeSeconds: null,
       averageSessionSeconds: null,
       activeVisitors: null,
+      bounceRate: null,
     },
     trends: {
       visitors: null,
@@ -678,12 +884,99 @@ function unavailableTraffic(range: AnalyticsRange, reason: GoatCounterFailureRea
   };
 }
 
+async function getUmamiAdminAnalyticsPageviews(range: AnalyticsRange, logger: AnalyticsLogger) {
+  const window = buildRangeWindow(range);
+  return getCachedOrLoad(`analytics:umami:pageviews:${range}`, async () => {
+    const [series, pages, entries] = await Promise.all([
+      fetchUmamiPageviewSeries({
+        startAt: window.startAt,
+        endAt: window.endAt,
+        unit: window.unit,
+        logger,
+      }),
+      fetchUmamiExpandedMetrics({
+        type: "path",
+        startAt: window.startAt,
+        endAt: window.endAt,
+        limit: 40,
+        unit: window.unit,
+        logger,
+        operation: "top_pages",
+      }),
+      fetchUmamiExpandedMetrics({
+        type: "entry",
+        startAt: window.startAt,
+        endAt: window.endAt,
+        limit: 12,
+        unit: window.unit,
+        logger,
+        operation: "landing_pages",
+      }),
+    ]);
+    const failure = [series, pages, entries].find((result) => !result.ok);
+    if (failure && !failure.ok) {
+      return {
+        range,
+        status: failure.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: failure.reason,
+        warning: umamiFailureMessage(failure.reason, "page metrics"),
+        series: { pageviews: [], sessions: [] },
+        topPages: [],
+        landingPages: [],
+        servicePages: [],
+        webinarPages: [],
+      };
+    }
+    if (!series.ok || !pages.ok || !entries.ok) {
+      return {
+        range,
+        ...buildDegradedMeta(umamiFailureMessage("unavailable", "page metrics")),
+        series: { pageviews: [], sessions: [] },
+        topPages: [],
+        landingPages: [],
+        servicePages: [],
+        webinarPages: [],
+      };
+    }
+    const topPages = normalizeExpandedRows(pages.data).slice(0, 12).map((row) => ({
+      path: row.label,
+      visitors: row.visitors,
+      pageviews: row.pageviews,
+      visits: row.visits,
+      bounceRate: null,
+      share: row.share,
+    }));
+    const grouped = pageGroups(normalizeExpandedRows(pages.data));
+    return {
+      range,
+      status: "ok" as const,
+      series: {
+        pageviews: series.data.pageviews.map((point) => ({ timestamp: point.x, value: point.y })),
+        sessions: series.data.sessions.map((point) => ({ timestamp: point.x, value: point.y })),
+      },
+      topPages,
+      landingPages: normalizeExpandedRows(entries.data).slice(0, 8).map((row) => ({
+        path: row.label,
+        visitors: row.visitors,
+        pageviews: row.pageviews,
+        visits: row.visits,
+        share: row.share,
+      })),
+      servicePages: grouped.servicePages,
+      webinarPages: grouped.webinarPages,
+    };
+  }, cacheSuccessful);
+}
+
 export async function getAdminAnalyticsPageviews(
   actor: AnalyticsActor,
   range: AnalyticsRange,
   logger: AnalyticsLogger,
 ) {
   assertAdminAccess(actor);
+  if (isUmamiConfigured()) {
+    return getUmamiAdminAnalyticsPageviews(range, logger);
+  }
   const window = buildRangeWindow(range);
   const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
 
@@ -749,12 +1042,97 @@ export async function getAdminAnalyticsPageviews(
   }, cacheSuccessful);
 }
 
+async function getUmamiAdminAnalyticsEvents(range: AnalyticsRange, logger: AnalyticsLogger) {
+  const window = buildRangeWindow(range);
+  return getCachedOrLoad(`analytics:umami:events:${range}`, async () => {
+    const [stats, events] = await Promise.all([
+      fetchUmamiEventStats({
+        startAt: window.startAt,
+        endAt: window.endAt,
+        logger,
+        operation: "event_stats",
+      }),
+      fetchUmamiExpandedMetrics({
+        type: "event",
+        startAt: window.startAt,
+        endAt: window.endAt,
+        limit: 12,
+        unit: window.unit,
+        logger,
+        operation: "event_metrics",
+      }),
+    ]);
+    const failure = [stats, events].find((result) => !result.ok);
+    if (failure && !failure.ok) {
+      return {
+        range,
+        status: failure.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: failure.reason,
+        warning: umamiFailureMessage(failure.reason, "event tracking"),
+        totals: {
+          events: null,
+          visitors: null,
+          visits: null,
+          uniqueEvents: null,
+          comparison: { events: null, visitors: null, visits: null, uniqueEvents: null },
+        },
+        items: [],
+        series: [],
+        recent: [],
+      };
+    }
+    if (!stats.ok || !events.ok) {
+      return {
+        range,
+        ...buildDegradedMeta(umamiFailureMessage("unavailable", "event tracking")),
+        totals: {
+          events: null,
+          visitors: null,
+          visits: null,
+          uniqueEvents: null,
+          comparison: { events: null, visitors: null, visits: null, uniqueEvents: null },
+        },
+        items: [],
+        series: [],
+        recent: [],
+      };
+    }
+    const rows = normalizeExpandedRows(events.data).slice(0, 12);
+    return {
+      range,
+      status: "ok" as const,
+      totals: {
+        events: stats.data.events,
+        visitors: stats.data.visitors,
+        visits: stats.data.visits,
+        uniqueEvents: stats.data.uniqueEvents,
+        comparison: {
+          events: stats.data.comparison?.events ?? null,
+          visitors: stats.data.comparison?.visitors ?? null,
+          visits: stats.data.comparison?.visits ?? null,
+          uniqueEvents: stats.data.comparison?.uniqueEvents ?? null,
+        },
+      },
+      items: rows.map((row) => ({
+        name: row.label,
+        total: row.pageviews,
+        share: row.share,
+      })),
+      series: [],
+      recent: [],
+    };
+  }, cacheSuccessful);
+}
+
 export async function getAdminAnalyticsEvents(
   actor: AnalyticsActor,
   range: AnalyticsRange,
   logger: AnalyticsLogger,
 ) {
   assertAdminAccess(actor);
+  if (isUmamiConfigured()) {
+    return getUmamiAdminAnalyticsEvents(range, logger);
+  }
   const window = buildRangeWindow(range);
   const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
   const previousRange = formatGoatCounterRange(window.previousStartAt, window.previousEndAt);
@@ -864,12 +1242,50 @@ export async function getAdminAnalyticsEvents(
   }, cacheSuccessful);
 }
 
+async function getUmamiAdminAnalyticsReferrers(range: AnalyticsRange, logger: AnalyticsLogger) {
+  const window = buildRangeWindow(range);
+  return getCachedOrLoad(`analytics:umami:referrers:${range}`, async () => {
+    const referrers = await fetchUmamiExpandedMetrics({
+      type: "referrer",
+      startAt: window.startAt,
+      endAt: window.endAt,
+      limit: 12,
+      unit: window.unit,
+      logger,
+      operation: "referrers",
+    });
+    if (!referrers.ok) {
+      return {
+        range,
+        status: referrers.reason === "unconfigured" ? "unconfigured" as const : "degraded" as const,
+        reason: referrers.reason,
+        warning: umamiFailureMessage(referrers.reason, "referrer data"),
+        items: [],
+      };
+    }
+    return {
+      range,
+      status: "ok" as const,
+      items: normalizeExpandedRows(referrers.data).slice(0, 8).map((row) => ({
+        referrer: row.label || "Direct",
+        visitors: row.visitors,
+        pageviews: row.pageviews,
+        visits: row.visits,
+        share: row.share,
+      })),
+    };
+  }, cacheSuccessful);
+}
+
 export async function getAdminAnalyticsReferrers(
   actor: AnalyticsActor,
   range: AnalyticsRange,
   logger: AnalyticsLogger,
 ) {
   assertAdminAccess(actor);
+  if (isUmamiConfigured()) {
+    return getUmamiAdminAnalyticsReferrers(range, logger);
+  }
   const window = buildRangeWindow(range);
   const currentRange = formatGoatCounterRange(window.startAt, window.endAt);
 
@@ -918,12 +1334,13 @@ export async function getAdminAnalyticsInsights(
   assertAdminAccess(actor);
   const window = buildRangeWindow(range);
 
-  return getCachedOrLoad(`analytics:insights:${range}`, async () => {
+  return getCachedOrLoad(`analytics:insights:${isUmamiConfigured() ? "umami" : "goatcounter"}:${range}`, async () => {
     const [
       entryPages,
       exitPages,
       devices,
       browsers,
+      operatingSystems,
       countries,
       regions,
       channels,
@@ -962,6 +1379,14 @@ export async function getAdminAnalyticsInsights(
         logger,
         operation: "insights_browsers",
         emptyWarning: "Browser data is temporarily unavailable for this period.",
+      }),
+      loadInsightsSubsection({
+        window,
+        metricType: "os",
+        limit: 8,
+        logger,
+        operation: "insights_operating_systems",
+        emptyWarning: "Operating system data is temporarily unavailable for this period.",
       }),
       loadInsightsSubsection({
         window,
@@ -1007,7 +1432,56 @@ export async function getAdminAnalyticsInsights(
     ]);
 
     const geographyStatus = aggregateInsightStatus([countries, regions]);
-    const campaignRows = buildCampaignRows(channels.items, queries.items);
+    const [utmSources, utmMediums] = isUmamiConfigured()
+      ? await Promise.all([
+        fetchUmamiExpandedMetrics({
+          type: "utmSource",
+          startAt: window.startAt,
+          endAt: window.endAt,
+          limit: 12,
+          unit: window.unit,
+          logger,
+          operation: "insights_utm_source",
+        }),
+        fetchUmamiExpandedMetrics({
+          type: "utmMedium",
+          startAt: window.startAt,
+          endAt: window.endAt,
+          limit: 12,
+          unit: window.unit,
+          logger,
+          operation: "insights_utm_medium",
+        }),
+      ])
+      : [null, null];
+    const utmRows = isUmamiConfigured()
+      ? [
+        ...queries.items.map((row) => ({
+          ...row,
+          utmSource: null,
+          utmMedium: null,
+          utmCampaign: row.label,
+          sourceType: "utm" as const,
+        })),
+        ...(utmSources?.ok ? normalizeExpandedRows(utmSources.data) : []).map((row) => ({
+          ...row,
+          utmSource: row.label,
+          utmMedium: null,
+          utmCampaign: null,
+          sourceType: "utm" as const,
+        })),
+        ...(utmMediums?.ok ? normalizeExpandedRows(utmMediums.data) : []).map((row) => ({
+          ...row,
+          utmSource: null,
+          utmMedium: row.label,
+          utmCampaign: null,
+          sourceType: "utm" as const,
+        })),
+      ]
+      : [];
+    const campaignRows = utmRows.length > 0
+      ? { hasUtmData: true, items: utmRows }
+      : buildCampaignRows(channels.items, queries.items);
     const campaignStatus = aggregateInsightStatus([channels, queries]);
     const conversionPathItems = buildConversionPathInsights(conversionPathsRaw.items);
     const recommendations = buildStrategicRecommendations({
@@ -1021,6 +1495,7 @@ export async function getAdminAnalyticsInsights(
       exitPages,
       devices,
       browsers,
+      operatingSystems,
       countries,
       regions,
       channels,
@@ -1040,6 +1515,7 @@ export async function getAdminAnalyticsInsights(
       exitPages,
       devices,
       browsers,
+      operatingSystems,
       geography: {
         countries: countries.items,
         regions: regions.items,

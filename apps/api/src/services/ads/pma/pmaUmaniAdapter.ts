@@ -60,7 +60,7 @@ export async function loadPmaBehaviorSignals(input: {
     return {
       status: degraded ? "degraded" : "ok",
       range,
-      warning: degraded ? "Some GoatCounter sections were unavailable. PMA did not invent the missing metrics." : null,
+      warning: degraded ? "Some analytics sections were unavailable. PMA did not invent the missing metrics." : null,
       landingPage: "/reports",
       sessions: summary.traffic?.sessions ?? null,
       pageviews: summary.traffic?.pageviews ?? null,
@@ -79,9 +79,9 @@ export async function loadPmaBehaviorSignals(input: {
           bounceRate: Number(reports.bounceRate ?? 0),
         }
         : null,
-      note: "GoatCounter shows after-click behavior. CTA clicks and purchases outrank session length. utm_term and utm_content are not available from this integration.",
+      note: "Umami shows after-click behavior. CTA clicks and purchases outrank session length. Website events are not payment proof.",
     };
   } catch {
-    return emptyBehavior("GoatCounter is unavailable. PMA continues with keyword theory only.");
+    return emptyBehavior("Website analytics are unavailable. PMA continues with keyword theory only.");
   }
 }

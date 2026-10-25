@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect } from "react";
 import { STAR_FAMILY_ON_DEMAND_WEBINAR_ID } from "@wisdom/utils";
 import { initGoogleAdsGlobalSiteTag } from "./lib/googleAdsTag";
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
-import { installGoatCounterScript, trackPageview } from "./lib/analytics";
+import { installAnalyticsScript, trackPageview } from "./lib/analytics";
 import RootLayout from "./layouts/RootLayout";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import MemberLayout from "./layouts/MemberLayout";
@@ -98,7 +98,7 @@ function ScrollToTop() {
   const { pathname, search, hash } = useLocation();
 
   useEffect(() => {
-    return installGoatCounterScript();
+    return installAnalyticsScript();
   }, []);
 
   useEffect(() => {

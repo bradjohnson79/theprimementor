@@ -6,7 +6,7 @@ import AnalyticsMetricList, { type AnalyticsMetricListItem } from "../components
 import { analyticsHelperText, getConversionRouteLabel, utmEmptyState, utmExample } from "../components/analytics/analyticsCopy";
 import { useAdminSettings } from "../context/AdminSettingsContext";
 import { api } from "../lib/api";
-import { formatAnalyticsCount, goatCounterConnectionLabel } from "../lib/analyticsDisplay";
+import { analyticsConnectionLabel, formatAnalyticsCount, formatAnalyticsDuration } from "../lib/analyticsDisplay";
 
 type AnalyticsRange = "24h" | "7d" | "30d";
 type AnalyticsStatus = "ok" | "degraded" | "unconfigured";
@@ -33,6 +33,22 @@ interface SummaryResponse {
     totalTimeSeconds: number | null;
     averageSessionSeconds: number | null;
     activeVisitors: number | null;
+    bounceRate?: number | null;
+  };
+  source?: {
+    provider: "umami" | "goatcounter";
+    siteUrl: string;
+    dashboardUrl: string;
+    connected: boolean;
+    reason?: string;
+    health?: {
+      service: "ok" | "degraded" | "unconfigured";
+      database: "ok" | "unavailable" | "unknown";
+      tracking: "ok" | "unavailable" | "unknown";
+      reporting: "ok" | "degraded" | "unconfigured";
+      lastSuccessAt: string | null;
+      authFailures: number;
+    };
   };
   trends: {
     visitors: TrendMetric | null;
@@ -60,7 +76,29 @@ interface PageviewsResponse {
     visitors: number;
     pageviews: number;
     visits: number;
-    bounceRate: number;
+    bounceRate: number | null;
+    share?: number;
+  }>;
+  landingPages?: Array<{
+    path: string;
+    visitors: number;
+    pageviews: number;
+    visits: number;
+    share?: number;
+  }>;
+  servicePages?: Array<{
+    label: string;
+    visitors: number;
+    pageviews: number;
+    visits: number;
+    share: number;
+  }>;
+  webinarPages?: Array<{
+    label: string;
+    visitors: number;
+    pageviews: number;
+    visits: number;
+    share: number;
   }>;
 }
 
@@ -190,6 +228,7 @@ interface InsightsResponse {
   exitPages: InsightSubsection;
   devices: InsightSubsection;
   browsers: InsightSubsection;
+  operatingSystems?: InsightSubsection;
   geography: {
     countries: InsightMetricRow[];
     regions: InsightMetricRow[];
@@ -445,8 +484,8 @@ export default function Analytics() {
             Analytics
           </h1>
           <p className={classNames("mt-3 max-w-3xl text-sm leading-6", isLightTheme ? "text-slate-600" : "text-white/65")}>
-            Unified traffic, behavior, conversion, and business performance for Prime Mentor. GoatCounter powers the web
-            analytics layer, while internal data keeps orders, subscriptions, and bookings anchored to the database.
+            Unified traffic, behavior, conversion, and business performance for Prime Mentor. Self-hosted Umami powers
+            website traffic, while orders, subscriptions, and bookings stay anchored to Prime Mentor and Stripe.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -518,7 +557,7 @@ export default function Analytics() {
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
                     {data.summary.traffic.pageviews === null
-                      ? "GoatCounter does not provide a separate pageview total"
+                      ? "Pageview data is unavailable"
                       : "Pageviews in this period"}
                   </p>
                 </div>
@@ -532,52 +571,78 @@ export default function Analytics() {
                     {formatAnalyticsCount(data.summary.traffic.sessions)}
                   </p>
                   <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
-                    Session totals are not reported
+                    {data.summary.traffic.sessions === null ? "Session data is unavailable" : "Visits in this period"}
                   </p>
                 </div>
                 <TrendPill metric={data.summary.trends.sessions} isLightTheme={isLightTheme} />
               </div>
             </SectionCard>
-            <SectionCard
-              title="GoatCounter Connection"
-              eyebrow="Source Health"
-              isLightTheme={isLightTheme}
-              action={data.summary.goatcounter.dashboardUrl ? (
-                <a
-                  href={data.summary.goatcounter.dashboardUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={classNames(
-                    "rounded-full border px-3 py-2 text-xs font-medium transition",
-                    isLightTheme
-                      ? "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white",
-                  )}
-                >
-                  Open GoatCounter
-                </a>
-              ) : null}
-            >
+            <SectionCard title="Analytics Health" eyebrow="Source Health" isLightTheme={isLightTheme}>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <span
                     className={classNames(
                       "inline-flex h-2.5 w-2.5 rounded-full",
-                      data.summary.goatcounter.connected ? "bg-emerald-400" : "bg-amber-300",
+                      (data.summary.source?.connected ?? data.summary.goatcounter.connected) ? "bg-emerald-400" : "bg-amber-300",
                     )}
                   />
                   <p className={classNames("text-sm font-medium", isLightTheme ? "text-slate-800" : "text-white")}>
-                    {goatCounterConnectionLabel(data.summary.goatcounter)}
+                    {analyticsConnectionLabel(data.summary.source ?? data.summary.goatcounter)}
                   </p>
                 </div>
                 <p className={classNames("text-sm", isLightTheme ? "text-slate-600" : "text-white/60")}>
-                  Site: {data.summary.goatcounter.siteUrl || "Set GOATCOUNTER_SITE_URL"}
+                  {(data.summary.source?.provider ?? "goatcounter") === "umami" ? "Umami" : "GoatCounter"}
+                  {" · "}
+                  service {data.summary.source?.health?.service ?? "unknown"}
+                  {" · "}
+                  database {data.summary.source?.health?.database ?? "unknown"}
+                  {" · "}
+                  tracking {data.summary.source?.health?.tracking ?? "unknown"}
+                </p>
+                <p className={classNames("text-xs", isLightTheme ? "text-slate-500" : "text-white/45")}>
+                  {data.summary.source?.health?.lastSuccessAt
+                    ? `Last report ${formatDate(data.summary.source.health.lastSuccessAt)}`
+                    : "No successful reporting query yet"}
+                  {data.summary.source?.health?.authFailures
+                    ? ` · ${data.summary.source.health.authFailures} auth failure${data.summary.source.health.authFailures === 1 ? "" : "s"}`
+                    : ""}
                 </p>
               </div>
             </SectionCard>
           </>
         )}
       </div>
+
+      {data && !loading ? (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <SectionCard title="Average Visit" eyebrow="Traffic Overview" isLightTheme={isLightTheme}>
+            <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
+              {formatAnalyticsDuration(data.summary.traffic.averageSessionSeconds)}
+            </p>
+            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
+              {data.summary.traffic.averageSessionSeconds === null ? "Duration is unavailable for this period" : "Average time on site"}
+            </p>
+          </SectionCard>
+          <SectionCard title="Bounce Rate" eyebrow="Traffic Overview" isLightTheme={isLightTheme}>
+            <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
+              {data.summary.traffic.bounceRate === null || data.summary.traffic.bounceRate === undefined
+                ? "Unavailable"
+                : `${formatNumber(data.summary.traffic.bounceRate)}%`}
+            </p>
+            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
+              Single-page visits divided by visits
+            </p>
+          </SectionCard>
+          <SectionCard title="Active Visitors" eyebrow="Traffic Overview" isLightTheme={isLightTheme}>
+            <p className={classNames("text-3xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
+              {formatAnalyticsCount(data.summary.traffic.activeVisitors)}
+            </p>
+            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-slate-500" : "text-white/55")}>
+              Visitors seen in the last five minutes
+            </p>
+          </SectionCard>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-4">
         {loading || !data ? (
@@ -644,7 +709,61 @@ export default function Analytics() {
                 id: page.path || "/",
                 title: page.path || "/",
                 detail: `${formatNumber(page.pageviews)} pageviews · ${formatNumber(page.visitors)} visitors`,
-                metric: `${page.bounceRate}% bounce rate`,
+                metric: page.bounceRate === null ? `${formatNumber(page.visits)} visits` : `${page.bounceRate}% bounce rate`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion title="Landing Pages" isLightTheme={isLightTheme}>
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.pageviews.landingPages || data.pageviews.landingPages.length === 0 ? (
+            <AnalyticsEmptyState message="No landing page data available yet." isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.pageviews.landingPages.map((page) => ({
+                id: page.path,
+                title: page.path,
+                detail: `${formatNumber(page.visitors)} visitors · ${formatNumber(page.pageviews)} pageviews`,
+                metric: `${formatNumber(page.visits)} visits`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion title="Popular Services" isLightTheme={isLightTheme}>
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.pageviews.servicePages || data.pageviews.servicePages.length === 0 ? (
+            <AnalyticsEmptyState message="No service page traffic in this period." isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.pageviews.servicePages.map((page) => ({
+                id: page.label,
+                title: page.label,
+                detail: `${formatNumber(page.visitors)} visitors · ${formatNumber(page.pageviews)} pageviews`,
+                metric: `${page.share}% share`,
+              }))}
+            />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion title="Webinar Pages" isLightTheme={isLightTheme}>
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.pageviews.webinarPages || data.pageviews.webinarPages.length === 0 ? (
+            <AnalyticsEmptyState message="No webinar page traffic in this period." isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList
+              isLightTheme={isLightTheme}
+              items={data.pageviews.webinarPages.map((page) => ({
+                id: page.label,
+                title: page.label,
+                detail: `${formatNumber(page.visitors)} visitors · ${formatNumber(page.pageviews)} pageviews`,
+                metric: `${page.share}% share`,
               }))}
             />
           )}
@@ -738,6 +857,20 @@ export default function Analytics() {
             <AnalyticsEmptyState isLightTheme={isLightTheme} />
           ) : (
             <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.browsers.items)} />
+          )}
+        </AnalyticsAccordion>
+
+        <AnalyticsAccordion
+          title="Operating Systems"
+          warning={data?.insights?.operatingSystems?.warning}
+          isLightTheme={isLightTheme}
+        >
+          {loading || !data ? (
+            <LoadingRows />
+          ) : !data.insights?.operatingSystems || data.insights.operatingSystems.items.length === 0 ? (
+            <AnalyticsEmptyState message={data?.insights?.operatingSystems?.status === "unsupported" ? "Operating system data is not available from this source." : "No operating system data available yet."} isLightTheme={isLightTheme} />
+          ) : (
+            <AnalyticsMetricList isLightTheme={isLightTheme} items={insightItems(data.insights.operatingSystems.items)} />
           )}
         </AnalyticsAccordion>
 
