@@ -18,6 +18,20 @@ export function formatAnalyticsDuration(seconds: number | null | undefined) {
   return `${minutes}m ${remainder}s`;
 }
 
+export function analyticsComparisonLabel(metric: {
+  current: number;
+  previous: number;
+  deltaLabel: string;
+} | null | undefined) {
+  if (!metric) {
+    return null;
+  }
+  if (metric.previous === 0) {
+    return metric.current === 0 ? "No change from the previous period" : "No previous-period activity";
+  }
+  return metric.deltaLabel;
+}
+
 export function goatCounterConnectionLabel(input: { connected: boolean; reason?: string | null }) {
   return analyticsConnectionLabel(input);
 }

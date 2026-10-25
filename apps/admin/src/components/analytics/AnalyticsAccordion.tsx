@@ -1,3 +1,5 @@
+import { useId, useState } from "react";
+
 interface AnalyticsAccordionProps {
   title: string;
   helperText?: string;
@@ -19,40 +21,73 @@ export default function AnalyticsAccordion({
   isLightTheme,
   children,
 }: AnalyticsAccordionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
+  const headingId = useId();
+
   return (
-    <details
-      open={defaultOpen}
+    <section
       className={classNames(
-        "group rounded-3xl border shadow-sm backdrop-blur-sm",
-        isLightTheme
-          ? "border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
-          : "border-white/10 bg-white/5 shadow-[0_16px_40px_rgba(2,6,23,0.24)]",
+        "rounded-2xl border",
+        isLightTheme ? "border-slate-200 bg-white" : "border-white/10 bg-white/[0.04]",
       )}
     >
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-6 py-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent-cyan">Analytics Insight</p>
-          <h2 className={classNames("mt-2 text-xl font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>{title}</h2>
-          {helperText ? (
-            <p className={classNames("mt-2 max-w-4xl text-sm leading-6", isLightTheme ? "text-slate-600" : "text-white/60")}>
-              {helperText}
-            </p>
-          ) : null}
-          {warning ? (
-            <p className={classNames("mt-2 text-sm", isLightTheme ? "text-amber-700" : "text-amber-100")}>{warning}</p>
-          ) : null}
-        </div>
-        <span
-          aria-hidden="true"
+      <h2 id={headingId} className="m-0">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((current) => !current)}
           className={classNames(
-            "mt-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-lg transition group-open:rotate-180",
-            isLightTheme ? "border-slate-200 bg-slate-50 text-slate-600" : "border-white/10 bg-white/5 text-white/70",
+            "flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left",
+            isLightTheme ? "hover:bg-slate-50" : "hover:bg-white/[0.03]",
           )}
         >
-          v
-        </span>
-      </summary>
-      <div className="px-6 pb-6">{children}</div>
-    </details>
+          <span className="min-w-0">
+            <span className={classNames("block truncate text-sm font-semibold", isLightTheme ? "text-slate-900" : "text-white")}>
+              {title}
+            </span>
+            {warning ? (
+              <span className={classNames("mt-1 block truncate text-xs", isLightTheme ? "text-amber-700" : "text-amber-100")}>
+                {warning}
+              </span>
+            ) : null}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            className={classNames(
+              "h-4 w-4 shrink-0 text-accent-cyan transition-transform duration-200 motion-reduce:transition-none",
+              open ? "rotate-180" : "rotate-0",
+            )}
+          >
+            <path d="M5 7.5 10 12.5 15 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </h2>
+      <div
+        className={classNames(
+          "grid transition-[grid-template-rows] duration-200 motion-reduce:transition-none",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div
+            id={panelId}
+            role="region"
+            aria-labelledby={headingId}
+            aria-hidden={!open}
+            inert={!open}
+          >
+            <div className="space-y-4 px-4 pb-4">
+              {helperText ? (
+                <p className={classNames("text-xs leading-5", isLightTheme ? "text-slate-500" : "text-white/50")}>{helperText}</p>
+              ) : null}
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
