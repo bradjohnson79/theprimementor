@@ -756,6 +756,7 @@ async function getUmamiAdminAnalyticsSummary(
       service: probed.service === "unconfigured" ? "degraded" : probed.service,
       database: "ok",
       reporting: "ok",
+      lastSuccessAt: new Date().toISOString(),
     };
     return {
       range,

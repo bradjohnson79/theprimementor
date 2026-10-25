@@ -84,6 +84,7 @@ test("summary maps visits, duration, bounce rate, and the previous period", asyn
     assert.equal(result.trends.visitors?.previous, 3);
     assert.equal("source" in result && result.source.provider, "umami");
     assert.equal("source" in result && result.source.health.database, "ok");
+    assert.match("source" in result ? result.source.health.lastSuccessAt ?? "" : "", /^\d{4}-/);
     assert.equal(JSON.stringify(logger.warnings).includes("not-logged"), false);
   } finally {
     globalThis.fetch = originalFetch;
