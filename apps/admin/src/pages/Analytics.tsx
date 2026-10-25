@@ -982,7 +982,12 @@ export default function Analytics() {
               <Fact label="Service" value={healthLabel(health?.service)} isLightTheme={isLightTheme} />
               <Fact
                 label="Error details"
-                value={health?.authFailures ? `${health.authFailures} auth failure${health.authFailures === 1 ? "" : "s"}` : warnings[0] ?? data.summary.source?.reason ?? "None"}
+                value={
+                  health?.authFailures
+                    ? `${health.authFailures} auth failure${health.authFailures === 1 ? "" : "s"}`
+                    : warnings[0]
+                      ?? (data.summary.source?.reason && data.summary.source?.reason !== "ok" ? data.summary.source.reason : "None")
+                }
                 isLightTheme={isLightTheme}
               />
             </div>
