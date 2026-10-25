@@ -3,6 +3,7 @@ import { regenerationSessionLandingContent } from "../data/regenerationSessionLa
 import { usePageMeta } from "../hooks/usePageMeta";
 import { REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
 import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
+import { sessionServiceLd } from "../lib/structuredData";
 
 export default function RegenerationSessionPage() {
   usePageMeta({
@@ -13,6 +14,12 @@ export default function RegenerationSessionPage() {
     // BRAD-ANSWERS.md Round 3 #3: this route previously had no og:image.
     // Use the same product artwork already shown on this page.
     ogImage: "https://theprimementor.com/images/manifestation-monthly-package.png",
+    jsonLd: [sessionServiceLd({
+      name: "Manifestation Monthly Package",
+      path: REGENERATION_LANDING_PATH,
+      productKeys: ["regeneration-session"],
+      description: "A monthly manifestation package with two consultations, a personal ideogram circuit created by Brad Johnson, and manifestation safeguarding.",
+    })],
   });
   return (
     <>

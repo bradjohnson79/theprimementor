@@ -10,6 +10,7 @@ import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { REGENERATION_LANDING_PATH } from "../lib/sessionLandingPaths";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical } from "../lib/siteMeta";
+import { faqPageLd, sessionServiceLd } from "../lib/structuredData";
 
 const CTA_CLASS =
   "inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:from-cyan-400 hover:via-sky-400 hover:to-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60";
@@ -51,6 +52,15 @@ export default function RegenerationOfferPage() {
       "A limited-time Regeneration Q&A Package: one personalized Regeneration Session, 30 days of priority email support, and a private 30-minute Q&A session.",
     canonical: pageCanonical("/regeneration-offer"),
     ogImage: pageCanonical(regenerationOfferImage),
+    jsonLd: [
+      sessionServiceLd({
+        name: "Regeneration Q&A Package",
+        path: "/regeneration-offer",
+        productKeys: ["regeneration-qa-package"],
+        description: "A limited-time package: one personalized Regeneration Session, 30 days of priority email support, and a private 30-minute Q&A session.",
+      }),
+      faqPageLd(FAQ_ITEMS, "/regeneration-offer"),
+    ],
   });
 
   const prefersReducedMotion = useReducedMotion();

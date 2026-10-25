@@ -9,6 +9,8 @@ import {
 } from "../lib/sessionLandingPaths";
 import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { getActiveSessionOfferingByBookingTypeId } from "@wisdom/utils";
+import { pageCanonical } from "../lib/siteMeta";
+import { sessionServiceLd } from "../lib/structuredData";
 
 type OfflineProduct = "email" | "pastLife";
 
@@ -66,8 +68,14 @@ export default function OfflineSessionPage({ product }: { product: OfflineProduc
   usePageMeta({
     title: `${content.title} | The Prime Mentor`,
     description: content.description,
-    canonical: content.path,
-    ogImage: content.image,
+    canonical: pageCanonical(content.path),
+    ogImage: pageCanonical(content.image),
+    jsonLd: [sessionServiceLd({
+      name: content.title,
+      path: content.path,
+      productKeys: [content.bookingTypeId],
+      description: content.description,
+    })],
   });
 
   return (

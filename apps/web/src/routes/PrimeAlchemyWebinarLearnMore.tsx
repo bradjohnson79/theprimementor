@@ -14,6 +14,7 @@ import { trackCtaClick } from "../lib/analytics";
 import { startWebinarCheckout } from "../lib/webinarCheckout";
 import { fetchWebinarMe } from "../lib/webinarApi";
 import GuestCheckoutModal from "../components/guest/GuestCheckoutModal";
+import { onlineEventLd } from "../lib/structuredData";
 
 const CTA_CLASS_NAME = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#D7B454] to-[#F2D88A] px-6 py-3 text-sm font-semibold text-[#07111C] shadow-[0_10px_32px_rgba(215,180,84,0.22)] transition hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
@@ -33,6 +34,17 @@ export default function PrimeAlchemyWebinarLearnMore() {
     description: catalog.description,
     canonical: `https://theprimementor.com${catalog.checkoutPath}`,
     ogImage: `https://theprimementor.com${catalog.landscapePosterPath}`,
+    jsonLd: [onlineEventLd({
+      name: catalog.title,
+      description: catalog.description,
+      path: catalog.checkoutPath,
+      startsAt: catalog.startsAt,
+      durationMinutes: catalog.durationMinutes,
+      priceCents: catalog.priceCents,
+      currency: catalog.currency,
+      image: catalog.landscapePosterPath,
+      isOpen: catalog.registrationOpen,
+    })],
   });
 
   useEffect(() => {

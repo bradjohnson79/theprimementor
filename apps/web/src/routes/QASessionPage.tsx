@@ -12,6 +12,7 @@ import {
   getSessionOfferingsByType,
   type GuidedSessionDurationOption,
 } from "../lib/sessionCatalog";
+import { sessionServiceLd } from "../lib/structuredData";
 
 const QA_DURATION_SUMMARIES: Record<string, string> = {
   "qa-session-30": "One focused question or quick clarity",
@@ -137,6 +138,12 @@ export default function QASessionPage() {
       "Bring your biggest question. Leave with a clear answer. Live Q&A on Zoom with Brad Johnson or Adronis, from $139 CAD, recording included.",
     canonical: pageCanonical(QA_LANDING_PATH),
     ogImage: pageCanonical("/images/Q&A Session.png"),
+    jsonLd: [sessionServiceLd({
+      name: "Q&A Session",
+      path: QA_LANDING_PATH,
+      sessionType: "qa_session",
+      description: "A live Q&A session on Zoom or by phone with Brad Johnson or Adronis. Bring your biggest question and leave with a clear answer. Recording included.",
+    })],
   });
 
   return (

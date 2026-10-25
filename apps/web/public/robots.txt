@@ -1,0 +1,43 @@
+# robots.txt for https://theprimementor.com
+# Search engines and AI crawlers are welcome on all public pages.
+# Account, checkout, intake and order pages are private and not useful to index.
+
+User-agent: *
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: DuckDuckBot
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /bookings
+Disallow: /sessions$
+Disallow: /sessions/*/book
+Disallow: /sessions/live/book
+Disallow: /sessions/regeneration/success
+Disallow: /member/
+Disallow: /mentor-training
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /order/
+Disallow: /intake/
+Disallow: /shop/success
+Disallow: /shop/order/
+Disallow: /regeneration-offer/success
+Disallow: /*/thank-you
+Disallow: /error
+Disallow: /spa.html
+
+Sitemap: https://theprimementor.com/sitemap.xml

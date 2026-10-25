@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ContactPublicContent } from "./ContactPublic";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+import { personLd } from "../lib/structuredData";
 
 const spiritualLivingImage = "/about/spiritual_living.jpg";
 const spiritualityNowImage = "/about/spirituality_now.jpg";
@@ -343,6 +344,7 @@ export default function Media() {
     description: "Book Brad Johnson for your podcast or show: official bios, interview topics, and media assets for International Metaphysical Expert, Consciousness Researcher & Speaker.",
     canonical: pageCanonical("/media"),
     ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [personLd()],
   });
   return (
     <main className="relative overflow-hidden text-white">

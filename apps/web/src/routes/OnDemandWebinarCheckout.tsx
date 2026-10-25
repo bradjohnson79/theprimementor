@@ -11,6 +11,7 @@ import OnDemandWebinarCheckoutButton from "../components/webinars/OnDemandWebina
 import { usePageMeta } from "../hooks/usePageMeta";
 import { trackCtaClick } from "../lib/analytics";
 import { fetchOnDemandWebinarMe, fetchPublicOnDemandWebinar, startOnDemandWebinarCheckout } from "../lib/onDemandWebinarApi";
+import { onDemandVideoProductLd } from "../lib/structuredData";
 
 const CTA_CLASS_NAME = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#D7B454] to-[#F2D88A] px-6 py-3 text-sm font-semibold text-[#07111C] shadow-[0_10px_32px_rgba(215,180,84,0.22)] transition hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto";
 
@@ -45,6 +46,16 @@ export default function OnDemandWebinarCheckout({
       : "https://theprimementor.com",
     ogImage: sourceWebinar
       ? `https://theprimementor.com${sourceWebinar.landscapePosterPath}`
+      : undefined,
+    jsonLd: sourceWebinar
+      ? [onDemandVideoProductLd({
+        name: sourceWebinar.title,
+        description: sourceWebinar.description,
+        path: sourceWebinar.checkoutPath,
+        image: sourceWebinar.landscapePosterPath,
+        priceCents: sourceWebinar.priceCents,
+        currency: sourceWebinar.currency,
+      })]
       : undefined,
   });
 

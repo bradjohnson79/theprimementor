@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical } from "../lib/siteMeta";
+import { organizationLd, personLd } from "../lib/structuredData";
 
 const spiritualLivingImage = "/about/spiritual_living.jpg";
 const spiritualityNowImage = "/about/spirituality_now.jpg";
@@ -192,6 +193,8 @@ export default function About() {
       "Brad Johnson has spent more than 18 years helping people understand themselves more deeply and move forward with clarity, through private sessions, Divin8 reports, and The Prime Mentor.",
     canonical: pageCanonical("/about"),
     ogImage: pageCanonical("/about/bradjohnson.png"),
+    ogType: "profile",
+    jsonLd: [personLd(), organizationLd()],
   });
 
   return (

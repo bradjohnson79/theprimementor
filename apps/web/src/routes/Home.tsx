@@ -10,7 +10,7 @@ import {
 import HeroSection from "../components/hero/HeroSection";
 import PrimeMentorServices from "../components/home/PrimeMentorServices";
 import StartHereDoors from "../components/home/StartHereDoors";
-import HomeFaq from "../components/home/HomeFaq";
+import HomeFaq, { HOME_FAQS } from "../components/home/HomeFaq";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
 import HomeShopGallery from "../components/home/HomeShopGallery";
@@ -44,6 +44,7 @@ import { HOME_META } from "../lib/siteMeta";
 import { FACEBOOK_URL, INSTAGRAM_URL, THREADS_URL, YOUTUBE_URL } from "../lib/socialLinks";
 import { FacebookIcon, InstagramIcon, ThreadsIcon, YouTubeIcon } from "../components/public/SocialIcons";
 import { ContactPublicContent } from "./ContactPublic";
+import { faqPageLd, organizationLd, personLd, websiteLd } from "../lib/structuredData";
 
 
 interface ReportCardData {
@@ -390,6 +391,7 @@ export default function Home() {
     description: HOME_META.description,
     canonical: "https://theprimementor.com/",
     ogImage: "https://theprimementor.com/images/divin8-reports-og.webp",
+    jsonLd: [organizationLd(), personLd(), websiteLd(), faqPageLd(HOME_FAQS, "/")],
   });
 
   const [showFloatingBackToTop, setShowFloatingBackToTop] = useState(false);

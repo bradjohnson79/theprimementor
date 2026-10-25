@@ -5,6 +5,7 @@ import { MENTORING_LANDING_PATH } from "../lib/sessionLandingPaths";
 import { pageCanonical } from "../lib/siteMeta";
 import GuestPayFirstButton from "../components/guest/GuestPayFirstButton";
 import { formatGuidedSessionDisplayPrice, getSessionOfferingsByType } from "../lib/sessionCatalog";
+import { sessionServiceLd } from "../lib/structuredData";
 
 const MENTORING_GUEST_CHOICES = getSessionOfferingsByType("mentoring").map((offering) => ({
   label: `${offering.minutes} minutes — ${formatGuidedSessionDisplayPrice(offering)}`,
@@ -18,6 +19,12 @@ export default function MentoringSessionPage() {
       "A 45 or 90-minute mentoring session with Brad Johnson to untangle the pattern that keeps repeating, and leave with a plan to change it. $199 or $299 CAD.",
     canonical: pageCanonical(MENTORING_LANDING_PATH),
     ogImage: pageCanonical("/images/mentoring-session.webp"),
+    jsonLd: [sessionServiceLd({
+      name: "Mentoring Session",
+      path: MENTORING_LANDING_PATH,
+      sessionType: "mentoring",
+      description: "A 45 or 90-minute private mentoring session with Brad Johnson to untangle the pattern that keeps repeating and leave with a plan to change it.",
+    })],
   });
   return (
     <SessionLandingPage

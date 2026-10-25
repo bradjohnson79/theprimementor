@@ -18,6 +18,28 @@ import { startMembershipCheckoutSession } from "../lib/membershipCheckout";
 import PromoCodeInput from "../components/checkout/PromoCodeInput";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+import { MEMBER_PRICING } from "@wisdom/utils";
+import { membershipServiceLd } from "../lib/structuredData";
+
+/** Unique title/description per membership URL (all three render this page). */
+function membershipMeta(pathname: string) {
+  if (pathname.startsWith("/subscriptions/seeker")) {
+    return {
+      title: "Seeker Membership | The Prime Mentor",
+      description: `Seeker membership at The Prime Mentor: ongoing Divin8 guidance and member savings for ${MEMBER_PRICING.seeker.monthly.label} or ${MEMBER_PRICING.seeker.annual.label}.`,
+    };
+  }
+  if (pathname.startsWith("/subscriptions/initiate")) {
+    return {
+      title: "Initiate Membership | The Prime Mentor",
+      description: `Initiate membership at The Prime Mentor: deeper Divin8 guidance, member savings, and course support for ${MEMBER_PRICING.initiate.monthly.label} or ${MEMBER_PRICING.initiate.annual.label}.`,
+    };
+  }
+  return {
+    title: "Membership | The Prime Mentor",
+    description: "Join The Prime Mentor as a Seeker or Initiate member for ongoing Divin8 guidance, member savings, and course support.",
+  };
+}
 
 function resolveTierFromPath(pathname: string): MembershipSignupTierKey | null {
   if (pathname.endsWith("/seeker")) return "seeker";
@@ -37,10 +59,10 @@ export default function MembershipSignup() {
   // doesn't exist in the router. Use the real /subscriptions/seeker or
   // /subscriptions/initiate path instead (BRAD-ANSWERS.md #11b).
   usePageMeta({
-    title: "Membership | The Prime Mentor",
-    description: "Join The Prime Mentor as a Seeker or Initiate member for ongoing Divin8 guidance, member savings, and course support.",
+    ...membershipMeta(location.pathname),
     canonical: pageCanonical(location.pathname),
     ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [membershipServiceLd(location.pathname)],
   });
   const { isSignedIn, isLoaded, getToken, userId } = useAuth();
   const { tierState, refetch } = useCurrentUser();

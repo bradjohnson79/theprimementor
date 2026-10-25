@@ -142,6 +142,9 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
         {HERO_TEXT_SLIDES.map((slide, index) => {
           const isActive = activeSlideIndex === index;
           const isPrevious = previousSlideIndex === index;
+          // One <h1> per page: the first slide is the page heading, the rotating
+          // slides render the same styling as <h2>.
+          const Headline = index === 0 ? motion.h1 : motion.h2;
           return (
             <div
               key={slide.eyebrow}
@@ -163,7 +166,7 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
                 {slide.eyebrow}
               </motion.p>
 
-              <motion.h1
+              <Headline
                 id={isActive ? "hero-heading" : undefined}
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -175,7 +178,7 @@ export default function HeroContent({ onExploreReports }: HeroContentProps) {
                     {line}
                   </span>
                 ))}
-              </motion.h1>
+              </Headline>
 
               <motion.p
                 initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}

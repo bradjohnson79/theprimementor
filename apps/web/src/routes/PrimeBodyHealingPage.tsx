@@ -8,6 +8,7 @@ import {
   PRIME_BODY_HEALING_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
+import { faqPageLd, sessionServiceLd } from "../lib/structuredData";
 
 const LEVEL_1_IMAGE = "/images/prime-body-healing-level-1.png";
 const LEVEL_2_IMAGE = "/images/prime-body-healing-level-2.png";
@@ -114,19 +115,14 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 
 export default function PrimeBodyHealingPage() {
   const jsonLd = useMemo(() => [
-    {
-      "@context": "https://schema.org",
-      "@type": "Service",
+    sessionServiceLd({
       name: "Prime Body Healing",
+      path: PRIME_BODY_HEALING_LANDING_PATH,
+      sessionType: "prime_body_healing",
       description:
-        "Explore Prime Body Healing with Brad Johnson — personalized energetic rejuvenation through focused Level 1 healing or the comprehensive Level 2 energetic scan, healing and report.",
-      url: CANONICAL,
-      areaServed: "CA",
-      offers: [
-        { "@type": "Offer", name: "Prime Body Healing Level 1", price: "79.00", priceCurrency: "CAD" },
-        { "@type": "Offer", name: "Prime Body Healing Level 2", price: "179.00", priceCurrency: "CAD" },
-      ],
-    },
+        "Prime Body Healing with Brad Johnson: personalized energetic rejuvenation through focused Level 1 healing or the comprehensive Level 2 energetic scan, healing and report.",
+    }),
+    faqPageLd(FAQ_ITEMS, PRIME_BODY_HEALING_LANDING_PATH),
   ], []);
 
   usePageMeta({

@@ -16,6 +16,7 @@ import { filterCompliantTestimonials } from "../lib/testimonialCompliance";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 import GuestCheckoutModal from "../components/guest/GuestCheckoutModal";
+import { ORGANIZATION_ID } from "../lib/structuredData";
 
 function formatInline(text: string) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => (
@@ -61,6 +62,22 @@ export default function ShopProduct() {
     description: product?.quickSummary || "Digital tools for personal spiritual wellness practice, created by Brad Johnson.",
     canonical: pageCanonical(`/shop/${slug ?? ""}`),
     ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: product ? [{
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      description: product.quickSummary || product.subtitle || undefined,
+      url: pageCanonical(`/shop/${product.slug}`),
+      brand: { "@type": "Brand", name: "The Prime Mentor" },
+      offers: {
+        "@type": "Offer",
+        price: (product.priceCents / 100).toFixed(2),
+        priceCurrency: product.currency,
+        url: pageCanonical(`/shop/${product.slug}`),
+        availability: product.canPurchase ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        seller: { "@id": ORGANIZATION_ID },
+      },
+    }] : undefined,
   });
   const [purchased, setPurchased] = useState(false);
   const [missing, setMissing] = useState(false);

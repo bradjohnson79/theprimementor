@@ -12,5 +12,5 @@ export const HOME_META = {
 export function pageCanonical(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${SITE_ORIGIN}${normalized}`;
+  return `${SITE_ORIGIN}${normalized.replace(/ /g, "%20")}`;
 }

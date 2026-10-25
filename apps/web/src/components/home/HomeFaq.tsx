@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { QA_LANDING_PATH, MENTORING_LANDING_PATH } from "../../lib/sessionLandingPaths";
 
-const FAQS = [
+export const HOME_FAQS = [
   {
     question: "What's the difference between a report, a Q&A, and mentoring?",
     answer:
@@ -29,6 +29,7 @@ const FAQS = [
       "No. Prime Mentor work is spiritual mentoring, written reports, and energetic practice. It is not medical, psychological, or financial advice, and results vary.",
   },
 ] as const;
+const FAQS = HOME_FAQS;
 
 export default function HomeFaq() {
   const [open, setOpen] = useState<number | null>(0);
