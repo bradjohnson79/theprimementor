@@ -35,6 +35,26 @@ test("thank-you URL: kind, product, intake token and Stripe's session placeholde
   assert.equal(params.get("intake"), "tok123");
 });
 
+test("thank-you URL uses the production site when no frontend URL is configured in production", () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousAppUrl = process.env.APP_URL;
+  const previousViteUrl = process.env.VITE_APP_URL;
+  delete process.env.FRONTEND_URL;
+  delete process.env.APP_URL;
+  delete process.env.VITE_APP_URL;
+  process.env.NODE_ENV = "production";
+  try {
+    const url = buildGuestThankYouUrl({ token: "tok", kind: "services", product: "email-session" });
+    assert.ok(url.startsWith("https://theprimementor.com/order/thank-you?"));
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+    if (previousAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousAppUrl;
+    if (previousViteUrl === undefined) delete process.env.VITE_APP_URL;
+    else process.env.VITE_APP_URL = previousViteUrl;
+  }
+});
+
 test("thank-you URL: product is optional", () => {
   process.env.FRONTEND_URL = "https://example.test";
   const params = new URL(buildGuestThankYouUrl({ token: "t", kind: "services" }).replace("{CHECKOUT_SESSION_ID}", "x")).searchParams;

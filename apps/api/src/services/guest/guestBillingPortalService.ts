@@ -1,11 +1,8 @@
+import { getFrontendUrl } from "../../config/membershipBilling.js";
 import { createHttpError } from "../booking/errors.js";
 import { ensureStripeCustomerId } from "../payments/stripeCustomerService.js";
 import { createStripeClient } from "../stripe/stripeClientFactory.js";
 import type { Database } from "@wisdom/db";
-
-function getFrontendUrl(): string {
-  return (process.env.FRONTEND_URL || process.env.APP_URL || "http://localhost:3000").trim().replace(/\/$/, "");
-}
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();

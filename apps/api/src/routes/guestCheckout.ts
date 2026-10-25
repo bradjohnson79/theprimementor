@@ -4,6 +4,7 @@ import { bookings, bookingTypes, type Database } from "@wisdom/db";
 import { logger } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { requireDatabase } from "../routeAssertions.js";
+import { getFrontendUrl } from "../config/membershipBilling.js";
 import { createHttpError } from "../services/booking/errors.js";
 import { createBooking, createDeferredIntakeBooking } from "../services/booking/bookingService.js";
 import { createDeferredIntakeReportOrder, createMemberReportOrder } from "../services/reportPurchaseService.js";
@@ -32,10 +33,6 @@ import {
 const GUEST_RATE_LIMIT = { max: 10, timeWindow: "1 minute" } as const;
 /** Per-IP limit for link-request endpoints (resend-links, order-access/issue). Per-address limits live in guestLinkRequestService. */
 const GUEST_RESEND_RATE_LIMIT = { max: 5, timeWindow: "10 minutes" } as const;
-
-function getFrontendUrl(): string {
-  return (process.env.FRONTEND_URL || process.env.APP_URL || "http://localhost:3000").trim().replace(/\/$/, "");
-}
 
 function buildOrderPageUrl(token: string): string {
   return `${getFrontendUrl()}/order/${encodeURIComponent(token)}`;

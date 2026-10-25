@@ -18,6 +18,7 @@ import {
   type Database,
 } from "@wisdom/db";
 import { logger } from "@wisdom/utils";
+import { getFrontendUrl } from "../../config/membershipBilling.js";
 import { createHttpError } from "../booking/errors.js";
 import { normalizeGuestEmail } from "./guestIdentity.js";
 import { issueOrderAccessToken, verifyOrderAccessToken, revokeOrderAccessToken } from "./orderAccessTokenService.js";
@@ -53,7 +54,7 @@ export async function requestLinkPurchaseByEmail(
     metadata: { targetUserId: input.targetUserId },
   });
 
-  const verifyUrl = `${(process.env.FRONTEND_URL || process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "")}/account/link-purchase/confirm?token=${encodeURIComponent(token)}`;
+  const verifyUrl = `${getFrontendUrl()}/account/link-purchase/confirm?token=${encodeURIComponent(token)}`;
   await sendLinkPurchaseVerificationEmail({ to: email, verifyUrl });
 }
 

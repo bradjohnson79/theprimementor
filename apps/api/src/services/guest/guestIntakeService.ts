@@ -1,6 +1,7 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { bookings, guestClaimAudit, payments, users, type Database } from "@wisdom/db";
 import { logger } from "@wisdom/utils";
+import { getFrontendUrl } from "../../config/membershipBilling.js";
 import { createHttpError } from "../booking/errors.js";
 import {
   completeDeferredBookingIntake,
@@ -31,10 +32,6 @@ export type GuestIntakeKind = "services" | "reports";
 export type GuestIntakeEntityType = "session" | "report";
 
 const INVALID_LINK_MESSAGE = "This link has expired or is no longer valid.";
-
-function getFrontendUrl(): string {
-  return (process.env.FRONTEND_URL || process.env.APP_URL || "http://localhost:3000").trim().replace(/\/$/, "");
-}
 
 export function intakeKindForEntity(entityType: GuestIntakeEntityType): GuestIntakeKind {
   return entityType === "report" ? "reports" : "services";
