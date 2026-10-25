@@ -27,7 +27,17 @@ import { PUBLIC_ROUTES, SITE_ORIGIN, fetchShopRoutes } from "./seo-routes.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, "../dist");
 const strict = process.env.PRERENDER_STRICT === "1";
-const apiBase = (process.env.VITE_API_URL || "").trim();
+// Same normalization as src/lib/apiBase.ts: a bare origin means "<origin>/api".
+function normalizeApiBase(value) {
+  const trimmed = (value || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    if (!url.pathname || url.pathname === "/") url.pathname = "/api";
+    return url.toString().replace(/\/+$/, "");
+  } catch { return trimmed; }
+}
+const apiBase = normalizeApiBase(process.env.VITE_API_URL);
 const log = (...args) => console.log("[prerender]", ...args);
 
 const MIME = {
