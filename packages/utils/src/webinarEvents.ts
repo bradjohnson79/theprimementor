@@ -124,6 +124,10 @@ export const PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH = "/webinars/prime-alchemy-tea
 export const PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID = "webinar-prime-alchemy-teachings";
 export const PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH = `${PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH}?autocheckout=1`;
 export const PRIME_ALCHEMY_WEBINAR_LIVE_STRIPE_PRICE_ID = "price_1USOJjAd5V3LaCqjMsii8snO";
+export const PRIME_ALCHEMY_ON_DEMAND_AVAILABLE_AT = "2026-11-02T00:00:00-08:00";
+export const PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE = "Monday, November 2, 2026";
+export const PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY =
+  "The live Mentoring Circle has ended. The recording will be available for on-demand purchase on Monday, November 2, 2026.";
 
 export const PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS = [
   "Join Brad Johnson live on Zoom on Sunday, November 1, 2026, for an immersive three-hour Mentoring Circle exploring Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.",
@@ -237,5 +241,8 @@ export function getPrimeAlchemyWebinarPublicCatalog(now = new Date()) {
     thankYouPath: PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH,
     autocheckoutPath: PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH,
     registrationOpen: isPrimeAlchemyWebinarRegistrationOpen(now),
+    onDemandAvailableAt: PRIME_ALCHEMY_ON_DEMAND_AVAILABLE_AT,
+    onDemandDisplayDate: PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE,
+    onDemandHomeSummary: PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY,
   };
 }

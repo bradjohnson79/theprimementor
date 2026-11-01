@@ -15,9 +15,8 @@ import { fetchWebinarMe } from "../../lib/webinarApi";
 import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
 import OnDemandWebinarCheckoutButton from "./OnDemandWebinarCheckoutButton";
 
-import { PURCHASE_REASSURANCE, REGISTER_REASSURANCE } from "../../lib/purchaseReassurance";
+import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 const PURCHASE_NOTE = PURCHASE_REASSURANCE;
-const REGISTER_NOTE = REGISTER_REASSURANCE;
 const UPCOMING_TAB_ID = "upcoming";
 
 function fallbackCatalog(webinar: OnDemandWebinarCatalogEntry) {
@@ -41,13 +40,15 @@ function useTabOrientation() {
 export default function OnDemandWebinarsHomeWidget() {
   const webinars = useMemo(() => listPublishedOnDemandWebinars(), []);
   const upcoming = useMemo(() => getPrimeAlchemyWebinarPublicCatalog(), []);
-  const showUpcoming = upcoming.registrationOpen;
+  const showUpcoming = true;
+  const liveRegistrationOpen = upcoming.registrationOpen;
   const tabs = useMemo(() => {
-    const items: Array<{ id: string; label: string }> = [];
-    if (showUpcoming) items.push({ id: UPCOMING_TAB_ID, label: "Upcoming" });
+    const items: Array<{ id: string; label: string }> = [
+      { id: UPCOMING_TAB_ID, label: upcoming.title },
+    ];
     for (const webinar of webinars) items.push({ id: webinar.webinarId, label: webinar.title });
     return items;
-  }, [showUpcoming, webinars]);
+  }, [upcoming.title, webinars]);
   const { isSignedIn, getToken } = useAuth();
   const [searchParams] = useSearchParams();
   const [activeId, setActiveId] = useState(showUpcoming ? UPCOMING_TAB_ID : (webinars[0]?.webinarId ?? ""));
@@ -95,9 +96,7 @@ export default function OnDemandWebinarsHomeWidget() {
           const state = await fetchOnDemandWebinarMe(webinar.webinarId, token);
           return [webinar.webinarId, state] as const;
         }));
-        const upcomingState = showUpcoming
-          ? await fetchWebinarMe(PRIME_ALCHEMY_WEBINAR_EVENT_ID, token).catch(() => null)
-          : null;
+        const upcomingState = await fetchWebinarMe(PRIME_ALCHEMY_WEBINAR_EVENT_ID, token).catch(() => null);
         if (cancelled) return;
         setOwnedById(Object.fromEntries(entries.map(([id, state]) => [id, state.owned])));
         setUpcomingOwned(upcomingState?.joinEligible === true);
@@ -115,7 +114,7 @@ export default function OnDemandWebinarsHomeWidget() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isSignedIn, showUpcoming, webinars]);
+  }, [getToken, isSignedIn, webinars]);
 
   useEffect(() => {
     if (!activeWebinar?.published) return;
@@ -160,10 +159,10 @@ export default function OnDemandWebinarsHomeWidget() {
         <div className="mb-6 max-w-3xl space-y-3">
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-100/70">Webinars</p>
           <h2 id="on-demand-webinars-heading" className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-            Upcoming and on demand
+            On demand
           </h2>
           <p className="text-sm leading-7 text-white/68 sm:text-base">
-            Join the next live Mentoring Circle, or watch a recorded Adronis webinar anytime in Dashboard → Webinars.
+            Watch recorded webinars anytime in Dashboard → Webinars. Mentoring Circle: Prime Alchemy Teachings will be available on demand November 2.
           </p>
         </div>
 
@@ -220,38 +219,37 @@ export default function OnDemandWebinarsHomeWidget() {
                   />
                   <div className="flex flex-col justify-center space-y-4">
                     <div className="space-y-2">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/75">Upcoming Live Event</p>
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/75">Available On Demand</p>
                       <h3 className="text-2xl font-semibold tracking-[-0.03em] text-white">{upcoming.title}</h3>
-                      <p className="text-sm font-medium text-cyan-100/80">{upcoming.displayDate}</p>
-                      <p className="text-sm text-white/60">{upcoming.displayTime}</p>
-                      {upcoming.descriptionParagraphs.map((paragraph) => (
-                        <p key={paragraph} className="text-sm leading-7 text-white/70">{paragraph}</p>
-                      ))}
+                      <p className="text-sm font-medium text-cyan-100/80">{upcoming.onDemandDisplayDate}</p>
+                      <p className="text-sm leading-7 text-white/70">{upcoming.onDemandHomeSummary}</p>
                     </div>
-                    <p className="text-lg font-semibold text-amber-100">{upcoming.displayPrice}</p>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <AdronisWebinarCheckoutButton
-                        source="home_upcoming_webinar"
-                        eventId={upcoming.eventId}
-                        title={upcoming.title}
-                        autocheckoutPath={upcoming.autocheckoutPath}
-                        thankYouPath={upcoming.thankYouPath}
-                        owned={upcomingOwned}
-                        registrationOpen={upcoming.registrationOpen}
-                        onError={setError}
-                        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                      >
-                        {upcomingOwned ? "Access Webinar Registration" : `Register — ${upcoming.displayPrice}`}
-                      </AdronisWebinarCheckoutButton>
-                      <Link
-                        to={upcoming.checkoutPath}
-                        className="inline-flex min-h-11 items-center justify-center text-sm font-semibold text-cyan-100 underline-offset-4 hover:underline"
-                      >
-                        Learn More
-                      </Link>
-                    </div>
-                    {upcomingOwned ? null : <p className="text-xs text-white/50">{REGISTER_NOTE}</p>}
-                    {checkoutCanceled ? <p className="text-sm text-amber-200">Checkout was canceled. You can register whenever you are ready.</p> : null}
+                    {upcomingOwned ? (
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <AdronisWebinarCheckoutButton
+                          source="home_upcoming_webinar"
+                          eventId={upcoming.eventId}
+                          title={upcoming.title}
+                          autocheckoutPath={upcoming.autocheckoutPath}
+                          thankYouPath={upcoming.thankYouPath}
+                          owned={upcomingOwned}
+                          registrationOpen={liveRegistrationOpen}
+                          onError={setError}
+                          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        >
+                          Access Webinar Registration
+                        </AdronisWebinarCheckoutButton>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium text-amber-100">On-demand purchase opens {upcoming.onDemandDisplayDate}.</p>
+                    )}
+                    <Link
+                      to={upcoming.checkoutPath}
+                      className="inline-flex min-h-11 items-center justify-center text-sm font-semibold text-cyan-100 underline-offset-4 hover:underline"
+                    >
+                      Learn More
+                    </Link>
+                    {checkoutCanceled ? <p className="text-sm text-amber-200">Live registration has ended. On-demand purchase opens {upcoming.onDemandDisplayDate}.</p> : null}
                     {error ? <p className="text-sm text-amber-200">{error}</p> : null}
                   </div>
                 </article>

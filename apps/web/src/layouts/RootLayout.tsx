@@ -81,14 +81,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Audit fix: "Mentoring Circle" used to land directly on a sign-in wall
-    // with no price or date visible first. Point to the next public, priced,
-    // dated event (Prime Alchemy, Nov 1, 2026) instead. See open questions in
-    // REPORT.md about whether to build a dedicated public Mentoring Circle page.
     label: "Events",
     href: "/webinars/prime-alchemy-teachings",
     items: [
-      { label: "Mentoring Circle: Prime Alchemy (Nov 1, 2026)", href: "/webinars/prime-alchemy-teachings" },
+      { label: "Mentoring Circle: Prime Alchemy (On Demand Nov 2)", href: "/webinars/prime-alchemy-teachings" },
     ],
   },
   {

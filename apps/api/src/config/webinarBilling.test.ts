@@ -145,6 +145,7 @@ test("prime alchemy public catalog omits the zoom registration url", () => {
   assert.equal(catalog.startsAt, "2026-11-01T10:00:00-08:00");
   assert.equal(catalog.displayTime, "10:00 AM Pacific / 1:00 PM Eastern");
   assert.equal(catalog.portraitPosterPath, "/images/webinars/prime-alchemy-teachings-9x16.jpg");
+  assert.equal(catalog.onDemandDisplayDate, "Monday, November 2, 2026");
   assert.doesNotMatch(serialized, /zoom\.us|W3SbW8mdQACjSbbU-YrHQg|price_1USOJj/i);
 });
 

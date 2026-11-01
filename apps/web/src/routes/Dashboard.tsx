@@ -661,13 +661,19 @@ export default function Dashboard() {
                       ? "Payment is processing. Your access will appear here shortly."
                       : purchasableCircleEvent
                         ? "Join upcoming circles and purchase access to live sessions."
-                        : `${upcomingMentoringCircle.displayDate} · ${upcomingMentoringCircle.displayTime} · ${upcomingMentoringCircle.displayPrice}`}
+                        : upcomingMentoringCircle.registrationOpen
+                          ? `${upcomingMentoringCircle.displayDate} · ${upcomingMentoringCircle.displayTime} · ${upcomingMentoringCircle.displayPrice}`
+                          : upcomingMentoringCircle.onDemandHomeSummary}
                   </p>
                   <Link
                     to={purchasableCircleEvent ? "/mentoring-circle" : upcomingMentoringCircle.checkoutPath}
                     className="cosmic-motion mt-4 inline-block rounded-md border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5"
                   >
-                    {purchasableCircleEvent ? "View Circle" : `Register — ${upcomingMentoringCircle.displayPrice}`}
+                    {purchasableCircleEvent
+                      ? "View Circle"
+                      : upcomingMentoringCircle.registrationOpen
+                        ? `Register — ${upcomingMentoringCircle.displayPrice}`
+                        : "View webinar"}
                   </Link>
                 </>
               )}

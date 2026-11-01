@@ -21,11 +21,13 @@ test.describe("Star Family public pages are retired", () => {
     await openHomepage(page);
     await expect(page.locator("#star-family-communion")).toHaveCount(0);
     await expect(page.locator("#on-demand-webinars")).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Upcoming" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: From Disclosure to Contact" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Register — $19.99 CAD" })).toBeVisible();
+    await expect(page.getByText("Monday, November 2, 2026").first()).toBeVisible();
+    await expect(page.getByText(/on-demand purchase on Monday, November 2, 2026/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Register —/ })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Learn More" })).toHaveAttribute("href", PRIME_ALCHEMY);
     await expect(page.getByRole("heading", { name: "Adronis: Star Family Communion" })).toHaveCount(0);
     await expect(page.locator(`a[href="${STAR_FAMILY}"]`)).toHaveCount(0);
@@ -74,9 +76,9 @@ test.describe("Disclosure on-demand remains isolated", () => {
   test("Prime Alchemy learn-more page stays public and hides the Zoom link", async ({ page }) => {
     await page.goto(PRIME_ALCHEMY);
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings", level: 1 })).toBeVisible();
-    await expect(page.getByText("Sunday, November 1, 2026").first()).toBeVisible();
-    await expect(page.getByText("10:00 AM Pacific / 1:00 PM Eastern").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Register — $19.99 CAD" }).first()).toBeVisible();
+    await expect(page.getByText("Monday, November 2, 2026").first()).toBeVisible();
+    await expect(page.getByText(/Live registration has ended/i).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Register —/ })).toHaveCount(0);
     await expect(page.getByText(/90-minute Mentoring Session/)).toBeVisible();
     await expect(page.getByText(/45-minute Mentoring Session/)).toBeVisible();
     await expect(page.getByText(/natal charts that Divin8 will provide/)).toBeVisible();
