@@ -5,7 +5,6 @@ import { pageCanonical } from "../lib/siteMeta";
 import { ORGANIZATION_ID } from "../lib/structuredData";
 import WebsiteStatusPage from "../components/public/WebsiteStatusPage";
 import {
-  APPAREL_CONFIG,
   PRODUCT_CODES,
   getDesignBySlug,
   getRelatedDesigns,
