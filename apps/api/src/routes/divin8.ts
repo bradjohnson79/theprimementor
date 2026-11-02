@@ -55,9 +55,19 @@ function sendConversationExport(reply: FastifyReply, exported: {
   filename: string;
   buffer: Buffer;
 }) {
-  reply.header("Content-Type", exported.contentType);
+  reply.type(exported.contentType);
   reply.header("Content-Disposition", `attachment; filename="${exported.filename}"`);
+  reply.header("Cache-Control", "no-store");
   return reply.send(exported.buffer);
+}
+
+function wrapConversationExportError(error: unknown) {
+  if (error instanceof Error && error.message === "PDF_EXPORT_FAILED") {
+    const wrapped = new Error("PDF export temporarily unavailable.");
+    (wrapped as Error & { statusCode?: number }).statusCode = 503;
+    return wrapped;
+  }
+  return error;
 }
 
 export async function divin8Routes(app: FastifyInstance) {
@@ -226,12 +236,7 @@ export async function divin8Routes(app: FastifyInstance) {
           format,
         }));
       } catch (error) {
-        if (error instanceof Error && error.message === "PDF_EXPORT_FAILED") {
-          const wrapped = new Error("PDF export temporarily unavailable.");
-          (wrapped as Error & { statusCode?: number }).statusCode = 503;
-          throw wrapped;
-        }
-        throw error;
+        throw wrapConversationExportError(error);
       }
     },
   );
@@ -258,12 +263,7 @@ export async function divin8Routes(app: FastifyInstance) {
       const exported = await exportConversation(app.db, { threadId, format });
       return sendConversationExport(reply, exported);
     } catch (error) {
-      if (error instanceof Error && error.message === "PDF_EXPORT_FAILED") {
-        const wrapped = new Error("PDF export temporarily unavailable.");
-        (wrapped as Error & { statusCode?: number }).statusCode = 503;
-        throw wrapped;
-      }
-      throw error;
+      throw wrapConversationExportError(error);
     }
   });
 
@@ -378,11 +378,15 @@ export async function divin8Routes(app: FastifyInstance) {
         return sendApiError(reply, 400, "format must be md, txt, pdf, or docx");
       }
 
-      const exported = await exportConversation(app.db, {
-        threadId: request.params.id,
-        format,
-      }, request.dbUser!.id);
-      return sendConversationExport(reply, exported);
+      try {
+        const exported = await exportConversation(app.db, {
+          threadId: request.params.id,
+          format,
+        }, request.dbUser!.id);
+        return sendConversationExport(reply, exported);
+      } catch (error) {
+        throw wrapConversationExportError(error);
+      }
     },
   );
 
@@ -404,8 +408,12 @@ export async function divin8Routes(app: FastifyInstance) {
       throw error;
     }
 
-    const exported = await exportConversation(app.db, { threadId, format }, request.dbUser!.id);
-    return sendConversationExport(reply, exported);
+    try {
+      const exported = await exportConversation(app.db, { threadId, format }, request.dbUser!.id);
+      return sendConversationExport(reply, exported);
+    } catch (error) {
+      throw wrapConversationExportError(error);
+    }
   });
 
   app.post("/member/divin8/conversations/backup", { preHandler: requireAuth }, async (request, reply) => {

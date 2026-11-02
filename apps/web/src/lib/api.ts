@@ -29,6 +29,30 @@ async function handleResponse(res: Response) {
   return res.json();
 }
 
+async function getDownloadErrorMessage(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const body = await res.json().catch(() => null) as { message?: unknown; error?: unknown } | null;
+    if (typeof body?.message === "string" && body.message.trim()) return body.message;
+    if (typeof body?.error === "string" && body.error.trim()) return body.error;
+  }
+  const text = await res.text().catch(() => "");
+  return text.trim() || res.statusText;
+}
+
+function downloadBlobResponse(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 export const api = {
   get: async (path: string, token?: string | null) => {
     const headers: Record<string, string> = {};
@@ -98,8 +122,7 @@ export const api = {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const bodyText = await res.text().catch(() => res.statusText);
-      throw new Error(bodyText || res.statusText);
+      throw new Error(await getDownloadErrorMessage(res));
     }
     const blob = await res.blob();
     const contentDisposition = res.headers.get("Content-Disposition");
@@ -108,11 +131,6 @@ export const api = {
     if (match?.[1]) {
       filename = match[1];
     }
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadBlobResponse(blob, filename);
   },
 };

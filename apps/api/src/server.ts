@@ -794,6 +794,7 @@ export async function buildApp() {
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Disposition"],
     credentials: true,
   });
   app.addHook("onSend", async (_request, reply, payload) => {
