@@ -24,6 +24,13 @@ export const ALEXANDER_GROSSMAN_TTT_TESTIMONIAL: TestimonialItem = {
   name: "Alexander Grossman",
 };
 
+export const CYNTHIA_STRICKLAN_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "cynthia-stricklan-ttt",
+  quote:
+    "Thank you so much for sharing the wisdom of this technique so freely for the benefit of all!! I feel certain I will use it greatly in the future and share it with others. How wonderful to know that we need not carry traumas and empty box desires which are heavy burdens.",
+  name: "Cynthia Stricklan",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -72,4 +79,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
   },
   NANCY_P_TTT_TESTIMONIAL,
   ALEXANDER_GROSSMAN_TTT_TESTIMONIAL,
+  CYNTHIA_STRICKLAN_TTT_TESTIMONIAL,
 ];

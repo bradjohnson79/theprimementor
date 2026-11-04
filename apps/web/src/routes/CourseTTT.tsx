@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { CourseLearningShell, type CourseLearningLesson, type CourseLearningSelectedLesson } from "@wisdom/ui/courses";
 import TestimonialsSlider from "../components/public/TestimonialsSlider";
-import { ALEXANDER_GROSSMAN_TTT_TESTIMONIAL, NANCY_P_TTT_TESTIMONIAL } from "../data/homeTestimonials";
+import { ALEXANDER_GROSSMAN_TTT_TESTIMONIAL, CYNTHIA_STRICKLAN_TTT_TESTIMONIAL, NANCY_P_TTT_TESTIMONIAL } from "../data/homeTestimonials";
 import {
   TTT_COURSE_SUMMARY,
   TTT_LESSONS,
@@ -159,7 +159,7 @@ export default function CourseTTT() {
       />
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6" aria-label="Testimonials">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Testimonials</p>
-        <TestimonialsSlider items={[NANCY_P_TTT_TESTIMONIAL, ALEXANDER_GROSSMAN_TTT_TESTIMONIAL]} className="pt-4" />
+        <TestimonialsSlider items={[NANCY_P_TTT_TESTIMONIAL, ALEXANDER_GROSSMAN_TTT_TESTIMONIAL, CYNTHIA_STRICKLAN_TTT_TESTIMONIAL]} className="pt-4" />
       </section>
     </motion.div>
   );
