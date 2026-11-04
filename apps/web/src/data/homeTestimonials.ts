@@ -17,6 +17,13 @@ export const NANCY_P_TTT_TESTIMONIAL: TestimonialItem = {
   name: "Nancy P",
 };
 
+export const ALEXANDER_GROSSMAN_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "alexander-grossman-ttt",
+  quote:
+    "Wonderful and very effective course. Thanks for making this available for free. It is amazing what is possible and how easy, when you start thinking in energies and identification with it. Keep continue the very valid work you are offering to humanity.",
+  name: "Alexander Grossman",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -64,4 +71,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
     role: "Texas",
   },
   NANCY_P_TTT_TESTIMONIAL,
+  ALEXANDER_GROSSMAN_TTT_TESTIMONIAL,
 ];
