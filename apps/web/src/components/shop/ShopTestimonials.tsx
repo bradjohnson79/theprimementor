@@ -40,11 +40,13 @@ export default function ShopTestimonials({
   heading,
   subtitle,
   disclaimer,
+  note,
   testimonials,
 }: {
   heading: string;
   subtitle?: string | null;
   disclaimer: string;
+  note?: string | null;
   testimonials: ShopPublicTestimonial[];
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -140,6 +142,8 @@ export default function ShopTestimonials({
         </button>
       </div>
 
+      {note ? <p className="mt-4 max-w-4xl text-xs leading-5 text-white/45">{note}</p> : null}
+
       <div className="mt-4 flex items-center justify-center gap-3 md:hidden">
         <button
           type="button"
@@ -170,7 +174,7 @@ export default function ShopTestimonials({
         </div>
       ) : null}
 
-      <p className="mt-8 max-w-4xl text-sm leading-7 text-white/55">{disclaimer}</p>
+      {disclaimer ? <p className="mt-8 max-w-4xl text-sm leading-7 text-white/55">{disclaimer}</p> : null}
     </section>
   );
 }

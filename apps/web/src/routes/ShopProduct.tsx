@@ -195,13 +195,8 @@ export default function ShopProduct() {
     );
   }
 
-  const pinnedSafeguardTestimonial = product?.slug === "digital-safeguard-kit" ? [MARIA_STECK_SAFEGUARD_TESTIMONIAL] : [];
-  const visibleTestimonials = [
-    ...filterCompliantTestimonials(product?.testimonials ?? []),
-    ...pinnedSafeguardTestimonial,
-  ];
-  const testimonialSection = product?.testimonialSection
-    ?? (pinnedSafeguardTestimonial.length > 0 ? SAFEGUARD_TESTIMONIAL_SECTION : null);
+  const visibleTestimonials = filterCompliantTestimonials(product?.testimonials ?? []);
+  const testimonialSection = product?.testimonialSection ?? null;
   const image = product?.images.find((item) => item.isPrimary) ?? product?.images[0];
   const canceled = searchParams.get("checkout") === "canceled";
   const unavailable = Boolean(product && product.canPurchase === false);
@@ -359,9 +354,17 @@ export default function ShopProduct() {
           heading={testimonialSection.heading}
           subtitle={testimonialSection.subtitle}
           disclaimer={testimonialSection.disclaimer}
-          // Catalog testimonials stay filtered. Maria Steck's Digital Safeguard
-          // Kit quote is pinned verbatim at Brad's request and is not filtered.
           testimonials={visibleTestimonials}
+        />
+      ) : null}
+
+      {product?.slug === "digital-safeguard-kit" ? (
+        <ShopTestimonials
+          heading={SAFEGUARD_TESTIMONIAL_SECTION.heading}
+          subtitle={SAFEGUARD_TESTIMONIAL_SECTION.subtitle}
+          disclaimer=""
+          note="Individual experience; results vary. Not medical advice."
+          testimonials={[MARIA_STECK_SAFEGUARD_TESTIMONIAL]}
         />
       ) : null}
 
