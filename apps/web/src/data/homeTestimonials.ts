@@ -45,6 +45,13 @@ export const KAREN_E_TTT_TESTIMONIAL: TestimonialItem = {
   name: "Karen E.",
 };
 
+export const GREGORY_WELLS_PBH_TESTIMONIAL: TestimonialItem = {
+  id: "gregory-wells-pbh",
+  quote:
+    "Thanks for the Prime Body Healing. I noticed an increase in mental energy and a heightened psychic clarity. It was relaxing and supported my mind-body center brain . The following day, I noticed an increase in will. Thank you for the free session.",
+  name: "Gregory Wells",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
