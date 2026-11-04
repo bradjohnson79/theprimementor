@@ -14,6 +14,7 @@ import {
   APPAREL_CONFIG,
   type ApparelDesign,
 } from "../data/apparel";
+import { apparelModelSrc, getApparelModelShots } from "../data/apparelModels";
 
 export default function ApparelProduct() {
   const { slug } = useParams();
@@ -31,7 +32,12 @@ export default function ApparelProduct() {
       description: design.description,
       url: pageCanonical(`/shop/apparel/${design.slug}`),
       brand: { "@type": "Brand", name: "The Prime Mentor" },
-      image: `https://theprimementor.com${getApparelImagePath(design)}`,
+      image: [
+        `https://theprimementor.com${getApparelImagePath(design)}`,
+        ...getApparelModelShots(design.slug)
+          .filter((shot) => shot.source === "spreadshop")
+          .map((shot) => `https://theprimementor.com${apparelModelSrc(design.slug, shot.file)}`),
+      ],
       offers: {
         "@type": "AggregateOffer",
         url: pageCanonical(`/shop/apparel/${design.slug}`),
@@ -62,6 +68,7 @@ export default function ApparelProduct() {
   const relatedDesigns = getRelatedDesigns(design, 3);
   const spreadshopUrl = buildSpreadshopUrl(design);
   const fromPrice = formatApparelFromPrice(design);
+  const modelShots = getApparelModelShots(design.slug);
 
   return (
     <main className="min-h-screen px-6 pb-20 pt-[0.6rem] text-white md:pt-[0.8rem]">
@@ -136,6 +143,36 @@ export default function ApparelProduct() {
           </div>
         </div>
       </div>
+
+      {modelShots.length > 0 ? (
+        <section className="mx-auto mt-16 max-w-6xl" aria-label="This design printed on apparel">
+          <h2 className="text-2xl font-semibold">Printed on</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-white/60">
+            Six different pieces this design is sold on. These photos are from the live Spreadshop pages for this artwork.
+          </p>
+          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3">
+            {modelShots.map((shot) => (
+              <figure key={shot.file} className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-[#070b16]">
+                <div className="bg-[#ececef]">
+                  <img
+                    src={apparelModelSrc(design.slug, shot.file)}
+                    alt={shot.alt}
+                    className="aspect-[4/5] w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+                <figcaption className="px-4 py-3">
+                  <p className="text-sm font-semibold text-white">{shot.label}</p>
+                  {shot.source === "mockup" ? (
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200/80">Studio preview</p>
+                  ) : null}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {design.tags.length > 0 ? (
         <section className="mx-auto mt-12 max-w-6xl border-t border-white/10 pt-10">
