@@ -10,6 +10,13 @@ import type { TestimonialItem } from "../components/public/TestimonialsSlider";
  * inline below and in REPORT.md. The regeneration/autism testimonial that was
  * previously here has been removed entirely — it is on the brief's DO NOT USE list.
  */
+export const NANCY_P_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "nancy-p-ttt",
+  quote:
+    "I recently did the Trauma Transcendence Technique Free Ecourse again as a refresher. This is a great free technique to use on a daily basis. I highly recommend using TTT. Brad's ecourse is well presented and well put together. He explains things in an easy-to-understand manner. Take the time to learn TTT with this free ecourse, use it on a daily basis, and reap the benefits.",
+  name: "Nancy P",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -56,4 +63,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
     name: "Craig Stickler",
     role: "Texas",
   },
+  NANCY_P_TTT_TESTIMONIAL,
 ];

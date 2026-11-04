@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { CourseLearningShell, type CourseLearningLesson, type CourseLearningSelectedLesson } from "@wisdom/ui/courses";
+import TestimonialsSlider from "../components/public/TestimonialsSlider";
+import { NANCY_P_TTT_TESTIMONIAL } from "../data/homeTestimonials";
 import {
   TTT_COURSE_SUMMARY,
   TTT_LESSONS,
@@ -155,6 +157,10 @@ export default function CourseTTT() {
         onSelectPrevious={selectedLessonIndex > 0 ? () => goToOffset(-1) : undefined}
         onSelectNext={selectedLessonIndex < lessons.length - 1 ? () => goToOffset(1) : undefined}
       />
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6" aria-label="Testimonial">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Testimonial</p>
+        <TestimonialsSlider items={[NANCY_P_TTT_TESTIMONIAL]} className="pt-4" />
+      </section>
     </motion.div>
   );
 }
