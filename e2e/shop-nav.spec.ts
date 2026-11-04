@@ -41,6 +41,7 @@ test.describe("Shop navigation dropdown", () => {
       .map((label) => label.trim())
       .filter((label) => EXPECTED_SHOP_NAV.some((item) => item.name === label));
     expect(labels).toEqual(EXPECTED_SHOP_NAV.map((item) => item.name));
+    await expect(menu.getByRole("link", { name: "Sacred Apparel" })).toHaveAttribute("href", "/shop/apparel");
 
     await menu.getByRole("link", { name: "Remote Source Bed Kit" }).click();
     await expect(page).toHaveURL(/\/shop\/remote-source-bed-kit$/);
@@ -81,6 +82,7 @@ test.describe("Shop navigation dropdown", () => {
       .map((label) => label.trim())
       .filter((label) => EXPECTED_SHOP_NAV.some((item) => item.name === label));
     expect(labels).toEqual(EXPECTED_SHOP_NAV.map((item) => item.name));
+    await expect(menu.getByRole("link", { name: "Sacred Apparel" })).toHaveAttribute("href", "/shop/apparel");
     await menu.getByRole("link", { name: "Remote Source Bed Kit" }).click();
     await expect(page).toHaveURL(/\/shop\/remote-source-bed-kit$/);
   });

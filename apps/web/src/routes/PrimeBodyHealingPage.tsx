@@ -9,6 +9,8 @@ import {
 } from "../lib/sessionLandingPaths";
 import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
 import { faqPageLd, sessionServiceLd } from "../lib/structuredData";
+import TestimonialsSlider from "../components/public/TestimonialsSlider";
+import { GREGORY_WELLS_PBH_TESTIMONIAL } from "../data/homeTestimonials";
 
 const LEVEL_1_IMAGE = "/images/prime-body-healing-level-1.png";
 const LEVEL_2_IMAGE = "/images/prime-body-healing-level-2.png";
@@ -178,6 +180,13 @@ export default function PrimeBodyHealingPage() {
           <p className="text-base leading-8 text-white/68">
             Accumulated energetic and emotional patterns may leave someone feeling stagnant, depleted, disconnected, or out of alignment. This work is intended to help facilitate energetic rejuvenation, emotional release, greater internal balance, deeper intuitive alignment, renewed vitality, an uplifted internal state, and stronger alignment with personal intentions.
           </p>
+        </div>
+      </section>
+
+      <section className="border-t border-white/8 px-6 py-16" aria-label="Testimonial">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-cyan-200/62">Testimonial</p>
+          <TestimonialsSlider items={[GREGORY_WELLS_PBH_TESTIMONIAL]} className="pt-4" />
         </div>
       </section>
 

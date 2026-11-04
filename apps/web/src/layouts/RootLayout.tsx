@@ -29,6 +29,8 @@ interface NavGroup {
   items?: NavItem[];
 }
 
+const SACRED_APPAREL_NAV: NavItem = { label: "Sacred Apparel", href: "/shop/apparel" };
+
 const SHOP_NAV_FALLBACK: NavItem[] = [
   { label: "Remote Source Bed Kit", href: "/shop/remote-source-bed-kit" },
   { label: "Digital Safeguard Kit", href: "/shop/digital-safeguard-kit" },
@@ -36,6 +38,7 @@ const SHOP_NAV_FALLBACK: NavItem[] = [
   { label: "Healing Code Cards: Body Deck", href: "/shop/healing-code-cards-body-deck" },
   { label: "Healing Code Cards: Mind Deck", href: "/shop/healing-code-cards-mind-deck" },
   { label: "Healing Code Cards: Energy Deck", href: "/shop/healing-code-cards-energy-deck" },
+  SACRED_APPAREL_NAV,
 ];
 
 const NAV_GROUPS: NavGroup[] = [
@@ -163,10 +166,13 @@ export default function RootLayout() {
       .then((payload) => {
         const products = unwrapShopProducts(payload);
         if (cancelled || products.length === 0) return;
-        setShopItems(products.map((product) => ({
-          label: product.name,
-          href: `/shop/${product.slug}`,
-        })));
+        setShopItems([
+          ...products.map((product) => ({
+            label: product.name,
+            href: `/shop/${product.slug}`,
+          })),
+          SACRED_APPAREL_NAV,
+        ]);
       })
       .catch(() => undefined);
     return () => {

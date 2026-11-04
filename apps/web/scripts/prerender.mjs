@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PUBLIC_ROUTES, SITE_ORIGIN, fetchShopRoutes } from "./seo-routes.mjs";
+import { PUBLIC_ROUTES, SITE_ORIGIN, fetchShopRoutes, getApparelRoutes } from "./seo-routes.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(here, "../dist");
@@ -217,7 +217,9 @@ async function main() {
   let shopRoutes = [];
   try { shopRoutes = await fetchShopRoutes(apiBase); log(`shop routes from API: ${shopRoutes.length}`); }
   catch (error) { log(`WARN could not list shop products (${error.message}); /shop/:slug pages stay client-rendered`); }
-  const routes = [...PUBLIC_ROUTES, ...shopRoutes];
+  const apparelRoutes = getApparelRoutes();
+  log(`apparel routes: ${apparelRoutes.length}`);
+  const routes = [...PUBLIC_ROUTES, ...shopRoutes, ...apparelRoutes];
   await writeSitemap(routes);
 
   let browser;

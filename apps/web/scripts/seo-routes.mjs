@@ -35,6 +35,7 @@ export const PUBLIC_ROUTES = [
   { path: "/webinars/adronis-disclosure-to-contact/on-demand", priority: "0.7", changefreq: "monthly" },
   { path: "/webinars/adronis-star-family-communion/on-demand", priority: "0.7", changefreq: "monthly" },
   { path: "/shop", priority: "0.7", changefreq: "weekly" },
+  { path: "/shop/apparel", priority: "0.7", changefreq: "weekly" },
   { path: "/privacy", priority: "0.2", changefreq: "yearly" },
   { path: "/terms", priority: "0.2", changefreq: "yearly" },
 ];
@@ -48,4 +49,36 @@ export async function fetchShopRoutes(apiBase) {
   return (Array.isArray(products) ? products : [])
     .filter((product) => typeof product?.slug === "string" && /^[a-z0-9-]+$/.test(product.slug))
     .map((product) => ({ path: `/shop/${product.slug}`, priority: "0.6", changefreq: "monthly" }));
+}
+
+/** /shop/apparel/:slug pages from static apparel data. */
+export function getApparelRoutes() {
+  const apparelSlugs = [
+    "gold-rosette-mandala",
+    "wayshower-rainbow-jnana-mudra",
+    "magenta-constellation-mandala",
+    "pink-bloom-mandala",
+    "sky-constellation-star-ray-mandala",
+    "ice-blue-sparkle-star-mandala",
+    "lilac-sparkle-star-mandala",
+    "aqua-lattice-mandala",
+    "rose-lattice-mandala",
+    "blue-pearl-wheel-mandala",
+    "pink-pearl-wheel-mandala",
+    "dragon-dimension-blue-chrome-dragon",
+    "fire-phoenix-tribal-phoenix",
+    "azure-constellation-mandala",
+    "sky-bloom-mandala",
+    "gold-star-ray-mandala",
+    "rose-constellation-star-ray-mandala",
+    "kids-magenta-constellation-mandala",
+    "kids-azure-constellation-mandala",
+    "kids-lilac-sparkle-star-mandala",
+    "kids-ice-blue-sparkle-star-mandala",
+  ];
+  return apparelSlugs.map((slug) => ({
+    path: `/shop/apparel/${slug}`,
+    priority: "0.6",
+    changefreq: "monthly",
+  }));
 }

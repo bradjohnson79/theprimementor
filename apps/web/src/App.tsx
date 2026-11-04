@@ -61,6 +61,8 @@ const ReportProductLanding = lazy(() => import("./routes/ReportProductLanding"))
 const ShopLanding = lazy(() => import("./routes/ShopLanding"));
 const ShopProduct = lazy(() => import("./routes/ShopProduct"));
 const ShopSuccess = lazy(() => import("./routes/ShopSuccess"));
+const ApparelLanding = lazy(() => import("./routes/ApparelLanding"));
+const ApparelProduct = lazy(() => import("./routes/ApparelProduct"));
 const MemberPurchases = lazy(() => import("./routes/MemberPurchases"));
 const MembershipSignup = lazy(() => import("./routes/MembershipSignup"));
 const WebsiteErrorPage = lazy(() => import("./routes/WebsiteErrorPage"));
@@ -138,6 +140,8 @@ export default function App() {
             <Route path="/shop" element={<ShopLanding />} />
             <Route path="/shop/order/success" element={<ShopSuccess />} />
             <Route path="/shop/success" element={<ShopSuccess />} />
+            <Route path="/shop/apparel" element={<ApparelLanding />} />
+            <Route path="/shop/apparel/:slug" element={<ApparelProduct />} />
             <Route path="/shop/:slug" element={<ShopProduct />} />
             <Route path="/error" element={<WebsiteErrorPage />} />
             <Route path="/order/thank-you" element={<GuestThankYouPage />} />

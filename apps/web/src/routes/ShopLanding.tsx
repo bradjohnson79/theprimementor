@@ -46,6 +46,12 @@ export default function ShopLanding() {
 
       <section className="border-t border-white/10 px-6 py-16">
         <div className="mx-auto max-w-6xl">
+          <div className="mb-12">
+            <h2 className="text-3xl font-semibold">Digital Products</h2>
+            <p className="mt-2 text-sm text-white/60">
+              Digital tools and card decks for personal spiritual wellness practice
+            </p>
+          </div>
           {error ? (
             <p role="alert" className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</p>
           ) : null}
@@ -54,7 +60,7 @@ export default function ShopLanding() {
           ) : null}
           {products && products.length === 0 ? (
             <div className="glass-card rounded-3xl p-8">
-              <h2 className="text-2xl font-semibold">No digital products are available yet.</h2>
+              <h3 className="text-2xl font-semibold">No digital products are available yet.</h3>
               <p className="mt-3 text-white/68">Please check back soon, or explore sessions and reports in the meantime.</p>
               <Link to="/reports" className="mt-6 inline-flex rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-slate-950">Explore Reports</Link>
             </div>
@@ -79,7 +85,7 @@ export default function ShopLanding() {
                     ) : (
                       <div className="mt-4 flex aspect-[3/4] items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm text-white/45">Digital product</div>
                     )}
-                    <h2 className="mt-4 text-xl font-semibold text-white">{product.name}</h2>
+                    <h3 className="mt-4 text-xl font-semibold text-white">{product.name}</h3>
                     {product.subtitle ? <p className="mt-1 text-sm font-medium text-white/75">{product.subtitle}</p> : null}
                     <p className="mt-2 text-sm font-semibold tabular-nums text-amber-100">{product.priceLabel}</p>
                     <p className="mt-3 flex-1 text-sm leading-7 text-white/68">{product.quickSummary}</p>
@@ -95,6 +101,32 @@ export default function ShopLanding() {
               })}
             </div>
           ) : null}
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 px-6 py-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-12">
+            <h2 className="text-3xl font-semibold">Apparel</h2>
+            <p className="mt-2 text-sm text-white/60">
+              Sacred geometry art on premium apparel, printed and shipped by Spreadshirt
+            </p>
+          </div>
+          <div className="glass-card flex flex-col items-center justify-center rounded-3xl p-12 text-center md:flex-row md:justify-between md:text-left">
+            <div className="max-w-2xl">
+              <h3 className="text-2xl font-semibold">Sacred Geometry Mandalas & Mythical Designs</h3>
+              <p className="mt-4 text-base leading-8 text-white/72">
+                Discover original mandala artwork, dragon and phoenix designs, and kids' artwork on premium t-shirts, hoodies, and more.
+                Each design is printed on-demand and shipped directly by our partner Spreadshirt.
+              </p>
+            </div>
+            <Link
+              to="/shop/apparel"
+              className="mt-8 inline-flex shrink-0 rounded-xl bg-gradient-to-r from-cyan-400 to-cyan-600 px-6 py-3 text-base font-semibold text-slate-950 hover:from-cyan-300 hover:to-cyan-500 transition-all md:ml-8 md:mt-0"
+            >
+              Browse Apparel
+            </Link>
+          </div>
         </div>
       </section>
     </main>

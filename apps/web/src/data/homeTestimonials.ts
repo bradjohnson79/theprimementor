@@ -10,6 +10,55 @@ import type { TestimonialItem } from "../components/public/TestimonialsSlider";
  * inline below and in REPORT.md. The regeneration/autism testimonial that was
  * previously here has been removed entirely — it is on the brief's DO NOT USE list.
  */
+export const NANCY_P_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "nancy-p-ttt",
+  quote:
+    "I recently did the Trauma Transcendence Technique Free Ecourse again as a refresher. This is a great free technique to use on a daily basis. I highly recommend using TTT. Brad's ecourse is well presented and well put together. He explains things in an easy-to-understand manner. Take the time to learn TTT with this free ecourse, use it on a daily basis, and reap the benefits.",
+  name: "Nancy P",
+};
+
+export const ALEXANDER_GROSSMAN_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "alexander-grossman-ttt",
+  quote:
+    "Wonderful and very effective course. Thanks for making this available for free. It is amazing what is possible and how easy, when you start thinking in energies and identification with it. Keep continue the very valid work you are offering to humanity.",
+  name: "Alexander Grossman",
+};
+
+export const CYNTHIA_STRICKLAN_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "cynthia-stricklan-ttt",
+  quote:
+    "Thank you so much for sharing the wisdom of this technique so freely for the benefit of all!! I feel certain I will use it greatly in the future and share it with others. How wonderful to know that we need not carry traumas and empty box desires which are heavy burdens.",
+  name: "Cynthia Stricklan",
+};
+
+export const SARITA_LOBO_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "sarita-lobo-ttt",
+  quote:
+    "Thank you Brad and Adronis for all the help and support that I have received for myself and my family for the past so many years. During my struggle with MS, Brad had provided much needed guidance. I have been following his teachings that helped me to eliminate my flare ups. After my first flare up I have not had another one. I have also spoken to Adronis a few times regarding the health and wellbeing for my family and my personal life and also my pets. The truth of the solution has always resonated so powerfully with me. I am so thankful and appreciative for all that Brad and Adronis are doing.",
+  name: "Sarita Lobo",
+};
+
+export const KAREN_E_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "karen-e-ttt",
+  quote:
+    "Gratitude and thanks to Brad for this wonderful ECourse. As a yoga instructor I have always found therapy in breath work and utilizing the sound om! Now adding Brads technique truly puts the icing on the cake for me to be able to transmute trauma and move forward feeling more free and liberated! Brad is super patient and takes the time to explain as well as to work through excellent examples to fuel our creativity and let go!",
+  name: "Karen E.",
+};
+
+export const GREGORY_WELLS_PBH_TESTIMONIAL: TestimonialItem = {
+  id: "gregory-wells-pbh",
+  quote:
+    "Thanks for the Prime Body Healing. I noticed an increase in mental energy and a heightened psychic clarity. It was relaxing and supported my mind-body center brain . The following day, I noticed an increase in will. Thank you for the free session.",
+  name: "Gregory Wells",
+};
+
+export const SHAREN_WOOD_TESTIMONIAL: TestimonialItem = {
+  id: "sharen-wood",
+  quote:
+    "I thought you might like to know how your channel and what you share changes lives. Last week you told us to call in the Intervention Fleet. So I did, in my daily Quantum Meditation, using the mudra you showed us. It took 10 seconds, and I heard an inner voice say, 'your body is now being scanned.' WOW. Nothing happened right away, but the next morning a channel came up about fascia and how it connects to everything. I KNEW that was my problem. I started doing Block Therapy, and today is the first day in years I've been without any pain. I feel 10 years younger in two days. Healing isn't always instant; sometimes they show you how to do it. I am so grateful.",
+  name: "Sharen Wood",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -56,4 +105,10 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
     name: "Craig Stickler",
     role: "Texas",
   },
+  NANCY_P_TTT_TESTIMONIAL,
+  ALEXANDER_GROSSMAN_TTT_TESTIMONIAL,
+  CYNTHIA_STRICKLAN_TTT_TESTIMONIAL,
+  SARITA_LOBO_TTT_TESTIMONIAL,
+  KAREN_E_TTT_TESTIMONIAL,
+  SHAREN_WOOD_TESTIMONIAL,
 ];
