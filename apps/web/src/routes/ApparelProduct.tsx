@@ -15,7 +15,7 @@ import {
   type ApparelDesign,
 } from "../data/apparel";
 import { apparelModelSrc, getApparelModelShots } from "../data/apparelModels";
-import { getApparelWriteup } from "../data/apparelWriteups";
+import { REJUVENATION_LINE, getApparelWriteup } from "../data/apparelWriteups";
 
 export default function ApparelProduct() {
   const { slug } = useParams();
@@ -154,12 +154,11 @@ export default function ApparelProduct() {
               <p className="mt-2 text-sm leading-7 text-white/60">
                 Six different pieces this design is sold on. These photos are from the live Spreadshop pages for this artwork.
               </p>
-              {writeup ? (
-                <div className="glass-card mt-6 rounded-3xl p-6">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-cyan">From this design</p>
-                  <p className="mt-4 text-base leading-8 text-white/80">{writeup}</p>
-                </div>
-              ) : null}
+              <div className="glass-card mt-6 rounded-3xl p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-cyan">From this design</p>
+                <p className="mt-4 text-base leading-8 text-white/80">{REJUVENATION_LINE}</p>
+                {writeup ? <p className="mt-4 text-base leading-8 text-white/72">{writeup}</p> : null}
+              </div>
             </div>
             {modelShots.length > 0 ? (
               <div className="grid grid-cols-2 gap-4">
