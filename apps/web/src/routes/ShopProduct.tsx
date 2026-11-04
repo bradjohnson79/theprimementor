@@ -5,7 +5,7 @@ import WebsiteStatusPage from "../components/public/WebsiteStatusPage";
 import PromoCodeInput from "../components/checkout/PromoCodeInput";
 import { usePromoCode } from "../hooks/usePromoCode";
 import { api } from "../lib/api";
-import type { ShopPublicProduct, ShopPurchase } from "../lib/shop";
+import type { ShopPublicProduct, ShopPublicTestimonial, ShopPurchase } from "../lib/shop";
 import { shopMediaSrc } from "../lib/shop";
 import { shopCheckoutErrorMessage, shopPurchaseReturnPath, startShopCheckout } from "../lib/shopCheckout";
 import ShopRelatedProducts from "../components/shop/ShopRelatedProducts";
@@ -17,6 +17,22 @@ import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 import GuestCheckoutModal from "../components/guest/GuestCheckoutModal";
 import { ORGANIZATION_ID } from "../lib/structuredData";
+
+const MARIA_STECK_SAFEGUARD_TESTIMONIAL: ShopPublicTestimonial = {
+  id: "maria-steck-safeguard",
+  customerName: "Maria Steck",
+  location: null,
+  title: null,
+  testimonialText: "I would love to tell my story with safequard which I did put over all Outlets in my place. Last year I had two tests, they forced to have that before eye surgery. After that I had trouble with sinuses, breathing.... And only after two days after safequard was in place everything was gone, was relief, and amazing feeling. That I call a miracle. In my opinion this a must to have in a house where we spent many hours. Aetherx bed kit It is very important when we healing ourslves. I am very happy having this opportunity to stay healthy and be happy. Thank you Dear Brad For everything. May God Bless",
+  contextLabel: null,
+  sortOrder: 0,
+};
+
+const SAFEGUARD_TESTIMONIAL_SECTION = {
+  heading: "What Customers Are Saying",
+  subtitle: "An experience shared by a customer of the Digital Safeguard Kit.",
+  disclaimer: "Customer testimonials reflect individual personal experiences and are provided for informational purposes only. Individual experiences vary, and testimonials do not constitute medical claims or guarantees of results. The Digital Safeguard Kit is intended as a spiritual and alternative wellness practice and is not a substitute for professional healthcare.",
+};
 
 function formatInline(text: string) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => (
@@ -179,6 +195,13 @@ export default function ShopProduct() {
     );
   }
 
+  const pinnedSafeguardTestimonial = product?.slug === "digital-safeguard-kit" ? [MARIA_STECK_SAFEGUARD_TESTIMONIAL] : [];
+  const visibleTestimonials = [
+    ...filterCompliantTestimonials(product?.testimonials ?? []),
+    ...pinnedSafeguardTestimonial,
+  ];
+  const testimonialSection = product?.testimonialSection
+    ?? (pinnedSafeguardTestimonial.length > 0 ? SAFEGUARD_TESTIMONIAL_SECTION : null);
   const image = product?.images.find((item) => item.isPrimary) ?? product?.images[0];
   const canceled = searchParams.get("checkout") === "canceled";
   const unavailable = Boolean(product && product.canPurchase === false);
@@ -331,15 +354,14 @@ export default function ShopProduct() {
         </section>
       ) : null}
 
-      {product?.testimonials && product.testimonials.length > 0 && product.testimonialSection ? (
+      {testimonialSection && visibleTestimonials.length > 0 ? (
         <ShopTestimonials
-          heading={product.testimonialSection.heading}
-          subtitle={product.testimonialSection.subtitle}
-          disclaimer={product.testimonialSection.disclaimer}
-          // Defense-in-depth per BRAD-ANSWERS.md / strengths brief: strip any
-          // medical, health or income-claim testimonial before it renders
-          // publicly, without touching the underlying seed/DB data.
-          testimonials={filterCompliantTestimonials(product.testimonials)}
+          heading={testimonialSection.heading}
+          subtitle={testimonialSection.subtitle}
+          disclaimer={testimonialSection.disclaimer}
+          // Catalog testimonials stay filtered. Maria Steck's Digital Safeguard
+          // Kit quote is pinned verbatim at Brad's request and is not filtered.
+          testimonials={visibleTestimonials}
         />
       ) : null}
 
