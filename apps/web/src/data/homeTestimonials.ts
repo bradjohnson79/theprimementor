@@ -38,6 +38,13 @@ export const SARITA_LOBO_TTT_TESTIMONIAL: TestimonialItem = {
   name: "Sarita Lobo",
 };
 
+export const KAREN_E_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "karen-e-ttt",
+  quote:
+    "Gratitude and thanks to Brad for this wonderful ECourse. As a yoga instructor I have always found therapy in breath work and utilizing the sound om! Now adding Brads technique truly puts the icing on the cake for me to be able to transmute trauma and move forward feeling more free and liberated! Brad is super patient and takes the time to explain as well as to work through excellent examples to fuel our creativity and let go!",
+  name: "Karen E.",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -88,4 +95,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
   ALEXANDER_GROSSMAN_TTT_TESTIMONIAL,
   CYNTHIA_STRICKLAN_TTT_TESTIMONIAL,
   SARITA_LOBO_TTT_TESTIMONIAL,
+  KAREN_E_TTT_TESTIMONIAL,
 ];
