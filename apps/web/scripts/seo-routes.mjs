@@ -71,6 +71,10 @@ export function getApparelRoutes() {
     "sky-bloom-mandala",
     "gold-star-ray-mandala",
     "rose-constellation-star-ray-mandala",
+    "kids-magenta-constellation-mandala",
+    "kids-azure-constellation-mandala",
+    "kids-lilac-sparkle-star-mandala",
+    "kids-ice-blue-sparkle-star-mandala",
   ];
   return apparelSlugs.map((slug) => ({
     path: `/shop/apparel/${slug}`,

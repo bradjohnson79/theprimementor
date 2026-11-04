@@ -5,6 +5,7 @@ import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
 import {
   APPAREL_DESIGNS,
   APPAREL_TOPICS,
+  formatApparelFromPrice,
   getDesignsByTopic,
   getApparelImagePath,
   type ApparelTopic,
@@ -13,7 +14,7 @@ import {
 export default function ApparelLanding() {
   usePageMeta({
     title: "Apparel | Sacred Geometry Art | The Prime Mentor Shop",
-    description: "Sacred geometry mandalas, dragon and phoenix designs on premium apparel. Printed and shipped by Spreadshirt.",
+    description: "Sacred geometry mandalas, dragon and phoenix designs, and kids' artwork on premium apparel. Printed and shipped by Spreadshirt.",
     canonical: pageCanonical("/shop/apparel"),
     ogImage: DEFAULT_OG_IMAGE,
   });
@@ -22,7 +23,7 @@ export default function ApparelLanding() {
 
   const displayedDesigns = activeTopic
     ? getDesignsByTopic(activeTopic)
-    : APPAREL_DESIGNS.sort((a, b) => a.featuredRank - b.featuredRank);
+    : [...APPAREL_DESIGNS].sort((a, b) => a.featuredRank - b.featuredRank);
 
   return (
     <main id="top" className="min-h-screen text-white">
@@ -36,7 +37,7 @@ export default function ApparelLanding() {
             Sacred Geometry Apparel & Art
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-white/72">
-            Explore original sacred geometry mandalas, dragon and phoenix designs, and spiritual art on premium apparel.
+            Explore original sacred geometry mandalas, dragon and phoenix designs, and kids' artwork on premium apparel.
             Printed and shipped by Spreadshirt.
           </p>
         </div>
@@ -77,7 +78,9 @@ export default function ApparelLanding() {
       <section className="px-6 pb-20">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {displayedDesigns.map((design) => (
+            {displayedDesigns.map((design) => {
+              const fromPrice = formatApparelFromPrice(design);
+              return (
               <article key={design.slug} className="glass-card flex h-full flex-col rounded-3xl p-6">
                 <Link to={`/shop/apparel/${design.slug}`} className="group">
                   <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-black/30">
@@ -92,6 +95,9 @@ export default function ApparelLanding() {
                   <h2 className="mt-4 text-xl font-semibold text-white group-hover:text-accent-cyan transition-colors">
                     {design.title}
                   </h2>
+                  {fromPrice ? (
+                    <p className="mt-2 text-sm font-semibold tabular-nums text-amber-100">{fromPrice}</p>
+                  ) : null}
                 </Link>
                 <p className="mt-3 flex-1 text-sm leading-7 text-white/68">
                   {design.description}
@@ -103,7 +109,8 @@ export default function ApparelLanding() {
                   View Design
                 </Link>
               </article>
-            ))}
+              );
+            })}
           </div>
 
           {displayedDesigns.length === 0 ? (
@@ -126,8 +133,8 @@ export default function ApparelLanding() {
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-2xl font-semibold">About Our Apparel</h2>
           <p className="mt-4 text-base leading-8 text-white/72">
-            Each design is printed on-demand on premium apparel including women's and men's t-shirts, tank tops,
-            hoodies, and more. When you click "Buy on Spreadshop," you'll be taken to our partner Spreadshop to
+            Each design is printed on-demand on premium apparel, including women's and men's t-shirts, tank tops,
+            hoodies, and kids' and baby pieces. When you click "Buy on Spreadshop," you'll be taken to our partner Spreadshop to
             complete your purchase. All items are printed and shipped directly by Spreadshirt.
           </p>
           <Link

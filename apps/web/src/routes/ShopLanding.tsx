@@ -116,7 +116,7 @@ export default function ShopLanding() {
             <div className="max-w-2xl">
               <h3 className="text-2xl font-semibold">Sacred Geometry Mandalas & Mythical Designs</h3>
               <p className="mt-4 text-base leading-8 text-white/72">
-                Discover original mandala artwork, dragon and phoenix designs, and spiritual art on premium t-shirts, hoodies, and more.
+                Discover original mandala artwork, dragon and phoenix designs, and kids' artwork on premium t-shirts, hoodies, and more.
                 Each design is printed on-demand and shipped directly by our partner Spreadshirt.
               </p>
             </div>

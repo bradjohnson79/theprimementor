@@ -2,16 +2,18 @@
  * Apparel Shop Data
  * 
  * Generated from apparel-manifest.json
- * All 17 adult designs linking to Spreadshop for purchase.
+ * Adult designs plus the kids' designs on the same Spreadshop shop.
+ * fromPriceCAD is the lowest CAD price verified on each live product page.
  * 
  * IMPORTANT: Never display internalName in UI, alt text, meta tags, or URLs.
  * Drop the "DRAFT (pending Brad's review):" prefix from descriptions in the UI.
  */
 
 export const APPAREL_CONFIG = {
-  shopName: "The Prime Mentor Shop", // PLACEHOLDER - awaiting final shop name
-  shopBaseUrl: "https://healing-code-shop.myspreadshop.com",
-  showPrices: false, // Prices are unverified - keep OFF
+  shopName: "The Prime Mentor Shop",
+  // Canadian Spreadshop shop (shop id 100909945). Prices on this host are CAD.
+  shopBaseUrl: "https://100909945.myspreadshop.ca",
+  showPrices: true,
 } as const;
 
 export interface ProductCode {
@@ -28,16 +30,12 @@ export const PRODUCT_CODES: Record<string, string> = {
   HD: "Women's Hoodie",
   ST: "Sticker",
   PHONE: "Phone Case",
-} as const;
-
-export const FROM_PRICES_CAD_UNVERIFIED: Record<string, number> = {
-  WPT: 35.49,
-  MPT: 35.49,
-  WTK: 35.49,
-  WLS: 38.99,
-  RU: 30.99,
-  HD: 51.49,
-  ST: 4.29,
+  KPT: "Kids' Premium T-Shirt",
+  KTS: "Kid's T-Shirt",
+  TPT: "Toddler Premium T-Shirt",
+  KLS: "Kids' Premium Long Sleeve T-Shirt",
+  KHD: "Kids' Premium Hoodie",
+  BB: "Baby Bib",
 } as const;
 
 export interface ApparelTopic {
@@ -50,6 +48,7 @@ export const APPAREL_TOPICS: ApparelTopic[] = [
   { slug: "mandalas", name: "Sacred Geometry Mandalas" },
   { slug: "dragon-phoenix", name: "Dragon & Phoenix" },
   { slug: "mudra-flower-of-life", name: "Mudra & Flower of Life" },
+  { slug: "kids", name: "Kids" },
 ];
 
 export interface ApparelDesign {
@@ -64,6 +63,8 @@ export interface ApparelDesign {
   topics: string[];
   image: string; // SEO-friendly filename
   draft: boolean; // True if description has DRAFT prefix
+  /** Lowest CAD price verified on the live product page. Null when unverified. */
+  fromPriceCAD: number | null;
 }
 
 export const APPAREL_DESIGNS: ApparelDesign[] = [
@@ -85,10 +86,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "yoga shirt",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "WLS", "RU", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/youth+body+round+healingcodeshopcom-A5fa88c4a27d613000ecd175b",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/youth+body+round+healingcodeshopcom-A5fa88c4a27d613000ecd175b",
     featuredRank: 1,
     topics: ["best-sellers", "mandalas"],
     image: "gold-rosette-mandala.webp",
+    fromPriceCAD: 27.49,
     draft: false,
   },
   {
@@ -109,10 +111,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "hand gesture",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "WLS", "RU", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/wayshower+healingcodeshopcom-A5fc03ff0cee9144094eec7a1",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/wayshower+healingcodeshopcom-A5fc03ff0cee9144094eec7a1",
     featuredRank: 2,
     topics: ["best-sellers", "mudra-flower-of-life"],
     image: "wayshower-rainbow-jnana-mudra.webp",
+    fromPriceCAD: 3.29,
     draft: false,
   },
   {
@@ -133,10 +136,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "yoga shirt",
     ],
     enableFirst: ["WPT", "WTK", "WLS", "RU", "MPT", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/detoxifier+round+pink+healingcodecardscom-A5f18cbc91cbf3a0e13c9580d",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/detoxifier+round+pink+healingcodecardscom-A5f18cbc91cbf3a0e13c9580d",
     featuredRank: 3,
     topics: ["best-sellers", "mandalas"],
     image: "magenta-constellation-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -157,10 +161,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "yoga shirt",
     ],
     enableFirst: ["WPT", "WTK", "WLS", "RU", "MPT", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/rejuvenator+round+pink+healingcodeshopcom-A5f18c2b220517643284149a4",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/rejuvenator+round+pink+healingcodeshopcom-A5f18c2b220517643284149a4",
     featuredRank: 4,
     topics: ["best-sellers", "mandalas"],
     image: "pink-bloom-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -181,10 +186,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["MPT", "WPT", "WTK", "WLS", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/detoxifier+edge+blue+healingcodeshopcom-A5f18c8a2f9376440be8ca4d1",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/detoxifier+edge+blue+healingcodeshopcom-A5f18c8a2f9376440be8ca4d1",
     featuredRank: 5,
     topics: ["best-sellers", "mandalas"],
     image: "sky-constellation-star-ray-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -205,10 +211,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "meditation",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "WLS", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/rejuvenator+edge+blue+healingcodeshopcom-A5f18b9aff9376440be42eb8a",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/rejuvenator+edge+blue+healingcodeshopcom-A5f18b9aff9376440be42eb8a",
     featuredRank: 6,
     topics: ["best-sellers", "mandalas"],
     image: "ice-blue-sparkle-star-mandala.webp",
+    fromPriceCAD: 25.99,
     draft: false,
   },
   {
@@ -229,10 +236,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "WLS", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/rejuvenator+edge+pink+healingcodeshopcom-A5f18bb7520517643280f10a3",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/rejuvenator+edge+pink+healingcodeshopcom-A5f18bb7520517643280f10a3",
     featuredRank: 7,
     topics: ["mandalas"],
     image: "lilac-sparkle-star-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -253,10 +261,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WTK", "WPT", "MPT", "RU", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/strengthener+blue+healingcodeshopcom-A5f21113720517660341a7a01",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/strengthener+blue+healingcodeshopcom-A5f21113720517660341a7a01",
     featuredRank: 8,
     topics: ["mandalas"],
     image: "aqua-lattice-mandala.webp",
+    fromPriceCAD: 39.49,
     draft: false,
   },
   {
@@ -277,10 +286,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WTK", "WPT", "MPT", "RU", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/strengthener+pink+healingcodeshopcom-A5f21123af9376458d1b63aa3",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/strengthener+pink+healingcodeshopcom-A5f21123af9376458d1b63aa3",
     featuredRank: 9,
     topics: ["mandalas"],
     image: "rose-lattice-mandala.webp",
+    fromPriceCAD: 39.49,
     draft: false,
   },
   {
@@ -301,10 +311,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "meditation",
     ],
     enableFirst: ["WPT", "MPT", "PHONE", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/charger+blue+healingcodeshopcom-A5f1fa34ff9376458d1b1c549",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/charger+blue+healingcodeshopcom-A5f1fa34ff9376458d1b1c549",
     featuredRank: 10,
     topics: ["mandalas"],
     image: "blue-pearl-wheel-mandala.webp",
+    fromPriceCAD: 20.99,
     draft: false,
   },
   {
@@ -325,10 +336,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "meditation",
     ],
     enableFirst: ["WPT", "MPT", "PHONE", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/charger+pink+healingcodeshopcom-A5f1fa762f9376458d1b82d63",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/charger+pink+healingcodeshopcom-A5f1fa762f9376458d1b82d63",
     featuredRank: 11,
     topics: ["mandalas"],
     image: "pink-pearl-wheel-mandala.webp",
+    fromPriceCAD: 20.99,
     draft: false,
   },
   {
@@ -349,10 +361,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "mythical creature",
     ],
     enableFirst: ["MPT", "HD", "WPT", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/dragon+detoxifier+dimension+series-A6316aa485e3f02040717d401",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/dragon+detoxifier+dimension+series-A6316aa485e3f02040717d401",
     featuredRank: 12,
     topics: ["dragon-phoenix"],
     image: "dragon-dimension-blue-chrome-dragon.webp",
+    fromPriceCAD: 3.29,
     draft: false,
   },
   {
@@ -373,17 +386,18 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "tattoo style",
     ],
     enableFirst: ["MPT", "WPT", "HD", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/phoenix+rejuvenator-A6330dccd59712733b5784b9f",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/phoenix+rejuvenator-A6330dccd59712733b5784b9f",
     featuredRank: 13,
     topics: ["dragon-phoenix"],
     image: "fire-phoenix-tribal-phoenix.webp",
+    fromPriceCAD: 3.29,
     draft: false,
   },
   {
     slug: "azure-constellation-mandala",
     designId: 1031364228,
     title: "Azure Constellation Mandala – Glowing Orb Sacred Geometry",
-    description: "An azure web of straight-line polygons forms a lace-like rosette, ringed by glowing orbs around a luminous centre.",
+    description: "A vivid azure web of straight-line polygons forms a lace-like rosette, ringed by nine glowing orbs around a luminous centre.",
     tags: [
       "blue mandala",
       "azure",
@@ -396,17 +410,18 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/detoxifier+round+blue+healing+code+shop-A5f18c41b1cbf3a0e13baa399",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/detoxifier+round+blue+healing+code+shop-A5f18c41b1cbf3a0e13baa399",
     featuredRank: 14,
     topics: ["mandalas"],
     image: "azure-constellation-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: true, // DRAFT (pending Brad's review)
   },
   {
     slug: "sky-bloom-mandala",
     designId: 1031364111,
     title: "Sky Bloom Mandala – Lace Ring Sacred Geometry",
-    description: "A sky-blue lace ring of looping polygons blooms around an open dark centre with a fine spoked sunburst.",
+    description: "A sky-blue lace ring of looping polygons blooms around a bright centre with a fine spoked sunburst.",
     tags: [
       "blue mandala",
       "lace mandala",
@@ -418,17 +433,18 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/rejuvenator+round+blue+healingcodeshopcom-A5f18c18ff9376440be7c85c6",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/rejuvenator+round+blue+healingcodeshopcom-A5f18c18ff9376440be7c85c6",
     featuredRank: 15,
     topics: ["mandalas"],
     image: "sky-bloom-mandala.webp",
+    fromPriceCAD: 35.49,
     draft: true, // DRAFT (pending Brad's review)
   },
   {
     slug: "gold-star-ray-mandala",
     designId: 1034302570,
     title: "Gold Star-Ray Mandala – Eight-Point Sacred Geometry",
-    description: "A gold eight-point star-ray mandala in sacred-geometry style.",
+    description: "Long gold rays burst outward from a ring of glowing orbs around a bright geometric centre.",
     tags: [
       "gold mandala",
       "star rays",
@@ -439,10 +455,11 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["WPT", "MPT", "WTK", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/youth+body+edge+healingcodeshopcom-A5fa88c1888a2f447202cb4c2",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/youth+body+edge+healingcodeshopcom-A5fa88c1888a2f447202cb4c2",
     featuredRank: 16,
     topics: ["mandalas"],
     image: "gold-star-ray-mandala.webp",
+    fromPriceCAD: 33.49,
     draft: true, // DRAFT (pending Brad's review)
   },
   {
@@ -463,10 +480,104 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
       "spiritual art",
     ],
     enableFirst: ["MPT", "WPT", "WTK", "WLS", "ST"],
-    spreadshopUrl: "https://healing-code-shop.myspreadshop.com/detoxifier+edge+pink+healingcodeshopcom-A5f18c51d205176432845b7bf",
+    spreadshopUrl: "https://100909945.myspreadshop.ca/detoxifier+edge+pink+healingcodeshopcom-A5f18c51d205176432845b7bf",
     featuredRank: 17,
     topics: ["mandalas"],
     image: "rose-constellation-star-ray-mandala.webp",
+    fromPriceCAD: 35.49,
+    draft: false,
+  },
+  {
+    slug: "kids-magenta-constellation-mandala",
+    designId: 1032549225,
+    title: "Kids' Magenta Constellation Mandala – Glowing Orb Sacred Geometry",
+    description: "A vivid magenta web of straight-line polygons forms a lace-like rosette, ringed by nine glowing orbs around a luminous centre.",
+    tags: [
+      "kids",
+      "baby",
+      "magenta mandala",
+      "sacred geometry",
+      "constellation",
+      "glowing orbs",
+      "geometric mandala",
+      "kids shirt",
+    ],
+    enableFirst: ["KPT", "KTS", "TPT", "KLS", "KHD", "BB"],
+    spreadshopUrl: "https://100909945.myspreadshop.ca/kids+detoxifier+round+pink-A5f4d9c3c205176458c66812f",
+    featuredRank: 18,
+    topics: ["kids"],
+    image: "kids-magenta-constellation-mandala.webp",
+    fromPriceCAD: 28.99,
+    draft: false,
+  },
+  {
+    slug: "kids-azure-constellation-mandala",
+    designId: 1032548947,
+    title: "Kids' Azure Constellation Mandala – Glowing Orb Sacred Geometry",
+    description: "A vivid azure web of straight-line polygons forms a lace-like rosette, ringed by nine glowing orbs around a luminous centre.",
+    tags: [
+      "kids",
+      "baby",
+      "azure mandala",
+      "blue mandala",
+      "sacred geometry",
+      "constellation",
+      "glowing orbs",
+      "geometric mandala",
+      "kids shirt",
+    ],
+    enableFirst: ["KPT", "KTS", "TPT", "KLS", "KHD", "BB"],
+    spreadshopUrl: "https://100909945.myspreadshop.ca/kids+detoxifier+round+blue-A5f4d9a65f937641695d2b05d",
+    featuredRank: 19,
+    topics: ["kids"],
+    image: "kids-azure-constellation-mandala.webp",
+    fromPriceCAD: 28.99,
+    draft: false,
+  },
+  {
+    slug: "kids-lilac-sparkle-star-mandala",
+    designId: 1032549286,
+    title: "Kids' Lilac Sparkle Star Mandala – Jagged Star-Ray Sacred Geometry",
+    description: "Jagged zig-zag star points burst outward from a spoked centre, scattered with tiny white sparkles, in lilac.",
+    tags: [
+      "kids",
+      "baby",
+      "star mandala",
+      "lilac",
+      "sparkle",
+      "sacred geometry",
+      "celestial art",
+      "kids shirt",
+    ],
+    enableFirst: ["KPT", "KTS", "TPT", "KLS", "KHD", "BB"],
+    spreadshopUrl: "https://100909945.myspreadshop.ca/kids+rejuvenator+edge+pink-A5f4d9ea6f937641695d8f3fb",
+    featuredRank: 20,
+    topics: ["kids"],
+    image: "kids-lilac-sparkle-star-mandala.webp",
+    fromPriceCAD: 28.99,
+    draft: false,
+  },
+  {
+    slug: "kids-ice-blue-sparkle-star-mandala",
+    designId: 1032549236,
+    title: "Kids' Ice Blue Sparkle Star Mandala – Jagged Star-Ray Sacred Geometry",
+    description: "Jagged zig-zag star points burst outward from a spoked centre, scattered with tiny white sparkles, in pale ice blue.",
+    tags: [
+      "kids",
+      "baby",
+      "star mandala",
+      "ice blue",
+      "sparkle",
+      "sacred geometry",
+      "celestial art",
+      "kids shirt",
+    ],
+    enableFirst: ["KPT", "KTS", "TPT", "KLS", "KHD", "BB"],
+    spreadshopUrl: "https://100909945.myspreadshop.ca/kids+rejuvenator+edge+blue-A5f4d9d381cbf3a4d05c9764d",
+    featuredRank: 21,
+    topics: ["kids"],
+    image: "kids-ice-blue-sparkle-star-mandala.webp",
+    fromPriceCAD: 28.99,
     draft: false,
   },
 ];
@@ -481,6 +592,14 @@ export function buildSpreadshopUrl(design: ApparelDesign): string {
   url.searchParams.set("utm_campaign", "apparel");
   url.searchParams.set("utm_content", design.slug);
   return url.toString();
+}
+
+/**
+ * CAD "from" price for verified designs. Null hides the price in the UI and in JSON-LD.
+ */
+export function formatApparelFromPrice(design: ApparelDesign): string | null {
+  if (!APPAREL_CONFIG.showPrices || design.fromPriceCAD == null) return null;
+  return `From CAD$${design.fromPriceCAD.toFixed(2)}`;
 }
 
 /**

@@ -6,10 +6,12 @@ import { ORGANIZATION_ID } from "../lib/structuredData";
 import WebsiteStatusPage from "../components/public/WebsiteStatusPage";
 import {
   PRODUCT_CODES,
+  formatApparelFromPrice,
   getDesignBySlug,
   getRelatedDesigns,
   getApparelImagePath,
   buildSpreadshopUrl,
+  APPAREL_CONFIG,
   type ApparelDesign,
 } from "../data/apparel";
 
@@ -35,6 +37,9 @@ export default function ApparelProduct() {
         url: pageCanonical(`/shop/apparel/${design.slug}`),
         availability: "https://schema.org/InStock",
         seller: { "@id": ORGANIZATION_ID },
+        ...(APPAREL_CONFIG.showPrices && design.fromPriceCAD != null
+          ? { priceCurrency: "CAD", lowPrice: design.fromPriceCAD.toFixed(2) }
+          : {}),
       },
     }] : undefined,
   });
@@ -56,6 +61,7 @@ export default function ApparelProduct() {
 
   const relatedDesigns = getRelatedDesigns(design, 3);
   const spreadshopUrl = buildSpreadshopUrl(design);
+  const fromPrice = formatApparelFromPrice(design);
 
   return (
     <main className="min-h-screen px-6 pb-20 pt-[0.6rem] text-white md:pt-[0.8rem]">
@@ -78,6 +84,9 @@ export default function ApparelProduct() {
           <h1 className="mt-4 text-4xl font-semibold leading-tight md:text-5xl">
             {design.title}
           </h1>
+          {fromPrice ? (
+            <p className="mt-4 text-2xl font-semibold tabular-nums text-amber-100">{fromPrice}</p>
+          ) : null}
           <p className="mt-6 text-lg leading-8 text-white/72">
             {design.description}
           </p>
@@ -151,7 +160,9 @@ export default function ApparelProduct() {
             More designs from the same collection
           </p>
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {relatedDesigns.map((related: ApparelDesign) => (
+            {relatedDesigns.map((related: ApparelDesign) => {
+              const relatedPrice = formatApparelFromPrice(related);
+              return (
               <article key={related.slug} className="glass-card flex h-full flex-col rounded-3xl p-6">
                 <Link to={`/shop/apparel/${related.slug}`} className="group">
                   <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-black/30">
@@ -166,6 +177,9 @@ export default function ApparelProduct() {
                   <h3 className="mt-4 text-lg font-semibold text-white group-hover:text-accent-cyan transition-colors">
                     {related.title}
                   </h3>
+                  {relatedPrice ? (
+                    <p className="mt-2 text-sm font-semibold tabular-nums text-amber-100">{relatedPrice}</p>
+                  ) : null}
                 </Link>
                 <p className="mt-3 flex-1 text-sm leading-7 text-white/68">
                   {related.description}
@@ -177,7 +191,8 @@ export default function ApparelProduct() {
                   View Design
                 </Link>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
       ) : null}
