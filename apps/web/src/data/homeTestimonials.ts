@@ -31,6 +31,13 @@ export const CYNTHIA_STRICKLAN_TTT_TESTIMONIAL: TestimonialItem = {
   name: "Cynthia Stricklan",
 };
 
+export const SARITA_LOBO_TTT_TESTIMONIAL: TestimonialItem = {
+  id: "sarita-lobo-ttt",
+  quote:
+    "Thank you Brad and Adronis for all the help and support that I have received for myself and my family for the past so many years. During my struggle with MS, Brad had provided much needed guidance. I have been following his teachings that helped me to eliminate my flare ups. After my first flare up I have not had another one. I have also spoken to Adronis a few times regarding the health and wellbeing for my family and my personal life and also my pets. The truth of the solution has always resonated so powerfully with me. I am so thankful and appreciative for all that Brad and Adronis are doing.",
+  name: "Sarita Lobo",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -80,4 +87,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
   NANCY_P_TTT_TESTIMONIAL,
   ALEXANDER_GROSSMAN_TTT_TESTIMONIAL,
   CYNTHIA_STRICKLAN_TTT_TESTIMONIAL,
+  SARITA_LOBO_TTT_TESTIMONIAL,
 ];
