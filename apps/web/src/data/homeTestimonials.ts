@@ -52,6 +52,13 @@ export const GREGORY_WELLS_PBH_TESTIMONIAL: TestimonialItem = {
   name: "Gregory Wells",
 };
 
+export const SHAREN_WOOD_TESTIMONIAL: TestimonialItem = {
+  id: "sharen-wood",
+  quote:
+    "I thought you might like to know how your channel and what you share changes lives. Last week you told us to call in the Intervention Fleet. So I did, in my daily Quantum Meditation, using the mudra you showed us. It took 10 seconds, and I heard an inner voice say, 'your body is now being scanned.' WOW. Nothing happened right away, but the next morning a channel came up about fascia and how it connects to everything. I KNEW that was my problem. I started doing Block Therapy, and today is the first day in years I've been without any pain. I feel 10 years younger in two days. Healing isn't always instant; sometimes they show you how to do it. I am so grateful.",
+  name: "Sharen Wood",
+};
+
 export const HOME_TESTIMONIALS: TestimonialItem[] = [
   {
     id: "1",
@@ -103,4 +110,5 @@ export const HOME_TESTIMONIALS: TestimonialItem[] = [
   CYNTHIA_STRICKLAN_TTT_TESTIMONIAL,
   SARITA_LOBO_TTT_TESTIMONIAL,
   KAREN_E_TTT_TESTIMONIAL,
+  SHAREN_WOOD_TESTIMONIAL,
 ];
