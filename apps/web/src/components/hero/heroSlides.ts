@@ -6,7 +6,7 @@ import heroHeaderFull from "../../assets/hero-header-full.webp";
 import mobileHeroHeader from "../../assets/mobile-hero-header.webp";
 import mentoringSession from "../../assets/mentoring-session.webp";
 import initiateReport from "../../assets/reports/divin8-initiate-report.webp";
-import goldRosetteMensRinger from "../../assets/heroes/gold-rosette-mens-ringer-hero.webp";
+import shopHeroModel from "../../assets/heroes/gold-rosette-mens-ringer-hero.webp";
 
 /** Time each slide stays up before advancing. Pauses while hovered, focused, or explicitly paused. */
 export const HERO_ROTATION_MS = 12_000;
@@ -38,10 +38,10 @@ export type HeroSlide = {
  * Four homepage heroes.
  *
  * Brad keeps the existing cosmic photograph and the current primary copy.
- * Shop uses an existing Spreadshop photo of the Gold Rosette mandala on a
- * men's ringer tee, with the white studio background removed. Services and
- * Reports use the mentoring session piece and the Divin8 Initiate report.
- * They are not new photographs of Brad.
+ * Shop uses a Spreadshop photo of a model wearing sacred geometry apparel,
+ * with the white studio background removed. Services and Reports use the
+ * mentoring session piece and the Divin8 Initiate report. They are not new
+ * photographs of Brad.
  */
 export const HERO_SLIDES: HeroSlide[] = [
   {
@@ -81,7 +81,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     ],
     visual: {
       kind: "model",
-      src: goldRosetteMensRinger,
+      src: shopHeroModel,
     },
   },
   {
