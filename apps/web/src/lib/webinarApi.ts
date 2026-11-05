@@ -1,10 +1,25 @@
 import {
   ADRONIS_WEBINAR_EVENT_ID,
+  STAR_INITIATION_WEBINAR_EVENT_ID,
   getAdronisWebinarPublicCatalog,
+  getStarInitiationWebinarPublicCatalog,
 } from "@wisdom/utils";
 import { api } from "./api";
 
-export type WebinarPublicCatalog = ReturnType<typeof getAdronisWebinarPublicCatalog>;
+export type WebinarPublicCatalog = Omit<
+  ReturnType<typeof getAdronisWebinarPublicCatalog>,
+  "featureBullets"
+> & {
+  featureBullets: string[];
+  maxAttendees?: number | null;
+  seatsTaken?: number | null;
+  seatsRemaining?: number | null;
+  soldOut?: boolean;
+  homeSummary?: string;
+  homeHighlights?: string[];
+  descriptionParagraphs?: string[];
+  landscapePosterPath?: string;
+};
 
 export interface WebinarEventState extends WebinarPublicCatalog {
   bookingId: string | null;
@@ -24,12 +39,19 @@ function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
+function fallbackPublicCatalog(eventId: string) {
+  if (eventId === STAR_INITIATION_WEBINAR_EVENT_ID) {
+    return getStarInitiationWebinarPublicCatalog();
+  }
+  return getAdronisWebinarPublicCatalog();
+}
+
 export async function fetchPublicWebinar(eventId = ADRONIS_WEBINAR_EVENT_ID) {
   try {
     const payload = await api.get(`/webinars/${encodeURIComponent(eventId)}`);
     return unwrapData<WebinarPublicCatalog>(payload);
   } catch {
-    return getAdronisWebinarPublicCatalog();
+    return fallbackPublicCatalog(eventId);
   }
 }
 

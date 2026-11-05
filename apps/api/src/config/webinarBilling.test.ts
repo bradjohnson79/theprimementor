@@ -1,4 +1,9 @@
-import { getPrimeAlchemyWebinarPublicCatalog, getStarFamilyWebinarPublicCatalog, isStarFamilyWebinarHomeVisible } from "@wisdom/utils";
+import {
+  getPrimeAlchemyWebinarPublicCatalog,
+  getStarFamilyWebinarPublicCatalog,
+  getStarInitiationWebinarPublicCatalog,
+  isStarFamilyWebinarHomeVisible,
+} from "@wisdom/utils";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -13,6 +18,7 @@ import {
   PRIME_ALCHEMY_WEBINAR_EVENT,
   STAR_FAMILY_WEBINAR_EVENT,
   STAR_FAMILY_WEBINAR_STRIPE_PRICE_ID,
+  STAR_INITIATION_WEBINAR_EVENT,
   resolveWebinarZoomRegistrationUrl,
 } from "./webinarEvents.js";
 
@@ -155,6 +161,42 @@ test("prime alchemy test mode never falls back to the live price", () => {
   process.env.STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS = "price_1USOJjAd5V3LaCqjMsii8snO";
   assert.throws(
     () => resolveWebinarStripePriceId(PRIME_ALCHEMY_WEBINAR_EVENT),
+    /Live price IDs are never used in test mode/i,
+  );
+});
+
+test("star initiation live checkout uses its own price, capacity, and cutoff", () => {
+  process.env.STRIPE_SECRET_KEY = "sk_live_example";
+  delete process.env.STRIPE_LIVE_PRICE_ADRONIS_STAR_INITIATION;
+  assert.equal(resolveWebinarStripePriceId(STAR_INITIATION_WEBINAR_EVENT).priceId, "price_1UYV9ZAd5V3LaCqjZ1U7Gy1I");
+  assert.equal(STAR_INITIATION_WEBINAR_EVENT.priceCents, 1999);
+  assert.equal(STAR_INITIATION_WEBINAR_EVENT.maxAttendees, 20);
+  assert.equal(STAR_INITIATION_WEBINAR_EVENT.grantsComplimentaryRecording, false);
+  assert.match(STAR_INITIATION_WEBINAR_EVENT.zoomRegistrationUrl, /9beILHXDRbad1Zlg3QuE6g/);
+  assert.doesNotThrow(() => assertWebinarRegistrationOpen(STAR_INITIATION_WEBINAR_EVENT, new Date("2026-11-21T08:59:59-08:00")));
+  assert.throws(
+    () => assertWebinarRegistrationOpen(STAR_INITIATION_WEBINAR_EVENT, new Date("2026-11-21T09:00:00-08:00")),
+    /closed/i,
+  );
+});
+
+test("star initiation public catalog omits the zoom registration url and stripe price", () => {
+  const catalog = getStarInitiationWebinarPublicCatalog(new Date("2026-11-05T12:00:00-08:00"));
+  const serialized = JSON.stringify(catalog);
+  assert.equal(catalog.registrationOpen, true);
+  assert.equal(catalog.maxAttendees, 20);
+  assert.equal(catalog.displayDate, "Saturday, November 21, 2026");
+  assert.equal(catalog.displayPrice, "$19.99 CAD");
+  assert.equal(catalog.landscapePosterPath, "/images/webinars/adronis-star-initiation-16x9.jpg");
+  assert.doesNotMatch(serialized, /zoom\.us|9beILHXDRbad1Zlg3QuE6g|price_1UYV9Z/i);
+});
+
+test("star initiation test mode never falls back to the live price", () => {
+  process.env.STRIPE_SECRET_KEY = "sk_test_example";
+  delete process.env.STRIPE_PRICE_ADRONIS_STAR_INITIATION;
+  process.env.STRIPE_LIVE_PRICE_ADRONIS_STAR_INITIATION = "price_1UYV9ZAd5V3LaCqjZ1U7Gy1I";
+  assert.throws(
+    () => resolveWebinarStripePriceId(STAR_INITIATION_WEBINAR_EVENT),
     /Live price IDs are never used in test mode/i,
   );
 });

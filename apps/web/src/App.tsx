@@ -50,6 +50,8 @@ const AdronisWebinarCheckout = lazy(() => import("./routes/AdronisWebinarCheckou
 const AdronisWebinarThankYou = lazy(() => import("./routes/AdronisWebinarThankYou"));
 const PrimeAlchemyWebinarLearnMore = lazy(() => import("./routes/PrimeAlchemyWebinarLearnMore"));
 const PrimeAlchemyWebinarThankYou = lazy(() => import("./routes/PrimeAlchemyWebinarThankYou"));
+const StarInitiationWebinarCheckout = lazy(() => import("./routes/StarInitiationWebinarCheckout"));
+const StarInitiationWebinarThankYou = lazy(() => import("./routes/StarInitiationWebinarThankYou"));
 const OnDemandWebinarCheckout = lazy(() => import("./routes/OnDemandWebinarCheckout"));
 const OnDemandWebinarThankYou = lazy(() => import("./routes/OnDemandWebinarThankYou"));
 const MentorTraining = lazy(() => import("./routes/MentorTraining"));
@@ -163,6 +165,8 @@ export default function App() {
             <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
             <Route path={EMAIL_SESSION_LANDING_PATH} element={<OfflineSessionPage product="email" />} />
             <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
+            <Route path="/webinars/adronis-star-initiation" element={<StarInitiationWebinarCheckout />} />
+            <Route path="/webinars/adronis-star-initiation/thank-you" element={<StarInitiationWebinarThankYou />} />
             <Route path="/webinars/prime-alchemy-teachings" element={<PrimeAlchemyWebinarLearnMore />} />
             <Route path="/webinars/prime-alchemy-teachings/thank-you" element={<PrimeAlchemyWebinarThankYou />} />
             <Route path="/webinars/prime-alchemy-teachings/on-demand" element={<OnDemandWebinarCheckout webinarId={PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID} />} />

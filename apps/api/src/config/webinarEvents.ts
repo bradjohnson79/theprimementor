@@ -54,9 +54,30 @@ import {
   PRIME_ALCHEMY_WEBINAR_THANK_YOU_PATH,
   PRIME_ALCHEMY_WEBINAR_TIMEZONE,
   PRIME_ALCHEMY_WEBINAR_TITLE,
+  STAR_INITIATION_WEBINAR_BOOKING_TYPE_ID,
+  STAR_INITIATION_WEBINAR_CURRENCY,
+  STAR_INITIATION_WEBINAR_DESCRIPTION,
+  STAR_INITIATION_WEBINAR_DISPLAY_DATE,
+  STAR_INITIATION_WEBINAR_DISPLAY_TIME,
+  STAR_INITIATION_WEBINAR_DURATION_MINUTES,
+  STAR_INITIATION_WEBINAR_EVENT_ID,
+  STAR_INITIATION_WEBINAR_EVENT_KEY,
+  STAR_INITIATION_WEBINAR_FEATURE_BULLETS,
+  STAR_INITIATION_WEBINAR_LIVE_STRIPE_PRICE_ID,
+  STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
+  STAR_INITIATION_WEBINAR_POSTER_ALT,
+  STAR_INITIATION_WEBINAR_POSTER_PATH,
+  STAR_INITIATION_WEBINAR_PRESENTER,
+  STAR_INITIATION_WEBINAR_PRICE_CENTS,
+  STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT,
+  STAR_INITIATION_WEBINAR_STARTS_AT,
+  STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
+  STAR_INITIATION_WEBINAR_TIMEZONE,
+  STAR_INITIATION_WEBINAR_TITLE,
   isAdronisWebinarRegistrationOpen,
   isPrimeAlchemyWebinarRegistrationOpen,
   isStarFamilyWebinarRegistrationOpen,
+  isStarInitiationWebinarRegistrationOpen,
 } from "@wisdom/utils";
 
 export const ADRONIS_WEBINAR_STRIPE_PRICE_ID = "price_1UB1hYAd5V3LaCqjzuAw3IlI";
@@ -75,6 +96,11 @@ export const PRIME_ALCHEMY_WEBINAR_ZOOM_REGISTRATION_URL =
   "https://us02web.zoom.us/meeting/register/W3SbW8mdQACjSbbU-YrHQg";
 export const PRIME_ALCHEMY_WEBINAR_CONFIRMATION_SUBJECT =
   "You’re Registered — Mentoring Circle: Prime Alchemy Teachings";
+export const STAR_INITIATION_WEBINAR_STRIPE_PRICE_ID = STAR_INITIATION_WEBINAR_LIVE_STRIPE_PRICE_ID;
+export const STAR_INITIATION_WEBINAR_ZOOM_REGISTRATION_URL =
+  "https://us02web.zoom.us/meeting/register/9beILHXDRbad1Zlg3QuE6g";
+export const STAR_INITIATION_WEBINAR_CONFIRMATION_SUBJECT =
+  "You’re Registered — Adronis: Star Initiation";
 
 export interface WebinarEventDefinition {
   eventId: string;
@@ -100,6 +126,7 @@ export interface WebinarEventDefinition {
   confirmationEmailSubject: string;
   active: boolean;
   grantsComplimentaryRecording: boolean;
+  maxAttendees?: number | null;
   testPriceEnvKey: string;
   livePriceEnvKey: string;
   allowTestLivePriceFallback: boolean;
@@ -129,6 +156,7 @@ export const ADRONIS_WEBINAR_EVENT: WebinarEventDefinition = {
   confirmationEmailSubject: ADRONIS_WEBINAR_CONFIRMATION_SUBJECT,
   active: true,
   grantsComplimentaryRecording: false,
+  maxAttendees: null,
   testPriceEnvKey: "STRIPE_PRICE_ADRONIS_WEBINAR",
   livePriceEnvKey: "STRIPE_LIVE_PRICE_ADRONIS_WEBINAR",
   allowTestLivePriceFallback: true,
@@ -158,6 +186,7 @@ export const STAR_FAMILY_WEBINAR_EVENT: WebinarEventDefinition = {
   confirmationEmailSubject: STAR_FAMILY_WEBINAR_CONFIRMATION_SUBJECT,
   active: true,
   grantsComplimentaryRecording: true,
+  maxAttendees: null,
   testPriceEnvKey: "STRIPE_PRICE_ADRONIS_STAR_FAMILY_COMMUNION",
   livePriceEnvKey: "STRIPE_LIVE_PRICE_ADRONIS_STAR_FAMILY_COMMUNION",
   allowTestLivePriceFallback: false,
@@ -187,12 +216,44 @@ export const PRIME_ALCHEMY_WEBINAR_EVENT: WebinarEventDefinition = {
   confirmationEmailSubject: PRIME_ALCHEMY_WEBINAR_CONFIRMATION_SUBJECT,
   active: true,
   grantsComplimentaryRecording: true,
+  maxAttendees: null,
   testPriceEnvKey: "STRIPE_PRICE_PRIME_ALCHEMY_TEACHINGS",
   livePriceEnvKey: "STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS",
   allowTestLivePriceFallback: false,
 };
 
+export const STAR_INITIATION_WEBINAR_EVENT: WebinarEventDefinition = {
+  eventId: STAR_INITIATION_WEBINAR_EVENT_ID,
+  eventKey: STAR_INITIATION_WEBINAR_EVENT_KEY,
+  eventTitle: STAR_INITIATION_WEBINAR_TITLE,
+  presenter: STAR_INITIATION_WEBINAR_PRESENTER,
+  description: STAR_INITIATION_WEBINAR_DESCRIPTION,
+  featureBullets: [...STAR_INITIATION_WEBINAR_FEATURE_BULLETS],
+  eventStartAt: STAR_INITIATION_WEBINAR_STARTS_AT,
+  registrationClosesAt: STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT,
+  displayDate: STAR_INITIATION_WEBINAR_DISPLAY_DATE,
+  displayTime: STAR_INITIATION_WEBINAR_DISPLAY_TIME,
+  timezone: STAR_INITIATION_WEBINAR_TIMEZONE,
+  durationMinutes: STAR_INITIATION_WEBINAR_DURATION_MINUTES,
+  priceCents: STAR_INITIATION_WEBINAR_PRICE_CENTS,
+  currency: STAR_INITIATION_WEBINAR_CURRENCY,
+  posterPath: STAR_INITIATION_WEBINAR_POSTER_PATH,
+  posterAlt: STAR_INITIATION_WEBINAR_POSTER_ALT,
+  stripePriceId: STAR_INITIATION_WEBINAR_STRIPE_PRICE_ID,
+  zoomRegistrationUrl: STAR_INITIATION_WEBINAR_ZOOM_REGISTRATION_URL,
+  thankYouPath: STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
+  bookingTypeId: STAR_INITIATION_WEBINAR_BOOKING_TYPE_ID,
+  confirmationEmailSubject: STAR_INITIATION_WEBINAR_CONFIRMATION_SUBJECT,
+  active: true,
+  grantsComplimentaryRecording: false,
+  maxAttendees: STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
+  testPriceEnvKey: "STRIPE_PRICE_ADRONIS_STAR_INITIATION",
+  livePriceEnvKey: "STRIPE_LIVE_PRICE_ADRONIS_STAR_INITIATION",
+  allowTestLivePriceFallback: false,
+};
+
 const WEBINAR_EVENTS: WebinarEventDefinition[] = [
+  STAR_INITIATION_WEBINAR_EVENT,
   ADRONIS_WEBINAR_EVENT,
   STAR_FAMILY_WEBINAR_EVENT,
   PRIME_ALCHEMY_WEBINAR_EVENT,
@@ -220,6 +281,9 @@ export function isWebinarRegistrationOpen(event: WebinarEventDefinition, now = n
   }
   if (event.eventId === PRIME_ALCHEMY_WEBINAR_EVENT_ID) {
     return isPrimeAlchemyWebinarRegistrationOpen(now);
+  }
+  if (event.eventId === STAR_INITIATION_WEBINAR_EVENT_ID) {
+    return isStarInitiationWebinarRegistrationOpen(now);
   }
   return now.getTime() < new Date(event.registrationClosesAt).getTime();
 }

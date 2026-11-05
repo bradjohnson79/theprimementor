@@ -85,8 +85,9 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Events",
-    href: "/webinars/prime-alchemy-teachings",
+    href: "/webinars/adronis-star-initiation",
     items: [
+      { label: "Adronis: Star Initiation (Live Nov 21)", href: "/webinars/adronis-star-initiation" },
       { label: "Mentoring Circle: Prime Alchemy (On Demand)", href: "/webinars/prime-alchemy-teachings/on-demand" },
     ],
   },

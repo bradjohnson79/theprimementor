@@ -8,13 +8,13 @@ import {
 } from "@wisdom/utils";
 import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 import { trackEventOnce } from "../../lib/analytics";
-import { fetchPublicWebinar, fetchWebinarMe } from "../../lib/webinarApi";
+import { fetchPublicWebinar, fetchWebinarMe, type WebinarPublicCatalog } from "../../lib/webinarApi";
 import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
 
 export default function AdronisWebinarHomeCard() {
   const { isSignedIn, getToken } = useAuth();
   const reduceMotion = useReducedMotion();
-  const [catalog, setCatalog] = useState(getAdronisWebinarPublicCatalog);
+  const [catalog, setCatalog] = useState<WebinarPublicCatalog>(getAdronisWebinarPublicCatalog);
   const [owned, setOwned] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

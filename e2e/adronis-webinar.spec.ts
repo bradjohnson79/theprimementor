@@ -18,22 +18,23 @@ async function openHomepage(page: Page) {
 }
 
 test.describe("Star Family public pages are retired", () => {
-  test("homepage promotes Prime Alchemy on-demand first", async ({ page }) => {
+  test("homepage promotes Star Initiation live and Prime Alchemy on-demand", async ({ page }) => {
     await openHomepage(page);
     await expect(page.locator("#star-family-communion")).toHaveCount(0);
+    await expect(page.locator("#star-initiation")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Adronis: Star Initiation" })).toBeVisible();
+    await expect(page.getByText(/Limited to 20 attendees|seats remaining/i).first()).toBeVisible();
     await expect(page.locator("#on-demand-webinars")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: From Disclosure to Contact" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
-    await expect(page.getByText("$9.99 CAD").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /Register —/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Purchase —/ }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Adronis: Star Family Communion" })).toHaveCount(0);
     await expect(page.locator(`a[href="${STAR_FAMILY}"]`)).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(ZOOM_TOKEN);
     await expect(page.locator("body")).not.toContainText(DISCLOSURE_ZOOM_TOKEN);
     await expect(page.locator("body")).not.toContainText(PRIME_ALCHEMY_ZOOM_TOKEN);
+    await expect(page.locator("body")).not.toContainText("9beILHXDRbad1Zlg3QuE6g");
   });
 
   test("registration and thank-you URLs return home", async ({ page }) => {
@@ -71,6 +72,15 @@ test.describe("Disclosure on-demand remains isolated", () => {
     await expect(page.getByRole("button", { name: "Get Instant Access — $7.99 CAD" }).first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText(ZOOM_TOKEN);
     await expect(page.locator("body")).not.toContainText("Saturday, September 12, 2026");
+  });
+
+  test("Star Initiation live landing sells registration without exposing Zoom", async ({ page }) => {
+    await page.goto("/webinars/adronis-star-initiation");
+    await expect(page.getByRole("heading", { name: "Adronis: Star Initiation", level: 1 })).toBeVisible();
+    await expect(page.getByText("$19.99 CAD").first()).toBeVisible();
+    await expect(page.getByText(/Limited to 20 attendees|seats remaining/i).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Register —/ }).first()).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("9beILHXDRbad1Zlg3QuE6g");
   });
 
   test("Prime Alchemy learn-more and on-demand pages sell the recording", async ({ page }) => {

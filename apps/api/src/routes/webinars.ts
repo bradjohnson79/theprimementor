@@ -23,6 +23,7 @@ import {
   upsertOnDemandWebinarProgress,
 } from "../services/webinars/onDemandWebinarProgressService.js";
 import {
+  countWebinarSeatHolds,
   getWebinarAccessForUser,
   getWebinarEventOrThrow,
   getWebinarStateForUser,
@@ -177,12 +178,17 @@ export async function webinarRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get("/webinars", async () => ok(listPublicWebinarCatalog()));
+  app.get("/webinars", async (request) => {
+    const db = requireDatabase(app.db);
+    return ok(await listPublicWebinarCatalog(db));
+  });
 
   app.get<{ Params: EventParams }>("/webinars/:eventId", async (request, reply) => {
     try {
+      const db = requireDatabase(app.db);
       const event = getWebinarEventOrThrow(request.params.eventId);
-      return ok(toPublicWebinarCatalog(event));
+      const seatsTaken = event.maxAttendees ? await countWebinarSeatHolds(db, event.eventKey) : null;
+      return ok(toPublicWebinarCatalog(event, new Date(), { seatsTaken }));
     } catch (error) {
       const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
         ? (error as { statusCode: number }).statusCode
