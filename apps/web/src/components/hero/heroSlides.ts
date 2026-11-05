@@ -6,7 +6,7 @@ import heroHeaderFull from "../../assets/hero-header-full.webp";
 import mobileHeroHeader from "../../assets/mobile-hero-header.webp";
 import mentoringSession from "../../assets/mentoring-session.webp";
 import initiateReport from "../../assets/reports/divin8-initiate-report.webp";
-import shopHeroModel from "../../assets/heroes/gold-rosette-mens-ringer-hero.webp";
+import sparkleStarMandala from "../../assets/heroes/sparkle-star-mandala-hero.webp";
 
 /** Time each slide stays up before advancing. Pauses while hovered, focused, or explicitly paused. */
 export const HERO_ROTATION_MS = 12_000;
@@ -20,7 +20,8 @@ export type HeroCta = {
 export type HeroSlideVisual =
   | { kind: "brad"; desktopSrc: string; mobileSrc: string }
   | { kind: "model"; src: string }
-  | { kind: "scene"; src: string };
+  | { kind: "scene"; src: string }
+  | { kind: "mandala"; src: string };
 
 export type HeroSlide = {
   id: "brad" | "shop" | "services" | "reports";
@@ -38,10 +39,9 @@ export type HeroSlide = {
  * Four homepage heroes.
  *
  * Brad keeps the existing cosmic photograph and the current primary copy.
- * Shop uses a Spreadshop photo of a model wearing sacred geometry apparel,
- * with the white studio background removed. Services and Reports use the
- * mentoring session piece and the Divin8 Initiate report. They are not new
- * photographs of Brad.
+ * Shop displays the sparkle star sacred geometry mandala design on a transparent
+ * background. Services and Reports use the mentoring session piece and the
+ * Divin8 Initiate report. They are not new photographs of Brad.
  */
 export const HERO_SLIDES: HeroSlide[] = [
   {
@@ -80,8 +80,8 @@ export const HERO_SLIDES: HeroSlide[] = [
       { label: "Explore the Shop", href: "#shop", variant: "primary" },
     ],
     visual: {
-      kind: "model",
-      src: shopHeroModel,
+      kind: "mandala",
+      src: sparkleStarMandala,
     },
   },
   {
