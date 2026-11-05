@@ -34,7 +34,7 @@ export default function ApparelLanding() {
             The Prime Mentor Shop
           </p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight md:text-7xl">
-            Sacred Geometry Apparel & Art
+            Sacred Geometry Apparel
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-white/72">
             Explore original sacred geometry mandalas, dragon and phoenix designs, and kids' artwork on premium apparel.
