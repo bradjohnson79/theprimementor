@@ -7,6 +7,7 @@ import WebsiteStatusPage from "../components/public/WebsiteStatusPage";
 import {
   PRODUCT_CODES,
   formatApparelFromPrice,
+  getApparelFromPriceCAD,
   getDesignBySlug,
   getRelatedDesigns,
   getApparelImagePath,
@@ -44,8 +45,8 @@ export default function ApparelProduct() {
         url: pageCanonical(`/shop/apparel/${design.slug}`),
         availability: "https://schema.org/InStock",
         seller: { "@id": ORGANIZATION_ID },
-        ...(APPAREL_CONFIG.showPrices && design.fromPriceCAD != null
-          ? { priceCurrency: "CAD", lowPrice: design.fromPriceCAD.toFixed(2) }
+        ...(APPAREL_CONFIG.showPrices && getApparelFromPriceCAD(design) != null
+          ? { priceCurrency: "CAD", lowPrice: getApparelFromPriceCAD(design)!.toFixed(2) }
           : {}),
       },
     }] : undefined,
