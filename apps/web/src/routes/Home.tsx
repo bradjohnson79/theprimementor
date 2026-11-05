@@ -14,6 +14,7 @@ import HomeFaq, { HOME_FAQS } from "../components/home/HomeFaq";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
 import HomeShopGallery from "../components/home/HomeShopGallery";
+import HomeShopSection from "../components/home/HomeShopSection";
 import AdronisPatreonHomeBanner from "../components/home/AdronisPatreonHomeBanner";
 import OverviewSection from "../components/sections/OverviewSection";
 import CompactCardGrid from "../components/public/CompactCardGrid";
@@ -180,15 +181,17 @@ const TRAUMA_TRANSCENDENCE_COURSE_BANNER_SRC = "/images/Trauma-Transcendence-Tec
 
 interface LandingSectionProps {
   id: string;
+  labelledBy?: string;
   children: React.ReactNode;
 }
 
-function LandingSection({ id, children }: LandingSectionProps) {
+function LandingSection({ id, labelledBy, children }: LandingSectionProps) {
   const prefersReducedMotion = useReducedMotion();
 
   return (
     <motion.section
       id={id}
+      aria-labelledby={labelledBy}
       initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: "some" }}
@@ -434,6 +437,10 @@ export default function Home() {
       {/* Start here: Brad's named featured offers (BRAD-ANSWERS.md #1). */}
       <LandingSection id="start-here">
         <StartHereDoors />
+      </LandingSection>
+
+      <LandingSection id="shop" labelledBy="home-shop-heading">
+        <HomeShopSection />
       </LandingSection>
 
       <PrimeMentorServices />
