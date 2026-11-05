@@ -151,7 +151,7 @@ export default function StarInitiationWebinarThankYou() {
           <p className="text-lg font-semibold text-white">{STAR_INITIATION_WEBINAR_TITLE}</p>
           <p>{catalog.displayDate}</p>
           <p>{catalog.displayTime}</p>
-          <p>Live on Zoom · Limited to 20 attendees</p>
+          <p>Live on Zoom · Limited to 24 attendees</p>
         </div>
 
         {status === "loading" ? <p className="text-white/70">Confirming your registration access…</p> : null}

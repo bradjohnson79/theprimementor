@@ -161,14 +161,14 @@ export const STAR_INITIATION_WEBINAR_TIMEZONE = "America/Los_Angeles";
 export const STAR_INITIATION_WEBINAR_STARTS_AT = "2026-11-21T10:00:00-08:00";
 export const STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT = "2026-11-21T09:00:00-08:00";
 export const STAR_INITIATION_WEBINAR_DURATION_MINUTES = 180;
-export const STAR_INITIATION_WEBINAR_MAX_ATTENDEES = 20;
+export const STAR_INITIATION_WEBINAR_MAX_ATTENDEES = 24;
 export const STAR_INITIATION_WEBINAR_DISPLAY_DATE = "Saturday, November 21, 2026";
 export const STAR_INITIATION_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
 export const STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH = "/images/webinars/adronis-star-initiation-16x9.jpg";
 export const STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH = "/images/webinars/adronis-star-initiation-9x16.jpg";
 export const STAR_INITIATION_WEBINAR_POSTER_PATH = STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH;
 export const STAR_INITIATION_WEBINAR_POSTER_ALT =
-  "Adronis: Star Initiation webinar with Brad Johnson, Saturday, November 21, 2026. Limited to 20 attendees.";
+  "Adronis: Star Initiation webinar with Brad Johnson, Saturday, November 21, 2026. Limited to 24 attendees.";
 export const STAR_INITIATION_WEBINAR_CHECKOUT_PATH = "/webinars/adronis-star-initiation";
 export const STAR_INITIATION_WEBINAR_THANK_YOU_PATH = "/webinars/adronis-star-initiation/thank-you";
 export const STAR_INITIATION_WEBINAR_BOOKING_TYPE_ID = "webinar-adronis-star-initiation";
@@ -186,7 +186,7 @@ export const STAR_INITIATION_WEBINAR_HOME_SUMMARY =
   "An intimate, limited-attendance live Zoom webinar where Adronis connects with each attendee individually for a personal Star Initiation.";
 
 export const STAR_INITIATION_WEBINAR_FEATURE_BULLETS = [
-  "Limited to 20 attendees for an intimate group experience",
+  "Limited to 24 attendees for an intimate group experience",
   "Individual Star Initiation connection with Adronis for each participant",
   "Support for reconnection with your star family and celestial lineage",
   "Guidance intended to restore inner connection and support cosmic integration",
@@ -195,7 +195,7 @@ export const STAR_INITIATION_WEBINAR_FEATURE_BULLETS = [
 ] as const;
 
 export const STAR_INITIATION_WEBINAR_HOME_HIGHLIGHTS = [
-  "Limited to 20 attendees",
+  "Limited to 24 attendees",
   "Personal Star Initiation with Adronis for each participant",
   "Reconnect with your star family and celestial lineage",
   "Live on Zoom · Saturday, November 21, 2026",

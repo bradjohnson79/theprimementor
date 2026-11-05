@@ -23,7 +23,7 @@ test.describe("Star Family public pages are retired", () => {
     await expect(page.locator("#star-family-communion")).toHaveCount(0);
     await expect(page.locator("#star-initiation")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Adronis: Star Initiation" })).toBeVisible();
-    await expect(page.getByText(/Limited to 20 attendees|seats remaining/i).first()).toBeVisible();
+    await expect(page.getByText(/Limited to 24 attendees|seats remaining/i).first()).toBeVisible();
     await expect(page.locator("#on-demand-webinars")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();
@@ -78,7 +78,7 @@ test.describe("Disclosure on-demand remains isolated", () => {
     await page.goto("/webinars/adronis-star-initiation");
     await expect(page.getByRole("heading", { name: "Adronis: Star Initiation", level: 1 })).toBeVisible();
     await expect(page.getByText("$19.99 CAD").first()).toBeVisible();
-    await expect(page.getByText(/Limited to 20 attendees|seats remaining/i).first()).toBeVisible();
+    await expect(page.getByText(/Limited to 24 attendees|seats remaining/i).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Register —/ }).first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText("9beILHXDRbad1Zlg3QuE6g");
   });
