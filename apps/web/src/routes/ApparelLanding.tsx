@@ -7,9 +7,9 @@ import {
   APPAREL_TOPICS,
   formatApparelFromPrice,
   getDesignsByTopic,
-  getApparelImagePath,
   type ApparelTopic,
 } from "../data/apparel";
+import { getApparelCardImage } from "../data/apparelModels";
 import ApparelInstructionManual from "../components/shop/ApparelInstructionManual";
 
 export default function ApparelLanding() {
@@ -35,7 +35,7 @@ export default function ApparelLanding() {
             The Prime Mentor Shop
           </p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight md:text-7xl">
-            Sacred Geometry Apparel & Art
+            Sacred Geometry Apparel
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-white/72">
             Explore original sacred geometry mandalas, dragon and phoenix designs, and kids' artwork on premium apparel.
@@ -81,14 +81,15 @@ export default function ApparelLanding() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {displayedDesigns.map((design) => {
               const fromPrice = formatApparelFromPrice(design);
+              const card = getApparelCardImage(design.slug);
               return (
               <article key={design.slug} className="glass-card flex h-full flex-col rounded-3xl p-6">
                 <Link to={`/shop/apparel/${design.slug}`} className="group">
-                  <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-black/30">
+                  <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-[#ececef]">
                     <img
-                      src={getApparelImagePath(design)}
-                      alt={design.title}
-                      className="aspect-square w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                      src={card?.src}
+                      alt={card?.alt ?? design.title}
+                      className="aspect-[4/5] w-full object-contain object-top transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
                       decoding="async"
                     />
@@ -137,6 +138,9 @@ export default function ApparelLanding() {
             Each design is printed on-demand on premium apparel, including women's and men's t-shirts, tank tops,
             hoodies, and kids' and baby pieces. When you click "Buy on Spreadshop," you'll be taken to our partner Spreadshop to
             complete your purchase. All items are printed and shipped directly by Spreadshirt.
+          </p>
+          <p className="mt-4 text-base leading-8 text-white/72">
+            All our designs are AI free. All designs on The Prime Mentor Shop were built with natural geometric artistry.
           </p>
           <ApparelInstructionManual className="mx-auto mt-8 max-w-md" />
           <Link

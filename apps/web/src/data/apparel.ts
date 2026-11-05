@@ -3,11 +3,15 @@
  * 
  * Generated from apparel-manifest.json
  * Adult designs plus the kids' designs on the same Spreadshop shop.
- * fromPriceCAD is the lowest CAD price verified on each live product page.
+ * fromPriceCAD is the cheapest garment (tee, hoodie, tank, and similar).
+ * Stickers and other accessories are not included. Display goes through
+ * getApparelFromPriceCAD(), which re-checks the garment list.
  * 
  * IMPORTANT: Never display internalName in UI, alt text, meta tags, or URLs.
  * Drop the "DRAFT (pending Brad's review):" prefix from descriptions in the UI.
  */
+
+import { APPAREL_PRICE_OFFERS, lowestApparelPrice } from "./apparelPrices";
 
 export const APPAREL_CONFIG = {
   shopName: "The Prime Mentor Shop",
@@ -63,7 +67,10 @@ export interface ApparelDesign {
   topics: string[];
   image: string; // SEO-friendly filename
   draft: boolean; // True if description has DRAFT prefix
-  /** Lowest CAD price verified on the live product page. Null when unverified. */
+  /**
+   * Cheapest garment price in CAD. Null when the design has no tee, hoodie,
+   * or similar garment (accessories only). Not the sticker or accessory floor.
+   */
   fromPriceCAD: number | null;
 }
 
@@ -90,7 +97,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 1,
     topics: ["best-sellers", "mandalas"],
     image: "gold-rosette-mandala.webp",
-    fromPriceCAD: 27.49,
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -115,7 +122,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 2,
     topics: ["best-sellers", "mudra-flower-of-life"],
     image: "wayshower-rainbow-jnana-mudra.webp",
-    fromPriceCAD: 3.29,
+    fromPriceCAD: 31.99,
     draft: false,
   },
   {
@@ -215,7 +222,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 6,
     topics: ["best-sellers", "mandalas"],
     image: "ice-blue-sparkle-star-mandala.webp",
-    fromPriceCAD: 25.99,
+    fromPriceCAD: 35.49,
     draft: false,
   },
   {
@@ -315,7 +322,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 10,
     topics: ["mandalas"],
     image: "blue-pearl-wheel-mandala.webp",
-    fromPriceCAD: 20.99,
+    fromPriceCAD: null,
     draft: false,
   },
   {
@@ -340,7 +347,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 11,
     topics: ["mandalas"],
     image: "pink-pearl-wheel-mandala.webp",
-    fromPriceCAD: 20.99,
+    fromPriceCAD: null,
     draft: false,
   },
   {
@@ -365,7 +372,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 12,
     topics: ["dragon-phoenix"],
     image: "dragon-dimension-blue-chrome-dragon.webp",
-    fromPriceCAD: 3.29,
+    fromPriceCAD: 25.49,
     draft: false,
   },
   {
@@ -390,7 +397,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 13,
     topics: ["dragon-phoenix"],
     image: "fire-phoenix-tribal-phoenix.webp",
-    fromPriceCAD: 3.29,
+    fromPriceCAD: 25.49,
     draft: false,
   },
   {
@@ -459,7 +466,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 16,
     topics: ["mandalas"],
     image: "gold-star-ray-mandala.webp",
-    fromPriceCAD: 33.49,
+    fromPriceCAD: 35.49,
     draft: true, // DRAFT (pending Brad's review)
   },
   {
@@ -507,7 +514,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 18,
     topics: ["kids"],
     image: "kids-magenta-constellation-mandala.webp",
-    fromPriceCAD: 28.99,
+    fromPriceCAD: 31.99,
     draft: false,
   },
   {
@@ -531,7 +538,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 19,
     topics: ["kids"],
     image: "kids-azure-constellation-mandala.webp",
-    fromPriceCAD: 28.99,
+    fromPriceCAD: 31.99,
     draft: false,
   },
   {
@@ -554,7 +561,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 20,
     topics: ["kids"],
     image: "kids-lilac-sparkle-star-mandala.webp",
-    fromPriceCAD: 28.99,
+    fromPriceCAD: 31.99,
     draft: false,
   },
   {
@@ -577,7 +584,7 @@ export const APPAREL_DESIGNS: ApparelDesign[] = [
     featuredRank: 21,
     topics: ["kids"],
     image: "kids-ice-blue-sparkle-star-mandala.webp",
-    fromPriceCAD: 28.99,
+    fromPriceCAD: 31.99,
     draft: false,
   },
 ];
@@ -595,11 +602,19 @@ export function buildSpreadshopUrl(design: ApparelDesign): string {
 }
 
 /**
- * CAD "from" price for verified designs. Null hides the price in the UI and in JSON-LD.
+ * CAD "from" price for garments only. Null hides the price in the UI and in JSON-LD.
+ * Derived from the catalog garment list so a sticker or button cannot become the floor.
  */
+export function getApparelFromPriceCAD(design: ApparelDesign): number | null {
+  const offers = APPAREL_PRICE_OFFERS[design.slug];
+  if (offers) return lowestApparelPrice(offers);
+  return design.fromPriceCAD;
+}
+
 export function formatApparelFromPrice(design: ApparelDesign): string | null {
-  if (!APPAREL_CONFIG.showPrices || design.fromPriceCAD == null) return null;
-  return `From CAD$${design.fromPriceCAD.toFixed(2)}`;
+  const amount = getApparelFromPriceCAD(design);
+  if (!APPAREL_CONFIG.showPrices || amount == null) return null;
+  return `From CAD$${amount.toFixed(2)}`;
 }
 
 /**
