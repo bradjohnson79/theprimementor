@@ -13,6 +13,7 @@ import StartHereDoors from "../components/home/StartHereDoors";
 import HomeFaq, { HOME_FAQS } from "../components/home/HomeFaq";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
+import StarInitiationHomeSection from "../components/webinars/StarInitiationHomeSection";
 import HomeShopGallery from "../components/home/HomeShopGallery";
 import HomeShopSection from "../components/home/HomeShopSection";
 import AdronisPatreonHomeBanner from "../components/home/AdronisPatreonHomeBanner";
@@ -432,6 +433,7 @@ export default function Home() {
           ("Upcoming" plus the Adronis webinar archive), same live Prime
           Alchemy event detail card and data source as before, just moved to
           the top of the page. See REPORT.md "Round 2" for the data source. */}
+      <StarInitiationHomeSection />
       <OnDemandWebinarsHomeWidget />
 
       {/* Start here: Brad's named featured offers (BRAD-ANSWERS.md #1). */}

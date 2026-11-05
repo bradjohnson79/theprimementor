@@ -10,6 +10,7 @@ import {
   type ApparelTopic,
 } from "../data/apparel";
 import { getApparelCardImage } from "../data/apparelModels";
+import ApparelInstructionManual from "../components/shop/ApparelInstructionManual";
 
 export default function ApparelLanding() {
   usePageMeta({
@@ -141,6 +142,7 @@ export default function ApparelLanding() {
           <p className="mt-4 text-base leading-8 text-white/72">
             All our designs are AI free. All designs on The Prime Mentor Shop were built with natural geometric artistry.
           </p>
+          <ApparelInstructionManual className="mx-auto mt-8 max-w-md" />
           <Link
             to="/shop"
             className="mt-8 inline-flex rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"

@@ -125,9 +125,9 @@ export const PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID = "webinar-prime-alchemy-teac
 export const PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH = `${PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH}?autocheckout=1`;
 export const PRIME_ALCHEMY_WEBINAR_LIVE_STRIPE_PRICE_ID = "price_1USOJjAd5V3LaCqjMsii8snO";
 export const PRIME_ALCHEMY_ON_DEMAND_AVAILABLE_AT = "2026-11-02T00:00:00-08:00";
-export const PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE = "Monday, November 2, 2026";
+export const PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE = "Available now";
 export const PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY =
-  "The live Mentoring Circle has ended. The recording will be available for on-demand purchase on Monday, November 2, 2026.";
+  "The live Mentoring Circle has ended. The full recording is available now on demand for $9.99 CAD.";
 
 export const PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS = [
   "Join Brad Johnson live on Zoom on Sunday, November 1, 2026, for an immersive three-hour Mentoring Circle exploring Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.",
@@ -149,6 +149,61 @@ const PRIME_ALCHEMY_REGISTRATION_CLOSES_AT_MS = Date.parse(PRIME_ALCHEMY_WEBINAR
 
 export function isPrimeAlchemyWebinarRegistrationOpen(now = new Date()) {
   return now.getTime() < PRIME_ALCHEMY_REGISTRATION_CLOSES_AT_MS;
+}
+
+export const STAR_INITIATION_WEBINAR_EVENT_ID = "adronis-star-initiation";
+export const STAR_INITIATION_WEBINAR_EVENT_KEY = STAR_INITIATION_WEBINAR_EVENT_ID;
+export const STAR_INITIATION_WEBINAR_TITLE = "Adronis: Star Initiation";
+export const STAR_INITIATION_WEBINAR_PRESENTER = "Brad Johnson and Adronis";
+export const STAR_INITIATION_WEBINAR_PRICE_CENTS = 1999;
+export const STAR_INITIATION_WEBINAR_CURRENCY = "CAD";
+export const STAR_INITIATION_WEBINAR_TIMEZONE = "America/Los_Angeles";
+export const STAR_INITIATION_WEBINAR_STARTS_AT = "2026-11-21T10:00:00-08:00";
+export const STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT = "2026-11-21T09:00:00-08:00";
+export const STAR_INITIATION_WEBINAR_DURATION_MINUTES = 180;
+export const STAR_INITIATION_WEBINAR_MAX_ATTENDEES = 20;
+export const STAR_INITIATION_WEBINAR_DISPLAY_DATE = "Saturday, November 21, 2026";
+export const STAR_INITIATION_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
+export const STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH = "/images/webinars/adronis-star-initiation-16x9.jpg";
+export const STAR_INITIATION_WEBINAR_POSTER_PATH = STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH;
+export const STAR_INITIATION_WEBINAR_POSTER_ALT =
+  "Adronis: Star Initiation webinar with Brad Johnson, Saturday, November 21, 2026. Limited to 20 attendees.";
+export const STAR_INITIATION_WEBINAR_CHECKOUT_PATH = "/webinars/adronis-star-initiation";
+export const STAR_INITIATION_WEBINAR_THANK_YOU_PATH = "/webinars/adronis-star-initiation/thank-you";
+export const STAR_INITIATION_WEBINAR_BOOKING_TYPE_ID = "webinar-adronis-star-initiation";
+export const STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH = `${STAR_INITIATION_WEBINAR_CHECKOUT_PATH}?autocheckout=1`;
+export const STAR_INITIATION_WEBINAR_LIVE_STRIPE_PRICE_ID = "price_1UYV9ZAd5V3LaCqjZ1U7Gy1I";
+
+export const STAR_INITIATION_WEBINAR_DESCRIPTION_PARAGRAPHS = [
+  "Join Brad Johnson and Adronis for an intimate, limited-attendance webinar designed to support reconnection with your star family and celestial lineage.",
+  "Adronis will connect with each attendee individually, guiding them through a personal Star Initiation intended to restore inner connection, support cosmic integration, and bring greater clarity to their spiritual lineage. This experience may be understood as a form of soul reintegration—helping participants recognize fragmented aspects of themselves and open more deeply to guidance, growth, and communion with their star-family presence.",
+] as const;
+
+export const STAR_INITIATION_WEBINAR_DESCRIPTION = STAR_INITIATION_WEBINAR_DESCRIPTION_PARAGRAPHS.join(" ");
+
+export const STAR_INITIATION_WEBINAR_HOME_SUMMARY =
+  "An intimate, limited-attendance live Zoom webinar where Adronis connects with each attendee individually for a personal Star Initiation.";
+
+export const STAR_INITIATION_WEBINAR_FEATURE_BULLETS = [
+  "Limited to 20 attendees for an intimate group experience",
+  "Individual Star Initiation connection with Adronis for each participant",
+  "Support for reconnection with your star family and celestial lineage",
+  "Guidance intended to restore inner connection and support cosmic integration",
+  "Clarity around spiritual lineage and communion with star-family presence",
+  "Live on Zoom with Brad Johnson channeling Adronis",
+] as const;
+
+export const STAR_INITIATION_WEBINAR_HOME_HIGHLIGHTS = [
+  "Limited to 20 attendees",
+  "Personal Star Initiation with Adronis for each participant",
+  "Reconnect with your star family and celestial lineage",
+  "Live on Zoom · Saturday, November 21, 2026",
+] as const;
+
+const STAR_INITIATION_REGISTRATION_CLOSES_AT_MS = Date.parse(STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT);
+
+export function isStarInitiationWebinarRegistrationOpen(now = new Date()) {
+  return now.getTime() < STAR_INITIATION_REGISTRATION_CLOSES_AT_MS;
 }
 
 export function formatAdronisWebinarPrice(cents = ADRONIS_WEBINAR_PRICE_CENTS, currency = ADRONIS_WEBINAR_CURRENCY) {
@@ -244,5 +299,36 @@ export function getPrimeAlchemyWebinarPublicCatalog(now = new Date()) {
     onDemandAvailableAt: PRIME_ALCHEMY_ON_DEMAND_AVAILABLE_AT,
     onDemandDisplayDate: PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE,
     onDemandHomeSummary: PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY,
+  };
+}
+
+export function getStarInitiationWebinarPublicCatalog(now = new Date()) {
+  return {
+    eventId: STAR_INITIATION_WEBINAR_EVENT_ID,
+    eventKey: STAR_INITIATION_WEBINAR_EVENT_KEY,
+    title: STAR_INITIATION_WEBINAR_TITLE,
+    presenter: STAR_INITIATION_WEBINAR_PRESENTER,
+    description: STAR_INITIATION_WEBINAR_DESCRIPTION,
+    descriptionParagraphs: [...STAR_INITIATION_WEBINAR_DESCRIPTION_PARAGRAPHS],
+    homeSummary: STAR_INITIATION_WEBINAR_HOME_SUMMARY,
+    featureBullets: [...STAR_INITIATION_WEBINAR_FEATURE_BULLETS],
+    homeHighlights: [...STAR_INITIATION_WEBINAR_HOME_HIGHLIGHTS],
+    startsAt: STAR_INITIATION_WEBINAR_STARTS_AT,
+    registrationClosesAt: STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT,
+    displayDate: STAR_INITIATION_WEBINAR_DISPLAY_DATE,
+    displayTime: STAR_INITIATION_WEBINAR_DISPLAY_TIME,
+    durationMinutes: STAR_INITIATION_WEBINAR_DURATION_MINUTES,
+    timezone: STAR_INITIATION_WEBINAR_TIMEZONE,
+    priceCents: STAR_INITIATION_WEBINAR_PRICE_CENTS,
+    currency: STAR_INITIATION_WEBINAR_CURRENCY,
+    displayPrice: formatAdronisWebinarPrice(STAR_INITIATION_WEBINAR_PRICE_CENTS, STAR_INITIATION_WEBINAR_CURRENCY),
+    maxAttendees: STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
+    posterPath: STAR_INITIATION_WEBINAR_POSTER_PATH,
+    landscapePosterPath: STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH,
+    posterAlt: STAR_INITIATION_WEBINAR_POSTER_ALT,
+    checkoutPath: STAR_INITIATION_WEBINAR_CHECKOUT_PATH,
+    thankYouPath: STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
+    autocheckoutPath: STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH,
+    registrationOpen: isStarInitiationWebinarRegistrationOpen(now),
   };
 }

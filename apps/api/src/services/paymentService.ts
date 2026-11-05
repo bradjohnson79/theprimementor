@@ -61,7 +61,7 @@ import {
   getActiveMentoringCirclePurchaseEvent,
   getMentoringCircleEventOrThrow,
 } from "./mentoringCircleService.js";
-import { getWebinarEventOrThrow, getWebinarThankYouPath } from "./webinarEventService.js";
+import { assertWebinarHasCapacity, getWebinarEventOrThrow, getWebinarThankYouPath } from "./webinarEventService.js";
 import { validatePromoCodeForCheckout } from "./promoCodeService.js";
 import {
   mergeStripeMetadata,
@@ -1160,6 +1160,7 @@ async function createMentoringCircleCheckoutSession(db: Database, input: CreateC
 async function createWebinarCheckoutSession(db: Database, input: CreateCheckoutSessionInput) {
   const event = getWebinarEventOrThrow(input.eventId);
   assertWebinarRegistrationOpen(event);
+  await assertWebinarHasCapacity(db, event, { excludeUserId: input.userId });
 
   const booking = await createOrReuseWebinarBooking(db, {
     userId: input.userId,

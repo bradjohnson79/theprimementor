@@ -16,6 +16,7 @@ import {
 } from "../data/apparel";
 import { apparelModelSrc, getApparelCardImage, getApparelGalleryShots } from "../data/apparelModels";
 import { REJUVENATION_LINE, getApparelWriteup } from "../data/apparelWriteups";
+import ApparelInstructionManual from "../components/shop/ApparelInstructionManual";
 
 export default function ApparelProduct() {
   const { slug } = useParams();
@@ -138,6 +139,7 @@ export default function ApparelProduct() {
             <p className="text-center text-sm text-white/60">
               Printed and shipped by Spreadshirt. Checkout completes on Spreadshop.
             </p>
+            <ApparelInstructionManual />
           </div>
 
           <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3">

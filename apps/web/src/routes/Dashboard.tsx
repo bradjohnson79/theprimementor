@@ -661,19 +661,15 @@ export default function Dashboard() {
                       ? "Payment is processing. Your access will appear here shortly."
                       : purchasableCircleEvent
                         ? "Join upcoming circles and purchase access to live sessions."
-                        : upcomingMentoringCircle.registrationOpen
-                          ? `${upcomingMentoringCircle.displayDate} · ${upcomingMentoringCircle.displayTime} · ${upcomingMentoringCircle.displayPrice}`
-                          : upcomingMentoringCircle.onDemandHomeSummary}
+                        : upcomingMentoringCircle.onDemandHomeSummary}
                   </p>
                   <Link
-                    to={purchasableCircleEvent ? "/mentoring-circle" : upcomingMentoringCircle.checkoutPath}
+                    to={purchasableCircleEvent ? "/mentoring-circle" : "/webinars/prime-alchemy-teachings/on-demand"}
                     className="cosmic-motion mt-4 inline-block rounded-md border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5"
                   >
                     {purchasableCircleEvent
                       ? "View Circle"
-                      : upcomingMentoringCircle.registrationOpen
-                        ? `Register — ${upcomingMentoringCircle.displayPrice}`
-                        : "View webinar"}
+                      : "Watch on demand — $9.99 CAD"}
                   </Link>
                 </>
               )}

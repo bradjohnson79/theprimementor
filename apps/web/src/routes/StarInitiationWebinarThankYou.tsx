@@ -1,0 +1,199 @@
+import { useEffect, useState } from "react";
+import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
+import { useAuth } from "@clerk/react";
+import {
+  STAR_INITIATION_WEBINAR_EVENT_ID,
+  STAR_INITIATION_WEBINAR_TITLE,
+  getStarInitiationWebinarPublicCatalog,
+} from "@wisdom/utils";
+import { trackCtaClick } from "../lib/analytics";
+import { syncOwnedCheckoutSession } from "../lib/checkoutSessionSync";
+import { fetchWebinarCheckoutConfirmation, fetchWebinarMe } from "../lib/webinarApi";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
+
+const POLL_ATTEMPTS = 8;
+const POLL_INTERVAL_MS = 1500;
+
+export default function StarInitiationWebinarThankYou() {
+  usePageMeta({
+    title: "Registration Confirmed | Adronis: Star Initiation | The Prime Mentor",
+    description: "Confirm your Adronis: Star Initiation webinar registration and complete your Zoom sign-up.",
+    canonical: pageCanonical("/webinars/adronis-star-initiation/thank-you"),
+    ogImage: DEFAULT_OG_IMAGE,
+  });
+
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const catalog = getStarInitiationWebinarPublicCatalog();
+  const checkoutSessionId = searchParams.get("checkoutSessionId");
+  const [status, setStatus] = useState<"loading" | "processing" | "ready" | "denied">("loading");
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded || isSignedIn || !checkoutSessionId) return;
+    let cancelled = false;
+
+    async function loadGuestAccess(attempt = 0): Promise<void> {
+      try {
+        const confirmation = await fetchWebinarCheckoutConfirmation(STAR_INITIATION_WEBINAR_EVENT_ID, checkoutSessionId!);
+        if (cancelled) return;
+        if (confirmation.status === "ready" && confirmation.zoomRegistrationUrl) {
+          setZoomUrl(confirmation.zoomRegistrationUrl);
+          setStatus("ready");
+          trackCtaClick("adronis_webinar_checkout_completed", "star_initiation_webinar_thank_you", {
+            eventId: STAR_INITIATION_WEBINAR_EVENT_ID,
+          });
+          return;
+        }
+        if (attempt < POLL_ATTEMPTS) {
+          setStatus("processing");
+          await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+          return loadGuestAccess(attempt + 1);
+        }
+        setStatus("processing");
+      } catch {
+        if (cancelled) return;
+        if (attempt < POLL_ATTEMPTS) {
+          setStatus("processing");
+          await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+          return loadGuestAccess(attempt + 1);
+        }
+        setStatus("denied");
+      }
+    }
+
+    void loadGuestAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutSessionId, isLoaded, isSignedIn]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let cancelled = false;
+
+    async function loadAccess(attempt = 0): Promise<void> {
+      const token = await getToken();
+      if (checkoutSessionId && attempt === 0) {
+        try {
+          await syncOwnedCheckoutSession({
+            checkoutSessionId,
+            entityType: "webinar",
+            token,
+          });
+        } catch {
+          // Webhook fulfillment remains authoritative.
+        }
+      }
+
+      try {
+        const state = await fetchWebinarMe(STAR_INITIATION_WEBINAR_EVENT_ID, token);
+        if (cancelled) return;
+        if (state.joinEligible && state.zoomRegistrationUrl) {
+          setZoomUrl(state.zoomRegistrationUrl);
+          setStatus("ready");
+          trackCtaClick("adronis_webinar_checkout_completed", "star_initiation_webinar_thank_you", {
+            eventId: STAR_INITIATION_WEBINAR_EVENT_ID,
+          });
+          return;
+        }
+        if (state.purchaseStatus === "pending_payment" || checkoutSessionId) {
+          if (attempt < POLL_ATTEMPTS) {
+            setStatus("processing");
+            await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+            return loadAccess(attempt + 1);
+          }
+          setStatus("processing");
+          return;
+        }
+        setStatus("denied");
+      } catch {
+        if (cancelled) return;
+        if (attempt < POLL_ATTEMPTS && checkoutSessionId) {
+          setStatus("processing");
+          await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
+          return loadAccess(attempt + 1);
+        }
+        setStatus(checkoutSessionId ? "processing" : "denied");
+      }
+    }
+
+    void loadAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutSessionId, getToken, isSignedIn]);
+
+  if (!isLoaded) {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <div className="space-y-4 rounded-[2rem] border border-white/10 bg-[#07111f]/80 p-6 sm:p-8">
+          <h1 className="text-3xl font-semibold text-white">Thank You for Registering</h1>
+          <p className="text-white/70">Confirming your registration access…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn && !checkoutSessionId) {
+    const redirectUrl = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`} replace />;
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-6 py-16">
+      <div className="space-y-5 rounded-[2rem] border border-white/10 bg-[#07111f]/80 p-6 sm:p-8">
+        <p className="text-xs uppercase tracking-[0.28em] text-white/45">Webinar Access</p>
+        <h1 className="text-3xl font-semibold text-white">Thank You for Registering</h1>
+        <div className="space-y-1 text-white/74">
+          <p className="text-lg font-semibold text-white">{STAR_INITIATION_WEBINAR_TITLE}</p>
+          <p>{catalog.displayDate}</p>
+          <p>{catalog.displayTime}</p>
+          <p>Live on Zoom · Limited to 20 attendees</p>
+        </div>
+
+        {status === "loading" ? <p className="text-white/70">Confirming your registration access…</p> : null}
+        {status === "processing" ? (
+          <p className="text-white/70">Confirming your payment and preparing your Zoom registration.</p>
+        ) : null}
+        {status === "denied" ? (
+          <div className="space-y-3">
+            <p className="text-white/70">
+              This page is available after a verified purchase of {STAR_INITIATION_WEBINAR_TITLE}.
+            </p>
+            <Link
+              to={catalog.checkoutPath}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-6 py-3 text-sm font-semibold text-white"
+            >
+              View the webinar
+            </Link>
+          </div>
+        ) : null}
+        {status === "ready" && zoomUrl ? (
+          <div className="space-y-4">
+            <p className="text-white/74">
+              Your purchase is confirmed. Complete Zoom attendee registration next so Zoom can send you its own meeting-access details.
+            </p>
+            <a
+              href={zoomUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              onClick={() => trackCtaClick("adronis_webinar_zoom_registration", "star_initiation_webinar_thank_you", {
+                eventId: STAR_INITIATION_WEBINAR_EVENT_ID,
+              })}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950"
+            >
+              Register on Zoom
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+            <p className="text-sm text-white/60">
+              We’ve sent the Zoom registration link to the email address associated with your Prime Mentor account.
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

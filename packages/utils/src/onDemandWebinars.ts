@@ -1,9 +1,50 @@
 import {
+  PRIME_ALCHEMY_WEBINAR_EVENT_ID,
+  PRIME_ALCHEMY_WEBINAR_FEATURE_BULLETS,
+  PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH,
+  PRIME_ALCHEMY_WEBINAR_PRESENTER,
+  PRIME_ALCHEMY_WEBINAR_TITLE,
   STAR_FAMILY_WEBINAR_EVENT_ID,
   STAR_FAMILY_WEBINAR_LANDSCAPE_POSTER_PATH,
   STAR_FAMILY_WEBINAR_PRESENTER,
   STAR_FAMILY_WEBINAR_TITLE,
 } from "./webinarEvents.js";
+
+export const PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID = "prime-alchemy-teachings-on-demand";
+export const PRIME_ALCHEMY_ON_DEMAND_WEBINAR_TITLE = PRIME_ALCHEMY_WEBINAR_TITLE;
+export const PRIME_ALCHEMY_ON_DEMAND_PRICE_CENTS = 999;
+export const PRIME_ALCHEMY_ON_DEMAND_CURRENCY = "CAD";
+export const PRIME_ALCHEMY_ON_DEMAND_LIVE_STRIPE_PRICE_ID = "price_1UYUf3Ad5V3LaCqjiA6f44lT";
+export const PRIME_ALCHEMY_ON_DEMAND_PLAYBACK_ID = "Cisc2JUoM02iRKyHcAKUzXptWO1QKY1mqG5r8IFoNNMA";
+export const PRIME_ALCHEMY_ON_DEMAND_DURATION_SECONDS = 10029;
+export const PRIME_ALCHEMY_ON_DEMAND_MUX_ASSET_ID = "bk8C02Amo33yArTmdPNL9N9HMZrswBSSb59chCB00zxPc";
+export const PRIME_ALCHEMY_ON_DEMAND_POSTER_PATH = PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH;
+export const PRIME_ALCHEMY_ON_DEMAND_LANDSCAPE_POSTER_PATH = PRIME_ALCHEMY_WEBINAR_LANDSCAPE_POSTER_PATH;
+export const PRIME_ALCHEMY_ON_DEMAND_POSTER_ALT =
+  "Mentoring Circle: Prime Alchemy Teachings on-demand webinar with Brad Johnson. Available now for $9.99.";
+export const PRIME_ALCHEMY_ON_DEMAND_CHECKOUT_PATH = "/webinars/prime-alchemy-teachings/on-demand";
+export const PRIME_ALCHEMY_ON_DEMAND_THANK_YOU_PATH = "/webinars/prime-alchemy-teachings/on-demand/thank-you";
+export const PRIME_ALCHEMY_ON_DEMAND_PLAYER_PATH = `/dashboard/webinars/${PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID}`;
+export const PRIME_ALCHEMY_ON_DEMAND_AUTOCHECKOUT_PATH = `${PRIME_ALCHEMY_ON_DEMAND_CHECKOUT_PATH}?autocheckout=1`;
+export const PRIME_ALCHEMY_ON_DEMAND_PRESENTER = PRIME_ALCHEMY_WEBINAR_PRESENTER;
+export const PRIME_ALCHEMY_ON_DEMAND_TEST_PRICE_ENV_KEY = "STRIPE_PRICE_PRIME_ALCHEMY_ON_DEMAND";
+export const PRIME_ALCHEMY_ON_DEMAND_LIVE_PRICE_ENV_KEY = "STRIPE_LIVE_PRICE_PRIME_ALCHEMY_ON_DEMAND";
+export const PRIME_ALCHEMY_ON_DEMAND_INCLUDED_EVENT_ID = PRIME_ALCHEMY_WEBINAR_EVENT_ID;
+
+const PRIME_ALCHEMY_ON_DEMAND_CATALOG_HOME_SUMMARY =
+  "Watch the recorded Mentoring Circle with Brad Johnson on Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.";
+
+export const PRIME_ALCHEMY_ON_DEMAND_DESCRIPTION = [
+  "Watch the full recorded Mentoring Circle: Prime Alchemy Teachings with Brad Johnson.",
+  "This on-demand session explores assumption-based manifestation, Prime Alchemy practices, natal-chart readings, and the live Q&A from the November 1 teaching.",
+].join(" ");
+
+export const PRIME_ALCHEMY_ON_DEMAND_PLAYER_SUMMARY = PRIME_ALCHEMY_ON_DEMAND_DESCRIPTION;
+
+export const PRIME_ALCHEMY_ON_DEMAND_FEATURE_BULLETS = [
+  ...PRIME_ALCHEMY_WEBINAR_FEATURE_BULLETS,
+  "The complete recorded Mentoring Circle session with Brad Johnson",
+] as const;
 
 export const ADRONIS_ON_DEMAND_WEBINAR_ID = "adronis-disclosure-to-contact-on-demand";
 export const ADRONIS_ON_DEMAND_WEBINAR_TITLE = "Adronis: From Disclosure to Contact";
@@ -121,6 +162,32 @@ export interface OnDemandWebinarMediaReadiness {
 }
 
 export const ON_DEMAND_WEBINARS: readonly OnDemandWebinarCatalogEntry[] = [
+  {
+    webinarId: PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID,
+    title: PRIME_ALCHEMY_ON_DEMAND_WEBINAR_TITLE,
+    presenter: PRIME_ALCHEMY_ON_DEMAND_PRESENTER,
+    kind: ADRONIS_ON_DEMAND_WEBINAR_KIND,
+    description: PRIME_ALCHEMY_ON_DEMAND_DESCRIPTION,
+    homeSummary: PRIME_ALCHEMY_ON_DEMAND_CATALOG_HOME_SUMMARY,
+    playerSummary: PRIME_ALCHEMY_ON_DEMAND_PLAYER_SUMMARY,
+    featureBullets: [...PRIME_ALCHEMY_ON_DEMAND_FEATURE_BULLETS],
+    priceCents: PRIME_ALCHEMY_ON_DEMAND_PRICE_CENTS,
+    currency: PRIME_ALCHEMY_ON_DEMAND_CURRENCY,
+    liveStripePriceId: PRIME_ALCHEMY_ON_DEMAND_LIVE_STRIPE_PRICE_ID,
+    testStripePriceEnvKey: PRIME_ALCHEMY_ON_DEMAND_TEST_PRICE_ENV_KEY,
+    liveStripePriceEnvKey: PRIME_ALCHEMY_ON_DEMAND_LIVE_PRICE_ENV_KEY,
+    playbackId: PRIME_ALCHEMY_ON_DEMAND_PLAYBACK_ID,
+    durationSeconds: PRIME_ALCHEMY_ON_DEMAND_DURATION_SECONDS,
+    posterPath: PRIME_ALCHEMY_ON_DEMAND_POSTER_PATH,
+    landscapePosterPath: PRIME_ALCHEMY_ON_DEMAND_LANDSCAPE_POSTER_PATH,
+    posterAlt: PRIME_ALCHEMY_ON_DEMAND_POSTER_ALT,
+    checkoutPath: PRIME_ALCHEMY_ON_DEMAND_CHECKOUT_PATH,
+    thankYouPath: PRIME_ALCHEMY_ON_DEMAND_THANK_YOU_PATH,
+    playerPath: PRIME_ALCHEMY_ON_DEMAND_PLAYER_PATH,
+    autocheckoutPath: PRIME_ALCHEMY_ON_DEMAND_AUTOCHECKOUT_PATH,
+    includedWithEventId: PRIME_ALCHEMY_ON_DEMAND_INCLUDED_EVENT_ID,
+    published: true,
+  },
   {
     webinarId: STAR_FAMILY_ON_DEMAND_WEBINAR_ID,
     title: STAR_FAMILY_ON_DEMAND_WEBINAR_TITLE,

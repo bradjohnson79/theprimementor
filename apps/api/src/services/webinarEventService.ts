@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { bookings, mentoringCircleRegistrations, payments, webinarRecordingEntitlements, type Database } from "@wisdom/db";
 import {
   ADRONIS_WEBINAR_BOOKING_TYPE_ID,
@@ -6,10 +6,12 @@ import {
   formatAdronisWebinarPrice,
   getAdronisWebinarPublicCatalog,
   getPublishedOnDemandWebinarForLiveEvent,
+  getStarInitiationWebinarPublicCatalog,
 } from "@wisdom/utils";
 import { createHttpError } from "./booking/errors.js";
 import {
   ADRONIS_WEBINAR_EVENT,
+  STAR_INITIATION_WEBINAR_EVENT,
   getWebinarEventById,
   isWebinarRegistrationOpen,
   listWebinarEvents,
@@ -42,7 +44,13 @@ export interface WebinarPublicCatalog {
   checkoutPath: string;
   thankYouPath: string;
   registrationOpen: boolean;
+  maxAttendees?: number | null;
+  seatsTaken?: number | null;
+  seatsRemaining?: number | null;
+  soldOut?: boolean;
 }
+
+const SEAT_HOLDING_STATUSES = ["paid", "scheduled", "completed", "pending_payment"] as const;
 
 export interface WebinarEventState extends WebinarPublicCatalog {
   bookingId: string | null;
@@ -76,38 +84,109 @@ export function getWebinarEventOrThrow(eventId?: string | null): WebinarEventDef
   return event;
 }
 
-export function toPublicWebinarCatalog(event: WebinarEventDefinition, now = new Date()): WebinarPublicCatalog {
-  const catalog = event.eventId === ADRONIS_WEBINAR_EVENT.eventId
+export function toPublicWebinarCatalog(
+  event: WebinarEventDefinition,
+  now = new Date(),
+  capacity?: { seatsTaken?: number | null } | null,
+): WebinarPublicCatalog {
+  const base = event.eventId === ADRONIS_WEBINAR_EVENT.eventId
     ? getAdronisWebinarPublicCatalog(now)
-    : {
-      eventId: event.eventId,
-      eventKey: event.eventKey,
-      title: event.eventTitle,
-      presenter: event.presenter,
-      description: event.description,
-      featureBullets: event.featureBullets,
-      startsAt: event.eventStartAt,
-      registrationClosesAt: event.registrationClosesAt,
-      displayDate: event.displayDate,
-      displayTime: event.displayTime,
-      timezone: event.timezone,
-      priceCents: event.priceCents,
-      currency: event.currency,
-      displayPrice: formatAdronisWebinarPrice(event.priceCents, event.currency),
-      posterPath: event.posterPath,
-      posterAlt: event.posterAlt,
-      checkoutPath: `/webinars/${event.eventId}`,
-      thankYouPath: event.thankYouPath,
-      registrationOpen: isWebinarRegistrationOpen(event, now),
-    };
+    : event.eventId === STAR_INITIATION_WEBINAR_EVENT.eventId
+      ? getStarInitiationWebinarPublicCatalog(now)
+      : {
+        eventId: event.eventId,
+        eventKey: event.eventKey,
+        title: event.eventTitle,
+        presenter: event.presenter,
+        description: event.description,
+        featureBullets: event.featureBullets,
+        startsAt: event.eventStartAt,
+        registrationClosesAt: event.registrationClosesAt,
+        displayDate: event.displayDate,
+        displayTime: event.displayTime,
+        timezone: event.timezone,
+        priceCents: event.priceCents,
+        currency: event.currency,
+        displayPrice: formatAdronisWebinarPrice(event.priceCents, event.currency),
+        posterPath: event.posterPath,
+        posterAlt: event.posterAlt,
+        checkoutPath: `/webinars/${event.eventId}`,
+        thankYouPath: event.thankYouPath,
+        registrationOpen: isWebinarRegistrationOpen(event, now),
+      };
 
-  return catalog;
+  const maxAttendees = event.maxAttendees ?? null;
+  const seatsTaken = typeof capacity?.seatsTaken === "number" ? capacity.seatsTaken : null;
+  const seatsRemaining = maxAttendees != null && seatsTaken != null
+    ? Math.max(0, maxAttendees - seatsTaken)
+    : null;
+  const soldOut = maxAttendees != null && seatsTaken != null ? seatsTaken >= maxAttendees : false;
+  const registrationOpen = Boolean(base.registrationOpen) && !soldOut;
+
+  return {
+    ...base,
+    registrationOpen,
+    maxAttendees,
+    seatsTaken,
+    seatsRemaining,
+    soldOut,
+  };
 }
 
-export function listPublicWebinarCatalog(now = new Date()) {
-  return listWebinarEvents()
-    .filter((event) => event.active && isWebinarRegistrationOpen(event, now))
-    .map((event) => toPublicWebinarCatalog(event, now));
+export async function countWebinarSeatHolds(db: Database, eventKey: string) {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(bookings)
+    .where(and(
+      eq(bookings.event_key, eventKey),
+      inArray(bookings.status, [...SEAT_HOLDING_STATUSES]),
+    ));
+  return row?.count ?? 0;
+}
+
+export async function getWebinarCapacity(db: Database, event: WebinarEventDefinition) {
+  if (!event.maxAttendees) {
+    return { maxAttendees: null, seatsTaken: null, seatsRemaining: null, soldOut: false };
+  }
+  const seatsTaken = await countWebinarSeatHolds(db, event.eventKey);
+  const seatsRemaining = Math.max(0, event.maxAttendees - seatsTaken);
+  return {
+    maxAttendees: event.maxAttendees,
+    seatsTaken,
+    seatsRemaining,
+    soldOut: seatsTaken >= event.maxAttendees,
+  };
+}
+
+export async function assertWebinarHasCapacity(
+  db: Database,
+  event: WebinarEventDefinition,
+  options?: { excludeUserId?: string | null },
+) {
+  if (!event.maxAttendees) return;
+  const seatsTaken = await countWebinarSeatHolds(db, event.eventKey);
+  if (seatsTaken < event.maxAttendees) return;
+
+  if (options?.excludeUserId) {
+    const existing = await getLatestWebinarBookingAccessRow(db, {
+      userId: options.excludeUserId,
+      eventKey: event.eventKey,
+      bookingTypeId: event.bookingTypeId,
+    });
+    if (existing && SEAT_HOLDING_STATUSES.includes(existing.status as typeof SEAT_HOLDING_STATUSES[number])) {
+      return;
+    }
+  }
+
+  throw createHttpError(409, "This webinar is sold out. Maximum attendance of 20 has been reached.");
+}
+
+export async function listPublicWebinarCatalog(db: Database, now = new Date()) {
+  const events = listWebinarEvents().filter((event) => event.active && isWebinarRegistrationOpen(event, now));
+  return Promise.all(events.map(async (event) => {
+    const seatsTaken = event.maxAttendees ? await countWebinarSeatHolds(db, event.eventKey) : null;
+    return toPublicWebinarCatalog(event, now, { seatsTaken });
+  })).then((catalog) => catalog.filter((entry) => entry.registrationOpen));
 }
 
 export function buildWebinarEventState(

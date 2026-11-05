@@ -1,23 +1,17 @@
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import {
   formatOnDemandWebinarPrice,
   getOnDemandWebinarPublicCatalog,
-  getPrimeAlchemyWebinarPublicCatalog,
   listPublishedOnDemandWebinars,
-  PRIME_ALCHEMY_WEBINAR_EVENT_ID,
   type OnDemandWebinarCatalogEntry,
 } from "@wisdom/utils";
 import { useAuth } from "@clerk/react";
 import { trackEventOnce } from "../../lib/analytics";
 import { fetchOnDemandWebinarMe, fetchPublicOnDemandWebinar, type OnDemandWebinarPublicCatalog } from "../../lib/onDemandWebinarApi";
-import { fetchWebinarMe } from "../../lib/webinarApi";
-import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
 import OnDemandWebinarCheckoutButton from "./OnDemandWebinarCheckoutButton";
 
 import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 const PURCHASE_NOTE = PURCHASE_REASSURANCE;
-const UPCOMING_TAB_ID = "upcoming";
 
 function fallbackCatalog(webinar: OnDemandWebinarCatalogEntry) {
   return getOnDemandWebinarPublicCatalog(webinar, { assetReady: false, playbackProtected: false });
@@ -39,24 +33,16 @@ function useTabOrientation() {
 
 export default function OnDemandWebinarsHomeWidget() {
   const webinars = useMemo(() => listPublishedOnDemandWebinars(), []);
-  const upcoming = useMemo(() => getPrimeAlchemyWebinarPublicCatalog(), []);
-  const showUpcoming = true;
-  const liveRegistrationOpen = upcoming.registrationOpen;
-  const tabs = useMemo(() => {
-    const items: Array<{ id: string; label: string }> = [
-      { id: UPCOMING_TAB_ID, label: upcoming.title },
-    ];
-    for (const webinar of webinars) items.push({ id: webinar.webinarId, label: webinar.title });
-    return items;
-  }, [upcoming.title, webinars]);
+  const tabs = useMemo(
+    () => webinars.map((webinar) => ({ id: webinar.webinarId, label: webinar.title })),
+    [webinars],
+  );
   const { isSignedIn, getToken } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [activeId, setActiveId] = useState(showUpcoming ? UPCOMING_TAB_ID : (webinars[0]?.webinarId ?? ""));
+  const [activeId, setActiveId] = useState(webinars[0]?.webinarId ?? "");
   const [catalogs, setCatalogs] = useState<Record<string, OnDemandWebinarPublicCatalog>>(() => (
     Object.fromEntries(webinars.map((webinar) => [webinar.webinarId, fallbackCatalog(webinar)]))
   ));
   const [ownedById, setOwnedById] = useState<Record<string, boolean>>({});
-  const [upcomingOwned, setUpcomingOwned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const orientation = useTabOrientation();
   const baseId = useId();
@@ -64,8 +50,6 @@ export default function OnDemandWebinarsHomeWidget() {
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
   const activeWebinar = webinars.find((webinar) => webinar.webinarId === active?.id) ?? null;
   const catalog = activeWebinar ? catalogs[activeWebinar.webinarId] : null;
-  const checkoutCanceled = searchParams.get("webinar") === "canceled"
-    && searchParams.get("eventId") === PRIME_ALCHEMY_WEBINAR_EVENT_ID;
 
   useEffect(() => {
     let cancelled = false;
@@ -85,7 +69,6 @@ export default function OnDemandWebinarsHomeWidget() {
   useEffect(() => {
     if (!isSignedIn) {
       setOwnedById({});
-      setUpcomingOwned(false);
       return;
     }
     let cancelled = false;
@@ -96,10 +79,8 @@ export default function OnDemandWebinarsHomeWidget() {
           const state = await fetchOnDemandWebinarMe(webinar.webinarId, token);
           return [webinar.webinarId, state] as const;
         }));
-        const upcomingState = await fetchWebinarMe(PRIME_ALCHEMY_WEBINAR_EVENT_ID, token).catch(() => null);
         if (cancelled) return;
         setOwnedById(Object.fromEntries(entries.map(([id, state]) => [id, state.owned])));
-        setUpcomingOwned(upcomingState?.joinEligible === true);
         setCatalogs((current) => ({
           ...current,
           ...Object.fromEntries(entries.map(([id, state]) => [id, state])),
@@ -107,7 +88,6 @@ export default function OnDemandWebinarsHomeWidget() {
       } catch {
         if (!cancelled) {
           setOwnedById({});
-          setUpcomingOwned(false);
         }
       }
     })();
@@ -125,8 +105,7 @@ export default function OnDemandWebinarsHomeWidget() {
     });
   }, [activeWebinar]);
 
-  if (!active) return null;
-  if (active.id !== UPCOMING_TAB_ID && (!activeWebinar || !catalog)) return null;
+  if (!active || !activeWebinar || !catalog) return null;
 
   function selectTab(nextId: string) {
     setActiveId(nextId);
@@ -150,8 +129,8 @@ export default function OnDemandWebinarsHomeWidget() {
     document.getElementById(`${baseId}-tab-${next.id}`)?.focus();
   }
 
-  const owned = activeWebinar ? ownedById[activeWebinar.webinarId] === true : false;
-  const priceLabel = catalog ? (catalog.displayPrice || formatOnDemandWebinarPrice(activeWebinar?.priceCents ?? 0, activeWebinar?.currency ?? "CAD")) : "";
+  const owned = ownedById[activeWebinar.webinarId] === true;
+  const priceLabel = catalog.displayPrice || formatOnDemandWebinarPrice(activeWebinar.priceCents, activeWebinar.currency);
 
   return (
     <section id="on-demand-webinars" className="relative scroll-mt-28 border-t border-white/8 py-12 sm:py-16" aria-labelledby="on-demand-webinars-heading">
@@ -162,7 +141,7 @@ export default function OnDemandWebinarsHomeWidget() {
             On demand
           </h2>
           <p className="text-sm leading-7 text-white/68 sm:text-base">
-            Watch recorded webinars anytime in Dashboard → Webinars. Mentoring Circle: Prime Alchemy Teachings will be available on demand November 2.
+            Watch recorded webinars anytime in Dashboard → Webinars. Mentoring Circle: Prime Alchemy Teachings is available now for $9.99 CAD.
           </p>
         </div>
 
@@ -206,88 +185,39 @@ export default function OnDemandWebinarsHomeWidget() {
               aria-labelledby={`${baseId}-tab-${active.id}`}
               className="p-4 sm:p-6 lg:p-8"
             >
-              {active.id === UPCOMING_TAB_ID ? (
-                <article className="grid items-start gap-6 overflow-hidden rounded-2xl border border-amber-200/20 bg-white/[0.04] p-4 sm:p-6 lg:grid-cols-[minmax(11rem,16rem)_minmax(0,1fr)]">
+              <article className="grid overflow-hidden rounded-2xl border border-amber-200/20 bg-white/[0.04] lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+                <div className="aspect-video self-start bg-slate-950">
                   <img
-                    src={upcoming.portraitPosterPath}
-                    alt={upcoming.posterAlt}
-                    width={900}
-                    height={1600}
-                    className="mx-auto w-full max-w-[16rem] rounded-2xl object-cover object-center shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
+                    src={catalog.landscapePosterPath || catalog.posterPath}
+                    alt={catalog.posterAlt}
+                    width={1672}
+                    height={941}
+                    className="h-full w-full object-cover object-center"
                     loading="eager"
                     decoding="async"
                   />
-                  <div className="flex flex-col justify-center space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/75">Available On Demand</p>
-                      <h3 className="text-2xl font-semibold tracking-[-0.03em] text-white">{upcoming.title}</h3>
-                      <p className="text-sm font-medium text-cyan-100/80">{upcoming.onDemandDisplayDate}</p>
-                      <p className="text-sm leading-7 text-white/70">{upcoming.onDemandHomeSummary}</p>
-                    </div>
-                    {upcomingOwned ? (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <AdronisWebinarCheckoutButton
-                          source="home_upcoming_webinar"
-                          eventId={upcoming.eventId}
-                          title={upcoming.title}
-                          autocheckoutPath={upcoming.autocheckoutPath}
-                          thankYouPath={upcoming.thankYouPath}
-                          owned={upcomingOwned}
-                          registrationOpen={liveRegistrationOpen}
-                          onError={setError}
-                          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                        >
-                          Access Webinar Registration
-                        </AdronisWebinarCheckoutButton>
-                      </div>
-                    ) : (
-                      <p className="text-sm font-medium text-amber-100">On-demand purchase opens {upcoming.onDemandDisplayDate}.</p>
-                    )}
-                    <Link
-                      to={upcoming.checkoutPath}
-                      className="inline-flex min-h-11 items-center justify-center text-sm font-semibold text-cyan-100 underline-offset-4 hover:underline"
-                    >
-                      Learn More
-                    </Link>
-                    {checkoutCanceled ? <p className="text-sm text-amber-200">Live registration has ended. On-demand purchase opens {upcoming.onDemandDisplayDate}.</p> : null}
-                    {error ? <p className="text-sm text-amber-200">{error}</p> : null}
+                </div>
+                <div className="flex flex-col justify-center space-y-4 p-5 sm:p-6">
+                  <div className="space-y-2">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/75">Available On Demand</p>
+                    <h3 className="text-2xl font-semibold tracking-[-0.03em] text-white">{catalog.title}</h3>
+                    <p className="text-sm leading-7 text-white/70">{catalog.homeSummary || catalog.description}</p>
                   </div>
-                </article>
-              ) : activeWebinar && catalog ? (
-                <article className="grid overflow-hidden rounded-2xl border border-amber-200/20 bg-white/[0.04] lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-                  <div className="aspect-video self-start bg-slate-950">
-                    <img
-                      src={catalog.landscapePosterPath || catalog.posterPath}
-                      alt={catalog.posterAlt}
-                      width={1672}
-                      height={941}
-                      className="h-full w-full object-cover object-center"
-                      loading="eager"
-                      decoding="async"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-center space-y-4 p-5 sm:p-6">
-                    <div className="space-y-2">
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-amber-100/75">Available On Demand</p>
-                      <h3 className="text-2xl font-semibold tracking-[-0.03em] text-white">{catalog.title}</h3>
-                      <p className="text-sm leading-7 text-white/70">{catalog.homeSummary || catalog.description}</p>
-                    </div>
-                    <p className="text-lg font-semibold text-amber-100">{priceLabel}</p>
-                    <OnDemandWebinarCheckoutButton
-                      source="home_on_demand_webinars"
-                      webinarId={activeWebinar.webinarId}
-                      owned={owned}
-                      saleable={catalog.saleable}
-                      onError={setError}
-                      className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                    >
-                      {owned ? "Watch in Dashboard" : `Purchase — ${priceLabel}`}
-                    </OnDemandWebinarCheckoutButton>
-                    {owned ? null : <p className="text-xs text-white/50">{PURCHASE_NOTE}</p>}
-                    {error ? <p className="text-sm text-amber-200">{error}</p> : null}
-                  </div>
-                </article>
-              ) : null}
+                  <p className="text-lg font-semibold text-amber-100">{priceLabel}</p>
+                  <OnDemandWebinarCheckoutButton
+                    source="home_on_demand_webinars"
+                    webinarId={activeWebinar.webinarId}
+                    owned={owned}
+                    saleable={catalog.saleable}
+                    onError={setError}
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    {owned ? "Watch in Dashboard" : `Purchase — ${priceLabel}`}
+                  </OnDemandWebinarCheckoutButton>
+                  {owned ? null : <p className="text-xs text-white/50">{PURCHASE_NOTE}</p>}
+                  {error ? <p className="text-sm text-amber-200">{error}</p> : null}
+                </div>
+              </article>
             </div>
           </div>
         </div>
