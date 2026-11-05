@@ -140,9 +140,7 @@ function HeroSlideBackdrop({
       {slide.visual.kind === "brad" ? (
         <BradBackdrop desktopSrc={slide.visual.desktopSrc} mobileSrc={slide.visual.mobileSrc} eager={active} />
       ) : null}
-      {slide.visual.kind === "mandalas" ? (
-        <MandalaBackdrop primarySrc={slide.visual.primarySrc} accentSrc={slide.visual.accentSrc} />
-      ) : null}
+      {slide.visual.kind === "model" ? <ModelBackdrop src={slide.visual.src} /> : null}
       {slide.visual.kind === "scene" ? <SceneBackdrop src={slide.visual.src} /> : null}
     </div>
   );
@@ -183,28 +181,23 @@ function BradBackdrop({
   );
 }
 
-function MandalaBackdrop({ primarySrc, accentSrc }: { primarySrc: string; accentSrc: string }) {
+function ModelBackdrop({ src }: { src: string }) {
   return (
     <>
       <div className="absolute inset-0 bg-[#04050f]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_74%_46%,rgba(251,191,36,0.28),transparent_30%),radial-gradient(circle_at_90%_74%,rgba(217,70,239,0.24),transparent_28%),radial-gradient(circle_at_16%_28%,rgba(34,211,238,0.16),transparent_34%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_74%_48%,rgba(251,191,36,0.2),transparent_34%),radial-gradient(circle_at_16%_28%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_88%_82%,rgba(124,92,255,0.16),transparent_30%)]" />
       <img
-        src={primarySrc}
+        src={src}
         alt=""
-        className="absolute -right-[10%] top-1/2 hidden w-[min(62%,48rem)] -translate-y-1/2 mix-blend-screen sm:block"
+        className="absolute bottom-0 right-[1%] hidden h-[96%] w-auto max-w-[54%] object-contain object-bottom sm:block"
       />
       <img
-        src={accentSrc}
+        src={src}
         alt=""
-        className="absolute bottom-[12%] right-[36%] hidden w-[min(26%,18rem)] mix-blend-screen drop-shadow-[0_0_36px_rgba(217,70,239,0.35)] sm:block"
+        className="absolute bottom-0 right-[-22%] h-[86%] w-auto max-w-none object-contain object-bottom sm:hidden"
       />
-      <img
-        src={primarySrc}
-        alt=""
-        className="absolute -bottom-[18%] left-1/2 w-[160%] max-w-none -translate-x-1/2 opacity-70 mix-blend-screen sm:hidden"
-      />
-      <div className="absolute inset-0 bg-gradient-to-r from-[#04050f] via-[#04050f]/88 to-[#04050f]/5" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#04050f]/80 via-transparent to-[#04050f]/40" />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#04050f] via-[#04050f]/80 to-transparent sm:via-[#04050f]/22" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#04050f]/75 via-transparent to-[#04050f]/28" />
     </>
   );
 }

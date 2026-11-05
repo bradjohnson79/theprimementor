@@ -7,9 +7,9 @@ import { shopMediaSrc, unwrapShopProducts, type ShopPublicProduct } from "../../
 import {
   APPAREL_DESIGNS,
   formatApparelFromPrice,
-  getApparelImagePath,
   type ApparelDesign,
 } from "../../data/apparel";
+import { getApparelCardImage } from "../../data/apparelModels";
 
 const FEATURED_APPAREL_COUNT = 4;
 const FEATURED_DIGITAL_COUNT = 4;
@@ -33,6 +33,7 @@ function ShopProductCard({
   summary,
   cta,
   badge,
+  frameClassName = "bg-black/35",
   onClick,
 }: {
   href: string;
@@ -44,6 +45,7 @@ function ShopProductCard({
   summary: string;
   cta: string;
   badge?: string;
+  frameClassName?: string;
   onClick: () => void;
 }) {
   return (
@@ -54,17 +56,17 @@ function ShopProductCard({
       className="glass-card group flex h-full flex-col rounded-3xl p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:p-5"
     >
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-amber-200/80">{eyebrow}</p>
-      <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
+      <div className={`mt-3 overflow-hidden rounded-2xl border border-white/10 ${frameClassName}`}>
         {imageSrc ? (
           <img
             src={imageSrc}
             alt={imageAlt}
-            className="aspect-square w-full object-contain transition duration-300 group-hover:scale-[1.03]"
+            className="aspect-[4/5] w-full object-contain object-top transition duration-300 group-hover:scale-[1.03]"
             loading="lazy"
             decoding="async"
           />
         ) : (
-          <div className="flex aspect-square items-center justify-center text-sm text-white/45">Digital product</div>
+          <div className="flex aspect-[4/5] items-center justify-center text-sm text-white/45">Digital product</div>
         )}
       </div>
       <div className="mt-4 flex flex-wrap items-start gap-2">
@@ -100,13 +102,15 @@ function DigitalCardSkeleton() {
 function ApparelCard({ design }: { design: ApparelDesign }) {
   const href = `/shop/apparel/${design.slug}`;
   const title = apparelShortTitle(design.title);
+  const card = getApparelCardImage(design.slug);
   return (
     <ShopProductCard
       href={href}
       eyebrow="Sacred Apparel"
       title={title}
-      imageSrc={getApparelImagePath(design)}
-      imageAlt={design.title}
+      imageSrc={card?.src ?? null}
+      imageAlt={card?.alt ?? design.title}
+      frameClassName="bg-[#ececef]"
       price={formatApparelFromPrice(design)}
       summary={design.description}
       cta="View design"

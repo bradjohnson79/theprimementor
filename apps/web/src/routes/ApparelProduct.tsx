@@ -10,12 +10,11 @@ import {
   getApparelFromPriceCAD,
   getDesignBySlug,
   getRelatedDesigns,
-  getApparelImagePath,
   buildSpreadshopUrl,
   APPAREL_CONFIG,
   type ApparelDesign,
 } from "../data/apparel";
-import { apparelModelSrc, getApparelModelShots } from "../data/apparelModels";
+import { apparelModelSrc, getApparelCardImage, getApparelGalleryShots } from "../data/apparelModels";
 import { REJUVENATION_LINE, getApparelWriteup } from "../data/apparelWriteups";
 
 export default function ApparelProduct() {
@@ -26,7 +25,7 @@ export default function ApparelProduct() {
     title: design ? `${design.title} | The Prime Mentor Shop` : "Apparel | The Prime Mentor Shop",
     description: design?.description || "Sacred geometry art on premium apparel.",
     canonical: pageCanonical(`/shop/apparel/${slug ?? ""}`),
-    ogImage: design ? `https://theprimementor.com${getApparelImagePath(design)}` : undefined,
+    ogImage: design ? `https://theprimementor.com${getApparelCardImage(design.slug)?.src ?? ""}` : undefined,
     jsonLd: design ? [{
       "@context": "https://schema.org",
       "@type": "Product",
@@ -34,12 +33,9 @@ export default function ApparelProduct() {
       description: design.description,
       url: pageCanonical(`/shop/apparel/${design.slug}`),
       brand: { "@type": "Brand", name: "The Prime Mentor" },
-      image: [
-        `https://theprimementor.com${getApparelImagePath(design)}`,
-        ...getApparelModelShots(design.slug)
-          .filter((shot) => shot.source === "spreadshop")
-          .map((shot) => `https://theprimementor.com${apparelModelSrc(design.slug, shot.file)}`),
-      ],
+      image: getApparelGalleryShots(design.slug, 4).map(
+        (shot) => `https://theprimementor.com${apparelModelSrc(design.slug, shot.file)}`,
+      ),
       offers: {
         "@type": "AggregateOffer",
         url: pageCanonical(`/shop/apparel/${design.slug}`),
@@ -70,19 +66,26 @@ export default function ApparelProduct() {
   const relatedDesigns = getRelatedDesigns(design, 3);
   const spreadshopUrl = buildSpreadshopUrl(design);
   const fromPrice = formatApparelFromPrice(design);
-  const modelShots = getApparelModelShots(design.slug);
+  const modelShots = getApparelGalleryShots(design.slug, 4);
+  const cardImage = getApparelCardImage(design.slug);
+  const spotlightSrc = modelShots[0]
+    ? apparelModelSrc(design.slug, modelShots[0].file)
+    : cardImage?.src;
+  const spotlightAlt = modelShots[0]?.alt ?? cardImage?.alt ?? design.title;
   const writeup = getApparelWriteup(design.slug);
 
   return (
     <main className="min-h-screen px-6 pb-20 pt-[0.6rem] text-white md:pt-[0.8rem]">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-8 md:flex-row md:items-start md:gap-10">
-        <img
-          src={getApparelImagePath(design)}
-          alt={design.title}
-          className="w-full max-w-md shrink-0 rounded-3xl border border-cyan-300/25 object-contain shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
-          loading="eager"
-          decoding="async"
-        />
+        {spotlightSrc ? (
+          <img
+            src={spotlightSrc}
+            alt={spotlightAlt}
+            className="w-full max-w-md shrink-0 rounded-3xl border border-cyan-300/25 bg-[#ececef] object-contain shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
+            loading="eager"
+            decoding="async"
+          />
+        ) : null}
 
         <div className="min-w-0 w-full md:flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent-cyan [text-shadow:-2px_-2px_0_#000,2px_-2px_0_#000,-2px_2px_0_#000,2px_2px_0_#000,0_-2px_0_#000,0_2px_0_#000,-2px_0_#000,2px_0_#000]">
@@ -153,7 +156,9 @@ export default function ApparelProduct() {
             <div>
               <h2 className="text-2xl font-semibold">Printed on</h2>
               <p className="mt-2 text-sm leading-7 text-white/60">
-                Six different pieces this design is sold on. These photos are from the live Spreadshop pages for this artwork.
+                {modelShots.length === 4
+                  ? "Four pieces this design is worn on. These photos are from the live Spreadshop pages for this artwork."
+                  : "Worn photos from the live Spreadshop pages for this artwork."}
               </p>
               <div className="glass-card mt-6 rounded-3xl p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-cyan">From this design</p>
@@ -213,14 +218,15 @@ export default function ApparelProduct() {
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {relatedDesigns.map((related: ApparelDesign) => {
               const relatedPrice = formatApparelFromPrice(related);
+              const relatedCard = getApparelCardImage(related.slug);
               return (
               <article key={related.slug} className="glass-card flex h-full flex-col rounded-3xl p-6">
                 <Link to={`/shop/apparel/${related.slug}`} className="group">
-                  <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-black/30">
+                  <div className="overflow-hidden rounded-2xl border border-cyan-300/25 bg-[#ececef]">
                     <img
-                      src={getApparelImagePath(related)}
-                      alt={related.title}
-                      className="aspect-square w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                      src={relatedCard?.src}
+                      alt={relatedCard?.alt ?? related.title}
+                      className="aspect-[4/5] w-full object-contain object-top transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
                       decoding="async"
                     />

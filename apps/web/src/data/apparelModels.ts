@@ -184,3 +184,50 @@ export function getApparelModelShots(slug: string): ApparelModelShot[] {
 export function apparelModelSrc(slug: string, file: string): string {
   return `/shop/apparel/models/${slug}/${file}`;
 }
+
+const NOT_WORN = /cap|snapback|pillow|mug|bottle|button|tote|drawstring|apron|bib/i;
+
+/** Higher is a stronger on-model tee for cards and galleries. Flat goods score below zero. */
+export function apparelShotRank(shot: ApparelModelShot): number {
+  const label = shot.label;
+  if (NOT_WORN.test(label)) return -1;
+  if (/(?:women|men)'s (?:v-neck |ringer )?t-shirt/i.test(label) || /football tee|baseball t-shirt/i.test(label)) return 100;
+  if (/t-shirt|tee/i.test(label) && !/kids|toddler|baby/i.test(label)) return 90;
+  if (/tank/i.test(label)) return 78;
+  if (/hoodie|sweatshirt|long sleeve/i.test(label) && !/kids|toddler|baby/i.test(label)) return 68;
+  if (/t-shirt|tee/i.test(label)) return 58;
+  if (/hoodie|sweatshirt|long sleeve|bodysuit/i.test(label)) return 48;
+  return -1;
+}
+
+/** Spreadshop photos of a person wearing the design, strongest tees first. */
+export function getWornApparelShots(slug: string): ApparelModelShot[] {
+  return getApparelModelShots(slug)
+    .map((shot, index) => ({ shot, index, rank: apparelShotRank(shot) }))
+    .filter((item) => item.rank >= 0)
+    .sort((a, b) => b.rank - a.rank || a.index - b.index)
+    .map((item) => item.shot);
+}
+
+export function getApparelSpotlight(slug: string): ApparelModelShot | undefined {
+  return getWornApparelShots(slug)[0];
+}
+
+export function getApparelGalleryShots(slug: string, limit = 4): ApparelModelShot[] {
+  return getWornApparelShots(slug).slice(0, limit);
+}
+
+/**
+ * Card image. Worn tee when one exists. Designs with no on-model photo
+ * (the pearl-wheel pieces) fall back to the first Spreadshop product photo,
+ * still not the bare mandala artwork.
+ */
+export function getApparelCardImage(slug: string): { src: string; alt: string; onModel: boolean } | undefined {
+  const spotlight = getApparelSpotlight(slug);
+  if (spotlight) {
+    return { src: apparelModelSrc(slug, spotlight.file), alt: spotlight.alt, onModel: true };
+  }
+  const fallback = getApparelModelShots(slug)[0];
+  if (!fallback) return undefined;
+  return { src: apparelModelSrc(slug, fallback.file), alt: fallback.alt, onModel: false };
+}
