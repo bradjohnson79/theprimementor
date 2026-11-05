@@ -10,6 +10,7 @@ import {
   getApparelImagePath,
   type ApparelTopic,
 } from "../data/apparel";
+import ApparelInstructionManual from "../components/shop/ApparelInstructionManual";
 
 export default function ApparelLanding() {
   usePageMeta({
@@ -137,6 +138,7 @@ export default function ApparelLanding() {
             hoodies, and kids' and baby pieces. When you click "Buy on Spreadshop," you'll be taken to our partner Spreadshop to
             complete your purchase. All items are printed and shipped directly by Spreadshirt.
           </p>
+          <ApparelInstructionManual className="mx-auto mt-8 max-w-md" />
           <Link
             to="/shop"
             className="mt-8 inline-flex rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
