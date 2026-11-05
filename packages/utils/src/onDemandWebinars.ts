@@ -31,7 +31,7 @@ export const PRIME_ALCHEMY_ON_DEMAND_TEST_PRICE_ENV_KEY = "STRIPE_PRICE_PRIME_AL
 export const PRIME_ALCHEMY_ON_DEMAND_LIVE_PRICE_ENV_KEY = "STRIPE_LIVE_PRICE_PRIME_ALCHEMY_ON_DEMAND";
 export const PRIME_ALCHEMY_ON_DEMAND_INCLUDED_EVENT_ID = PRIME_ALCHEMY_WEBINAR_EVENT_ID;
 
-export const PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY =
+const PRIME_ALCHEMY_ON_DEMAND_CATALOG_HOME_SUMMARY =
   "Watch the recorded Mentoring Circle with Brad Johnson on Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.";
 
 export const PRIME_ALCHEMY_ON_DEMAND_DESCRIPTION = [
@@ -168,7 +168,7 @@ export const ON_DEMAND_WEBINARS: readonly OnDemandWebinarCatalogEntry[] = [
     presenter: PRIME_ALCHEMY_ON_DEMAND_PRESENTER,
     kind: ADRONIS_ON_DEMAND_WEBINAR_KIND,
     description: PRIME_ALCHEMY_ON_DEMAND_DESCRIPTION,
-    homeSummary: PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY,
+    homeSummary: PRIME_ALCHEMY_ON_DEMAND_CATALOG_HOME_SUMMARY,
     playerSummary: PRIME_ALCHEMY_ON_DEMAND_PLAYER_SUMMARY,
     featureBullets: [...PRIME_ALCHEMY_ON_DEMAND_FEATURE_BULLETS],
     priceCents: PRIME_ALCHEMY_ON_DEMAND_PRICE_CENTS,
