@@ -90,13 +90,13 @@ export default function StarInitiationHomeSection() {
         transition={{ duration: reduceMotion ? 0 : 0.45 }}
         className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/15 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(16rem,28rem)_minmax(0,1fr)]"
       >
-        <div className="bg-[#04050f]">
+        <div className="relative bg-slate-950">
           <img
-            src={catalog.landscapePosterPath ?? catalog.posterPath}
+            src={catalog.portraitPosterPath ?? catalog.posterPath}
             alt={catalog.posterAlt}
-            width={1024}
-            height={576}
-            className="mx-auto h-auto w-full object-contain"
+            width={576}
+            height={1024}
+            className="mx-auto h-auto w-full max-w-[26rem] object-contain"
             loading="eager"
             decoding="async"
           />

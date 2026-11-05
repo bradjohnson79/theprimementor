@@ -5,7 +5,7 @@ import {
   STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH,
   STAR_INITIATION_WEBINAR_EVENT_ID,
   STAR_INITIATION_WEBINAR_FEATURE_BULLETS,
-  STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH,
+  STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH,
   STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
   STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
   STAR_INITIATION_WEBINAR_TITLE,
@@ -37,7 +37,7 @@ export default function StarInitiationWebinarCheckout() {
     title: `${STAR_INITIATION_WEBINAR_TITLE} | Live Webinar | The Prime Mentor`,
     description: catalog.homeSummary ?? catalog.description,
     canonical: pageCanonical(catalog.checkoutPath),
-    ogImage: `https://theprimementor.com${STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH}`,
+    ogImage: `https://theprimementor.com${STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH}`,
     jsonLd: [{
       "@context": "https://schema.org",
       "@type": "Event",
@@ -52,7 +52,7 @@ export default function StarInitiationWebinarCheckout() {
         "@type": "VirtualLocation",
         url: pageCanonical(catalog.checkoutPath),
       },
-      image: [`https://theprimementor.com${STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH}`],
+      image: [`https://theprimementor.com${STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH}`],
       organizer: {
         "@type": "Organization",
         name: "The Prime Mentor",
@@ -192,11 +192,11 @@ export default function StarInitiationWebinarCheckout() {
 
           <figure className="overflow-hidden rounded-3xl border border-white/[0.09] bg-[#050a12] shadow-[0_30px_90px_rgba(0,0,0,0.48),0_0_55px_rgba(41,190,220,0.08)]">
             <img
-              src={catalog.landscapePosterPath ?? catalog.posterPath}
+              src={catalog.portraitPosterPath ?? catalog.posterPath}
               alt={catalog.posterAlt}
-              width={1024}
-              height={576}
-              className="mx-auto h-auto w-full object-contain"
+              width={576}
+              height={1024}
+              className="mx-auto h-auto w-full max-w-[28rem] object-contain sm:max-w-[32rem]"
               loading="eager"
               decoding="async"
             />

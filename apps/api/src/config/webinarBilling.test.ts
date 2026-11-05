@@ -187,6 +187,8 @@ test("star initiation public catalog omits the zoom registration url and stripe 
   assert.equal(catalog.maxAttendees, 20);
   assert.equal(catalog.displayDate, "Saturday, November 21, 2026");
   assert.equal(catalog.displayPrice, "$19.99 CAD");
+  assert.equal(catalog.posterPath, "/images/webinars/adronis-star-initiation-9x16.jpg");
+  assert.equal(catalog.portraitPosterPath, "/images/webinars/adronis-star-initiation-9x16.jpg");
   assert.equal(catalog.landscapePosterPath, "/images/webinars/adronis-star-initiation-16x9.jpg");
   assert.doesNotMatch(serialized, /zoom\.us|9beILHXDRbad1Zlg3QuE6g|price_1UYV9Z/i);
 });

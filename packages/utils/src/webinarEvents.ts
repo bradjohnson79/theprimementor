@@ -165,7 +165,8 @@ export const STAR_INITIATION_WEBINAR_MAX_ATTENDEES = 20;
 export const STAR_INITIATION_WEBINAR_DISPLAY_DATE = "Saturday, November 21, 2026";
 export const STAR_INITIATION_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
 export const STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH = "/images/webinars/adronis-star-initiation-16x9.jpg";
-export const STAR_INITIATION_WEBINAR_POSTER_PATH = STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH;
+export const STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH = "/images/webinars/adronis-star-initiation-9x16.jpg";
+export const STAR_INITIATION_WEBINAR_POSTER_PATH = STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH;
 export const STAR_INITIATION_WEBINAR_POSTER_ALT =
   "Adronis: Star Initiation webinar with Brad Johnson, Saturday, November 21, 2026. Limited to 20 attendees.";
 export const STAR_INITIATION_WEBINAR_CHECKOUT_PATH = "/webinars/adronis-star-initiation";
@@ -325,6 +326,7 @@ export function getStarInitiationWebinarPublicCatalog(now = new Date()) {
     maxAttendees: STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
     posterPath: STAR_INITIATION_WEBINAR_POSTER_PATH,
     landscapePosterPath: STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH,
+    portraitPosterPath: STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH,
     posterAlt: STAR_INITIATION_WEBINAR_POSTER_ALT,
     checkoutPath: STAR_INITIATION_WEBINAR_CHECKOUT_PATH,
     thankYouPath: STAR_INITIATION_WEBINAR_THANK_YOU_PATH,

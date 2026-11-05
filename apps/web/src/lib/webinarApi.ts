@@ -19,6 +19,7 @@ export type WebinarPublicCatalog = Omit<
   homeHighlights?: string[];
   descriptionParagraphs?: string[];
   landscapePosterPath?: string;
+  portraitPosterPath?: string;
 };
 
 export interface WebinarEventState extends WebinarPublicCatalog {
