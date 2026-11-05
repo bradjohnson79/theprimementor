@@ -3,6 +3,10 @@ import test from "node:test";
 import {
   ADRONIS_ON_DEMAND_DURATION_SECONDS,
   ADRONIS_ON_DEMAND_WEBINAR_ID,
+  PRIME_ALCHEMY_ON_DEMAND_DURATION_SECONDS,
+  PRIME_ALCHEMY_ON_DEMAND_LIVE_STRIPE_PRICE_ID,
+  PRIME_ALCHEMY_ON_DEMAND_PLAYBACK_ID,
+  PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID,
   STAR_FAMILY_ON_DEMAND_DURATION_SECONDS,
   STAR_FAMILY_ON_DEMAND_LIVE_STRIPE_PRICE_ID,
   STAR_FAMILY_ON_DEMAND_PLAYBACK_ID,
@@ -23,6 +27,20 @@ test("Adronis on-demand catalog uses per-webinar duration and stays unpublished 
   assert.notEqual(webinar.webinarId, "adronis-disclosure-to-contact-2026");
 });
 
+test("Prime Alchemy on-demand is first in the published catalog at $9.99", () => {
+  const webinar = getOnDemandWebinarById(PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID);
+  assert.ok(webinar);
+  assert.equal(webinar.published, true);
+  assert.equal(webinar.priceCents, 999);
+  assert.equal(webinar.currency, "CAD");
+  assert.equal(webinar.liveStripePriceId, PRIME_ALCHEMY_ON_DEMAND_LIVE_STRIPE_PRICE_ID);
+  assert.equal(webinar.playbackId, PRIME_ALCHEMY_ON_DEMAND_PLAYBACK_ID);
+  assert.equal(webinar.durationSeconds, PRIME_ALCHEMY_ON_DEMAND_DURATION_SECONDS);
+  assert.equal(webinar.includedWithEventId, "prime-alchemy-teachings");
+  assert.equal(webinar.checkoutPath, "/webinars/prime-alchemy-teachings/on-demand");
+  assert.equal(listPublishedOnDemandWebinars()[0]?.webinarId, PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID);
+});
+
 test("Star Family Communion on-demand is a separate published recording", () => {
   const webinar = getOnDemandWebinarById(STAR_FAMILY_ON_DEMAND_WEBINAR_ID);
   assert.ok(webinar);
@@ -35,7 +53,7 @@ test("Star Family Communion on-demand is a separate published recording", () => 
   assert.equal(webinar.includedWithEventId, "adronis-star-family-communion");
   assert.equal(webinar.checkoutPath, "/webinars/adronis-star-family-communion/on-demand");
   assert.notEqual(webinar.webinarId, ADRONIS_ON_DEMAND_WEBINAR_ID);
-  assert.equal(listPublishedOnDemandWebinars()[0]?.webinarId, STAR_FAMILY_ON_DEMAND_WEBINAR_ID);
+  assert.equal(listPublishedOnDemandWebinars()[1]?.webinarId, STAR_FAMILY_ON_DEMAND_WEBINAR_ID);
 });
 
 test("sales require published + asset ready + playback protected", () => {

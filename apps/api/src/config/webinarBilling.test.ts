@@ -130,7 +130,7 @@ test("prime alchemy live checkout uses its own price and stays open until 9am Pa
   delete process.env.STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS;
   assert.equal(resolveWebinarStripePriceId(PRIME_ALCHEMY_WEBINAR_EVENT).priceId, "price_1USOJjAd5V3LaCqjMsii8snO");
   assert.equal(PRIME_ALCHEMY_WEBINAR_EVENT.priceCents, 1999);
-  assert.equal(PRIME_ALCHEMY_WEBINAR_EVENT.grantsComplimentaryRecording, false);
+  assert.equal(PRIME_ALCHEMY_WEBINAR_EVENT.grantsComplimentaryRecording, true);
   assert.doesNotThrow(() => assertWebinarRegistrationOpen(PRIME_ALCHEMY_WEBINAR_EVENT, new Date("2026-11-01T08:59:59-08:00")));
   assert.throws(
     () => assertWebinarRegistrationOpen(PRIME_ALCHEMY_WEBINAR_EVENT, new Date("2026-11-01T09:00:00-08:00")),
@@ -145,7 +145,7 @@ test("prime alchemy public catalog omits the zoom registration url", () => {
   assert.equal(catalog.startsAt, "2026-11-01T10:00:00-08:00");
   assert.equal(catalog.displayTime, "10:00 AM Pacific / 1:00 PM Eastern");
   assert.equal(catalog.portraitPosterPath, "/images/webinars/prime-alchemy-teachings-9x16.jpg");
-  assert.equal(catalog.onDemandDisplayDate, "Monday, November 2, 2026");
+  assert.equal(catalog.onDemandDisplayDate, "Available now");
   assert.doesNotMatch(serialized, /zoom\.us|W3SbW8mdQACjSbbU-YrHQg|price_1USOJj/i);
 });
 

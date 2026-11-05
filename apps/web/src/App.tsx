@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
-import { STAR_FAMILY_ON_DEMAND_WEBINAR_ID } from "@wisdom/utils";
+import { PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID, STAR_FAMILY_ON_DEMAND_WEBINAR_ID } from "@wisdom/utils";
 import { initGoogleAdsGlobalSiteTag } from "./lib/googleAdsTag";
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { installAnalyticsScript, trackPageview } from "./lib/analytics";
@@ -165,8 +165,10 @@ export default function App() {
             <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
             <Route path="/webinars/prime-alchemy-teachings" element={<PrimeAlchemyWebinarLearnMore />} />
             <Route path="/webinars/prime-alchemy-teachings/thank-you" element={<PrimeAlchemyWebinarThankYou />} />
-            <Route path="/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings" replace />} />
-            <Route path="/events/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings" replace />} />
+            <Route path="/webinars/prime-alchemy-teachings/on-demand" element={<OnDemandWebinarCheckout webinarId={PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID} />} />
+            <Route path="/webinars/prime-alchemy-teachings/on-demand/thank-you" element={<OnDemandWebinarThankYou webinarId={PRIME_ALCHEMY_ON_DEMAND_WEBINAR_ID} />} />
+            <Route path="/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings/on-demand" replace />} />
+            <Route path="/events/mentoring-circle" element={<Navigate to="/webinars/prime-alchemy-teachings/on-demand" replace />} />
             <Route path="/webinars/adronis-star-family-communion" element={<Navigate to="/" replace />} />
             <Route path="/webinars/adronis-star-family-communion/thank-you" element={<Navigate to="/" replace />} />
             <Route path="/webinars/adronis-star-family-communion/on-demand" element={<OnDemandWebinarCheckout webinarId={STAR_FAMILY_ON_DEMAND_WEBINAR_ID} />} />

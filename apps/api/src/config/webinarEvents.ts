@@ -186,7 +186,7 @@ export const PRIME_ALCHEMY_WEBINAR_EVENT: WebinarEventDefinition = {
   bookingTypeId: PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID,
   confirmationEmailSubject: PRIME_ALCHEMY_WEBINAR_CONFIRMATION_SUBJECT,
   active: true,
-  grantsComplimentaryRecording: false,
+  grantsComplimentaryRecording: true,
   testPriceEnvKey: "STRIPE_PRICE_PRIME_ALCHEMY_TEACHINGS",
   livePriceEnvKey: "STRIPE_LIVE_PRICE_PRIME_ALCHEMY_TEACHINGS",
   allowTestLivePriceFallback: false,

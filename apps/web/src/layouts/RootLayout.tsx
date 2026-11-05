@@ -87,7 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Events",
     href: "/webinars/prime-alchemy-teachings",
     items: [
-      { label: "Mentoring Circle: Prime Alchemy (On Demand Nov 2)", href: "/webinars/prime-alchemy-teachings" },
+      { label: "Mentoring Circle: Prime Alchemy (On Demand)", href: "/webinars/prime-alchemy-teachings/on-demand" },
     ],
   },
   {

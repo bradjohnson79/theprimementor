@@ -6,6 +6,7 @@ const DISCLOSURE_THANKS = "/webinars/adronis-disclosure-to-contact/thank-you";
 const DISCLOSURE_ON_DEMAND = "/webinars/adronis-disclosure-to-contact/on-demand";
 const STAR_FAMILY_ON_DEMAND = "/webinars/adronis-star-family-communion/on-demand";
 const PRIME_ALCHEMY = "/webinars/prime-alchemy-teachings";
+const PRIME_ALCHEMY_ON_DEMAND = "/webinars/prime-alchemy-teachings/on-demand";
 const PRIME_ALCHEMY_THANKS = "/webinars/prime-alchemy-teachings/thank-you";
 const ZOOM_TOKEN = "eTHsHKnRQ16W0yoB5HaR6Q";
 const DISCLOSURE_ZOOM_TOKEN = "sCZZBeMQQgOQwsYb9XuM7Q";
@@ -17,7 +18,7 @@ async function openHomepage(page: Page) {
 }
 
 test.describe("Star Family public pages are retired", () => {
-  test("homepage no longer promotes the ended webinar", async ({ page }) => {
+  test("homepage promotes Prime Alchemy on-demand first", async ({ page }) => {
     await openHomepage(page);
     await expect(page.locator("#star-family-communion")).toHaveCount(0);
     await expect(page.locator("#on-demand-webinars")).toBeVisible();
@@ -25,10 +26,9 @@ test.describe("Star Family public pages are retired", () => {
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: From Disclosure to Contact" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
-    await expect(page.getByText("Monday, November 2, 2026").first()).toBeVisible();
-    await expect(page.getByText(/on-demand purchase on Monday, November 2, 2026/i)).toBeVisible();
+    await expect(page.getByText("$9.99 CAD").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Register —/ })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Learn More" })).toHaveAttribute("href", PRIME_ALCHEMY);
+    await expect(page.getByRole("button", { name: /Purchase —/ }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Adronis: Star Family Communion" })).toHaveCount(0);
     await expect(page.locator(`a[href="${STAR_FAMILY}"]`)).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(ZOOM_TOKEN);
@@ -73,16 +73,18 @@ test.describe("Disclosure on-demand remains isolated", () => {
     await expect(page.locator("body")).not.toContainText("Saturday, September 12, 2026");
   });
 
-  test("Prime Alchemy learn-more page stays public and hides the Zoom link", async ({ page }) => {
+  test("Prime Alchemy learn-more and on-demand pages sell the recording", async ({ page }) => {
     await page.goto(PRIME_ALCHEMY);
     await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings", level: 1 })).toBeVisible();
-    await expect(page.getByText("Monday, November 2, 2026").first()).toBeVisible();
-    await expect(page.getByText(/Live registration has ended/i).first()).toBeVisible();
+    await expect(page.getByText("Available On Demand").first()).toBeVisible();
+    await expect(page.getByText("$9.99 CAD").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Purchase —/ }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Register —/ })).toHaveCount(0);
-    await expect(page.getByText(/90-minute Mentoring Session/)).toBeVisible();
-    await expect(page.getByText(/45-minute Mentoring Session/)).toBeVisible();
-    await expect(page.getByText(/natal charts that Divin8 will provide/)).toBeVisible();
     await expect(page.locator("body")).not.toContainText(PRIME_ALCHEMY_ZOOM_TOKEN);
+
+    await page.goto(PRIME_ALCHEMY_ON_DEMAND);
+    await expect(page.getByRole("heading", { name: "Mentoring Circle: Prime Alchemy Teachings", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Get Instant Access — \$9\.99 CAD|Purchase — \$9\.99 CAD/ }).first()).toBeVisible();
 
     await page.goto(PRIME_ALCHEMY_THANKS);
     await expect(page.getByRole("heading", { name: /sign in to view webinar access/i }).or(page.locator(".cl-signIn-root"))).toBeVisible();

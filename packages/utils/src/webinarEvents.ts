@@ -125,9 +125,9 @@ export const PRIME_ALCHEMY_WEBINAR_BOOKING_TYPE_ID = "webinar-prime-alchemy-teac
 export const PRIME_ALCHEMY_WEBINAR_AUTOCHECKOUT_PATH = `${PRIME_ALCHEMY_WEBINAR_CHECKOUT_PATH}?autocheckout=1`;
 export const PRIME_ALCHEMY_WEBINAR_LIVE_STRIPE_PRICE_ID = "price_1USOJjAd5V3LaCqjMsii8snO";
 export const PRIME_ALCHEMY_ON_DEMAND_AVAILABLE_AT = "2026-11-02T00:00:00-08:00";
-export const PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE = "Monday, November 2, 2026";
+export const PRIME_ALCHEMY_ON_DEMAND_DISPLAY_DATE = "Available now";
 export const PRIME_ALCHEMY_ON_DEMAND_HOME_SUMMARY =
-  "The live Mentoring Circle has ended. The recording will be available for on-demand purchase on Monday, November 2, 2026.";
+  "The live Mentoring Circle has ended. The full recording is available now on demand for $9.99 CAD.";
 
 export const PRIME_ALCHEMY_WEBINAR_DESCRIPTION_PARAGRAPHS = [
   "Join Brad Johnson live on Zoom on Sunday, November 1, 2026, for an immersive three-hour Mentoring Circle exploring Prime Alchemy, assumption-based manifestation, and practical methods for transforming your inner state.",
