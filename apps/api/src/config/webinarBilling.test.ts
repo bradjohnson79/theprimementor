@@ -173,7 +173,10 @@ test("star initiation live checkout uses its own price, capacity, and cutoff", (
   assert.equal(STAR_INITIATION_WEBINAR_EVENT.maxAttendees, 24);
   assert.equal(STAR_INITIATION_WEBINAR_EVENT.grantsComplimentaryRecording, false);
   assert.match(STAR_INITIATION_WEBINAR_EVENT.zoomRegistrationUrl, /9beILHXDRbad1Zlg3QuE6g/);
-  assert.doesNotThrow(() => assertWebinarRegistrationOpen(STAR_INITIATION_WEBINAR_EVENT, new Date("2026-11-21T08:59:59-08:00")));
+  assert.throws(
+    () => assertWebinarRegistrationOpen(STAR_INITIATION_WEBINAR_EVENT, new Date("2026-11-21T08:59:59-08:00")),
+    /closed/i,
+  );
   assert.throws(
     () => assertWebinarRegistrationOpen(STAR_INITIATION_WEBINAR_EVENT, new Date("2026-11-21T09:00:00-08:00")),
     /closed/i,
@@ -183,7 +186,8 @@ test("star initiation live checkout uses its own price, capacity, and cutoff", (
 test("star initiation public catalog omits the zoom registration url and stripe price", () => {
   const catalog = getStarInitiationWebinarPublicCatalog(new Date("2026-11-05T12:00:00-08:00"));
   const serialized = JSON.stringify(catalog);
-  assert.equal(catalog.registrationOpen, true);
+  assert.equal(catalog.registrationOpen, false);
+  assert.equal(catalog.soldOut, true);
   assert.equal(catalog.maxAttendees, 24);
   assert.equal(catalog.displayDate, "Saturday, November 21, 2026");
   assert.equal(catalog.displayPrice, "$19.99 CAD");

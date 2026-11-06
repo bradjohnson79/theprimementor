@@ -9,12 +9,13 @@ import {
   STAR_INITIATION_WEBINAR_HOME_HIGHLIGHTS,
   STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
   STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
+  STAR_INITIATION_WEBINAR_SOLD_OUT,
   STAR_INITIATION_WEBINAR_TITLE,
   getStarInitiationWebinarPublicCatalog,
 } from "@wisdom/utils";
 import AdronisWebinarCheckoutButton from "./AdronisWebinarCheckoutButton";
+import SoldOutNotice from "./SoldOutNotice";
 import { trackEventOnce } from "../../lib/analytics";
-import { PURCHASE_REASSURANCE } from "../../lib/purchaseReassurance";
 import { fetchPublicWebinar, fetchWebinarMe, type WebinarPublicCatalog } from "../../lib/webinarApi";
 
 const CTA_CLASS = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-amber-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_45px_rgba(251,191,36,0.16)] transition hover:-translate-y-0.5 hover:bg-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:w-auto";
@@ -29,7 +30,14 @@ export default function StarInitiationHomeSection() {
   useEffect(() => {
     let cancelled = false;
     void fetchPublicWebinar(STAR_INITIATION_WEBINAR_EVENT_ID).then((next) => {
-      if (!cancelled) setCatalog((current) => ({ ...current, ...next }));
+      if (!cancelled) {
+        setCatalog((current) => ({
+          ...current,
+          ...next,
+          registrationOpen: STAR_INITIATION_WEBINAR_SOLD_OUT ? false : next.registrationOpen,
+          soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || next.soldOut === true,
+        }));
+      }
     });
     return () => {
       cancelled = true;
@@ -48,7 +56,12 @@ export default function StarInitiationHomeSection() {
         const state = await fetchWebinarMe(STAR_INITIATION_WEBINAR_EVENT_ID, token);
         if (!cancelled) {
           setOwned(state.joinEligible);
-          setCatalog((current) => ({ ...current, ...state }));
+          setCatalog((current) => ({
+            ...current,
+            ...state,
+            registrationOpen: STAR_INITIATION_WEBINAR_SOLD_OUT ? false : state.registrationOpen,
+            soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || state.soldOut === true,
+          }));
         }
       } catch {
         if (!cancelled) setOwned(false);
@@ -69,13 +82,16 @@ export default function StarInitiationHomeSection() {
     }
   }, [catalog.registrationOpen, owned]);
 
-  if (!catalog.registrationOpen && !owned) {
+  const soldOut = catalog.soldOut === true || !catalog.registrationOpen;
+  if (!catalog.registrationOpen && !soldOut && !owned) {
     return null;
   }
 
-  const seatsLabel = typeof catalog.seatsRemaining === "number"
-    ? `${catalog.seatsRemaining} of ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} seats remaining`
-    : `Limited to ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} attendees`;
+  const seatsLabel = soldOut
+    ? "Sold out"
+    : typeof catalog.seatsRemaining === "number"
+      ? `${catalog.seatsRemaining} of ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} seats remaining`
+      : `Limited to ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} attendees`;
 
   return (
     <section
@@ -88,7 +104,7 @@ export default function StarInitiationHomeSection() {
         initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.45 }}
-        className="relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-200/15 bg-[#07111f]/88 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl lg:grid-cols-[minmax(16rem,28rem)_minmax(0,1fr)]"
+        className={`relative mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] bg-[#07111f]/88 backdrop-blur-xl lg:grid-cols-[minmax(16rem,28rem)_minmax(0,1fr)] ${soldOut ? "border border-amber-200/45 shadow-[0_0_0_1px_rgba(251,191,36,0.28),0_28px_90px_rgba(0,0,0,0.38),0_0_48px_rgba(251,191,36,0.14)]" : "border border-cyan-200/15 shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_28px_90px_rgba(0,0,0,0.38)]"}`}
       >
         <div className="relative bg-slate-950">
           <img
@@ -109,9 +125,13 @@ export default function StarInitiationHomeSection() {
             </h2>
             <p className="text-sm text-amber-100/80">{catalog.displayDate}</p>
             <p className="text-sm text-white/70">{catalog.displayTime} · Live on Zoom</p>
-            <p className="inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-amber-100">
-              {seatsLabel}
-            </p>
+            {soldOut && !owned ? (
+              <SoldOutNotice detail={`All ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} seats for ${STAR_INITIATION_WEBINAR_TITLE} are taken.`} />
+            ) : (
+              <p className="inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-amber-100">
+                {seatsLabel}
+              </p>
+            )}
             <p className="max-w-2xl text-sm leading-7 text-white/72 sm:text-base">{catalog.homeSummary}</p>
           </div>
           <ul className="space-y-2 text-sm leading-6 text-white/70">
@@ -123,30 +143,31 @@ export default function StarInitiationHomeSection() {
             ))}
           </ul>
           <div className="space-y-3">
-            <p className="text-lg font-semibold text-amber-100">{catalog.displayPrice}</p>
+            {owned ? <p className="text-lg font-semibold text-amber-100">{catalog.displayPrice}</p> : null}
             <div className="flex flex-col gap-3 sm:flex-row">
-              <AdronisWebinarCheckoutButton
-                source="home_star_initiation"
-                eventId={STAR_INITIATION_WEBINAR_EVENT_ID}
-                title={STAR_INITIATION_WEBINAR_TITLE}
-                autocheckoutPath={STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH}
-                thankYouPath={STAR_INITIATION_WEBINAR_THANK_YOU_PATH}
-                owned={owned}
-                registrationOpen={catalog.registrationOpen}
-                onError={setError}
-                className={CTA_CLASS}
-              >
-                {owned ? "Access Webinar Registration" : `Register — ${catalog.displayPrice}`}
-              </AdronisWebinarCheckoutButton>
+              {owned ? (
+                <AdronisWebinarCheckoutButton
+                  source="home_star_initiation"
+                  eventId={STAR_INITIATION_WEBINAR_EVENT_ID}
+                  title={STAR_INITIATION_WEBINAR_TITLE}
+                  autocheckoutPath={STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH}
+                  thankYouPath={STAR_INITIATION_WEBINAR_THANK_YOU_PATH}
+                  owned={owned}
+                  registrationOpen={catalog.registrationOpen}
+                  onError={setError}
+                  className={CTA_CLASS}
+                >
+                  Access Webinar Registration
+                </AdronisWebinarCheckoutButton>
+              ) : null}
               <Link
                 to={STAR_INITIATION_WEBINAR_CHECKOUT_PATH}
                 className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:border-cyan-200/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
               >
-                Learn More
+                Event details
               </Link>
             </div>
             {error ? <p className="text-sm text-amber-100">{error}</p> : null}
-            {!owned ? <p className="text-xs leading-5 text-white/55">{PURCHASE_REASSURANCE}</p> : null}
           </div>
         </div>
       </motion.div>

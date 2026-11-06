@@ -162,6 +162,8 @@ export const STAR_INITIATION_WEBINAR_STARTS_AT = "2026-11-21T10:00:00-08:00";
 export const STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT = "2026-11-21T09:00:00-08:00";
 export const STAR_INITIATION_WEBINAR_DURATION_MINUTES = 180;
 export const STAR_INITIATION_WEBINAR_MAX_ATTENDEES = 24;
+/** All 24 seats are taken. Keep this on until a later release reopens registration. */
+export const STAR_INITIATION_WEBINAR_SOLD_OUT = true;
 export const STAR_INITIATION_WEBINAR_DISPLAY_DATE = "Saturday, November 21, 2026";
 export const STAR_INITIATION_WEBINAR_DISPLAY_TIME = "10:00 AM Pacific / 1:00 PM Eastern";
 export const STAR_INITIATION_WEBINAR_LANDSCAPE_POSTER_PATH = "/images/webinars/adronis-star-initiation-16x9.jpg";
@@ -204,6 +206,7 @@ export const STAR_INITIATION_WEBINAR_HOME_HIGHLIGHTS = [
 const STAR_INITIATION_REGISTRATION_CLOSES_AT_MS = Date.parse(STAR_INITIATION_WEBINAR_REGISTRATION_CLOSES_AT);
 
 export function isStarInitiationWebinarRegistrationOpen(now = new Date()) {
+  if (STAR_INITIATION_WEBINAR_SOLD_OUT) return false;
   return now.getTime() < STAR_INITIATION_REGISTRATION_CLOSES_AT_MS;
 }
 
@@ -332,5 +335,6 @@ export function getStarInitiationWebinarPublicCatalog(now = new Date()) {
     thankYouPath: STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
     autocheckoutPath: STAR_INITIATION_WEBINAR_AUTOCHECKOUT_PATH,
     registrationOpen: isStarInitiationWebinarRegistrationOpen(now),
+    soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT,
   };
 }

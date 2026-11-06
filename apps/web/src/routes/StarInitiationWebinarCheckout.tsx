@@ -7,11 +7,13 @@ import {
   STAR_INITIATION_WEBINAR_FEATURE_BULLETS,
   STAR_INITIATION_WEBINAR_PORTRAIT_POSTER_PATH,
   STAR_INITIATION_WEBINAR_MAX_ATTENDEES,
+  STAR_INITIATION_WEBINAR_SOLD_OUT,
   STAR_INITIATION_WEBINAR_THANK_YOU_PATH,
   STAR_INITIATION_WEBINAR_TITLE,
   getStarInitiationWebinarPublicCatalog,
 } from "@wisdom/utils";
 import AdronisWebinarCheckoutButton from "../components/webinars/AdronisWebinarCheckoutButton";
+import SoldOutNotice from "../components/webinars/SoldOutNotice";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { trackCtaClick } from "../lib/analytics";
 import { PURCHASE_REASSURANCE } from "../lib/purchaseReassurance";
@@ -45,9 +47,7 @@ export default function StarInitiationWebinarCheckout() {
       description: catalog.description,
       startDate: catalog.startsAt,
       eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
-      eventStatus: catalog.registrationOpen
-        ? "https://schema.org/EventScheduled"
-        : "https://schema.org/EventScheduled",
+      eventStatus: "https://schema.org/EventScheduled",
       location: {
         "@type": "VirtualLocation",
         url: pageCanonical(catalog.checkoutPath),
@@ -74,7 +74,14 @@ export default function StarInitiationWebinarCheckout() {
   useEffect(() => {
     let cancelled = false;
     void fetchPublicWebinar(STAR_INITIATION_WEBINAR_EVENT_ID).then((next) => {
-      if (!cancelled) setCatalog((current) => ({ ...current, ...next }));
+      if (!cancelled) {
+        setCatalog((current) => ({
+          ...current,
+          ...next,
+          registrationOpen: STAR_INITIATION_WEBINAR_SOLD_OUT ? false : next.registrationOpen,
+          soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || next.soldOut === true,
+        }));
+      }
     });
     return () => {
       cancelled = true;
@@ -89,7 +96,12 @@ export default function StarInitiationWebinarCheckout() {
         const token = await getToken();
         const state = await fetchWebinarMe(STAR_INITIATION_WEBINAR_EVENT_ID, token);
         if (cancelled) return;
-        setCatalog((current) => ({ ...current, ...state }));
+        setCatalog((current) => ({
+          ...current,
+          ...state,
+          registrationOpen: STAR_INITIATION_WEBINAR_SOLD_OUT ? false : state.registrationOpen,
+          soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || state.soldOut === true,
+        }));
         if (state.joinEligible) {
           setOwned(true);
           if (shouldAutocheckout) {
@@ -157,20 +169,24 @@ export default function StarInitiationWebinarCheckout() {
             </h1>
             <p className="text-sm font-medium uppercase tracking-[0.18em] text-[#67E8F9]">{catalog.presenter}</p>
             <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-              <p className="text-2xl font-semibold text-[#F0D78A]">{catalog.displayPrice}</p>
+              {owned ? <p className="text-2xl font-semibold text-[#F0D78A]">{catalog.displayPrice}</p> : null}
               <p className="pb-0.5 text-base text-[#94A3B8]">{catalog.displayDate}</p>
             </div>
             <p className="text-base text-[#CBD5E1]">{catalog.displayTime} · Live on Zoom</p>
-            <p className="inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">
-              {soldOut && !owned ? "Sold out" : seatsLabel}
-            </p>
+            {soldOut && !owned ? (
+              <SoldOutNotice detail={`All ${STAR_INITIATION_WEBINAR_MAX_ATTENDEES} seats are taken. New registrations are closed.`} />
+            ) : (
+              <p className="inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">
+                {seatsLabel}
+              </p>
+            )}
 
             <div className="space-y-3 pt-2">
               {owned ? (
                 <Link to={STAR_INITIATION_WEBINAR_THANK_YOU_PATH} className={CTA_CLASS_NAME}>
                   Access Webinar Registration
                 </Link>
-              ) : (
+              ) : soldOut ? null : (
                 <AdronisWebinarCheckoutButton
                   source="star_initiation_landing"
                   eventId={STAR_INITIATION_WEBINAR_EVENT_ID}
@@ -182,10 +198,10 @@ export default function StarInitiationWebinarCheckout() {
                   onError={setError}
                   className={CTA_CLASS_NAME}
                 >
-                  {catalog.registrationOpen ? `Register — ${catalog.displayPrice}` : "Registration closed"}
+                  {`Register — ${catalog.displayPrice}`}
                 </AdronisWebinarCheckoutButton>
               )}
-              {!owned ? <p className="text-sm text-[#94A3B8]">{PURCHASE_REASSURANCE}</p> : null}
+              {!owned && !soldOut ? <p className="text-sm text-[#94A3B8]">{PURCHASE_REASSURANCE}</p> : null}
               {error ? <p className="text-sm text-[#F0D78A]">{error}</p> : null}
             </div>
           </div>

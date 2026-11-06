@@ -117,10 +117,14 @@ export function toPublicWebinarCatalog(
 
   const maxAttendees = event.maxAttendees ?? null;
   const seatsTaken = typeof capacity?.seatsTaken === "number" ? capacity.seatsTaken : null;
-  const seatsRemaining = maxAttendees != null && seatsTaken != null
-    ? Math.max(0, maxAttendees - seatsTaken)
-    : null;
-  const soldOut = maxAttendees != null && seatsTaken != null ? seatsTaken >= maxAttendees : false;
+  const capacitySoldOut = maxAttendees != null && seatsTaken != null ? seatsTaken >= maxAttendees : false;
+  const declaredSoldOut = "soldOut" in base && base.soldOut === true;
+  const soldOut = declaredSoldOut || capacitySoldOut;
+  const seatsRemaining = soldOut
+    ? 0
+    : maxAttendees != null && seatsTaken != null
+      ? Math.max(0, maxAttendees - seatsTaken)
+      : null;
   const registrationOpen = Boolean(base.registrationOpen) && !soldOut;
 
   return {
