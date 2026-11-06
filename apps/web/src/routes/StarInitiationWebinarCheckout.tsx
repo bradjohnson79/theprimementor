@@ -79,7 +79,7 @@ export default function StarInitiationWebinarCheckout() {
           ...current,
           ...next,
           registrationOpen: STAR_INITIATION_WEBINAR_SOLD_OUT ? false : next.registrationOpen,
-          soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || next.soldOut === true,
+          soldOut: STAR_INITIATION_WEBINAR_SOLD_OUT || ("soldOut" in next && next.soldOut === true),
         }));
       }
     });
