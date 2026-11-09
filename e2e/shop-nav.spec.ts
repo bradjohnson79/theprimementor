@@ -58,7 +58,7 @@ test.describe("Shop navigation dropdown", () => {
     await expect(page).toHaveURL(/\/shop\/healing-code-cards-body-deck$/);
 
     await page.goto("/");
-    await expect(nav.getByRole("link", { name: "Sessions" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Services" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Reports" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Subscriptions" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Events" })).toBeVisible();

@@ -8,29 +8,29 @@ async function openHomepage(page: Page) {
 }
 
 test.describe("Prime Body Healing landing", () => {
-  test("desktop Sessions menu opens Prime Body Healing", async ({ page }, testInfo) => {
+  test("desktop Services menu opens Prime Body Healing Level 2", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "Desktop hover menu");
     await openHomepage(page);
     const nav = page.getByRole("navigation", { name: "Primary navigation" });
-    await nav.getByRole("link", { name: "Sessions" }).hover();
-    const menu = page.locator('[data-nav-dropdown="Sessions"]');
+    await nav.getByRole("link", { name: "Services" }).hover();
+    const menu = page.locator('[data-nav-dropdown="Services"]');
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("link", { name: "Prime Body Healing" })).toBeVisible();
-    await menu.getByRole("link", { name: "Prime Body Healing" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing$/);
+    await expect(menu.getByRole("link", { name: "Prime Body Healing Level 2" })).toBeVisible();
+    await menu.getByRole("link", { name: "Prime Body Healing Level 2" }).click();
+    await expect(page).toHaveURL(/\/sessions\/prime-body-healing#level-2$/);
     await expect(page.getByRole("heading", { level: 1, name: /Deep Energetic Rejuvenation/ })).toBeVisible();
   });
 
-  test("mobile Sessions accordion opens Prime Body Healing", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "desktop", "Hamburger Sessions accordion");
+  test("mobile Services accordion opens Prime Body Healing Level 2", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "desktop", "Hamburger Services accordion");
     await openHomepage(page);
     await page.getByRole("button", { name: "Open menu" }).click();
     const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
-    await mobileNav.getByRole("button", { name: "Expand Sessions" }).click({ force: true });
-    const menu = mobileNav.locator('[data-nav-dropdown="Sessions"]');
-    await expect(menu.getByRole("link", { name: "Prime Body Healing" })).toBeVisible();
-    await menu.getByRole("link", { name: "Prime Body Healing" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing$/);
+    await mobileNav.getByRole("button", { name: "Expand Services" }).click({ force: true });
+    const menu = mobileNav.locator('[data-nav-dropdown="Services"]');
+    await expect(menu.getByRole("link", { name: "Prime Body Healing Level 2" })).toBeVisible();
+    await menu.getByRole("link", { name: "Prime Body Healing Level 2" }).click();
+    await expect(page).toHaveURL(/\/sessions\/prime-body-healing#level-2$/);
   });
 
   test("landing shows both artworks, sections, FAQ, and CAD prices", async ({ page }) => {
@@ -63,40 +63,13 @@ test.describe("Prime Body Healing landing", () => {
     await expect(page.getByText("Prime Body Healing Level 2 — $179 CAD")).toBeVisible();
   });
 
-  test("home card sits below Shop and links to the landing", async ({ page }) => {
+  test("homepage services widget offers Level 2 guest checkout", async ({ page }) => {
     await page.goto("/");
-    const shop = page.locator("#home-shop-gallery");
-    const card = page.locator("#prime-body-healing");
-    await expect(card.getByRole("heading", { name: "Prime Body Healing" })).toBeVisible();
-    await expect(card.getByRole("img", { name: "Prime Body Healing Level 1 artwork" })).toBeVisible();
-    await expect(card.getByRole("img", { name: "Prime Body Healing Level 2 artwork" })).toBeVisible();
-    await expect(card.getByText("Level 1 — Focused")).toBeVisible();
-    await expect(card.getByText("Level 2 — Comprehensive")).toBeVisible();
-
-    const shopBox = await shop.boundingBox();
-    const cardBox = await card.boundingBox();
-    expect(shopBox && cardBox).toBeTruthy();
-    if (shopBox && cardBox) {
-      expect(cardBox.y).toBeGreaterThan(shopBox.y);
-    }
-
-    await expect(page.locator("#sessions").getByRole("heading", { name: "Prime Body Healing" })).toHaveCount(0);
-    await card.getByRole("link", { name: "Book Now for Prime Body Healing Level 1" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=1|\/sign-in/);
-    if (page.url().includes("/sign-in")) {
-      expect(page.url()).toContain(encodeURIComponent("/sessions/prime-body-healing/book?level=1"));
-    }
-
-    await page.goto("/");
-    const level2Card = page.locator("#prime-body-healing");
-    await level2Card.getByRole("link", { name: "Book Now for Prime Body Healing Level 2" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=2|\/sign-in/);
-    if (page.url().includes("/sign-in")) {
-      expect(page.url()).toContain(encodeURIComponent("/sessions/prime-body-healing/book?level=2"));
-    }
-
-    await page.goto("/");
-    await page.locator("#prime-body-healing").getByRole("link", { name: "Explore Prime Body Healing" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing$/);
+    const widget = page.locator("#services");
+    await expect(widget.getByRole("heading", { name: "Premium & Express Services" })).toBeVisible();
+    await widget.getByRole("button", { name: "Prime Body Healing Level 2", exact: true }).click();
+    await widget.getByRole("button", { name: "Book Prime Body Healing Level 2 — $179 CAD" }).click();
+    await expect(page.getByRole("heading", { name: "Continue as guest" })).toBeVisible();
+    await expect(page.getByText("Prime Body Healing Level 2")).toBeVisible();
   });
 });

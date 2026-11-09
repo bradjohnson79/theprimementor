@@ -9,7 +9,7 @@ export default function NotFoundPage() {
       description="The link you followed may be outdated, incomplete, or tied to a page that has moved on. You can head back home, explore current sessions, or jump straight into booking from here."
       actions={[
         { label: "Go Home", href: "/", preserveQuery: true },
-        { label: "Explore Sessions", href: "/#sessions", variant: "secondary", preserveQuery: true },
+        { label: "Explore Services", href: "/#services", variant: "secondary", preserveQuery: true },
         { label: "Book a Session", href: "/sessions", variant: "secondary", preserveQuery: true },
       ]}
     />

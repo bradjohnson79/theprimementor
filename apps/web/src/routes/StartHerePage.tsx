@@ -45,7 +45,7 @@ export default function StartHerePage() {
             Prefer to browse?{" "}
             <Link to="/reports" className="text-cyan-100 underline-offset-4 hover:underline">All reports</Link>
             {" · "}
-            <Link to="/#sessions" className="text-cyan-100 underline-offset-4 hover:underline">All sessions</Link>
+            <Link to="/#services" className="text-cyan-100 underline-offset-4 hover:underline">All services</Link>
           </p>
         </div>
       </section>

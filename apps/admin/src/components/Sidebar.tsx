@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { to: "/", label: "Dashboard", icon: "◆" },
   { to: "/clients", label: "Clients", icon: "◇" },
   { to: "/admin/orders", label: "Orders", icon: "◈", matchPrefix: "/admin/orders" },
+  { to: "/admin/orders?category=express", label: "Express", icon: "↳", indent: true },
   { to: "/services", label: "Services", icon: "◫" },
   { to: "/events", label: "Events", icon: "◌" },
   { to: "/admin/courses", label: "Courses", icon: "◎", matchPrefix: "/admin/courses" },

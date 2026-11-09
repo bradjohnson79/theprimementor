@@ -13,6 +13,7 @@ import { clerkWebhookRoutes } from "./routes/clerk-webhook.js";
 import { syncUserRoutes } from "./routes/sync-user.js";
 import { meRoutes } from "./routes/me.js";
 import { mentoringCircleRoutes } from "./routes/mentoring-circle.js";
+import { expressRoutes } from "./routes/express.js";
 import { webinarRoutes } from "./routes/webinars.js";
 import { muxRoutes } from "./routes/mux.js";
 import { membershipsRoutes } from "./routes/memberships.js";
@@ -909,6 +910,7 @@ export async function buildApp() {
   await app.register(syncUserRoutes, { prefix: "/api" });
   await app.register(meRoutes, { prefix: "/api" });
   await app.register(mentoringCircleRoutes, { prefix: "/api" });
+  await app.register(expressRoutes, { prefix: "/api" });
   await app.register(webinarRoutes, { prefix: "/api" });
   await app.register(muxRoutes, { prefix: "/api" });
   await app.register(membershipsRoutes);

@@ -85,12 +85,12 @@ function MenuSection({ title, items, onSelectAnchor, onSelectAny }: MenuSectionP
 
 const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
-    title: "Sessions",
+    title: "Services",
     items: [
-      { label: "Prime Mentor Services", anchor: "#sessions" },
-      { label: "Manifestation Monthly Package", anchor: "#sessions" },
-      { label: "Mentoring Session", anchor: "#sessions" },
+      { label: "Premium & Express", anchor: "#services" },
       { label: "Star Initiation Session", href: "/sessions/star-initiation" },
+      { label: "Ask Brad / Adronis", href: "/?serviceType=express&service=ask#services" },
+      { label: "Mentoring Session", href: "/sessions/mentoring" },
     ],
   },
   {

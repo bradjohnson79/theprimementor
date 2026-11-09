@@ -7,24 +7,10 @@ import {
   PAST_LIFE_AKASHIC_LANDING_PATH,
   PRIME_BODY_HEALING_LANDING_PATH,
   QA_LANDING_PATH,
-  REGENERATION_LANDING_PATH,
 } from "../../lib/sessionLandingPaths";
 
-/**
- * Featured offers per Brad's answers
- * (/Users/bradjohnson/Documents/primementor-revamp/BRAD-ANSWERS.md, #1 and #7a):
- * Manifestation Monthly (his best seller — the single "Most Popular" offer,
- * shown first), Q&A, Email Sessions, Prime Body Healing, Past Life Akashic
- * Readings, and Mentoring — an even 3x2 grid.
- */
+/** Featured doors that remain on the Start Here page. Manifestation Monthly is no longer promoted here. */
 const FEATURED_ITEMS = [
-  {
-    title: "Manifestation Monthly",
-    meta: "$99 CAD / month",
-    badge: "Most Popular",
-    description: "Two 15-minute consultations, manifestation tools, and 30 days of email support each month. Brad's best seller.",
-    cta: { label: "Begin Your Journey", href: REGENERATION_LANDING_PATH },
-  },
   {
     title: "Q&A Session",
     meta: "From $139 CAD",
@@ -72,7 +58,7 @@ export default function StartHereDoors({
           {heading}
         </h2>
         <p className="max-w-2xl text-sm leading-7 text-white/60 sm:text-base">
-          Brad's most-booked offers. Manifestation Monthly is his best seller; everything here is a sensible first step.
+          Choose a live session, an email reading, or a healing session.
         </p>
       </div>
 

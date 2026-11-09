@@ -26,7 +26,7 @@ export type HeroSlideVisual =
   | { kind: "cosmic"; src: string };
 
 export type HeroSlide = {
-  id: "star-initiation" | "brad" | "shop" | "services" | "reports";
+  id: "star-initiation" | "express" | "brad" | "shop" | "services" | "reports";
   /** Short name for the dot control and screenshots. */
   label: string;
   eyebrow: string;
@@ -38,8 +38,8 @@ export type HeroSlide = {
 };
 
 /**
- * Homepage heroes. Star Initiation is first. The remaining slides keep their
- * existing copy, imagery, and order.
+ * Homepage heroes. Star Initiation stays first. Express is second.
+ * The remaining slides keep their existing imagery and order.
  */
 export const HERO_SLIDES: HeroSlide[] = [
   {
@@ -58,6 +58,21 @@ export const HERO_SLIDES: HeroSlide[] = [
     },
   },
   {
+    id: "express",
+    label: "Express",
+    eyebrow: "EXPRESS SERVICES",
+    headline: ["Prime Mentor", "Express Services"],
+    body: "Personalized Guidance & Healing — No Appointment Needed",
+    benefits: ["MP3 delivery", "From $19 CAD"],
+    ctas: [
+      { label: "Explore Express Services", href: "/?serviceType=express#services", variant: "primary" },
+    ],
+    visual: {
+      kind: "mandala",
+      src: sparkleStarMandala,
+    },
+  },
+  {
     id: "brad",
     label: "Brad",
     eyebrow: BRAND_PROMISE,
@@ -69,7 +84,7 @@ export const HERO_SLIDES: HeroSlide[] = [
       "Every live session includes a recording",
     ],
     ctas: [
-      { label: "Find your starting point", href: "#start-here", variant: "primary" },
+      { label: "Find your starting point", href: "#services", variant: "primary" },
       { label: "See a sample report", href: "#reports", variant: "secondary" },
     ],
     visual: {
@@ -102,14 +117,14 @@ export const HERO_SLIDES: HeroSlide[] = [
     label: "Services",
     eyebrow: "Sessions & services",
     headline: ["Bring your question.", "Leave with a clear", "next step."],
-    body: "Live Q&A, mentoring, healing, email sessions, and Manifestation Monthly. Direct work with Brad — or a channeled exchange with Adronis — and a recording when you meet live.",
+    body: "Live Q&A, mentoring, Star Initiation, and Prime Body Healing. Direct work with Brad — or a channeled exchange with Adronis — and a recording when you meet live.",
     benefits: [
-      "Manifestation Monthly, Brad's best seller",
+      "Star Initiation with Adronis, $99 CAD",
       "Live Q&A on Zoom from $139 CAD",
-      "Healing, email sessions, and mentoring",
+      "Mentoring and Prime Body Healing Level 2",
     ],
     ctas: [
-      { label: "Explore services", href: "#sessions", variant: "primary" },
+      { label: "Explore services", href: "#services", variant: "primary" },
     ],
     visual: {
       kind: "scene",

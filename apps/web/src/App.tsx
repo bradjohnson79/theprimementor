@@ -81,6 +81,7 @@ const RegenerationOfferSuccess = lazy(() => import("./routes/RegenerationOfferSu
 const QASessionPage = lazy(() => import("./routes/QASessionPage"));
 const MentoringSessionPage = lazy(() => import("./routes/MentoringSessionPage"));
 const StarInitiationSessionPage = lazy(() => import("./routes/StarInitiationSessionPage"));
+const ExpressCheckoutPage = lazy(() => import("./routes/ExpressCheckoutPage"));
 const PrimeBodyHealingPage = lazy(() => import("./routes/PrimeBodyHealingPage"));
 const PrimeBodyHealingBook = lazy(() => import("./routes/PrimeBodyHealingBook"));
 const OfflineSessionPage = lazy(() => import("./routes/OfflineSessionPage"));
@@ -162,10 +163,11 @@ export default function App() {
             <Route path="/regeneration-offer" element={<RegenerationOfferPage />} />
             <Route path="/regeneration-offer/success" element={<RegenerationOfferSuccess />} />
             <Route path={QA_LANDING_PATH} element={<QASessionPage />} />
-            <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#sessions" replace />} />
-            <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />
+            <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#services" replace />} />
+            <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#services" replace />} />
             <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
             <Route path={STAR_INITIATION_LANDING_PATH} element={<StarInitiationSessionPage />} />
+            <Route path="/express/:serviceId" element={<ExpressCheckoutPage />} />
             <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
             <Route path={EMAIL_SESSION_LANDING_PATH} element={<OfflineSessionPage product="email" />} />
             <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />

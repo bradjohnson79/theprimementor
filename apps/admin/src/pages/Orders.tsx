@@ -7,6 +7,7 @@ import Card from "../components/Card";
 import Loading from "../components/Loading";
 import EmptyState from "../components/EmptyState";
 import OrderStatusBadge from "../components/OrderStatusBadge";
+import ExpressOrderQueue from "./ExpressOrderQueue";
 import { api } from "../lib/api";
 import type { AdminClientsResponse, ClientOption } from "../lib/clients";
 import { toClientOption } from "../lib/clients";
@@ -70,6 +71,7 @@ const ORDER_CATEGORY_FILTERS = {
     { id: "qa_session", label: "Q&A Sessions" },
     { id: "mentoring_session", label: "Mentoring Sessions" },
     { id: "star_initiation", label: "Star Initiation Session" },
+    { id: "express", label: "Express Services" },
   ],
   report: [
     { id: "divin8_reports", label: "All Divin8 Reports" },
@@ -170,10 +172,11 @@ export default function Orders() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"all" | OrderType>("all");
+  const initialExpress = searchParams.get("category") === "express";
+  const [activeTab, setActiveTab] = useState<"all" | OrderType>(initialExpress ? "session" : "all");
   const [orderSearchInput, setOrderSearchInput] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
-  const [orderCategory, setOrderCategory] = useState("all");
+  const [orderCategory, setOrderCategory] = useState(initialExpress ? "express" : "all");
   const [showArchived, setShowArchived] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [archiveSubmitting, setArchiveSubmitting] = useState(false);
@@ -215,6 +218,12 @@ export default function Orders() {
   const loadOrders = useCallback(async (options: { clearSelection?: boolean } = {}) => {
     setLoading(true);
     setError(null);
+    if (orderCategory === "express") {
+      setOrders([]);
+      setPagination(null);
+      setLoading(false);
+      return;
+    }
     try {
       const token = await getToken();
       const offset = (page - 1) * PAGE_SIZE;
@@ -738,6 +747,9 @@ export default function Orders() {
             ) : null}
           </div>
 
+          {orderCategory === "express" ? (
+            <ExpressOrderQueue />
+          ) : (
           <Card className="overflow-hidden p-0">
             {orders.length === 0 ? (
               <EmptyState
@@ -758,8 +770,9 @@ export default function Orders() {
               />
             )}
           </Card>
+          )}
 
-          {pagination && pagination.total > pagination.limit ? (
+          {orderCategory !== "express" && pagination && pagination.total > pagination.limit ? (
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"

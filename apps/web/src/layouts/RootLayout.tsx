@@ -22,6 +22,7 @@ interface NavItem {
   label: string;
   href?: string;
   external?: boolean;
+  section?: string;
 }
 
 interface NavGroup {
@@ -43,18 +44,17 @@ const SHOP_NAV_FALLBACK: NavItem[] = [
 ];
 
 const NAV_GROUPS: NavGroup[] = [
-  { label: "Start Here", href: "/start-here" },
   {
-    label: "Sessions",
-    href: "/#sessions",
+    label: "Services",
+    href: "/#services",
     items: [
-      { label: "Manifestation Monthly Package", href: REGENERATION_LANDING_PATH },
-      { label: "Q&A Session", href: QA_LANDING_PATH },
-      { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
-      { label: "Star Initiation Session", href: STAR_INITIATION_LANDING_PATH },
-      { label: "Email Session", href: EMAIL_SESSION_LANDING_PATH },
-      { label: "Past Life Akashic Reading", href: PAST_LIFE_AKASHIC_LANDING_PATH },
-      { label: "Prime Body Healing", href: PRIME_BODY_HEALING_LANDING_PATH },
+      { section: "Premium", label: "Star Initiation", href: STAR_INITIATION_LANDING_PATH },
+      { section: "Premium", label: "Q&A", href: QA_LANDING_PATH },
+      { section: "Premium", label: "Mentoring", href: MENTORING_LANDING_PATH },
+      { section: "Premium", label: "Prime Body Healing Level 2", href: `${PRIME_BODY_HEALING_LANDING_PATH}#level-2` },
+      { section: "Express", label: "Ask Brad / Adronis", href: "/?serviceType=express&service=ask#services" },
+      { section: "Express", label: "Prime Body Healing Express", href: "/?serviceType=express&service=healing#services" },
+      { section: "Express", label: "Past Life Akashic Reading", href: "/?serviceType=express&service=past-life#services" },
     ],
   },
   {
@@ -160,7 +160,7 @@ export default function RootLayout() {
     || location.pathname === EMAIL_SESSION_LANDING_PATH
     || location.pathname === PAST_LIFE_AKASHIC_LANDING_PATH
     || location.pathname.startsWith("/order/")
-    || location.pathname.startsWith("/intake/");
+    || location.pathname.startsWith("/express/")
 
   useUserSync();
 
@@ -208,6 +208,30 @@ export default function RootLayout() {
       return location.pathname === "/";
     }
     return location.pathname === href;
+  }
+
+  function renderDropdownItems(
+    items: NavItem[],
+    groupLabel: string,
+    className: string,
+    activeClassName: string,
+    onClick?: () => void,
+  ) {
+    let previousSection = "";
+    return items.map((item) => {
+      const showSection = Boolean(item.section && item.section !== previousSection);
+      if (item.section) previousSection = item.section;
+      return (
+        <div key={`${groupLabel}-${item.label}`}>
+          {showSection ? (
+            <p className={`px-4 pb-1 pt-3 text-[0.62rem] font-semibold uppercase tracking-[0.18em] ${isMarketingSurface ? "text-cyan-100/55" : "text-gray-400"}`}>
+              {item.section}
+            </p>
+          ) : null}
+          {renderNavLink(item, className, activeClassName, onClick)}
+        </div>
+      );
+    });
   }
 
   function renderNavLink(
@@ -309,21 +333,18 @@ export default function RootLayout() {
                                 : "border-gray-200 bg-white"
                             }`}
                           >
-                            {group.items.map((item) => (
-                              <div key={`${group.label}-${item.label}`}>
-                                {renderNavLink(
-                                  item,
-                                  `block whitespace-normal px-4 py-2.5 text-[13px] leading-snug transition ${
-                                    isMarketingSurface
-                                      ? "text-white/72 hover:bg-white/8 hover:text-white"
-                                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                                  }`,
-                                  isMarketingSurface
-                                    ? "bg-white/8 text-white"
-                                    : "bg-gray-50 text-gray-900",
-                                )}
-                              </div>
-                            ))}
+                            {renderDropdownItems(
+                              group.items,
+                              group.label,
+                              `block whitespace-normal px-4 py-2.5 text-[13px] leading-snug transition ${
+                                isMarketingSurface
+                                  ? "text-white/72 hover:bg-white/8 hover:text-white"
+                                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                              }`,
+                              isMarketingSurface
+                                ? "bg-white/8 text-white"
+                                : "bg-gray-50 text-gray-900",
+                            )}
                           </div>
                         </div>
                       ) : null}
@@ -441,22 +462,19 @@ export default function RootLayout() {
                                   isMarketingSurface ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-gray-50"
                                 }`}
                               >
-                                {group.items.map((item) => (
-                                  <div key={`${group.label}-${item.label}`}>
-                                    {renderNavLink(
-                                      item,
-                                      `block px-4 py-2 text-sm transition ${
-                                        isMarketingSurface
-                                          ? "text-white/72 hover:bg-white/8 hover:text-white"
-                                          : "text-gray-600 hover:bg-white hover:text-gray-900"
-                                      }`,
-                                      isMarketingSurface
-                                        ? "bg-white/8 text-white"
-                                        : "bg-white text-gray-900",
-                                      closeMobileMenus,
-                                    )}
-                                  </div>
-                                ))}
+                                {renderDropdownItems(
+                                  group.items,
+                                  group.label,
+                                  `block px-4 py-2 text-sm transition ${
+                                    isMarketingSurface
+                                      ? "text-white/72 hover:bg-white/8 hover:text-white"
+                                      : "text-gray-600 hover:bg-white hover:text-gray-900"
+                                  }`,
+                                  isMarketingSurface
+                                    ? "bg-white/8 text-white"
+                                    : "bg-white text-gray-900",
+                                  closeMobileMenus,
+                                )}
                               </div>
                             ) : null}
                           </li>

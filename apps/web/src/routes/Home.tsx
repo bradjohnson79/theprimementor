@@ -8,8 +8,7 @@ import {
   type ReportProductKey,
 } from "@wisdom/utils";
 import HeroSection from "../components/hero/HeroSection";
-import PrimeMentorServices from "../components/home/PrimeMentorServices";
-import StartHereDoors from "../components/home/StartHereDoors";
+import HomeServicesWidget from "../components/home/HomeServicesWidget";
 import HomeFaq, { HOME_FAQS } from "../components/home/HomeFaq";
 import AdronisWebinarHomeCard from "../components/webinars/AdronisWebinarHomeCard";
 import OnDemandWebinarsHomeWidget from "../components/webinars/OnDemandWebinarsHomeWidget";
@@ -423,27 +422,12 @@ export default function Home() {
   return (
     <div className="home-front-page relative text-white">
       <HeroSection />
-
-      {/* BRAD-ANSWERS.md #10 (TOP PRIORITY, replaces the earlier #6/#8 "Events"
-          card section): the homepage no longer renders its own "Monthly
-          Webinar & Live Weekly Podcast" card section. Directly under the
-          hero we instead render the existing Upcoming/archive events panel
-          (OnDemandWebinarsHomeWidget) unmodified — same component, same tabs
-          ("Upcoming" plus the Adronis webinar archive), same live Prime
-          Alchemy event detail card and data source as before, just moved to
-          the top of the page. See REPORT.md "Round 2" for the data source. */}
+      <HomeServicesWidget />
       <OnDemandWebinarsHomeWidget />
-
-      {/* Start here: Brad's named featured offers (BRAD-ANSWERS.md #1). */}
-      <LandingSection id="start-here">
-        <StartHereDoors />
-      </LandingSection>
 
       <LandingSection id="shop" labelledBy="home-shop-heading">
         <HomeShopSection />
       </LandingSection>
-
-      <PrimeMentorServices />
 
       {/* Proof moved up (was ~9,000px down, now right after the services chooser).
           Only the "safe" testimonials from the strengths brief appear here. */}

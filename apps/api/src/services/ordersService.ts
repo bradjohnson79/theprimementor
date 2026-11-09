@@ -805,6 +805,12 @@ function orderMatchesSessionCategory(order: AdminOrder, category: string) {
       || fallbackLabelMatches(order.product_name, "star_initiation");
   }
 
+  if (category === "express") {
+    return sessionTypeId.startsWith("express")
+      || sessionType.startsWith("express")
+      || fallbackLabelMatches(order.product_name, "express");
+  }
+
   return true;
 }
 
