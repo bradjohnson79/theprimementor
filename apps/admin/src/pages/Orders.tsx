@@ -71,7 +71,7 @@ const ORDER_CATEGORY_FILTERS = {
     { id: "qa_session", label: "Q&A Sessions" },
     { id: "mentoring_session", label: "Mentoring Sessions" },
     { id: "star_initiation", label: "Star Initiation Session" },
-    { id: "express", label: "Express Services" },
+    { id: "express", label: "Express orders" },
   ],
   report: [
     { id: "divin8_reports", label: "All Divin8 Reports" },

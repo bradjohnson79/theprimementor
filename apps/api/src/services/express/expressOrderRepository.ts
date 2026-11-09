@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
-import { expressNotifications, expressOrders, type Database } from "@wisdom/db";
+import { expressFiles, expressNotifications, expressOrders, type Database } from "@wisdom/db";
 import type { ExpressServiceId } from "@wisdom/utils";
 import type { ExpressIntake, ExpressRepository, StoredExpressOrder, StoredNotice } from "./expressOrderService.js";
 import type { ExpressFulfillmentStatus, ExpressPaymentStatus } from "./expressFulfillment.js";
 import { EXPRESS_TIME_ZONE } from "./businessDayDeadline.js";
+import type { PrivateRecordingStore } from "./privateRecordingStore.js";
 
 function asIntake(value: unknown): ExpressIntake {
   const record = value && typeof value === "object" ? value as Partial<ExpressIntake> : {};
@@ -132,6 +133,22 @@ export function createPostgresExpressRepository(db: Database): ExpressRepository
     async listNotices(orderId) {
       const rows = await db.select().from(expressNotifications).where(eq(expressNotifications.order_id, orderId));
       return rows.map(toNotice);
+    },
+  };
+}
+
+export function createDatabaseRecordingStore(db: Database): PrivateRecordingStore {
+  return {
+    async put(key, bytes) {
+      const payload = Buffer.from(bytes);
+      await db.insert(expressFiles).values({ key, bytes: payload }).onConflictDoUpdate({
+        target: expressFiles.key,
+        set: { bytes: payload },
+      });
+    },
+    async get(key) {
+      const [row] = await db.select().from(expressFiles).where(eq(expressFiles.key, key)).limit(1);
+      return row ? new Uint8Array(row.bytes) : null;
     },
   };
 }

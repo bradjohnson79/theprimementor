@@ -4,13 +4,15 @@ export type ExpressEmailKind =
   | "customer_confirmation"
   | "admin_purchase"
   | "customer_delivery"
+  | "customer_delay"
   | "admin_reminder_morning"
   | "admin_reminder_afternoon"
   | "admin_overdue";
 
-/** Fields included in Express email. Birthdate and question text stay out of the message. */
+/** Fields included in Express email. Client intake is included only on the administrator purchase notice. */
 export interface ExpressEmailFields {
   customerName: string;
+  customerEmail: string;
   serviceName: string;
   orderId: string;
   amountLabel: string;
@@ -20,6 +22,13 @@ export interface ExpressEmailFields {
   adminUrl: string;
   mp3Url?: string;
   transcriptUrl?: string | null;
+  birthdate?: string;
+  guide?: string;
+  question?: string;
+  focusAreas?: string;
+  healingContext?: string;
+  pastLifeInterest?: string;
+  delayMessage?: string;
 }
 
 export function resolveAdminExpressEmail(env: Record<string, string | undefined> = process.env) {
@@ -28,6 +37,11 @@ export function resolveAdminExpressEmail(env: Record<string, string | undefined>
 
 export function expressAdminOrderUrl(orderId: string, adminBase = "https://admin.theprimementor.com") {
   return `${adminBase.replace(/\/$/, "")}/admin/orders?category=express&order=${encodeURIComponent(orderId)}`;
+}
+
+function provided(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "Not provided";
 }
 
 export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmailFields) {
@@ -47,16 +61,35 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
   }
   if (kind === "admin_purchase") {
     return {
-      subject: `New Prime Mentor Express Order — ${fields.serviceName}`,
+      subject: `NICE! YOU JUST GOT AN EXPRESS ORDER - ${fields.serviceName}`,
       text: [
-        `Customer: ${fields.customerName}`,
         `Service: ${fields.serviceName}`,
-        `Order ID: ${fields.orderId}`,
+        `Price: ${fields.amountLabel}`,
+        `Transcription: ${transcription}`,
+        `Customer: ${fields.customerName}`,
+        `Email: ${fields.customerEmail}`,
+        `Birthdate: ${provided(fields.birthdate)}`,
+        `Guide: ${provided(fields.guide)}`,
+        `Question: ${provided(fields.question)}`,
+        `Focus areas: ${provided(fields.focusAreas)}`,
+        `Healing context: ${provided(fields.healingContext)}`,
+        `Past life interest: ${provided(fields.pastLifeInterest)}`,
+        `Due: ${fields.deadlineLabel}`,
+        `Order: ${fields.orderId}`,
         `Purchased: ${fields.paidAtLabel}`,
-        `Paid: ${fields.amountLabel}`,
-        `Transcription requested: ${transcription}`,
-        `Delivery deadline: ${fields.deadlineLabel}`,
         `Admin: ${fields.adminUrl}`,
+      ].join("\n"),
+    };
+  }
+  if (kind === "customer_delay") {
+    return {
+      subject: `Your ${fields.serviceName} Express order needs more time`,
+      text: [
+        `Hello ${fields.customerName},`,
+        `Your ${fields.serviceName} order ${fields.orderId} needs a little more time.`,
+        `Original delivery deadline: ${fields.deadlineLabel}.`,
+        fields.delayMessage?.trim() || "I need a little more time to complete this session.",
+        "You do not need to place the order again. The session will still arrive by email.",
       ].join("\n"),
     };
   }

@@ -1,9 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { ExpressServiceId } from "@wisdom/utils";
-import { parseHolidayList } from "./businessDayDeadline.js";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { getExpressService, type ExpressServiceId } from "@wisdom/utils";
+import { EXPRESS_TIME_ZONE, nextBusinessDayDeadline, parseHolidayList } from "./businessDayDeadline.js";
 import {
   confirmPaidExpressOrder,
-  expressDownloadPath,
+  expressDownloadUrl,
   notificationKey,
   planExpressReminderEmails,
   reviewExpressDeadlines,
@@ -108,6 +108,7 @@ export async function confirmExpressPayment(repo: ExpressRepository, input: Expr
     holidays: parseHolidayList(process.env.EXPRESS_HOLIDAYS),
     customerEmail: input.customerEmail,
     adminEmail: input.adminEmail ?? EXPRESS_ADMIN_EMAIL,
+    intake: input.intake,
     orders: draftOrders,
     notices: draftNotices,
   });
@@ -203,12 +204,13 @@ export async function queueExpressDelivery(input: {
   if (!order.mp3Key) throw new Error("An MP3 is required before delivery");
   if (order.transcription && !order.transcriptKey) throw new Error("A transcript is required for this order");
   const expiresAt = (input.now ?? new Date()).getTime() + 7 * 24 * 60 * 60 * 1000;
-  const mp3Url = expressDownloadPath(signExpressDownload(order.id, "mp3", expiresAt));
+  const mp3Url = expressDownloadUrl(signExpressDownload(order.id, "mp3", expiresAt));
   const transcriptUrl = order.transcriptKey
-    ? expressDownloadPath(signExpressDownload(order.id, "transcript", expiresAt))
+    ? expressDownloadUrl(signExpressDownload(order.id, "transcript", expiresAt))
     : null;
   const message = await composeExpressEmail("customer_delivery", {
     customerName: order.customerName,
+    customerEmail: order.customerEmail,
     serviceName: order.serviceName,
     orderId: order.id,
     amountLabel: "",
@@ -238,6 +240,93 @@ export async function queueExpressDelivery(input: {
   if (!existing) await input.repo.insertNotice(notice);
   else await input.repo.saveNotice({ ...notice, attempts: existing.attempts, status: "pending" });
   return { order, notice, duplicate: false as const, mp3Url, transcriptUrl };
+}
+
+export const EXPRESS_DEMO_ORDER_ID = "demo-express-anoint";
+
+export async function ensureExpressDemoOrder(repo: ExpressRepository) {
+  const existing = await repo.get(EXPRESS_DEMO_ORDER_ID);
+  if (existing) return existing;
+  const service = getExpressService("ask");
+  if (!service) throw new Error("Ask Brad / Adronis is missing from the Express catalog");
+  const paidAt = new Date("2026-11-09T17:00:00.000Z");
+  const deadline = nextBusinessDayDeadline(paidAt, parseHolidayList(process.env.EXPRESS_HOLIDAYS));
+  const order: StoredExpressOrder = {
+    id: EXPRESS_DEMO_ORDER_ID,
+    serviceId: service.id,
+    serviceName: service.name,
+    customerName: "Anoint Productions",
+    customerEmail: "anointproductions@gmail.com",
+    amountCents: service.priceCents,
+    transcription: false,
+    paymentStatus: "paid",
+    fulfillmentStatus: "awaiting_fulfillment",
+    paidAt: paidAt.toISOString(),
+    timezone: EXPRESS_TIME_ZONE,
+    deliveryDate: deadline.deliveryDate,
+    deadlineAt: deadline.deadlineAt.toISOString(),
+    deliveredAt: null,
+    mp3Key: null,
+    transcriptKey: null,
+    intake: {
+      birthdate: "",
+      guide: "brad",
+      question: "Demo order for checking the delivery email.",
+      focusAreas: [],
+      healingContext: "",
+      pastLifeInterest: "",
+    },
+    refundReview: false,
+  };
+  if (!await repo.insert(order)) return await repo.get(order.id);
+  return order;
+}
+
+export async function queueExpressDelay(input: { repo: ExpressRepository; orderId: string; message: string }) {
+  const order = await input.repo.get(input.orderId);
+  if (!order) throw new Error("Express order was not found");
+  const message = input.message.trim();
+  if (!message) throw new Error("A delay message is required");
+  const deadlineAt = order.deadlineAt;
+  const deliveryDate = order.deliveryDate;
+  const digest = createHash("sha256").update(message).digest("hex").slice(0, 12);
+  const email = await composeExpressEmail("customer_delay", {
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    serviceName: order.serviceName,
+    orderId: order.id,
+    amountLabel: "",
+    transcription: order.transcription,
+    deadlineLabel: order.deliveryDate ? `${order.deliveryDate} at 11:59 PM Pacific` : "",
+    paidAtLabel: order.paidAt ?? "",
+    adminUrl: "",
+    delayMessage: message,
+  });
+  const notice: StoredNotice = {
+    key: notificationKey("express_customer_delay", `${order.id}:${digest}`, order.customerEmail),
+    eventType: "express_customer_delay",
+    entityId: order.id,
+    recipient: order.customerEmail,
+    channel: "email",
+    status: "pending",
+    attempts: 0,
+    subject: email.subject,
+    body: email.text,
+    source: "template",
+    providerMessageId: null,
+    lastError: null,
+  };
+  const existing = await input.repo.getNotice(notice.key);
+  if (existing?.status === "sent") return { order, notice: existing, duplicate: true as const };
+  if (!existing) await input.repo.insertNotice(notice);
+  else await input.repo.saveNotice({ ...notice, attempts: existing.attempts, status: "pending" });
+  const saved = await input.repo.get(order.id);
+  if (saved && (saved.deadlineAt !== deadlineAt || saved.deliveryDate !== deliveryDate)) {
+    saved.deadlineAt = deadlineAt;
+    saved.deliveryDate = deliveryDate;
+    await input.repo.save(saved);
+  }
+  return { order: saved ?? order, notice, duplicate: false as const };
 }
 
 export function signExpressDownload(orderId: string, kind: "mp3" | "transcript", expiresMs: number, secret = downloadSecret()) {

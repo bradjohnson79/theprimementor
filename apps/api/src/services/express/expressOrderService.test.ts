@@ -8,6 +8,7 @@ import {
   dispatchPendingExpressEmails,
   loadExpressDownload,
   queueExpressDelivery,
+  queueExpressDelay,
   readExpressDownload,
   runExpressReminderPass,
   signExpressDownload,
@@ -49,8 +50,13 @@ test("a confirmed Express payment keeps intake and the promised deadline", async
   assert.equal(second.order.deliveryDate, "2026-03-09");
   const notices = await repo.listNotices(first.order.id);
   assert.equal(notices.length, 2);
-  assert.equal(notices.every((notice) => notice.source === "template"), true);
-  assert.doesNotMatch(notices.map((notice) => notice.body).join("\n"), /1990-04-02|coastal village/);
+  const customer = notices.find((notice) => notice.eventType === "express_customer_confirmation");
+  const admin = notices.find((notice) => notice.eventType === "express_admin_purchase");
+  assert.doesNotMatch(customer?.body ?? "", /1990-04-02|coastal village/);
+  assert.equal(admin?.subject, "NICE! YOU JUST GOT AN EXPRESS ORDER - Past Life Akashic Reading");
+  assert.match(admin?.body ?? "", /1990-04-02/);
+  assert.match(admin?.body ?? "", /A coastal village/);
+  assert.match(admin?.body ?? "", /2026-03-09 at 11:59 PM Pacific/);
 });
 
 test("email failure keeps the paid order and a retry does not duplicate a sent notice", async () => {
@@ -114,4 +120,22 @@ test("deadline reminders are stored once and overdue orders are flagged without 
   await repo.save(flagged!);
   const afterDelivery = await runExpressReminderPass(repo, new Date("2026-03-12T00:00:00.000Z"));
   assert.equal(afterDelivery.queued.length, 0);
+});
+
+test("a delay email keeps the original deadline", async () => {
+  const repo = createMemoryExpressRepository();
+  const saved = await confirmExpressPayment(repo, payment({ id: "cs_delay" }));
+  const deadline = saved.order.deadlineAt;
+  const first = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
+  assert.equal(first.duplicate, false);
+  assert.match(first.notice.body, /I need one more business day/);
+  assert.match(first.notice.body, /2026-03-09 at 11:59 PM Pacific/);
+  assert.equal((await repo.get(saved.order.id))?.deadlineAt, deadline);
+  const repeat = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
+  assert.equal(repeat.duplicate, false);
+  first.notice.status = "sent";
+  await repo.saveNotice(first.notice);
+  const sentAgain = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
+  assert.equal(sentAgain.duplicate, true);
+  assert.equal((await repo.get(saved.order.id))?.deadlineAt, deadline);
 });

@@ -5,9 +5,8 @@ import { createHttpError } from "../services/booking/errors.js";
 import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRecord, type NotificationRow } from "../services/express/expressFulfillment.js";
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
 import { createExpressCheckoutSession } from "../services/express/expressStripe.js";
-import { createPostgresExpressRepository } from "../services/express/expressOrderRepository.js";
-import { attachExpressRecording, dispatchPendingExpressEmails, loadExpressDownload, queueExpressDelivery, runExpressReminderPass } from "../services/express/expressOrderService.js";
-import { createConfiguredRecordingStore } from "../services/express/privateRecordingStore.js";
+import { createDatabaseRecordingStore, createPostgresExpressRepository } from "../services/express/expressOrderRepository.js";
+import { attachExpressRecording, dispatchExpressNotice, dispatchPendingExpressEmails, ensureExpressDemoOrder, loadExpressDownload, queueExpressDelay, queueExpressDelivery, runExpressReminderPass } from "../services/express/expressOrderService.js";
 import { sendResendEmail } from "../services/notifications/providers/resendProvider.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 
@@ -30,6 +29,22 @@ function assertExpressCron(request: FastifyRequest) {
 
 function checkoutDisabled() {
   return process.env.EXPRESS_CHECKOUT_ENABLED !== "true";
+}
+
+function recordings(app: FastifyInstance) {
+  return createDatabaseRecordingStore(requireDatabase(app.db));
+}
+
+async function sendNotice(notice: { recipient: string; subject: string; body: string }) {
+  const sent = await sendResendEmail({
+    to: [notice.recipient],
+    subject: notice.subject,
+    text: notice.body,
+    html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
+  });
+  return sent.success
+    ? { ok: true as const, messageId: sent.messageId ?? undefined }
+    : { ok: false as const, error: sent.error };
 }
 
 export async function expressRoutes(app: FastifyInstance) {
@@ -56,25 +71,24 @@ export async function expressRoutes(app: FastifyInstance) {
   app.get("/admin/express/orders", async (request) => {
     requireAdmin(request);
     const repo = createPostgresExpressRepository(requireDatabase(app.db));
-    return ok({ data: await repo.list() });
+    await ensureExpressDemoOrder(repo);
+    return ok(await repo.list());
   });
 
   app.post("/admin/express/orders/:id/recording", async (request, reply) => {
     requireAdmin(request);
-    const store = createConfiguredRecordingStore();
-    if (!store) return sendApiError(reply, 503, "Private recording storage is not configured");
     const file = await request.file({ limits: { fileSize: 25 * 1024 * 1024 } });
     if (!file) return sendApiError(reply, 400, "A file is required");
     const kind = (request.query as { kind?: string }).kind === "transcript" ? "transcript" : "mp3";
     const bytes = new Uint8Array(await file.toBuffer());
     const order = await attachExpressRecording({
       repo: createPostgresExpressRepository(requireDatabase(app.db)),
-      store,
+      store: recordings(app),
       orderId: (request.params as { id: string }).id,
       mp3: kind === "mp3" ? bytes : null,
       transcript: kind === "transcript" ? bytes : null,
     });
-    return ok({ data: order });
+    return ok(order);
   });
 
   app.post("/admin/express/orders/:id/deliver", async (request, reply) => {
@@ -83,31 +97,42 @@ export async function expressRoutes(app: FastifyInstance) {
     const orderId = (request.params as { id: string }).id;
     try {
       const queued = await queueExpressDelivery({ repo, orderId });
-      if (!queued.duplicate) {
-        await dispatchPendingExpressEmails(repo, orderId, async (notice) => {
-          const sent = await sendResendEmail({
-            to: [notice.recipient],
-            subject: notice.subject,
-            text: notice.body,
-            html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
-          });
-          return sent.success
-            ? { ok: true, messageId: sent.messageId ?? undefined }
-            : { ok: false, error: sent.error };
-        });
+      if (queued.duplicate) return ok({ duplicate: true, order: queued.order });
+      const dispatched = await dispatchPendingExpressEmails(repo, orderId, sendNotice);
+      const delivery = dispatched.notices.find((notice) => notice.eventType === "express_customer_delivery");
+      if (delivery && delivery.status !== "sent") {
+        return sendApiError(reply, 502, delivery.lastError || "Resend did not accept the email");
       }
-      return ok({ data: { duplicate: queued.duplicate } });
+      return ok({ duplicate: false, order: dispatched.order });
     } catch (error) {
       return sendApiError(reply, 400, error instanceof Error ? error.message : "Express delivery failed");
     }
   });
 
+  app.post("/admin/express/orders/:id/delay", async (request, reply) => {
+    requireAdmin(request);
+    const repo = createPostgresExpressRepository(requireDatabase(app.db));
+    const orderId = (request.params as { id: string }).id;
+    const message = typeof (request.body as { message?: unknown })?.message === "string"
+      ? (request.body as { message: string }).message
+      : "";
+    try {
+      const queued = await queueExpressDelay({ repo, orderId, message });
+      if (queued.duplicate) return ok({ duplicate: true, order: queued.order });
+      const saved = await dispatchExpressNotice(repo, queued.notice, sendNotice);
+      if (saved.status !== "sent") {
+        return sendApiError(reply, 502, saved.lastError || "Resend did not accept the delay email");
+      }
+      return ok({ duplicate: false, order: await repo.get(orderId) });
+    } catch (error) {
+      return sendApiError(reply, 400, error instanceof Error ? error.message : "Express delay email failed");
+    }
+  });
+
   app.get("/express/downloads/:token", async (request, reply) => {
-    const store = createConfiguredRecordingStore();
-    if (!store) return sendApiError(reply, 503, "Private recording storage is not configured");
     const loaded = await loadExpressDownload({
       repo: createPostgresExpressRepository(requireDatabase(app.db)),
-      store,
+      store: recordings(app),
       token: (request.params as { token: string }).token,
     });
     if (!loaded) return sendApiError(reply, 404, "This download link is invalid or expired");

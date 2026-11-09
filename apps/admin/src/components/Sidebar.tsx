@@ -15,7 +15,7 @@ const navItems: NavItem[] = [
   { to: "/", label: "Dashboard", icon: "◆" },
   { to: "/clients", label: "Clients", icon: "◇" },
   { to: "/admin/orders", label: "Orders", icon: "◈", matchPrefix: "/admin/orders" },
-  { to: "/admin/orders?category=express", label: "Express", icon: "↳", indent: true },
+  { to: "/admin/orders?category=express", label: "Express orders", icon: "↳", indent: true },
   { to: "/services", label: "Services", icon: "◫" },
   { to: "/events", label: "Events", icon: "◌" },
   { to: "/admin/courses", label: "Courses", icon: "◎", matchPrefix: "/admin/courses" },
@@ -85,6 +85,8 @@ function navLabelKey(label: string) {
       return "nav.testimonials";
     case "Knowledge Base":
       return "nav.knowledgeBase";
+    case "Express orders":
+      return "nav.expressOrders";
     default:
       return `nav.${label.toLowerCase()}`;
   }

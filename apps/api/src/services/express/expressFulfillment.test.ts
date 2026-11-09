@@ -76,8 +76,8 @@ test("payment confirmation emails the customer and admin once", async () => {
   assert.match(customer?.body ?? "", /personalized MP3 will arrive by email/);
   assert.match(customer?.body ?? "", /2026-03-09/);
   assert.equal(admin?.recipient, EXPRESS_ADMIN_EMAIL);
-  assert.equal(admin?.subject, "New Prime Mentor Express Order — Ask Brad / Adronis");
-  assert.match(admin?.body ?? "", /Transcription requested: Yes/);
+  assert.equal(admin?.subject, "NICE! YOU JUST GOT AN EXPRESS ORDER - Ask Brad / Adronis");
+  assert.match(admin?.body ?? "", /Transcription: Yes/);
   assert.match(admin?.body ?? "", /order-1/);
   assert.doesNotMatch(admin?.body ?? "", /1990-04-02|next step/);
 

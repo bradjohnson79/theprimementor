@@ -1281,6 +1281,11 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "updated_at" timestamptz DEFAULT now() NOT NULL
   );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "express_notifications_dedupe_uidx" ON "express_notifications" ("dedupe_key");`,
+  `CREATE TABLE IF NOT EXISTS "express_files" (
+    "key" text PRIMARY KEY,
+    "bytes" bytea NOT NULL,
+    "created_at" timestamptz DEFAULT now() NOT NULL
+  );`,
 ] as const;
 
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {

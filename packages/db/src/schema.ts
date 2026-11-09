@@ -1996,3 +1996,15 @@ export const expressNotifications = pgTable("express_notifications", {
   dedupeUnique: uniqueIndex("express_notifications_dedupe_uidx").on(table.dedupe_key),
   orderIdx: index("express_notifications_order_idx").on(table.order_id),
 }));
+
+const expressFileBytes = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+export const expressFiles = pgTable("express_files", {
+  key: text("key").primaryKey(),
+  bytes: expressFileBytes("bytes").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

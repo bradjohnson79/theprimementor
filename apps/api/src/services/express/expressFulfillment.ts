@@ -103,11 +103,12 @@ export function expressReminderSlot(order: ExpressOrderRecord, now: Date): Expre
 function emailFields(order: ExpressOrderRecord, extra: Partial<ExpressEmailFields> = {}): ExpressEmailFields {
   return {
     customerName: order.customerName,
+    customerEmail: order.customerEmail,
     serviceName: order.serviceName,
     orderId: order.id,
     amountLabel: formatExpressPrice(order.amountCents),
     transcription: order.transcription,
-    deadlineLabel: order.deliveryDate ?? "",
+    deadlineLabel: order.deliveryDate ? `${order.deliveryDate} at 11:59 PM Pacific` : "",
     paidAtLabel: order.paidAt ?? "",
     adminUrl: expressAdminOrderUrl(order.id),
     ...extra,
@@ -141,6 +142,14 @@ export interface ConfirmExpressOrderInput {
   holidays?: readonly string[];
   customerEmail: string;
   adminEmail: string;
+  intake?: {
+    birthdate?: string;
+    guide?: string;
+    question?: string;
+    focusAreas?: string[];
+    healingContext?: string;
+    pastLifeInterest?: string;
+  };
   orders: ExpressOrderRecord[];
   notices: NotificationRow[];
 }
@@ -172,8 +181,16 @@ export async function confirmPaidExpressOrder(input: ConfirmExpressOrderInput) {
   };
   input.orders.push(order);
   const fields = emailFields(order);
+  const intake = input.intake;
   await queueEmail(input.notices, order, "customer_confirmation", order.customerEmail, fields);
-  await queueEmail(input.notices, order, "admin_purchase", input.adminEmail, fields);
+  await queueEmail(input.notices, order, "admin_purchase", input.adminEmail, emailFields(order, {
+    birthdate: intake?.birthdate,
+    guide: intake?.guide,
+    question: intake?.question,
+    focusAreas: intake?.focusAreas?.filter(Boolean).join(", "),
+    healingContext: intake?.healingContext,
+    pastLifeInterest: intake?.pastLifeInterest,
+  }));
   return { order, duplicate: false };
 }
 
@@ -204,6 +221,10 @@ export function expressDownloadToken(orderId: string, kind: "mp3" | "transcript"
 
 export function expressDownloadPath(token: string) {
   return `/api/express/downloads/${token}`;
+}
+
+export function expressDownloadUrl(token: string, origin = process.env.PUBLIC_API_URL?.trim() || "https://api.theprimementor.com") {
+  return `${origin.replace(/\/$/, "")}${expressDownloadPath(token)}`;
 }
 
 export async function prepareExpressDelivery(input: {

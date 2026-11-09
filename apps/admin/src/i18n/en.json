@@ -2,6 +2,7 @@
   "nav.dashboard": "Dashboard",
   "nav.clients": "Clients",
   "nav.orders": "Orders",
+  "nav.expressOrders": "Express orders",
   "nav.services": "Services",
   "nav.events": "Events",
   "nav.courses": "Courses",
