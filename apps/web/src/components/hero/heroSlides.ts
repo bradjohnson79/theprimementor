@@ -63,7 +63,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     eyebrow: "EXPRESS SERVICES",
     headline: ["Prime Mentor", "Express Services"],
     body: "Personalized Guidance & Healing — No Appointment Needed",
-    benefits: ["MP3 delivery", "From $19 CAD"],
+    benefits: ["MP3 delivery", "From $19 CAD", "Add-on text transcription available"],
     ctas: [
       { label: "Explore Express Services", href: "/?serviceType=express#services", variant: "primary" },
     ],

@@ -4,7 +4,6 @@ export const EXPRESS_CURRENCY = "CAD" as const;
 export const EXPRESS_SERVICE_IDS = ["ask", "healing", "past-life"] as const;
 export type ExpressServiceId = (typeof EXPRESS_SERVICE_IDS)[number];
 export type ExpressGuide = "brad" | "adronis";
-export type ExpressNotifyPreference = "email" | "sms" | "both";
 
 export interface ExpressServiceDefinition {
   id: ExpressServiceId;
@@ -74,9 +73,6 @@ export interface ExpressCheckoutInput {
   name: string;
   email: string;
   birthdate: string;
-  mobile: string;
-  notify: ExpressNotifyPreference;
-  smsConsent: boolean;
   transcription: boolean;
   guide: ExpressGuide | "";
   question: string;
@@ -92,11 +88,6 @@ export function validateExpressCheckout(input: ExpressCheckoutInput): { ok: true
   if (!input.name.trim()) errors.push("Name is required.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) errors.push("A valid email is required.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birthdate.trim())) errors.push("Birthdate is required.");
-
-  const wantsSms = input.notify === "sms" || input.notify === "both";
-  const mobileDigits = input.mobile.replace(/\D/g, "");
-  if (wantsSms && mobileDigits.length < 10) errors.push("A mobile number is required for SMS.");
-  if (wantsSms && !input.smsConsent) errors.push("SMS needs explicit consent for this order's updates.");
 
   if (input.serviceId === "ask") {
     if (input.guide !== "brad" && input.guide !== "adronis") errors.push("Choose Brad or Adronis.");

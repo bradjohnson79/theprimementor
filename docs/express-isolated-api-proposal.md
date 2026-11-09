@@ -8,7 +8,7 @@ Use a second Render web service, or a Render preview built from `feat/star-initi
 
 Point the preview site's `VITE_API_URL` at that API only. Allow CORS for the Vercel preview origin on that API only. Do not add the preview host to the production allowlist.
 
-Use Stripe test keys, plus separate Resend, Twilio, and OpenAI keys. Leave `EXPRESS_CHECKOUT_ENABLED` and `EXPRESS_NOTIFICATIONS_ENABLED` off until a person turns them on for that service. Outbound mail and SMS then go only to `ADMIN_EXPRESS_EMAIL` and `ADMIN_EXPRESS_SMS`.
+Use Stripe test keys, plus separate Resend and OpenAI keys. Leave `EXPRESS_CHECKOUT_ENABLED` and `EXPRESS_NOTIFICATIONS_ENABLED` off until a person turns them on for that service. Outbound mail then goes to the customer and to `ADMIN_EXPRESS_EMAIL`. Express does not use Twilio or SMS.
 
 ## Recordings
 
@@ -18,7 +18,7 @@ Closest fit: Cloudflare R2 on the existing Cloudflare account, or a private buck
 
 ## Reminders
 
-Deadline reminders should be a Render Cron Job on the isolated service. It calls `POST /api/internal/express/reminders` with the cron secret, the same shape as the mentoring-circle reminder route. Do not add that cron to the production Render service. Completed orders are skipped. A missed deadline is flagged for refund review. Automatic refunds are not part of this phase.
+Deadline reminders are Resend emails from a Render Cron Job on the isolated service. It calls `POST /api/internal/express/reminders` with the cron secret. The job sends the morning reminder, the afternoon reminder, and the overdue alert. Do not add that cron to the production Render service. Completed orders are skipped. A missed deadline is flagged for refund review. Automatic refunds are not part of this phase.
 
 ## Rough monthly cost before provisioning
 

@@ -32,7 +32,7 @@ export default function ExpressOrderQueue() {
         <table className="min-w-full text-left text-sm text-white/80">
           <thead className="text-xs uppercase tracking-wide text-white/45">
             <tr>
-              {["Service", "Customer", "Paid", "Deadline", "Time remaining", "Payment", "Fulfillment", "Transcription", "Contact"].map((heading) => (
+              {["Service", "Customer", "Paid", "Deadline", "Time remaining", "Payment", "Fulfillment", "Transcription", "Email"].map((heading) => (
                 <th key={heading} className="px-4 py-3 font-medium">{heading}</th>
               ))}
             </tr>

@@ -7,7 +7,6 @@ import {
   getExpressService,
   validateExpressCheckout,
   type ExpressGuide,
-  type ExpressNotifyPreference,
   type ExpressServiceId,
 } from "@wisdom/utils";
 import { api } from "../lib/api";
@@ -27,9 +26,6 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [birthdate, setBirthdate] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [notify, setNotify] = useState<ExpressNotifyPreference>("email");
-  const [smsConsent, setSmsConsent] = useState(false);
   const [transcription, setTranscription] = useState(false);
   const [guide, setGuide] = useState<ExpressGuide | "">("");
   const [question, setQuestion] = useState("");
@@ -52,9 +48,6 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
       name,
       email,
       birthdate,
-      mobile,
-      notify,
-      smsConsent,
       transcription,
       guide,
       question,
@@ -76,9 +69,6 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
         name,
         email,
         birthdate,
-        mobile,
-        notify,
-        smsConsent,
         transcription,
         guide,
         question,
@@ -122,24 +112,6 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
         <label className="block text-sm text-white/80">Birthdate
           <input className={FIELD_CLASS} type="date" value={birthdate} onChange={(event) => setBirthdate(event.target.value)} required />
         </label>
-        <label className="block text-sm text-white/80">Mobile (optional unless you want SMS)
-          <input className={FIELD_CLASS} type="tel" value={mobile} onChange={(event) => setMobile(event.target.value)} autoComplete="tel" />
-        </label>
-        <fieldset className="space-y-2">
-          <legend className="text-sm text-white/80">How should we reach you about this order?</legend>
-          {(["email", "sms", "both"] as const).map((value) => (
-            <label key={value} className="flex items-center gap-2 text-sm text-white/75">
-              <input type="radio" name="notify" checked={notify === value} onChange={() => setNotify(value)} />
-              {value === "email" ? "Email" : value === "sms" ? "SMS" : "Email and SMS"}
-            </label>
-          ))}
-        </fieldset>
-        {notify !== "email" ? (
-          <label className="flex items-start gap-2 text-sm text-white/75">
-            <input type="checkbox" checked={smsConsent} onChange={(event) => setSmsConsent(event.target.checked)} className="mt-1" />
-            Send SMS updates about this order only. This is not a marketing subscription.
-          </label>
-        ) : null}
 
         {serviceId === "ask" ? (
           <>
@@ -207,7 +179,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
           )}
         </div>
         <p className="text-xs leading-5 text-white/45">
-          Your email is kept for the receipt. Question text and birthdate are not sent to the wording model.
+          Your confirmation and your MP3 will arrive by email. Question text and birthdate are not sent to the wording model.
         </p>
       </form>
     </main>

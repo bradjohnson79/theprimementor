@@ -35,6 +35,10 @@ test("year end crosses into the next calendar year", () => {
   assert.equal(result.deadlineAt.toISOString(), "2027-01-02T07:59:00.000Z");
 });
 
+test("a Monday purchase is due Tuesday and a Thursday purchase is due Friday", () => {
+  assert.equal(nextBusinessDayDeadline(at("2026-03-02T20:00:00.000Z")).deliveryDate, "2026-03-03");
+  assert.equal(nextBusinessDayDeadline(at("2026-03-05T20:00:00.000Z")).deliveryDate, "2026-03-06");
+});
 test("a configured holiday is skipped", () => {
   const result = nextBusinessDayDeadline(at("2026-05-04T19:00:00.000Z"), ["2026-05-05"]);
   assert.equal(result.deliveryDate, "2026-05-06");

@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { validateExpressCheckout, type ExpressCheckoutInput } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { createHttpError } from "../services/booking/errors.js";
-import { readTwilioConfig } from "../services/express/twilioEnv.js";
-import { reviewExpressDeadlines, type ExpressOrderRecord } from "../services/express/expressFulfillment.js";
+import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRecord, type NotificationRow } from "../services/express/expressFulfillment.js";
+import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
 
 function assertExpressCron(request: FastifyRequest) {
   const configuredSecrets = [
@@ -48,10 +48,21 @@ export async function expressRoutes(app: FastifyInstance) {
   app.post("/internal/express/reminders", async (request, reply) => {
     try {
       assertExpressCron(request);
-      readTwilioConfig(process.env);
-      const body = request.body as { orders?: ExpressOrderRecord[] } | undefined;
+      const body = request.body as { orders?: ExpressOrderRecord[]; notices?: NotificationRow[] } | undefined;
       const orders = Array.isArray(body?.orders) ? body.orders : [];
-      return ok({ data: reviewExpressDeadlines(orders, new Date()) });
+      const notices = Array.isArray(body?.notices) ? body.notices : [];
+      const reminders = await planExpressReminderEmails({
+        orders,
+        now: new Date(),
+        notices,
+        adminEmail: resolveAdminExpressEmail(),
+      });
+      return ok({
+        data: {
+          reminders,
+          review: reviewExpressDeadlines(orders, new Date()),
+        },
+      });
     } catch (error) {
       const statusCode = typeof (error as { statusCode?: unknown })?.statusCode === "number"
         ? (error as { statusCode: number }).statusCode
