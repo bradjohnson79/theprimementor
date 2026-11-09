@@ -1955,3 +1955,44 @@ export const guestClaimAudit = pgTable("guest_claim_audit", {
   guestUserIdx: index("guest_claim_audit_guest_user_idx").on(table.guest_user_id),
   targetUserIdx: index("guest_claim_audit_target_user_idx").on(table.target_user_id),
 }));
+
+export const expressOrders = pgTable("express_orders", {
+  id: text("id").primaryKey(),
+  service_id: text("service_id").notNull(),
+  service_name: text("service_name").notNull(),
+  customer_name: text("customer_name").notNull(),
+  customer_email: text("customer_email").notNull(),
+  amount_cents: integer("amount_cents").notNull(),
+  currency: text("currency").default("CAD").notNull(),
+  transcription: boolean("transcription").notNull(),
+  payment_status: text("payment_status").notNull(),
+  fulfillment_status: text("fulfillment_status").notNull(),
+  paid_at: timestamp("paid_at", { withTimezone: true }).notNull(),
+  timezone: text("timezone").notNull(),
+  delivery_date: date("delivery_date").notNull(),
+  deadline_at: timestamp("deadline_at", { withTimezone: true }).notNull(),
+  delivered_at: timestamp("delivered_at", { withTimezone: true }),
+  intake: jsonb("intake").notNull(),
+  mp3_key: text("mp3_key"),
+  transcript_key: text("transcript_key"),
+  refund_review: boolean("refund_review").default(false).notNull(),
+  ...timestamps,
+});
+
+export const expressNotifications = pgTable("express_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  dedupe_key: text("dedupe_key").notNull(),
+  order_id: text("order_id").notNull(),
+  event_type: text("event_type").notNull(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  provider_message_id: text("provider_message_id"),
+  last_error: text("last_error"),
+  ...timestamps,
+}, (table) => ({
+  dedupeUnique: uniqueIndex("express_notifications_dedupe_uidx").on(table.dedupe_key),
+  orderIdx: index("express_notifications_order_idx").on(table.order_id),
+}));

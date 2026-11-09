@@ -5,6 +5,9 @@ import { createHttpError } from "../services/booking/errors.js";
 import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRecord, type NotificationRow } from "../services/express/expressFulfillment.js";
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
 import { createExpressCheckoutSession } from "../services/express/expressStripe.js";
+import { createPostgresExpressRepository } from "../services/express/expressOrderRepository.js";
+import { runExpressReminderPass } from "../services/express/expressOrderService.js";
+import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 
 function assertExpressCron(request: FastifyRequest) {
   const configuredSecrets = [
@@ -48,9 +51,19 @@ export async function expressRoutes(app: FastifyInstance) {
     return ok({ data: { amountCents: result.amountCents, currency: "CAD", requiresPayment: true, sessionId: session.id, url: session.url } });
   });
 
+  app.get("/admin/express/orders", async (request) => {
+    requireAdmin(request);
+    const repo = createPostgresExpressRepository(requireDatabase(app.db));
+    return ok({ data: await repo.list() });
+  });
+
   app.post("/internal/express/reminders", async (request, reply) => {
     try {
       assertExpressCron(request);
+      if (app.db) {
+        const result = await runExpressReminderPass(createPostgresExpressRepository(app.db), new Date());
+        return ok({ data: result });
+      }
       const body = request.body as { orders?: ExpressOrderRecord[]; notices?: NotificationRow[] } | undefined;
       const orders = Array.isArray(body?.orders) ? body.orders : [];
       const notices = Array.isArray(body?.notices) ? body.notices : [];

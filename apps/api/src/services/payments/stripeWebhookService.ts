@@ -1485,9 +1485,44 @@ async function handleCheckoutSessionCompleted(
       logger.info({ checkoutSessionId: session.id, paymentStatus: session.payment_status }, "express_checkout_not_paid_yet");
       return;
     }
-    const { fulfillPaidExpressCheckout } = await import("../express/expressStripe.js");
-    await fulfillPaidExpressCheckout(session);
-    logger.info({ checkoutSessionId: session.id, serviceId: metadata.raw.serviceId }, "express_checkout_confirmed");
+    const { confirmExpressPayment, dispatchPendingExpressEmails } = await import("../express/expressOrderService.js");
+    const { createPostgresExpressRepository } = await import("../express/expressOrderRepository.js");
+    const { sendResendEmail } = await import("../notifications/providers/resendProvider.js");
+    const repo = createPostgresExpressRepository(db as Database);
+    const raw = metadata.raw;
+    const { isExpressServiceId } = await import("@wisdom/utils");
+    if (!isExpressServiceId(raw.serviceId) || !raw.customerEmail && !session.customer_email) {
+      throw new Error("Express checkout is missing its service or customer");
+    }
+    const saved = await confirmExpressPayment(repo, {
+      id: session.id,
+      serviceId: raw.serviceId,
+      customerName: raw.customerName || "Express customer",
+      customerEmail: raw.customerEmail || session.customer_email || "",
+      amountCents: Number(raw.amountCents || session.amount_total || 0),
+      transcription: raw.transcription === "yes",
+      paidAt: new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000),
+      intake: {
+        birthdate: raw.birthdate || "",
+        guide: raw.guide || "",
+        question: raw.question || "",
+        focusAreas: (raw.focusAreas || "").split(" | ").filter(Boolean),
+        healingContext: raw.healingContext || "",
+        pastLifeInterest: raw.pastLifeInterest || "",
+      },
+    });
+    await dispatchPendingExpressEmails(repo, saved.order.id, async (notice) => {
+      const sent = await sendResendEmail({
+        to: [notice.recipient],
+        subject: notice.subject,
+        text: notice.body,
+        html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
+      });
+      return sent.success
+        ? { ok: true, messageId: sent.messageId ?? undefined }
+        : { ok: false, error: sent.error };
+    });
+    logger.info({ checkoutSessionId: session.id, duplicate: saved.duplicate, serviceId: raw.serviceId }, "express_checkout_confirmed");
     return;
   }
 

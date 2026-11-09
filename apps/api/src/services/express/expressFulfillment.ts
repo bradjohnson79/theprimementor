@@ -120,9 +120,8 @@ async function queueEmail(
   kind: ExpressEmailKind,
   recipient: string,
   fields: ExpressEmailFields,
-  model?: (kind: ExpressEmailKind, fields: ExpressEmailFields) => Promise<string>,
 ) {
-  const message = await composeExpressEmail(kind, fields, model);
+  const message = await composeExpressEmail(kind, fields);
   return enqueueNotification(rows, {
     eventType: `express_${kind}`,
     entityId: order.id,
@@ -144,7 +143,6 @@ export interface ConfirmExpressOrderInput {
   adminEmail: string;
   orders: ExpressOrderRecord[];
   notices: NotificationRow[];
-  model?: (kind: ExpressEmailKind, fields: ExpressEmailFields) => Promise<string>;
 }
 
 export async function confirmPaidExpressOrder(input: ConfirmExpressOrderInput) {
@@ -174,8 +172,8 @@ export async function confirmPaidExpressOrder(input: ConfirmExpressOrderInput) {
   };
   input.orders.push(order);
   const fields = emailFields(order);
-  await queueEmail(input.notices, order, "customer_confirmation", order.customerEmail, fields, input.model);
-  await queueEmail(input.notices, order, "admin_purchase", input.adminEmail, fields, input.model);
+  await queueEmail(input.notices, order, "customer_confirmation", order.customerEmail, fields);
+  await queueEmail(input.notices, order, "admin_purchase", input.adminEmail, fields);
   return { order, duplicate: false };
 }
 

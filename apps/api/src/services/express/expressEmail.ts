@@ -89,18 +89,7 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
   };
 }
 
-export async function composeExpressEmail(
-  kind: ExpressEmailKind,
-  fields: ExpressEmailFields,
-  model?: (kind: ExpressEmailKind, fields: ExpressEmailFields) => Promise<string>,
-) {
+export async function composeExpressEmail(kind: ExpressEmailKind, fields: ExpressEmailFields) {
   const template = expressEmailTemplate(kind, fields);
-  if (!model) return { ...template, source: "template" as const };
-  try {
-    const text = (await model(kind, fields)).trim();
-    if (!text) return { ...template, source: "template" as const };
-    return { subject: template.subject, text, source: "model" as const };
-  } catch {
-    return { ...template, source: "template" as const };
-  }
+  return { ...template, source: "template" as const };
 }

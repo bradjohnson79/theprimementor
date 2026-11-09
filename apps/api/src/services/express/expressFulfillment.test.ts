@@ -55,7 +55,6 @@ test("Express checkout requires an email and does not ask for a phone or SMS cho
 test("payment confirmation emails the customer and admin once", async () => {
   const orders: ExpressOrderRecord[] = [];
   const notices: NotificationRow[] = [];
-  let sawSensitive = false;
   const first = await confirmPaidExpressOrder({
     id: "order-1",
     serviceId: "ask",
@@ -66,13 +65,7 @@ test("payment confirmation emails the customer and admin once", async () => {
     adminEmail: EXPRESS_ADMIN_EMAIL,
     orders,
     notices,
-    model: async (_kind, fields) => {
-      sawSensitive = "birthdate" in fields || "question" in fields;
-      assert.equal(orders.length, 1);
-      throw new Error("use the template");
-    },
   });
-  assert.equal(sawSensitive, false);
   assert.equal(first.order.amountCents, 2800);
   assert.equal(first.order.deliveryDate, "2026-03-09");
   assert.equal(notices.length, 2);
@@ -103,7 +96,7 @@ test("payment confirmation emails the customer and admin once", async () => {
   assert.equal(notices.length, 2);
 });
 
-test("a failed wording model falls back to the fixed confirmation template", async () => {
+test("confirmation emails use the fixed template", async () => {
   const orders: ExpressOrderRecord[] = [];
   const notices: NotificationRow[] = [];
   await confirmPaidExpressOrder({
@@ -116,9 +109,6 @@ test("a failed wording model falls back to the fixed confirmation template", asy
     adminEmail: EXPRESS_ADMIN_EMAIL,
     orders,
     notices,
-    model: async () => {
-      throw new Error("model unavailable");
-    },
   });
   assert.equal(notices[0]?.source, "template");
   assert.match(notices[0]?.body ?? "", /Prime Body Healing Express/);
