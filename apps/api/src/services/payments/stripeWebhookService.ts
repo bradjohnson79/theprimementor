@@ -1480,6 +1480,16 @@ async function handleCheckoutSessionCompleted(
   if (await handleRegenerationOfferCheckoutSessionCompleted(db as Database, session, logger)) {
     return;
   }
+  if (metadata.raw.type === "express") {
+    if (session.payment_status !== "paid") {
+      logger.info({ checkoutSessionId: session.id, paymentStatus: session.payment_status }, "express_checkout_not_paid_yet");
+      return;
+    }
+    const { fulfillPaidExpressCheckout } = await import("../express/expressStripe.js");
+    await fulfillPaidExpressCheckout(session);
+    logger.info({ checkoutSessionId: session.id, serviceId: metadata.raw.serviceId }, "express_checkout_confirmed");
+    return;
+  }
 
   if (metadata.type === "on_demand_webinar") {
     const userId = await resolveUserForStripeObject(db, {

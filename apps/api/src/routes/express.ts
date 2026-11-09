@@ -4,6 +4,7 @@ import { ok, sendApiError } from "../apiContract.js";
 import { createHttpError } from "../services/booking/errors.js";
 import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRecord, type NotificationRow } from "../services/express/expressFulfillment.js";
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
+import { createExpressCheckoutSession } from "../services/express/expressStripe.js";
 
 function assertExpressCron(request: FastifyRequest) {
   const configuredSecrets = [
@@ -33,7 +34,8 @@ export async function expressRoutes(app: FastifyInstance) {
     }
     const result = validateExpressCheckout(request.body as ExpressCheckoutInput);
     if (!result.ok) return sendApiError(reply, 400, result.errors.join(" "));
-    return ok({ data: { amountCents: result.amountCents, currency: "CAD", checkout: "prepared" } });
+    const session = await createExpressCheckoutSession(request.body as ExpressCheckoutInput);
+    return ok({ data: { amountCents: result.amountCents, currency: "CAD", requiresPayment: true, sessionId: session.id, url: session.url } });
   });
 
   app.post("/express/checkout", async (request, reply) => {
@@ -42,7 +44,8 @@ export async function expressRoutes(app: FastifyInstance) {
     }
     const result = validateExpressCheckout(request.body as ExpressCheckoutInput);
     if (!result.ok) return sendApiError(reply, 400, result.errors.join(" "));
-    return ok({ data: { amountCents: result.amountCents, currency: "CAD", checkout: "prepared" } });
+    const session = await createExpressCheckoutSession(request.body as ExpressCheckoutInput);
+    return ok({ data: { amountCents: result.amountCents, currency: "CAD", requiresPayment: true, sessionId: session.id, url: session.url } });
   });
 
   app.post("/internal/express/reminders", async (request, reply) => {

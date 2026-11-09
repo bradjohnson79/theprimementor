@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import {
   EXPRESS_TRANSCRIPTION_CENTS,
@@ -23,6 +23,8 @@ export default function ExpressCheckoutPage() {
 function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
   const service = getExpressService(serviceId)!;
   const { isSignedIn } = useAuth();
+  const [params] = useSearchParams();
+  const checkoutState = params.get("checkout");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [birthdate, setBirthdate] = useState("");
@@ -64,7 +66,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
     setSubmitting(true);
     setStatus("");
     try {
-      await api.post(isSignedIn ? "/express/checkout" : "/guest/express-checkout", {
+      const response = await api.post(isSignedIn ? "/express/checkout" : "/guest/express-checkout", {
         serviceId,
         name,
         email,
@@ -76,8 +78,12 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
         healingContext,
         pastLifeInterest,
         amountCents: result.amountCents,
-      });
-      setStatus("Checkout is ready on the isolated payments service.");
+      }) as { data?: { url?: string | null } };
+      if (response.data?.url) {
+        window.location.assign(response.data.url);
+        return;
+      }
+      setStatus("Checkout did not return a payment link. Nothing was charged.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       setStatus(
@@ -159,6 +165,8 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
           Add a written transcription for {formatExpressPrice(EXPRESS_TRANSCRIPTION_CENTS)}. Charged once.
         </label>
 
+        {checkoutState === "success" ? <p className="text-sm text-cyan-100">Payment received. Your confirmation is on its way by email.</p> : null}
+        {checkoutState === "canceled" ? <p className="text-sm text-white/70">Checkout was canceled. Nothing was charged.</p> : null}
         {errors.length > 0 ? (
           <ul className="space-y-1 text-sm text-amber-100">
             {errors.map((error) => <li key={error}>{error}</li>)}
