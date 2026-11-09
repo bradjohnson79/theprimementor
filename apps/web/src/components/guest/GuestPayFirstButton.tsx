@@ -24,6 +24,7 @@ export default function GuestPayFirstButton({
   className,
   label = "Continue as guest",
   manifestationAddOn,
+  visibleWhenSignedIn = false,
 }: {
   endpoint: string;
   extraBody?: Record<string, unknown>;
@@ -34,10 +35,12 @@ export default function GuestPayFirstButton({
   label?: string;
   /** Manifestation Monthly only: show the optional $29 first-month add-on choice. */
   manifestationAddOn?: boolean;
+  /** Premium sessions use guest checkout as the only purchase path, including for signed-in visitors. */
+  visibleWhenSignedIn?: boolean;
 }) {
   const { isSignedIn } = useAuth();
   const [open, setOpen] = useState(false);
-  if (isSignedIn) return null;
+  if (isSignedIn && !visibleWhenSignedIn) return null;
   return (
     <>
       <button

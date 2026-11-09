@@ -54,7 +54,7 @@ export const starInitiationSessionLandingContent: SessionLandingContent = {
       title: "Book Your Star Initiation — $99 CAD",
       paragraphs: [
         "Session duration: 20–30 minutes. Session type: private one-to-one. Available through Zoom or phone. Price: $99 CAD.",
-        "You can continue as a guest or sign in with your Prime Mentor account. The same booking calendar, confirmation, and payment flow used for other live Premium Sessions applies here.",
+        "Checkout is guest checkout. After payment you choose Zoom or phone and a time on the same booking calendar used for other live Premium Sessions.",
       ],
       statementLines: [
         "20–30 minutes",

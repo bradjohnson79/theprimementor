@@ -16,8 +16,11 @@ export default function StarInitiationSessionPage() {
   return (
     <SessionLandingPage
       content={starInitiationSessionLandingContent}
-      heroCtaAdjacentContent={(
+      renderPurchaseCta={() => (
         <GuestPayFirstButton
+          visibleWhenSignedIn
+          label="Book Your Star Initiation — $99 CAD"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:from-cyan-200 hover:via-sky-200 hover:to-violet-200"
           endpoint="/guest/bookings"
           itemLabel="Star Initiation Session"
           extraBody={{ bookingTypeId: "star-initiation-session", deferIntake: true }}

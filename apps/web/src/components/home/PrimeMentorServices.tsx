@@ -1,11 +1,11 @@
 import { useEffect, useId, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
+import GuestPayFirstButton from "../guest/GuestPayFirstButton";
 import { HeartPulse, Mail, Sparkles, Video } from "lucide-react";
 import { getActiveSessionOfferingByBookingTypeId } from "@wisdom/utils";
 import { trackEvent, trackEventOnce } from "../../lib/analytics";
 import {
   GUIDED_SESSION_OPTIONS,
-  buildGuidedSessionBookingPath,
   formatGuidedSessionDisplayPrice,
   type GuidedSessionDurationOption,
   type GuidedSessionOption,
@@ -205,14 +205,6 @@ function LiveSessionsPanel() {
 function LiveSessionCard({ option }: { option: GuidedSessionOption }) {
   const [selectedId, setSelectedId] = useState(option.durations[0]?.bookingTypeId ?? "");
   const selected = option.durations.find((duration) => duration.bookingTypeId === selectedId) ?? option.durations[0];
-  const href = selected
-    ? buildGuidedSessionBookingPath({
-      intakeType: option.intakeType,
-      minutes: selected.minutes,
-      bookingTypeId: selected.bookingTypeId,
-      productKey: selected.productKey,
-    })
-    : "/sessions";
   const cta = option.sessionType === "qa_session"
     ? "Book Q&A Session"
     : option.sessionType === "star_initiation"
@@ -241,19 +233,18 @@ function LiveSessionCard({ option }: { option: GuidedSessionOption }) {
       {selected ? (
         <p className="mt-3 text-sm font-medium text-amber-100/90">{formatGuidedSessionDisplayPrice(selected)}</p>
       ) : null}
-      <Link
-        to={href}
-        onClick={() => trackEvent("service_cta_click", {
-          category: "live",
-          service_type: option.sessionType,
-          service_name: option.label,
-          duration: selected?.minutes,
-          price: selected ? selected.priceCents / 100 : undefined,
-        })}
-        className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-      >
-        {cta}
-      </Link>
+      {selected ? (
+        <div className="mt-4">
+          <GuestPayFirstButton
+            visibleWhenSignedIn
+            label={cta}
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+            endpoint="/guest/bookings"
+            extraBody={{ bookingTypeId: selected.bookingTypeId, deferIntake: true }}
+            itemLabel={`${option.label} — ${selected.durationLabel ?? `${selected.minutes} min`} · ${formatGuidedSessionDisplayPrice(selected)}`}
+          />
+        </div>
+      ) : null}
       <Link to={learnMore} className="mt-3 text-center text-sm font-semibold text-cyan-100 underline-offset-4 hover:underline">
         Learn more
       </Link>
@@ -409,7 +400,12 @@ function HealingSessionsPanel() {
           imageSrc="/images/prime-body-healing-level-2.png"
           imageAlt="Prime Body Healing Level 2 artwork"
           description="A full energetic scan and healing, plus a personalized MP3 and PDF report."
-          href={`${PRIME_BODY_HEALING_BOOKING_PATH}?level=2`}
+          href={`${PRIME_BODY_HEALING_LANDING_PATH}#level-2`}
+          guestCheckout={{
+            label: "Book Now",
+            bookingTypeId: "prime-body-healing-level-2",
+            itemLabel: "Prime Body Healing Level 2",
+          }}
           serviceName="Prime Body Healing Level 2"
         />
       </div>
@@ -431,6 +427,7 @@ function HealingCard({
   description,
   href,
   serviceName,
+  guestCheckout,
 }: {
   level: string;
   price: string;
@@ -439,6 +436,7 @@ function HealingCard({
   description: string;
   href: string;
   serviceName: string;
+  guestCheckout?: { label: string; bookingTypeId: string; itemLabel: string };
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-white/10 bg-black/25">
@@ -447,18 +445,29 @@ function HealingCard({
         <p className="text-sm font-semibold text-amber-100">Prime Body Healing — {level}</p>
         <p className="text-sm text-white/80">{price}</p>
         <p className="text-sm leading-6 text-white/65">{description}</p>
-        <Link
-          to={href}
-          onClick={() => trackEvent("service_cta_click", {
-            category: "healing",
-            service_type: "prime_body_healing",
-            service_name: serviceName,
-            price,
-          })}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
-        >
-          Book Now
-        </Link>
+        {guestCheckout ? (
+          <GuestPayFirstButton
+            visibleWhenSignedIn
+            label={guestCheckout.label}
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
+            endpoint="/guest/bookings"
+            extraBody={{ bookingTypeId: guestCheckout.bookingTypeId, deferIntake: true }}
+            itemLabel={guestCheckout.itemLabel}
+          />
+        ) : (
+          <Link
+            to={href}
+            onClick={() => trackEvent("service_cta_click", {
+              category: "healing",
+              service_type: "prime_body_healing",
+              service_name: serviceName,
+              price,
+            })}
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-200"
+          >
+            Book Now
+          </Link>
+        )}
         <p className="text-center text-xs text-white/50">{PURCHASE_NOTE}</p>
       </div>
     </article>

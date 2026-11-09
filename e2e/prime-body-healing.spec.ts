@@ -53,13 +53,14 @@ test.describe("Prime Body Healing landing", () => {
     await expect(page.locator("#faq").getByText(/turnaround based on available dates/i)).toBeVisible();
   });
 
-  test("Level 1 and Level 2 CTAs go to the protected book flow", async ({ page }) => {
+  test("Level 1 goes to the protected book flow and Level 2 opens guest checkout", async ({ page }) => {
     await page.goto(LANDING);
     await page.getByRole("link", { name: "Book Level 1 — $79 CAD" }).click();
     await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=1|\/sign-in/);
     await page.goto(LANDING);
-    await page.getByRole("link", { name: "Order Level 2 — $179 CAD" }).click();
-    await expect(page).toHaveURL(/\/sessions\/prime-body-healing\/book\?level=2|\/sign-in/);
+    await page.getByRole("button", { name: "Order Level 2 — $179 CAD" }).click();
+    await expect(page.getByRole("heading", { name: "Continue as guest" })).toBeVisible();
+    await expect(page.getByText("Prime Body Healing Level 2 — $179 CAD")).toBeVisible();
   });
 
   test("home card sits below Shop and links to the landing", async ({ page }) => {

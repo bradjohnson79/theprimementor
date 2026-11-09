@@ -380,10 +380,13 @@ export default function SessionLandingPage({
   content,
   ctaHrefOverride,
   heroCtaAdjacentContent,
+  renderPurchaseCta,
 }: {
   content: SessionLandingContent;
   ctaHrefOverride?: string;
   heroCtaAdjacentContent?: ReactNode;
+  /** When set, this is the only purchase control. Account booking links are not rendered. */
+  renderPurchaseCta?: () => ReactNode;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const styles = themeStyles[content.theme];
@@ -438,13 +441,15 @@ export default function SessionLandingPage({
               ) : null}
 
               <div className={heroCtaAdjacentContent ? "mt-5" : "mt-8"}>
-                <LandingCta
-                  href={ctaHrefOverride ?? content.hero.cta.href}
-                  label={content.hero.cta.label}
-                  theme={content.theme}
-                  location={content.pageTitle}
-                  title={content.hero.title}
-                />
+                {renderPurchaseCta ? renderPurchaseCta() : (
+                  <LandingCta
+                    href={ctaHrefOverride ?? content.hero.cta.href}
+                    label={content.hero.cta.label}
+                    theme={content.theme}
+                    location={content.pageTitle}
+                    title={content.hero.title}
+                  />
+                )}
               </div>
             </div>
 
@@ -544,13 +549,15 @@ export default function SessionLandingPage({
 
                   {section.cta ? (
                     <div className={`mt-8 ${isCentered ? "flex justify-center" : ""}`}>
-                      <LandingCta
-                        href={ctaHrefOverride ?? section.cta.href}
-                        label={section.cta.label}
-                        theme={content.theme}
-                        location={`${content.pageTitle}:${section.id}`}
-                        title={section.title}
-                      />
+                      {renderPurchaseCta ? renderPurchaseCta() : (
+                        <LandingCta
+                          href={ctaHrefOverride ?? section.cta.href}
+                          label={section.cta.label}
+                          theme={content.theme}
+                          location={`${content.pageTitle}:${section.id}`}
+                          title={section.title}
+                        />
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -581,13 +588,15 @@ export default function SessionLandingPage({
               {content.finalCta.description}
             </p>
             <div className="mt-8">
-              <LandingCta
-                href={ctaHrefOverride ?? content.finalCta.cta.href}
-                label={content.finalCta.cta.label}
-                theme={content.theme}
-                location={`${content.pageTitle}:final-cta`}
-                title={content.finalCta.title}
-              />
+              {renderPurchaseCta ? renderPurchaseCta() : (
+                <LandingCta
+                  href={ctaHrefOverride ?? content.finalCta.cta.href}
+                  label={content.finalCta.cta.label}
+                  theme={content.theme}
+                  location={`${content.pageTitle}:final-cta`}
+                  title={content.finalCta.title}
+                />
+              )}
             </div>
           </div>
         </div>

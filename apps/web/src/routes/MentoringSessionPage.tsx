@@ -29,8 +29,11 @@ export default function MentoringSessionPage() {
   return (
     <SessionLandingPage
       content={mentoringSessionLandingContent}
-      heroCtaAdjacentContent={MENTORING_GUEST_CHOICES.length > 0 ? (
+      renderPurchaseCta={MENTORING_GUEST_CHOICES.length > 0 ? () => (
         <GuestPayFirstButton
+          visibleWhenSignedIn
+          label="Book Your Mentoring Session"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 px-5 py-3 text-sm font-semibold text-white transition hover:from-violet-400 hover:via-fuchsia-400 hover:to-indigo-400"
           endpoint="/guest/bookings"
           choices={MENTORING_GUEST_CHOICES}
           choiceLabel="Session length"

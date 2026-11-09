@@ -256,21 +256,16 @@ export default function PrimeBodyHealingPage() {
               <li>✓ Physical, subtle, emotional, vital, and causal layers</li>
               <li>✓ Natal pattern analysis when birth details are provided</li>
             </ul>
-            <Link
-              to={bookPath(2)}
-              onClick={() => trackPbh("order_level_2", bookPath(2))}
-              className="mt-6 inline-flex rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-400"
-            >
-              Order Level 2 — $179 CAD
-            </Link>
-            <div className="mt-3">
+            <div className="mt-6">
               <GuestPayFirstButton
+                visibleWhenSignedIn
+                label="Order Level 2 — $179 CAD"
+                className="inline-flex rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-400"
                 endpoint="/guest/bookings"
                 extraBody={{ bookingTypeId: "prime-body-healing-level-2", deferIntake: true }}
                 itemLabel="Prime Body Healing Level 2 — $179 CAD"
               />
             </div>
-            <p className="mt-2 text-xs text-white/55">{PURCHASE_REASSURANCE}</p>
           </div>
           <figure className="overflow-hidden rounded-[1.6rem] border border-violet-200/20 bg-white/[0.03] p-2">
             <img src={LEVEL_2_IMAGE} alt="Prime Body Healing Level 2 artwork" className="h-full w-full object-contain" loading="lazy" decoding="async" />
@@ -384,13 +379,16 @@ export default function PrimeBodyHealingPage() {
               <p className="text-sm uppercase tracking-[0.2em] text-violet-200/70">Level 2</p>
               <p className="mt-1 text-xl font-semibold">Comprehensive scan + healing</p>
               <p className="mt-1 text-white/70">$179 CAD</p>
-              <Link
-                to={bookPath(2)}
-                onClick={() => trackPbh("final_order_level_2", bookPath(2))}
-                className="mt-4 inline-flex rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400"
-              >
-                Order Level 2
-              </Link>
+              <div className="mt-4">
+                <GuestPayFirstButton
+                  visibleWhenSignedIn
+                  label="Order Level 2"
+                  className="inline-flex rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400"
+                  endpoint="/guest/bookings"
+                  extraBody={{ bookingTypeId: "prime-body-healing-level-2", deferIntake: true }}
+                  itemLabel="Prime Body Healing Level 2 — $179 CAD"
+                />
+              </div>
             </div>
           </div>
         </div>

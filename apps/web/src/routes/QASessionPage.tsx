@@ -106,15 +106,6 @@ function QaDurationSelector({
           );
         })}
       </div>
-      {selectedOffering ? (
-        <div className="mt-4">
-          <GuestPayFirstButton
-            endpoint="/guest/bookings"
-            extraBody={{ bookingTypeId: selectedOffering.bookingTypeId, deferIntake: true }}
-            itemLabel={`Q&A Session — ${selectedOffering.minutes} minutes · ${formatGuidedSessionDisplayPrice(selectedOffering)}`}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -157,6 +148,16 @@ export default function QASessionPage() {
           onSelect={setSelectedOffering}
         />
       )}
+      renderPurchaseCta={selectedOffering ? () => (
+        <GuestPayFirstButton
+          visibleWhenSignedIn
+          label={`Book Q&A Session — ${formatGuidedSessionDisplayPrice(selectedOffering)}`}
+          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-fuchsia-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:from-amber-300 hover:via-orange-300 hover:to-fuchsia-400"
+          endpoint="/guest/bookings"
+          extraBody={{ bookingTypeId: selectedOffering.bookingTypeId, deferIntake: true }}
+          itemLabel={`Q&A Session — ${selectedOffering.minutes} minutes · ${formatGuidedSessionDisplayPrice(selectedOffering)}`}
+        />
+      ) : undefined}
     />
   );
 }
