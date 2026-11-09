@@ -18,12 +18,48 @@ import {
 type ServiceLane = "premium" | "express";
 type PremiumId = "star" | "qa" | "mentoring" | "level2";
 
-const PREMIUM_ITEMS: Array<{ id: PremiumId; label: string; summary: string }> = [
-  { id: "star", label: "Star Initiation", summary: "Private session with Adronis. About 20–30 minutes on Zoom or by phone." },
-  { id: "qa", label: "Q&A", summary: "You lead the conversation. Live on Zoom, with a recording." },
-  { id: "mentoring", label: "Mentoring", summary: "A guided mentoring session through the Divin8 system." },
-  { id: "level2", label: "Prime Body Healing Level 2", summary: "A comprehensive healing scan with a personalized MP3 and PDF report." },
+const PREMIUM_ITEMS: Array<{ id: PremiumId; label: string; title: string; description: string; meta: string }> = [
+  {
+    id: "star",
+    label: "Star Initiation",
+    title: "Star Initiation Session",
+    description: "Reconnect with your soul lineage and star ancestry through a private initiation hosted by Adronis. Experience a personalized cosmic soul retrieval, with potential symbols, rituals, and guidance to help integrate the initiation into your awareness.",
+    meta: "Duration: 20–30 minutes | Zoom or Phone | $99 CAD",
+  },
+  {
+    id: "qa",
+    label: "Q&A",
+    title: "Q&A Sessions",
+    description: "Receive personal guidance and clarity on the questions and challenges most important to you. Connect live with Brad or Adronis for spiritual insight, practical perspectives, and answers tailored to your situation.",
+    meta: "Duration: 30, 45, or 60 minutes | Live Session",
+  },
+  {
+    id: "mentoring",
+    label: "Mentoring",
+    title: "Mentoring Sessions",
+    description: "Go deeper into your personal growth, manifestation, and conscious life development. Work privately with Brad to explore your life blueprint, overcome limiting patterns, and receive personalized guidance for meaningful transformation.",
+    meta: "Duration: 45 or 90 minutes | Live Session",
+  },
+  {
+    id: "level2",
+    label: "Prime Body Healing Level 2",
+    title: "Prime Body Healing Level 2",
+    description: "Experience an advanced energetic healing session focused on deeper physical, emotional, mental, and causal alignment. Includes a comprehensive energetic assessment, clearing work, and personalized guidance intended to support inner balance and well-being.",
+    meta: "Format: Live Session | Zoom or Phone",
+  },
 ];
+
+const EXPRESS_COPY: Record<ExpressServiceId, { description: string }> = {
+  ask: {
+    description: "Have one personal question answered through a customized MP3 audio recording. Choose to receive guidance from Brad through his Higher Self connection or through an Adronis transmission.",
+  },
+  healing: {
+    description: "Receive personalized energetic work focused on up to five areas of your choosing. This experience may include energetic cord cutting, cellular recharge, and the application of assumed healthy states within your energetic field.",
+  },
+  "past-life": {
+    description: "Explore a single past life through a personalized interpretation of your Akashic Records. Discover themes, experiences, and spiritual insights that may offer a deeper perspective on your present journey.",
+  },
+};
 
 const BUTTON_CLASS = "inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f]";
 
@@ -158,9 +194,10 @@ function PremiumPanel({ selected, onSelect }: { selected: PremiumId; onSelect: (
           <ServiceButton key={entry.id} selected={entry.id === selected} label={entry.label} onSelect={() => onSelect(entry.id)} />
         ))}
       </div>
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-        <h3 className="text-xl font-semibold text-white">{item.label}</h3>
-        <p className="text-sm leading-6 text-white/70">{item.summary}</p>
+      <div className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+        <h3 className="text-xl font-semibold text-white">{item.title}</h3>
+        <p className="text-pretty text-sm leading-7 text-slate-300 sm:text-[0.95rem]">{item.description}</p>
+        <p className="text-sm leading-6 text-slate-300">{item.meta}</p>
         {selected === "star" ? <StarCheckout /> : null}
         {selected === "qa" ? <DurationCheckout kind="qa" /> : null}
         {selected === "mentoring" ? <DurationCheckout kind="mentoring" /> : null}
@@ -257,10 +294,12 @@ function ExpressPanel({ selected, onSelect }: { selected: ExpressServiceId; onSe
           <ServiceButton key={entry.id} selected={entry.id === selected} label={`${entry.name} — ${formatExpressPrice(entry.priceCents)}`} onSelect={() => onSelect(entry.id)} />
         ))}
       </div>
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+      <div className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
         <h3 className="text-xl font-semibold text-white">{service.name}</h3>
-        <p className="text-sm leading-6 text-white/70">{service.detail}</p>
-        <p className="text-sm text-cyan-100">{formatExpressPrice(service.priceCents)}. Optional transcription is $9 CAD, added once at checkout.</p>
+        <p className="text-pretty text-sm leading-7 text-slate-300 sm:text-[0.95rem]">{EXPRESS_COPY[service.id].description}</p>
+        <p className="text-sm leading-6 text-slate-300">Delivery: MP3 Audio | No Appointment Required</p>
+        <p className="text-xs leading-5 text-slate-300 sm:text-sm">Delivered by the end of the next business day. Optional written transcription +$9 CAD.</p>
+        <p className="text-sm font-semibold text-cyan-100">{formatExpressPrice(service.priceCents)}</p>
         <Link to={`/express/${service.id}`} className={BUTTON_CLASS}>
           Continue with {service.name}
         </Link>
