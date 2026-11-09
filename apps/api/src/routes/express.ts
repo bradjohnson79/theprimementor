@@ -6,7 +6,9 @@ import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRec
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
 import { createExpressCheckoutSession } from "../services/express/expressStripe.js";
 import { createPostgresExpressRepository } from "../services/express/expressOrderRepository.js";
-import { runExpressReminderPass } from "../services/express/expressOrderService.js";
+import { attachExpressRecording, dispatchPendingExpressEmails, loadExpressDownload, queueExpressDelivery, runExpressReminderPass } from "../services/express/expressOrderService.js";
+import { createConfiguredRecordingStore } from "../services/express/privateRecordingStore.js";
+import { sendResendEmail } from "../services/notifications/providers/resendProvider.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 
 function assertExpressCron(request: FastifyRequest) {
@@ -55,6 +57,63 @@ export async function expressRoutes(app: FastifyInstance) {
     requireAdmin(request);
     const repo = createPostgresExpressRepository(requireDatabase(app.db));
     return ok({ data: await repo.list() });
+  });
+
+  app.post("/admin/express/orders/:id/recording", async (request, reply) => {
+    requireAdmin(request);
+    const store = createConfiguredRecordingStore();
+    if (!store) return sendApiError(reply, 503, "Private recording storage is not configured");
+    const file = await request.file({ limits: { fileSize: 25 * 1024 * 1024 } });
+    if (!file) return sendApiError(reply, 400, "A file is required");
+    const kind = (request.query as { kind?: string }).kind === "transcript" ? "transcript" : "mp3";
+    const bytes = new Uint8Array(await file.toBuffer());
+    const order = await attachExpressRecording({
+      repo: createPostgresExpressRepository(requireDatabase(app.db)),
+      store,
+      orderId: (request.params as { id: string }).id,
+      mp3: kind === "mp3" ? bytes : null,
+      transcript: kind === "transcript" ? bytes : null,
+    });
+    return ok({ data: order });
+  });
+
+  app.post("/admin/express/orders/:id/deliver", async (request, reply) => {
+    requireAdmin(request);
+    const repo = createPostgresExpressRepository(requireDatabase(app.db));
+    const orderId = (request.params as { id: string }).id;
+    try {
+      const queued = await queueExpressDelivery({ repo, orderId });
+      if (!queued.duplicate) {
+        await dispatchPendingExpressEmails(repo, orderId, async (notice) => {
+          const sent = await sendResendEmail({
+            to: [notice.recipient],
+            subject: notice.subject,
+            text: notice.body,
+            html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
+          });
+          return sent.success
+            ? { ok: true, messageId: sent.messageId ?? undefined }
+            : { ok: false, error: sent.error };
+        });
+      }
+      return ok({ data: { duplicate: queued.duplicate } });
+    } catch (error) {
+      return sendApiError(reply, 400, error instanceof Error ? error.message : "Express delivery failed");
+    }
+  });
+
+  app.get("/express/downloads/:token", async (request, reply) => {
+    const store = createConfiguredRecordingStore();
+    if (!store) return sendApiError(reply, 503, "Private recording storage is not configured");
+    const loaded = await loadExpressDownload({
+      repo: createPostgresExpressRepository(requireDatabase(app.db)),
+      store,
+      token: (request.params as { token: string }).token,
+    });
+    if (!loaded) return sendApiError(reply, 404, "This download link is invalid or expired");
+    reply.header("content-type", loaded.kind === "mp3" ? "audio/mpeg" : "text/plain; charset=utf-8");
+    reply.header("content-disposition", `attachment; filename="${loaded.kind === "mp3" ? "session.mp3" : "transcript.txt"}"`);
+    return reply.send(Buffer.from(loaded.bytes));
   });
 
   app.post("/internal/express/reminders", async (request, reply) => {

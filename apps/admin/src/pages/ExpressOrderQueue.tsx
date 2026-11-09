@@ -53,11 +53,23 @@ export default function ExpressOrderQueue() {
   const [selectedId, setSelectedId] = useState<string>(SAMPLE.id);
   const [notice, setNotice] = useState("Checking the Express order service…");
   const [sampleMode, setSampleMode] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [mp3, setMp3] = useState<File | null>(null);
+  const [transcript, setTranscript] = useState<File | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      cancelled = true;
+      setOrders([SAMPLE]);
+      setSampleMode(true);
+      setNotice("This preview is not connected to an isolated Express API. The row below is a labeled sample, not a customer order. Production was not changed.");
+    }, 4000);
     api.get("/admin/express/orders").then((response: { data?: ExpressOrderView[] }) => {
       if (cancelled) return;
+      cancelled = true;
+      window.clearTimeout(timer);
       const rows = response.data ?? [];
       setOrders(rows);
       setSampleMode(false);
@@ -65,12 +77,15 @@ export default function ExpressOrderQueue() {
       setNotice(rows.length === 0 ? "No Express orders yet." : "");
     }).catch(() => {
       if (cancelled) return;
+      cancelled = true;
+      window.clearTimeout(timer);
       setOrders([SAMPLE]);
       setSampleMode(true);
       setNotice("This preview is not connected to an isolated Express API. The row below is a labeled sample, not a customer order. Production was not changed.");
     });
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -123,13 +138,38 @@ export default function ExpressOrderQueue() {
           </dl>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm text-slate-300">Completed MP3
-              <input className="mt-1 block w-full text-sm" type="file" accept="audio/mpeg,.mp3" disabled={sampleMode} />
+              <input className="mt-1 block w-full text-sm" type="file" accept="audio/mpeg,.mp3" disabled={sampleMode || busy} onChange={(event) => setMp3(event.target.files?.[0] ?? null)} />
             </label>
             <label className="text-sm text-slate-300">Written transcript {selected.transcription ? "(required)" : "(not purchased)"}
-              <input className="mt-1 block w-full text-sm" type="file" accept=".txt,.pdf,.docx" disabled={sampleMode || !selected.transcription} />
+              <input className="mt-1 block w-full text-sm" type="file" accept=".txt,.pdf,.docx" disabled={sampleMode || busy || !selected.transcription} onChange={(event) => setTranscript(event.target.files?.[0] ?? null)} />
             </label>
           </div>
-          <button type="button" disabled={sampleMode} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50">
+          <button
+            type="button"
+            disabled={sampleMode || busy}
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50"
+            onClick={() => {
+              if (!selected || sampleMode) return;
+              setBusy(true);
+              const sendFile = async (file: File, kind: "mp3" | "transcript") => {
+                const body = new FormData();
+                body.set("file", file);
+                await api.postForm(`/admin/express/orders/${encodeURIComponent(selected.id)}/recording?kind=${kind}`, body);
+              };
+              void (async () => {
+                try {
+                  if (mp3) await sendFile(mp3, "mp3");
+                  if (transcript) await sendFile(transcript, "transcript");
+                  await api.post(`/admin/express/orders/${encodeURIComponent(selected.id)}/deliver`);
+                  setNotice("The delivery email was submitted. Resend acceptance is recorded on the order.");
+                } catch (error) {
+                  setNotice(error instanceof Error ? error.message : "Delivery did not send.");
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
             Deliver Session
           </button>
           {sampleMode ? <p className="text-xs text-white/45">Upload and delivery run on the isolated API. A missing MP3, or a missing transcript when one was purchased, blocks delivery.</p> : null}

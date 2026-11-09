@@ -8,7 +8,7 @@ export type ExpressEmailKind =
   | "admin_reminder_afternoon"
   | "admin_overdue";
 
-/** Fields the wording model is allowed to see. Birthdate and question text are not included. */
+/** Fields included in Express email. Birthdate and question text stay out of the message. */
 export interface ExpressEmailFields {
   customerName: string;
   serviceName: string;
