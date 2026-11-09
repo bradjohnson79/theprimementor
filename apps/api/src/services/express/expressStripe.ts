@@ -1,4 +1,4 @@
-import { EXPRESS_TRANSCRIPTION_CENTS, expressAmountCents, getExpressService, type ExpressCheckoutInput, type ExpressServiceId } from "@wisdom/utils";
+import { expressAmountCents, getExpressService, type ExpressCheckoutInput, type ExpressServiceId } from "@wisdom/utils";
 import type Stripe from "stripe";
 import { getFrontendUrl } from "../../config/membershipBilling.js";
 import { createHttpError } from "../booking/errors.js";
@@ -19,12 +19,19 @@ const LIVE_PRICE_FALLBACK: Record<ExpressServiceId, string> = {
   "past-life": "price_1UZvHNAd5V3LaCqj4yMnfbem",
 };
 
+const TRANSCRIPTION_PRICE_ENV = "STRIPE_LIVE_PRICE_EXPRESS_TRANSCRIPTION";
+const TRANSCRIPTION_PRICE_FALLBACK = "price_1UZvY4Ad5V3LaCqjmrqFwrnn";
+
 function clip(value: string, max = 450) {
   return value.trim().slice(0, max);
 }
 
 export function expressLivePriceId(serviceId: ExpressServiceId, env: Record<string, string | undefined> = process.env) {
   return env[LIVE_PRICE_ENV[serviceId]]?.trim() || LIVE_PRICE_FALLBACK[serviceId];
+}
+
+export function expressTranscriptionPriceId(env: Record<string, string | undefined> = process.env) {
+  return env[TRANSCRIPTION_PRICE_ENV]?.trim() || TRANSCRIPTION_PRICE_FALLBACK;
 }
 
 export async function createExpressCheckoutSession(input: ExpressCheckoutInput) {
@@ -53,14 +60,7 @@ export async function createExpressCheckoutSession(input: ExpressCheckoutInput) 
   };
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [{ price: priceId, quantity: 1 }];
   if (input.transcription) {
-    lineItems.push({
-      quantity: 1,
-      price_data: {
-        currency: "cad",
-        unit_amount: EXPRESS_TRANSCRIPTION_CENTS,
-        product_data: { name: `${service.name} written transcription` },
-      },
-    });
+    lineItems.push({ price: expressTranscriptionPriceId(), quantity: 1 });
   }
 
   return stripe.checkout.sessions.create({
