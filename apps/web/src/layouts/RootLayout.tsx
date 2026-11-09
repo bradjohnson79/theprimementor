@@ -12,6 +12,7 @@ import {
   PRIME_BODY_HEALING_LANDING_PATH,
   QA_LANDING_PATH,
   REGENERATION_LANDING_PATH,
+  STAR_INITIATION_LANDING_PATH,
 } from "../lib/sessionLandingPaths";
 import { isReportsMarketingPath } from "../lib/reportMarketingPaths";
 import { api } from "../lib/api";
@@ -50,6 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Manifestation Monthly Package", href: REGENERATION_LANDING_PATH },
       { label: "Q&A Session", href: QA_LANDING_PATH },
       { label: "Mentoring Session", href: MENTORING_LANDING_PATH },
+      { label: "Star Initiation Session", href: STAR_INITIATION_LANDING_PATH },
       { label: "Email Session", href: EMAIL_SESSION_LANDING_PATH },
       { label: "Past Life Akashic Reading", href: PAST_LIFE_AKASHIC_LANDING_PATH },
       { label: "Prime Body Healing", href: PRIME_BODY_HEALING_LANDING_PATH },
@@ -153,6 +155,7 @@ export default function RootLayout() {
     || location.pathname === "/regeneration-offer/success"
     || location.pathname === QA_LANDING_PATH
     || location.pathname === MENTORING_LANDING_PATH
+    || location.pathname === STAR_INITIATION_LANDING_PATH
     || location.pathname === PRIME_BODY_HEALING_LANDING_PATH
     || location.pathname === EMAIL_SESSION_LANDING_PATH
     || location.pathname === PAST_LIFE_AKASHIC_LANDING_PATH

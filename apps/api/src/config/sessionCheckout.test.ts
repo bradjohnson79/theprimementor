@@ -9,3 +9,8 @@ test("Q&A session checkout uses the qa public route", () => {
 test("Q&A session checkout exposes the Q&A product label", () => {
   assert.deepEqual(getSessionCheckoutProductNames("qa_session"), ["Q&A Session"]);
 });
+
+test("Star Initiation checkout uses its public landing route", () => {
+  assert.equal(getSessionCheckoutPath("star_initiation"), "/sessions/star-initiation");
+  assert.deepEqual(getSessionCheckoutProductNames("star_initiation"), ["Star Initiation Session"]);
+});

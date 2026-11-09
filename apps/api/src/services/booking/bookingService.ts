@@ -44,6 +44,7 @@ import {
   validatePastLifeAkashicIntake,
   isOfflineQuestionRecipient,
   isPrimeBodyHealingDeliveryFormat,
+  isStarInitiationMeetingMethod,
   type BookingClientGender,
   type BookingClientImage,
   type BookingIntakePayload,
@@ -550,6 +551,7 @@ export function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   const question2 = normalizeText(raw.question2);
   const question3 = normalizeText(raw.question3);
   const preparatoryNote = normalizeText(raw.preparatoryNote);
+  const meetingMethod = isStarInitiationMeetingMethod(raw.meetingMethod) ? raw.meetingMethod : undefined;
   const birthDate = normalizeBirthDate(raw.birthDate);
   const birthTime = normalizeText(raw.birthTime);
   const birthPlace = normalizeText(raw.birthPlace);
@@ -577,6 +579,7 @@ export function parseStoredIntake(value: unknown): BookingIntakePayload | null {
   if (question2) intake.question2 = question2;
   if (question3) intake.question3 = question3;
   if (preparatoryNote) intake.preparatoryNote = preparatoryNote;
+  if (meetingMethod) intake.meetingMethod = meetingMethod;
   if (birthDate) intake.birthDate = birthDate;
   if (birthTime) intake.birthTime = birthTime;
   if (birthPlace) intake.birthPlace = birthPlace;
@@ -811,6 +814,15 @@ export function buildNormalizedIntake(
 
   if (sessionType === "qa_session" && other) {
     normalized.other = other;
+  }
+
+  if (sessionType === "star_initiation") {
+    if (!allowAdminFallbacks && !isStarInitiationMeetingMethod(intake.meetingMethod)) {
+      throw createHttpError(400, "Choose Zoom or phone for this session");
+    }
+    if (isStarInitiationMeetingMethod(intake.meetingMethod)) {
+      normalized.meetingMethod = intake.meetingMethod;
+    }
   }
 
   if (sessionType === "qa_session") {
@@ -1414,6 +1426,14 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
   const timezone = assertValidTimeZone(input.timezone ?? "");
   const sharedFields = normalizeSharedFields(sessionType, input, targetUser.email, allowAdminFallbacks, bookingType.id);
   const { intake, notes } = buildNormalizedIntake(sessionType, input.intake, input.notes, allowAdminFallbacks, bookingType.id);
+  if (
+    sessionType === "star_initiation"
+    && intake.meetingMethod === "phone"
+    && !sharedFields.phone
+    && !allowAdminFallbacks
+  ) {
+    throw createHttpError(400, "phone is required for a phone session");
+  }
   if (sessionType === "prime_body_healing") {
     if (sharedFields.birthDate && !intake.birthDate) intake.birthDate = sharedFields.birthDate;
     if (sharedFields.birthTime && sharedFields.birthTime !== "00:00" && !intake.birthTime) {
@@ -1568,7 +1588,7 @@ export async function createBooking(db: Database, input: CreateBookingInput): Pr
     throw createHttpError(500, "Booking created but could not be loaded");
   }
 
-  if (summary.sessionType !== "qa_session" && summary.sessionType !== "mentoring") {
+  if (summary.sessionType !== "qa_session" && summary.sessionType !== "mentoring" && summary.sessionType !== "star_initiation") {
     void sendBookingCreatedNotification(db, {
       bookingId: summary.id,
       userId: summary.userId,
@@ -1876,6 +1896,7 @@ export const GUEST_INTAKE_SOURCE = "guest_checkout";
 export const GUEST_INTAKE_SESSION_TYPES: readonly BookingSessionType[] = [
   "qa_session",
   "mentoring",
+  "star_initiation",
   "prime_body_healing",
   "email_session",
   "past_life_akashic",

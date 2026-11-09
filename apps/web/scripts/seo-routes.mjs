@@ -23,6 +23,7 @@ export const PUBLIC_ROUTES = [
   { path: "/reports/compatibility", priority: "0.8", changefreq: "monthly" },
   { path: "/sessions/qa", priority: "0.9", changefreq: "monthly" },
   { path: "/sessions/mentoring", priority: "0.9", changefreq: "monthly" },
+  { path: "/sessions/star-initiation", priority: "0.9", changefreq: "monthly" },
   { path: "/sessions/manifestation", priority: "0.8", changefreq: "monthly" },
   { path: "/sessions/prime-body-healing", priority: "0.8", changefreq: "monthly" },
   { path: "/sessions/email-session", priority: "0.8", changefreq: "monthly" },

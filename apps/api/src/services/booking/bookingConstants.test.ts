@@ -23,6 +23,7 @@ test("sessionTypeRequiresSchedule only requires availability for live sessions",
   assert.equal(sessionTypeRequiresSchedule("focus"), true);
   assert.equal(sessionTypeRequiresSchedule("mentoring"), true);
   assert.equal(sessionTypeRequiresSchedule("regeneration"), true);
+  assert.equal(sessionTypeRequiresSchedule("star_initiation"), true);
   assert.equal(sessionTypeRequiresSchedule("mentoring_circle"), false);
   assert.equal(sessionTypeRequiresSchedule("prime_body_healing"), false);
 });

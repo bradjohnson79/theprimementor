@@ -1,4 +1,4 @@
-export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration" | "prime_body_healing" | "email_session" | "past_life_akashic";
+export type SessionOfferingSessionType = "qa_session" | "mentoring" | "regeneration" | "prime_body_healing" | "email_session" | "past_life_akashic" | "star_initiation";
 export type SessionOfferingBillingType = "one_time" | "subscription";
 export type SessionOfferingIntakeFlow = "guided_session" | "regeneration" | "prime_body_healing" | "offline_session";
 
@@ -135,6 +135,23 @@ export const CANONICAL_SESSION_OFFERINGS = [
     schedulingRequired: true,
     tooltip: "A full mentoring session for deeper blueprint insight, goal alignment, and practical direction.",
     description: MENTORING_SESSION_90_DESCRIPTION,
+  },
+  {
+    productKey: "star-initiation-session",
+    bookingTypeId: "star-initiation-session",
+    sessionType: "star_initiation",
+    displayName: "Star Initiation Session",
+    durationMinutes: 30,
+    billingType: "one_time",
+    currency: "CAD",
+    amountCents: 9900,
+    stripePriceEnvKey: "STRIPE_PRICE_STAR_INITIATION",
+    stripeLivePriceEnvKey: "STRIPE_LIVE_PRICE_STAR_INITIATION",
+    active: true,
+    intakeFlow: "guided_session",
+    schedulingRequired: true,
+    tooltip: "A private 20–30 minute Star Initiation with Adronis, held on Zoom or by phone.",
+    description: "A private one-to-one Star Initiation hosted by Adronis. The appointment reserves 30 minutes for a session of approximately 20–30 minutes on Zoom or by phone.",
   },
   {
     productKey: "regeneration-session",

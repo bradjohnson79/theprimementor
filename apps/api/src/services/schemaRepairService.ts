@@ -944,6 +944,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'prime_body_healing';`,
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'email_session';`,
   `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'past_life_akashic';`,
+  `ALTER TYPE "public"."booking_session_type" ADD VALUE IF NOT EXISTS 'star_initiation';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'regeneration_offer';`,
   `ALTER TYPE "public"."persisted_order_type" ADD VALUE IF NOT EXISTS 'on_demand_webinar';`,
   `INSERT INTO "booking_types" (
@@ -1194,6 +1195,38 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     'CAD',
     0,
     0,
+    true
+  )
+  ON CONFLICT ("id") DO UPDATE
+  SET
+    "name" = excluded."name",
+    "session_type" = excluded."session_type",
+    "duration_minutes" = excluded."duration_minutes",
+    "price_cents" = excluded."price_cents",
+    "currency" = excluded."currency",
+    "buffer_before_minutes" = excluded."buffer_before_minutes",
+    "buffer_after_minutes" = excluded."buffer_after_minutes",
+    "is_active" = true,
+    "updated_at" = now();`,
+  `INSERT INTO "booking_types" (
+    "id",
+    "name",
+    "session_type",
+    "duration_minutes",
+    "price_cents",
+    "currency",
+    "buffer_before_minutes",
+    "buffer_after_minutes",
+    "is_active"
+  ) VALUES (
+    'star-initiation-session',
+    'Star Initiation Session',
+    'star_initiation',
+    30,
+    9900,
+    'CAD',
+    10,
+    10,
     true
   )
   ON CONFLICT ("id") DO UPDATE

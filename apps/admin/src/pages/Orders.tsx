@@ -69,6 +69,7 @@ const ORDER_CATEGORY_FILTERS = {
     { id: "all", label: "All Sessions" },
     { id: "qa_session", label: "Q&A Sessions" },
     { id: "mentoring_session", label: "Mentoring Sessions" },
+    { id: "star_initiation", label: "Star Initiation Session" },
   ],
   report: [
     { id: "divin8_reports", label: "All Divin8 Reports" },

@@ -107,6 +107,7 @@ interface IntakeFormState {
   manifestationFeeling: string;
   manifestationAssumptions: string;
   consentGiven: boolean;
+  meetingMethod: "" | "zoom" | "phone";
 }
 
 function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormState {
@@ -128,6 +129,7 @@ function buildInitialFormState(prefill?: Partial<IntakeFormState>): IntakeFormSt
     manifestationFeeling: "",
     manifestationAssumptions: "",
     consentGiven: false,
+    meetingMethod: "",
   };
 }
 
@@ -151,6 +153,7 @@ function resolveSessionTypeFromPath(pathname: string, bookingTypeId?: string | n
       offeringSessionType === "mentoring"
       || offeringSessionType === "regeneration"
       || offeringSessionType === "qa_session"
+      || offeringSessionType === "star_initiation"
     ) {
       return offeringSessionType;
     }
@@ -161,6 +164,7 @@ function resolveSessionTypeFromPath(pathname: string, bookingTypeId?: string | n
   if (pathname.includes(QA_LANDING_PATH)) return "qa_session";
   if (pathname.includes(REGENERATION_BOOKING_PATH) || pathname.includes(REGENERATION_LANDING_PATH)) return "regeneration";
   if (pathname.includes(MENTORING_LANDING_PATH)) return "mentoring";
+  if (pathname.includes("/sessions/star-initiation")) return "star_initiation";
   return null;
 }
 
@@ -203,6 +207,9 @@ function formatSessionDuration(sessionType: SessionType, durationMinutes: number
   }
   if (sessionType === "regeneration") {
     return "Monthly 1-to-1";
+  }
+  if (sessionType === "star_initiation") {
+    return "20–30 minutes";
   }
   if (!durationMinutes) {
     return null;
@@ -387,6 +394,8 @@ export default function Bookings() {
   const isRegenerationOfferPackage = isRegenerationOfferBookingType(selectedBookingTypeId);
   const isRegenerationMonthly = isRegeneration && !isRegenerationOfferPackage;
   const isQA = selectedSessionType === "qa_session";
+  const isStarInitiation = selectedSessionType === "star_initiation";
+  const phoneOptional = isQA || (isStarInitiation && form.meetingMethod !== "phone");
   const { status: regenerationOfferStatus } = useRegenerationOfferStatus();
   const offerActive = regenerationOfferStatus?.active === true || isRegenerationOfferActive();
   const intakeBookingTypes = useMemo(() => {
@@ -598,6 +607,7 @@ export default function Bookings() {
       manifestationIntentions: "",
       manifestationFeeling: "",
       manifestationAssumptions: "",
+      meetingMethod: "",
     }));
     setBirthplace(null);
     setTimezone("");
@@ -691,7 +701,10 @@ export default function Bookings() {
     if (!normalizeText(form.fullName)) nextErrors.fullName = "Full name is required.";
     if (!normalizeText(form.email)) nextErrors.email = "Email is required.";
     if (!form.gender) nextErrors.gender = "Gender is required.";
-    if (!isQA && !normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
+    if (isStarInitiation && form.meetingMethod !== "zoom" && form.meetingMethod !== "phone") {
+      nextErrors.meetingMethod = "Choose Zoom or phone.";
+    }
+    if (!phoneOptional && !normalizeText(form.phone)) nextErrors.phone = "Phone number is required.";
     if (!normalizeText(form.birthDate)) nextErrors.birthDate = "Birthdate is required.";
     if (!isPlaceSelected) nextErrors.birthPlace = "Please select a valid birthplace from the dropdown.";
     if (!form.consentGiven) nextErrors.consentGiven = "Consent is required.";
@@ -753,6 +766,10 @@ export default function Bookings() {
         priceCents: 2900,
         currency: "CAD",
       };
+    }
+
+    if (selectedSessionType === "star_initiation") {
+      intake.meetingMethod = form.meetingMethod;
     }
 
     if (selectedSessionType === "qa_session" && normalizeText(form.qaTopics)) {
@@ -899,7 +916,10 @@ export default function Bookings() {
     if (!normalizeText(form.fullName)) nextErrors.fullName = requiredStepMessage("Your full name");
     if (!normalizeText(form.email)) nextErrors.email = requiredStepMessage("Your email");
     if (!form.gender) nextErrors.gender = requiredStepMessage("Gender");
-    if (!isQA && !normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
+    if (isStarInitiation && form.meetingMethod !== "zoom" && form.meetingMethod !== "phone") {
+      nextErrors.meetingMethod = requiredStepMessage("Zoom or phone");
+    }
+    if (!phoneOptional && !normalizeText(form.phone)) nextErrors.phone = requiredStepMessage("Your phone number");
     return createValidationResult(nextErrors);
   }
 
@@ -1049,6 +1069,19 @@ export default function Bookings() {
       ],
     });
 
+    if (isStarInitiation) {
+      sections.push({
+        id: "meeting-method",
+        title: "Session Method",
+        items: [
+          {
+            label: "Zoom or phone",
+            value: form.meetingMethod === "zoom" ? "Zoom" : form.meetingMethod === "phone" ? "Phone" : "Not chosen yet",
+          },
+        ],
+      });
+    }
+
     if (requiresAvailabilitySelection) {
       sections.push({
         id: "availability",
@@ -1149,8 +1182,10 @@ export default function Bookings() {
     form.primaryManifestationIntention,
     form.qaTopics,
     form.phone,
+    form.meetingMethod,
     isRegeneration,
     isQA,
+    isStarInitiation,
     requiresAvailabilitySelection,
     selectedBookingType,
     selectedSessionType,
@@ -1313,15 +1348,36 @@ export default function Bookings() {
                 </select>
               </FormField>
 
+              {isStarInitiation ? (
+                <FormField
+                  label="Preferred session method"
+                  htmlFor="session-meeting-method"
+                  helperText="Adronis can meet you on Zoom or by phone."
+                  errorText={fieldErrors.meetingMethod}
+                  isComplete={form.meetingMethod === "zoom" || form.meetingMethod === "phone"}
+                >
+                  <select
+                    id="session-meeting-method"
+                    className={`${fieldClassName} bg-white text-black`}
+                    value={form.meetingMethod}
+                    onChange={(event) => setFormField("meetingMethod", event.target.value as "" | "zoom" | "phone")}
+                  >
+                    <option value="">Choose Zoom or phone</option>
+                    <option value="zoom">Zoom</option>
+                    <option value="phone">Phone</option>
+                  </select>
+                </FormField>
+              ) : null}
+
               <FormField
                 label="Phone Number"
                 htmlFor="session-phone"
-                helperText={isQA
-                  ? "Optional - include the best number if you'd like us to have it for scheduling follow-up."
+                helperText={phoneOptional
+                  ? "Optional unless you are meeting by phone."
                   : "This helps us reach you if we need to confirm scheduling details."}
-                errorText={isQA ? undefined : fieldErrors.phone}
+                errorText={phoneOptional ? undefined : fieldErrors.phone}
                 isComplete={Boolean(normalizeText(form.phone))}
-                optional={isQA}
+                optional={phoneOptional}
               >
                 <input
                   id="session-phone"

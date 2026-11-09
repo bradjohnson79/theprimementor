@@ -18,6 +18,7 @@ const expected = [
   ["qa-session-60", "qa_session", 60, 23900, "price_1Te0ukAd5V3LaCqjDpn9oY0w"],
   ["mentoring-session-45", "mentoring", 45, 19900, "price_1TILliAd5V3LaCqjidvbVLrl"],
   ["wisdom-mentoring-90", "mentoring", 90, 29900, "price_1TILnFAd5V3LaCqjkR9tAMuC"],
+  ["star-initiation-session", "star_initiation", 30, 9900, null],
   ["regeneration-session", "regeneration", null, 9900, "price_1TSOy3Ad5V3LaCqjBkFRd1IL"],
   ["regeneration-qa-package", "regeneration", null, 14900, "price_1Twl2LAd5V3LaCqjCuljQ7Xk"],
   ["prime-body-healing-level-1-live", "prime_body_healing", 15, 7900, null],
@@ -45,7 +46,7 @@ function rowForOffering(offering: typeof CANONICAL_SESSION_OFFERINGS[number]): B
 
 test("canonical session catalog contains the required offerings", () => {
   assert.deepEqual(CANONICAL_SESSION_BOOKING_TYPE_IDS, expected.map(([id]) => id));
-  assert.equal(GUIDED_SESSION_OFFERINGS.length, 5);
+  assert.equal(GUIDED_SESSION_OFFERINGS.length, 6);
 
   for (const [id, sessionType, durationMinutes, amountCents, stripePriceId] of expected) {
     const offering = getActiveSessionOfferingByBookingTypeId(id);
@@ -62,6 +63,10 @@ test("canonical session catalog contains the required offerings", () => {
       assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, undefined);
       assert.ok(offering.stripePriceEnvKey?.startsWith("STRIPE_PRICE_PRIME_BODY_HEALING_"));
       assert.ok(offering.stripeLivePriceEnvKey?.startsWith("STRIPE_LIVE_PRICE_PRIME_BODY_HEALING_"));
+    } else if (sessionType === "star_initiation") {
+      assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, undefined);
+      assert.equal(offering.stripePriceEnvKey, "STRIPE_PRICE_STAR_INITIATION");
+      assert.equal(offering.stripeLivePriceEnvKey, "STRIPE_LIVE_PRICE_STAR_INITIATION");
     } else {
       assert.equal("stripeLivePriceFallback" in offering ? offering.stripeLivePriceFallback : undefined, stripePriceId);
     }

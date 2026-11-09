@@ -38,6 +38,10 @@ const SESSION_PRICE_ENV_KEYS: Record<SessionCheckoutType, { standard: string; li
     standard: "STRIPE_PRICE_PAST_LIFE_AKASHIC",
     live: "STRIPE_LIVE_PRICE_PAST_LIFE_AKASHIC",
   },
+  star_initiation: {
+    standard: "STRIPE_PRICE_STAR_INITIATION",
+    live: "STRIPE_LIVE_PRICE_STAR_INITIATION",
+  },
 };
 
 const LIVE_SESSION_PRICE_FALLBACKS: Partial<Record<SessionCheckoutType, string>> = {
@@ -124,4 +128,32 @@ export function getBookingTypeStripePriceId(bookingTypeId: string) {
   }
 
   return priceId;
+}
+
+const STAR_INITIATION_BOOKING_TYPE_ID = "star-initiation-session";
+
+/**
+ * Test-mode checkout can price Star Initiation inline when no test Price ID is configured.
+ * Live mode never creates a product this way and requires STRIPE_LIVE_PRICE_STAR_INITIATION.
+ */
+export function getBookingTypeCheckoutLineItem(bookingTypeId: string):
+  | { price: string }
+  | { price_data: { currency: "cad"; unit_amount: number; product_data: { name: string; metadata: { bookingTypeId: string } } } } {
+  try {
+    return { price: getBookingTypeStripePriceId(bookingTypeId) };
+  } catch (error) {
+    if (bookingTypeId.trim() === STAR_INITIATION_BOOKING_TYPE_ID && !isLiveStripeMode()) {
+      return {
+        price_data: {
+          currency: "cad",
+          unit_amount: 9900,
+          product_data: {
+            name: "Star Initiation Session",
+            metadata: { bookingTypeId: STAR_INITIATION_BOOKING_TYPE_ID },
+          },
+        },
+      };
+    }
+    throw error;
+  }
 }

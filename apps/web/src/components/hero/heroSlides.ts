@@ -7,6 +7,7 @@ import mobileHeroHeader from "../../assets/mobile-hero-header.webp";
 import mentoringSession from "../../assets/mentoring-session.webp";
 import initiateReport from "../../assets/reports/divin8-initiate-report.webp";
 import sparkleStarMandala from "../../assets/heroes/sparkle-star-mandala-hero.webp";
+import starInitiationField from "../../assets/heroes/star-initiation-field.svg";
 
 /** Time each slide stays up before advancing. Pauses while hovered, focused, or explicitly paused. */
 export const HERO_ROTATION_MS = 12_000;
@@ -21,10 +22,11 @@ export type HeroSlideVisual =
   | { kind: "brad"; desktopSrc: string; mobileSrc: string }
   | { kind: "model"; src: string }
   | { kind: "scene"; src: string }
-  | { kind: "mandala"; src: string };
+  | { kind: "mandala"; src: string }
+  | { kind: "cosmic"; src: string };
 
 export type HeroSlide = {
-  id: "brad" | "shop" | "services" | "reports";
+  id: "star-initiation" | "brad" | "shop" | "services" | "reports";
   /** Short name for the dot control and screenshots. */
   label: string;
   eyebrow: string;
@@ -36,14 +38,25 @@ export type HeroSlide = {
 };
 
 /**
- * Four homepage heroes.
- *
- * Brad keeps the existing cosmic photograph and the current primary copy.
- * Shop displays the sparkle star sacred geometry mandala design on a transparent
- * background. Services and Reports use the mentoring session piece and the
- * Divin8 Initiate report. They are not new photographs of Brad.
+ * Homepage heroes. Star Initiation is first. The remaining slides keep their
+ * existing copy, imagery, and order.
  */
 export const HERO_SLIDES: HeroSlide[] = [
+  {
+    id: "star-initiation",
+    label: "Star Initiation",
+    eyebrow: "STAR INITIATION SESSION",
+    headline: ["Reconnect with Your", "Soul Lineage &", "Star Ancestry"],
+    body: "Experience a private Cosmic Soul Retrieval and personalized Star Initiation hosted by Adronis.",
+    benefits: ["20–30 Minutes | Zoom or Phone | $99 CAD"],
+    ctas: [
+      { label: "Explore Star Initiation", href: "/sessions/star-initiation", variant: "primary" },
+    ],
+    visual: {
+      kind: "cosmic",
+      src: starInitiationField,
+    },
+  },
   {
     id: "brad",
     label: "Brad",

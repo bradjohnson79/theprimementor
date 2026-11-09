@@ -15,6 +15,8 @@ import {
   FOCUS_LANDING_PATH,
   MENTORING_BOOKING_PATH,
   MENTORING_LANDING_PATH,
+  STAR_INITIATION_BOOKING_PATH,
+  STAR_INITIATION_LANDING_PATH,
   PAST_LIFE_AKASHIC_BOOKING_PATH,
   PAST_LIFE_AKASHIC_LANDING_PATH,
   PRIME_BODY_HEALING_BOOKING_PATH,
@@ -78,6 +80,7 @@ const RegenerationOfferPage = lazy(() => import("./routes/RegenerationOfferPage"
 const RegenerationOfferSuccess = lazy(() => import("./routes/RegenerationOfferSuccess"));
 const QASessionPage = lazy(() => import("./routes/QASessionPage"));
 const MentoringSessionPage = lazy(() => import("./routes/MentoringSessionPage"));
+const StarInitiationSessionPage = lazy(() => import("./routes/StarInitiationSessionPage"));
 const PrimeBodyHealingPage = lazy(() => import("./routes/PrimeBodyHealingPage"));
 const PrimeBodyHealingBook = lazy(() => import("./routes/PrimeBodyHealingBook"));
 const OfflineSessionPage = lazy(() => import("./routes/OfflineSessionPage"));
@@ -162,6 +165,7 @@ export default function App() {
             <Route path={FOCUS_LANDING_PATH} element={<Navigate to="/#sessions" replace />} />
             <Route path={FOCUS_BOOKING_PATH} element={<Navigate to="/#sessions" replace />} />
             <Route path={MENTORING_LANDING_PATH} element={<MentoringSessionPage />} />
+            <Route path={STAR_INITIATION_LANDING_PATH} element={<StarInitiationSessionPage />} />
             <Route path={PRIME_BODY_HEALING_LANDING_PATH} element={<PrimeBodyHealingPage />} />
             <Route path={EMAIL_SESSION_LANDING_PATH} element={<OfflineSessionPage product="email" />} />
             <Route path={PAST_LIFE_AKASHIC_LANDING_PATH} element={<OfflineSessionPage product="pastLife" />} />
@@ -195,6 +199,7 @@ export default function App() {
               <Route path="/sessions/regeneration/success" element={<RegenerationSuccess />} />
               <Route path={QA_BOOKING_PATH} element={<Bookings />} />
               <Route path={MENTORING_BOOKING_PATH} element={<Bookings />} />
+              <Route path={STAR_INITIATION_BOOKING_PATH} element={<Bookings />} />
               <Route path={PRIME_BODY_HEALING_BOOKING_PATH} element={<PrimeBodyHealingBook />} />
               <Route path={EMAIL_SESSION_BOOKING_PATH} element={<OfflineSessionBook product="email" />} />
               <Route path={PAST_LIFE_AKASHIC_BOOKING_PATH} element={<OfflineSessionBook product="pastLife" />} />

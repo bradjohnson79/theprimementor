@@ -1,4 +1,4 @@
-export type SessionLandingType = "regeneration" | "qa" | "focus" | "mentoring" | "prime_body_healing";
+export type SessionLandingType = "regeneration" | "qa" | "focus" | "mentoring" | "prime_body_healing" | "star_initiation";
 
 export const SESSION_LANDING_PATHS: Record<SessionLandingType, string> = {
   regeneration: "/sessions/manifestation",
@@ -6,6 +6,7 @@ export const SESSION_LANDING_PATHS: Record<SessionLandingType, string> = {
   focus: "/sessions/focus",
   mentoring: "/sessions/mentoring",
   prime_body_healing: "/sessions/prime-body-healing",
+  star_initiation: "/sessions/star-initiation",
 };
 
 export const SESSION_BOOKING_PATHS: Record<SessionLandingType, string> = {
@@ -14,6 +15,7 @@ export const SESSION_BOOKING_PATHS: Record<SessionLandingType, string> = {
   focus: "/sessions/focus/book",
   mentoring: "/sessions/mentoring/book",
   prime_body_healing: "/sessions/prime-body-healing/book",
+  star_initiation: "/sessions/star-initiation/book",
 };
 
 export const REGENERATION_LANDING_PATH = SESSION_LANDING_PATHS.regeneration;
@@ -31,6 +33,8 @@ export const EMAIL_SESSION_LANDING_PATH = "/sessions/email-session";
 export const EMAIL_SESSION_BOOKING_PATH = "/sessions/email-session/book";
 export const PAST_LIFE_AKASHIC_LANDING_PATH = "/sessions/past-life-akashic-reading";
 export const PAST_LIFE_AKASHIC_BOOKING_PATH = "/sessions/past-life-akashic-reading/book";
+export const STAR_INITIATION_LANDING_PATH = SESSION_LANDING_PATHS.star_initiation;
+export const STAR_INITIATION_BOOKING_PATH = SESSION_BOOKING_PATHS.star_initiation;
 
 export function sessionBookingPath(type: SessionLandingType) {
   return SESSION_BOOKING_PATHS[type];

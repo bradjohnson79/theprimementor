@@ -1,4 +1,4 @@
-export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "qa_session", "mentoring_circle", "prime_body_healing", "email_session", "past_life_akashic"] as const;
+export const BOOKING_SESSION_TYPES = ["focus", "mentoring", "regeneration", "qa_session", "mentoring_circle", "prime_body_healing", "email_session", "past_life_akashic", "star_initiation"] as const;
 export type BookingSessionType = typeof BOOKING_SESSION_TYPES[number];
 
 export const BOOKING_STATUSES = ["pending_payment", "paid", "scheduled", "completed", "cancelled"] as const;
@@ -76,6 +76,10 @@ export const OFFLINE_QUESTION_RECIPIENT_LABELS: Record<OfflineQuestionRecipient,
   brad_and_adronis: "Brad & Adronis",
 };
 
+export const STAR_INITIATION_BOOKING_TYPE_ID = "star-initiation-session";
+export const STAR_INITIATION_MEETING_METHODS = ["zoom", "phone"] as const;
+export type StarInitiationMeetingMethod = typeof STAR_INITIATION_MEETING_METHODS[number];
+
 export const EMAIL_SESSION_BOOKING_TYPE_ID = "email-session";
 export const PAST_LIFE_AKASHIC_BOOKING_TYPE_ID = "past-life-akashic-reading";
 export const OFFLINE_QUESTION_MAX_LENGTH = 1000;
@@ -109,6 +113,7 @@ export interface BookingIntakePayload {
   question2?: string;
   question3?: string;
   preparatoryNote?: string;
+  meetingMethod?: StarInitiationMeetingMethod;
   other?: string;
   notes?: string;
 }
@@ -139,12 +144,16 @@ export function isOfflineRecordedSessionType(sessionType: BookingSessionType) {
   return sessionType === "email_session" || sessionType === "past_life_akashic";
 }
 
+export function isStarInitiationMeetingMethod(value: unknown): value is StarInitiationMeetingMethod {
+  return typeof value === "string" && STAR_INITIATION_MEETING_METHODS.includes(value as StarInitiationMeetingMethod);
+}
+
 export function sessionTypeRequiresSchedule(sessionType: BookingSessionType) {
-  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration" || sessionType === "star_initiation";
 }
 
 export function sessionTypeRequiresAvailabilitySelection(sessionType: BookingSessionType) {
-  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "regeneration" || sessionType === "star_initiation";
 }
 
 export function isOfflineQuestionRecipient(value: unknown): value is OfflineQuestionRecipient {

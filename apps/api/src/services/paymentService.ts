@@ -31,7 +31,7 @@ import { getMentorTrainingStripePriceId } from "../config/mentorTrainingPackages
 import { getReportCheckoutPath } from "../config/reportCheckout.js";
 import { getReportStripePriceId } from "../config/stripeReportPrices.js";
 import { getSessionCheckoutPath, type SessionCheckoutType } from "../config/sessionCheckout.js";
-import { getBookingTypeStripePriceId } from "../config/stripePrices.js";
+import { getBookingTypeCheckoutLineItem } from "../config/stripePrices.js";
 import { resolveRegenerationOfferStripePriceId } from "../config/regenerationOfferBilling.js";
 import { resolveMentoringCircleStripePriceId } from "../config/mentoringCircleBilling.js";
 import { assertWebinarRegistrationOpen, resolveWebinarStripePriceId } from "../config/webinarBilling.js";
@@ -423,6 +423,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     && booking.sessionType !== "prime_body_healing"
     && booking.sessionType !== "email_session"
     && booking.sessionType !== "past_life_akashic"
+    && booking.sessionType !== "star_initiation"
   ) {
     throw createHttpError(400, `Session checkout is not supported for ${booking.sessionType}`);
   }
@@ -497,9 +498,16 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
   } else if (booking.sessionType === "qa_session" || booking.sessionType === "mentoring") {
     throw createHttpError(400, "Invalid session duration selected");
   }
-  let priceId: string;
+  let priceId: string | null = null;
+  let lineItem: { price: string; quantity: number } | { price_data: { currency: "cad"; unit_amount: number; product_data: { name: string; metadata: { bookingTypeId: string } } }; quantity: number };
   try {
-    priceId = getBookingTypeStripePriceId(booking.bookingTypeId);
+    const checkoutItem = getBookingTypeCheckoutLineItem(booking.bookingTypeId);
+    if ("price" in checkoutItem) {
+      priceId = checkoutItem.price;
+      lineItem = { price: checkoutItem.price, quantity: 1 };
+    } else {
+      lineItem = { ...checkoutItem, quantity: 1 };
+    }
   } catch {
     throw createHttpError(400, `Stripe price is not configured for booking type ${booking.bookingTypeId}`);
   }
@@ -553,7 +561,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     client_reference_id: bookingId,
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: [lineItem],
     ...buildCheckoutDiscountConfig(promo),
     metadata,
     payment_intent_data: {
@@ -570,7 +578,7 @@ async function createSessionCheckoutSession(db: Database, input: CreateCheckoutS
     stripeCheckoutSessionId: session.id,
     stripeCheckoutMode: session.mode,
     stripeCheckoutUrl: session.url,
-    stripePriceId: priceId,
+    stripePriceId: priceId ?? "inline_test_price",
     stripeProductId: null,
     stripeProductName: naming.productName,
     sessionType: booking.sessionType,

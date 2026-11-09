@@ -1,4 +1,4 @@
-export type SessionType = "focus" | "mentoring" | "regeneration" | "qa_session";
+export type SessionType = "focus" | "mentoring" | "regeneration" | "qa_session" | "star_initiation";
 export type AvailabilityDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 export type AvailabilitySelection = Record<AvailabilityDay, string[]>;
 export type HealthCondition = {
@@ -11,6 +11,7 @@ export const SESSION_TYPE_ORDER: SessionType[] = [
   "regeneration",
   "qa_session",
   "mentoring",
+  "star_initiation",
 ];
 
 export const AVAILABILITY_DAYS: AvailabilityDay[] = [
@@ -62,6 +63,12 @@ export const SESSION_TYPE_OPTIONS: Array<{
     description:
       "A comprehensive session that works across multiple layers of your blueprint to support deeper transformation and long-term growth. This is the most complete session of the 3 as Brad works with you 1 to 1 exploring your natal charts and metaphysical information overview through the Divin8 system. This is where patterns are not just identified—but understood, integrated, and evolved. This session focuses on setting a goal, neutralizing all setbacks towards that goal, and teaching you how to enter Prime Mind: Harmony with your preferred state of being. The Mentoring session is an interaction designed for those ready to go further; this session provides structured guidance, expanded awareness, and aligned direction—supporting real, sustained movement forward on your path.",
   },
+  {
+    type: "star_initiation",
+    label: "Star Initiation Session",
+    description:
+      "A private 20–30 minute Star Initiation with Adronis on Zoom or by phone. The appointment reserves 30 minutes.",
+  },
 ];
 
 export const MENTORING_GOALS = [
@@ -85,9 +92,9 @@ export function createEmptyAvailabilitySelection(): AvailabilitySelection {
 }
 
 export function sessionTypeRequiresSchedule(sessionType: SessionType) {
-  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session";
+  return sessionType === "focus" || sessionType === "mentoring" || sessionType === "qa_session" || sessionType === "star_initiation";
 }
 
 export function sessionTypeRequiresAvailabilitySelection(sessionType: SessionType) {
-  return sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration";
+  return sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration" || sessionType === "star_initiation";
 }

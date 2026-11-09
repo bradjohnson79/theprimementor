@@ -1,4 +1,4 @@
-export type SessionCheckoutType = "focus" | "mentoring" | "regeneration" | "qa_session" | "prime_body_healing" | "email_session" | "past_life_akashic";
+export type SessionCheckoutType = "focus" | "mentoring" | "regeneration" | "qa_session" | "prime_body_healing" | "email_session" | "past_life_akashic" | "star_initiation";
 
 const SESSION_PRODUCT_NAMES: Record<SessionCheckoutType, string[]> = {
   focus: ["Focus Session (Legacy)"],
@@ -12,6 +12,7 @@ const SESSION_PRODUCT_NAMES: Record<SessionCheckoutType, string[]> = {
   ],
   email_session: ["Email Session"],
   past_life_akashic: ["Past Life Akashic Reading"],
+  star_initiation: ["Star Initiation Session"],
 };
 
 export function getSessionCheckoutProductNames(sessionType: SessionCheckoutType) {
@@ -30,6 +31,9 @@ export function getSessionCheckoutPath(sessionType: SessionCheckoutType) {
   }
   if (sessionType === "past_life_akashic") {
     return "/sessions/past-life-akashic-reading";
+  }
+  if (sessionType === "star_initiation") {
+    return "/sessions/star-initiation";
   }
   return `/sessions/${sessionType}`;
 }

@@ -143,6 +143,9 @@ function summarizeIntake(intake: unknown) {
   if (typeof intake.notes === "string" && intake.notes.trim()) {
     lines.push(`Notes: ${intake.notes.trim()}`);
   }
+  if (intake.meetingMethod === "zoom" || intake.meetingMethod === "phone") {
+    lines.push(`Session method: ${intake.meetingMethod === "zoom" ? "Zoom" : "Phone"}`);
+  }
   if (typeof intake.deliveryFormat === "string" && intake.deliveryFormat.trim()) {
     lines.push(`Delivery format: ${intake.deliveryFormat.trim()}`);
   }
@@ -217,6 +220,7 @@ export async function sendSessionPurchaseConfirmedNotification(
     && booking.sessionType !== "prime_body_healing"
     && booking.sessionType !== "email_session"
     && booking.sessionType !== "past_life_akashic"
+    && booking.sessionType !== "star_initiation"
   ) {
     return;
   }

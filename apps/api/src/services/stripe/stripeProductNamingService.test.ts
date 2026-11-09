@@ -26,6 +26,7 @@ test("resolveStripeProductNaming names events, subscriptions, and add-ons", () =
   assert.equal(resolveStripeProductNaming({ type: "subscription", subscriptionType: "regeneration" }).productName, "Manifestation Monthly Package");
   assert.equal(resolveStripeProductNaming({ type: "session", sessionType: "email_session", durationMinutes: null }).productName, "Email Session");
   assert.equal(resolveStripeProductNaming({ type: "session", sessionType: "past_life_akashic", durationMinutes: null }).productName, "Past Life Akashic Reading");
+  assert.equal(resolveStripeProductNaming({ type: "session", sessionType: "star_initiation", durationMinutes: 30 }).productName, "Star Initiation Session");
   assert.equal(resolveStripeProductNaming({ type: "addon", addonType: "regeneration_manifestation_enhancement" }).productName, "Optional Additional Manifestation Request for First Month");
 });
 

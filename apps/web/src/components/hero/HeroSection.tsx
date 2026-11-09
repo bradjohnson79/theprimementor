@@ -143,6 +143,7 @@ function HeroSlideBackdrop({
       {slide.visual.kind === "model" ? <ModelBackdrop src={slide.visual.src} /> : null}
       {slide.visual.kind === "scene" ? <SceneBackdrop src={slide.visual.src} /> : null}
       {slide.visual.kind === "mandala" ? <MandalaBackdrop src={slide.visual.src} /> : null}
+      {slide.visual.kind === "cosmic" ? <CosmicBackdrop src={slide.visual.src} /> : null}
     </div>
   );
 }
@@ -224,6 +225,22 @@ function SceneBackdrop({ src }: { src: string }) {
       </div>
       <div className="absolute inset-0 bg-gradient-to-r from-[#04050f]/94 via-[#04050f]/72 to-transparent sm:via-[#04050f]/25" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#04050f]/75 via-transparent to-[#04050f]/30 sm:hidden" />
+    </>
+  );
+}
+
+function CosmicBackdrop({ src }: { src: string }) {
+  return (
+    <>
+      <div className="absolute inset-0 bg-[#04050f]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_42%,rgba(99,102,241,0.32),transparent_36%),radial-gradient(circle_at_18%_22%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_80%_78%,rgba(167,139,250,0.18),transparent_34%)]" />
+      <img
+        src={src}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-[70%_center] opacity-80"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#04050f] via-[#04050f]/78 to-transparent sm:via-[#04050f]/42" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#04050f]/80 via-transparent to-[#04050f]/28" />
     </>
   );
 }

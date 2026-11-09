@@ -18,13 +18,12 @@ async function openHomepage(page: Page) {
 }
 
 test.describe("Star Family public pages are retired", () => {
-  test("homepage promotes Star Initiation live and Prime Alchemy on-demand", async ({ page }) => {
+  test("homepage leads with the Star Initiation Session and hides the sold-out webinar", async ({ page }) => {
     await openHomepage(page);
     await expect(page.locator("#star-family-communion")).toHaveCount(0);
-    await expect(page.locator("#star-initiation")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Adronis: Star Initiation" })).toBeVisible();
-    await expect(page.locator("#star-initiation").getByText("Sold out")).toBeVisible();
-    await expect(page.locator("#star-initiation").getByRole("button", { name: /Register/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Explore Star Initiation" })).toBeVisible();
+    await expect(page.locator("#star-initiation")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Adronis: Star Initiation" })).toHaveCount(0);
     await expect(page.locator("#on-demand-webinars")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Mentoring Circle: Prime Alchemy Teachings" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Adronis: Star Family Communion" })).toBeVisible();

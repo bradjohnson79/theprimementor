@@ -78,7 +78,7 @@ export interface GuestOrderSummary {
   items: GuestOrderItem[];
 }
 
-const SESSION_TYPES = ["focus", "mentoring", "qa_session", "prime_body_healing", "email_session", "past_life_akashic"] as const;
+const SESSION_TYPES = ["focus", "mentoring", "qa_session", "star_initiation", "prime_body_healing", "email_session", "past_life_akashic"] as const;
 
 export async function getGuestOrderSummary(db: Database, userId: string): Promise<GuestOrderSummary> {
   const [user] = await db

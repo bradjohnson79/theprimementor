@@ -143,6 +143,9 @@ function guestDetailNote(sessionType: string | null | undefined) {
   if (sessionType === "prime_body_healing") {
     return "Brad will review your details and email a booking window for Level 1 Live, or a delivery turnaround for Level 1 Pre-Recorded and Level 2.";
   }
+  if (sessionType === "star_initiation") {
+    return "Once your intake is in, Adronis will meet you for a private Star Initiation of about 20–30 minutes on Zoom or by phone, using the availability you selected.";
+  }
   if (sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration") {
     return "Once your intake is in, Brad will review it and follow up with the scheduling details based on your availability.";
   }
@@ -325,6 +328,45 @@ function renderMentoringSessionBookingCreatedTemplate(
   };
 }
 
+function renderStarInitiationBookingCreatedTemplate(
+  payload: NotificationPayloadMap["booking.created"],
+): RenderedTemplate {
+  return {
+    subject: "Star Initiation Session confirmed — $99 CAD",
+    templateVersion: "star-initiation-confirmed-v1",
+    html: renderPrimeMentorEmail({
+      eyebrow: "Purchase Confirmed",
+      title: "Your Star Initiation Session is confirmed",
+      intro: "Your Star Initiation Session with Adronis is confirmed. This private appointment is approximately 20–30 minutes and is held on Zoom or by phone.",
+      sections: [
+        renderInfoCard(
+          "Session details",
+          renderKeyValueTable([
+            { label: "Client", value: payload.fullName ?? undefined },
+            { label: "Email", value: payload.email ?? undefined },
+            { label: "Service", value: payload.bookingType ?? "Star Initiation Session" },
+            { label: "Duration", value: "20–30 minutes" },
+            { label: "Price", value: "$99.00 CAD" },
+            { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
+            { label: "Purchase", value: "Confirmed" },
+          ]),
+        ),
+        renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
+        renderParagraph("Adronis will use the availability and session method you selected. This is a spiritual service. Experiences are personal, and individual outcomes are not guaranteed."),
+      ],
+      callToAction: {
+        label: "Contact Support",
+        url: buildFrontendUrl("/contact"),
+      },
+      secondaryCallToAction: {
+        label: "Return to Dashboard",
+        url: buildFrontendUrl("/dashboard"),
+      },
+      footerNote: SESSION_24H_FOOTER,
+    }),
+  };
+}
+
 export function renderBookingCreatedTemplate(
   payload: NotificationPayloadMap["booking.created"],
 ): RenderedTemplate {
@@ -337,7 +379,7 @@ export function renderBookingCreatedTemplate(
         { label: "Client", value: payload.fullName ?? undefined },
         { label: "Email", value: payload.email ?? undefined },
         { label: "Service", value: payload.bookingType ?? payload.guestLinks.productLabel },
-        { label: "Duration", value: payload.durationMinutes ? formatDurationLabel(payload.durationMinutes) : undefined },
+        { label: "Duration", value: payload.sessionType === "star_initiation" ? "20–30 minutes" : (payload.durationMinutes ? formatDurationLabel(payload.durationMinutes) : undefined) },
         { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
       ],
       detailNote: guestDetailNote(payload.sessionType),
@@ -348,6 +390,9 @@ export function renderBookingCreatedTemplate(
   }
   if (payload.purchaseConfirmed && payload.sessionType === "mentoring") {
     return renderMentoringSessionBookingCreatedTemplate(payload);
+  }
+  if (payload.purchaseConfirmed && payload.sessionType === "star_initiation") {
+    return renderStarInitiationBookingCreatedTemplate(payload);
   }
   if (payload.purchaseConfirmed && (payload.sessionType === "email_session" || payload.sessionType === "past_life_akashic")) {
     const serviceName = payload.sessionType === "email_session" ? "Email Session" : "Past Life Akashic Reading";

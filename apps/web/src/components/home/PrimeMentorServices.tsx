@@ -191,7 +191,7 @@ function LiveSessionsPanel() {
     <div>
       <PanelIntro
         title="Live Sessions"
-        body="Connect privately with Brad through a live Q&A or a deeper mentoring session."
+        body="Connect privately through a live Q&A, a mentoring session, or a Star Initiation with Adronis."
       />
       <div className="grid gap-4 lg:grid-cols-2">
         {GUIDED_SESSION_OPTIONS.map((option) => (
@@ -213,7 +213,16 @@ function LiveSessionCard({ option }: { option: GuidedSessionOption }) {
       productKey: selected.productKey,
     })
     : "/sessions";
-  const cta = option.sessionType === "qa_session" ? "Book Q&A Session" : "Book Mentoring Session";
+  const cta = option.sessionType === "qa_session"
+    ? "Book Q&A Session"
+    : option.sessionType === "star_initiation"
+      ? "Book Star Initiation"
+      : "Book Mentoring Session";
+  const learnMore = option.sessionType === "qa_session"
+    ? "/sessions/qa"
+    : option.sessionType === "star_initiation"
+      ? "/sessions/star-initiation"
+      : "/sessions/mentoring";
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-5">
@@ -245,6 +254,9 @@ function LiveSessionCard({ option }: { option: GuidedSessionOption }) {
       >
         {cta}
       </Link>
+      <Link to={learnMore} className="mt-3 text-center text-sm font-semibold text-cyan-100 underline-offset-4 hover:underline">
+        Learn more
+      </Link>
       <p className="mt-2 text-center text-xs text-white/50">{PURCHASE_NOTE}</p>
     </article>
   );
@@ -268,7 +280,7 @@ function DurationChoice({
         selected ? "border-cyan-200/60 bg-cyan-300/15 text-white" : "border-white/12 text-white/70 hover:border-white/25 hover:text-white"
       }`}
     >
-      {duration.minutes} min
+      {duration.durationLabel ?? `${duration.minutes} min`}
     </button>
   );
 }

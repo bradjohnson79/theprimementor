@@ -90,6 +90,7 @@ const HUB_SECTIONS: { title: string; items: MenuItem[] }[] = [
       { label: "Prime Mentor Services", anchor: "#sessions" },
       { label: "Manifestation Monthly Package", anchor: "#sessions" },
       { label: "Mentoring Session", anchor: "#sessions" },
+      { label: "Star Initiation Session", href: "/sessions/star-initiation" },
     ],
   },
   {

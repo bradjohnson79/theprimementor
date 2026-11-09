@@ -110,6 +110,22 @@ const themeStyles = {
     ctaPanel:
       "bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_44%),linear-gradient(180deg,rgba(7,11,23,0.98),rgba(4,6,14,0.95))]",
   },
+  star_initiation: {
+    eyebrow: "text-cyan-100/80",
+    sectionEyebrow: "text-violet-200/75",
+    heroGlowPrimary: "bg-indigo-500/18",
+    heroGlowSecondary: "bg-cyan-400/12",
+    heroPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.22),_transparent_46%),linear-gradient(180deg,rgba(6,8,24,0.98),rgba(4,5,16,0.96))]",
+    cta:
+      "bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 text-slate-950 hover:from-cyan-200 hover:via-sky-200 hover:to-violet-200",
+    statement:
+      "border-cyan-200/20 bg-cyan-200/8 text-cyan-50",
+    imageFrame:
+      "bg-[radial-gradient(circle_at_top,_rgba(129,140,248,0.18),_transparent_44%),linear-gradient(180deg,rgba(8,10,28,0.98),rgba(4,5,16,0.96))]",
+    ctaPanel:
+      "bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.98),rgba(4,5,16,0.96))]",
+  },
   mentoring: {
     eyebrow: "text-violet-200/68",
     sectionEyebrow: "text-violet-200/68",

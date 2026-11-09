@@ -67,6 +67,7 @@ export const bookingSessionTypeEnum = pgEnum("booking_session_type", [
   "prime_body_healing",
   "email_session",
   "past_life_akashic",
+  "star_initiation",
 ]);
 
 export const bookingStatusEnum = pgEnum("booking_status", [

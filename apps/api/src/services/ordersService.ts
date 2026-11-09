@@ -799,6 +799,12 @@ function orderMatchesSessionCategory(order: AdminOrder, category: string) {
       || fallbackLabelMatches(order.product_name, "mentoring_session");
   }
 
+  if (category === "star_initiation") {
+    return sessionTypeId === "star_initiation"
+      || sessionType === "star_initiation"
+      || fallbackLabelMatches(order.product_name, "star_initiation");
+  }
+
   return true;
 }
 
@@ -847,7 +853,7 @@ function orderMatchesSubscriptionCategory(order: AdminOrder, category: string) {
 function orderMatchesCategory(order: AdminOrder, category: string) {
   const normalized = normalizeFilterText(category);
   if (!normalized || normalized === "all") return true;
-  if (normalized === "qa_session" || normalized === "mentoring_session") {
+  if (normalized === "qa_session" || normalized === "mentoring_session" || normalized === "star_initiation") {
     return orderMatchesSessionCategory(order, normalized);
   }
   if (normalized === "divin8_reports") {
@@ -904,6 +910,9 @@ function formatSessionTypeLabel(value: string | null, fallbackName?: string | nu
   }
   if (value === "past_life_akashic") {
     return "Past Life Akashic Reading";
+  }
+  if (value === "star_initiation") {
+    return "Star Initiation Session";
   }
   return titleCase(value);
 }

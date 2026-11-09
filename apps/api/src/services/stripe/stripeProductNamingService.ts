@@ -105,6 +105,9 @@ function resolveSessionName(input: Extract<StripeNamedProduct, { type: "session"
   if (sessionType === "past_life_akashic") {
     return "Past Life Akashic Reading";
   }
+  if (sessionType === "star_initiation") {
+    return "Star Initiation Session";
+  }
   if (sessionType === "prime_body_healing") {
     const fallback = input.fallbackName?.trim();
     if (fallback) return fallback;
@@ -143,11 +146,14 @@ export function resolveStripeProductNaming(input: StripeNamedProduct): StripePro
   if (input.type === "session") {
     const productName = resolveSessionName(input);
     const duration = normalizeDuration(input.durationMinutes);
+    const description = input.sessionType === "star_initiation"
+      ? "Private Star Initiation Session with Adronis, approximately 20–30 minutes on Zoom or phone."
+      : duration
+        ? `Private Prime Mentor ${productName.toLowerCase()} (${duration} minutes)`
+        : `Private Prime Mentor ${productName.toLowerCase()}`;
     return {
       productName,
-      description: duration
-        ? `Private Prime Mentor ${productName.toLowerCase()} (${duration} minutes)`
-        : `Private Prime Mentor ${productName.toLowerCase()}`,
+      description,
       metadata: toMetadata({
         platform: PRIME_MENTOR_STRIPE_PLATFORM,
         product_type: "session",

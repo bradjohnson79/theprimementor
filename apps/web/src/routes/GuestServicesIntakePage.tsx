@@ -141,6 +141,7 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
   const isPBHLevel2 = isPBH && session.bookingTypeId === PBH_LEVEL_2_ID;
   const isEmailSession = sessionType === "email_session";
   const isPastLife = sessionType === "past_life_akashic";
+  const isStarInitiation = sessionType === "star_initiation";
 
   const [fullName, setFullName] = useState(view.fullName ?? "");
   const [gender, setGender] = useState<"male" | "female">("female");
@@ -164,6 +165,7 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
   const [questions, setQuestions] = useState(["", "", ""]);
   const [preparatoryNote, setPreparatoryNote] = useState("");
   const [notes, setNotes] = useState("");
+  const [meetingMethod, setMeetingMethod] = useState<"" | "zoom" | "phone">("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot
@@ -192,6 +194,8 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
     const next: Record<string, string> = {};
     if (!fullName.trim()) next.fullName = "Please enter your full name.";
     if (session.requiresPhone && !phone.trim()) next.phone = "Please add a phone number.";
+    if (isStarInitiation && meetingMethod !== "zoom" && meetingMethod !== "phone") next.meetingMethod = "Choose Zoom or phone.";
+    if (isStarInitiation && meetingMethod === "phone" && !phone.trim()) next.phone = "A phone number is required for a phone session.";
     if (!birthDate) next.birthDate = "Please add your birth date.";
     if (!selectedPlace || selectedPlace.name !== birthPlace.trim()) next.birthPlace = "Start typing and choose your birthplace from the list.";
     if (!timezone) next.timezone = "Choose your timezone.";
@@ -235,6 +239,7 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
       const intake: Record<string, unknown> = { type: sessionType, gender };
       if (clientImage) intake.clientImage = clientImage;
       if (isQA && qaTopics.trim()) intake.topics = qaTopics.trim();
+      if (isStarInitiation) intake.meetingMethod = meetingMethod;
       if (isMentoring) {
         intake.goals = goals;
         if (otherDetail.trim()) intake.other = otherDetail.trim();
@@ -334,6 +339,18 @@ function ServicesIntakeForm({ token, view, onDone }: { token: string; view: Gues
             </FormField>
           </div>
         </Section>
+
+        {isStarInitiation ? (
+          <Section title="Session method" hint="Adronis can meet you on Zoom or by phone. The appointment is about 20–30 minutes.">
+            <FormField label="Zoom or phone" htmlFor="gi-method" errorText={errors.meetingMethod} isComplete={meetingMethod === "zoom" || meetingMethod === "phone"}>
+              <select id="gi-method" className={`${FIELD_CLASS} bg-white text-slate-900`} value={meetingMethod} onChange={(event) => setMeetingMethod(event.target.value as "" | "zoom" | "phone")}>
+                <option value="">Choose Zoom or phone</option>
+                <option value="zoom">Zoom</option>
+                <option value="phone">Phone</option>
+              </select>
+            </FormField>
+          </Section>
+        ) : null}
 
         {session.requiresAvailability ? (
           <Section title="Availability" hint="This does not confirm a specific booking time. Your session will be personally scheduled based on what you select here.">
