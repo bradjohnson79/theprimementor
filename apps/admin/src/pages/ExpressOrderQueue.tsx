@@ -1,3 +1,5 @@
+import Card from "../components/Card";
+
 const SAMPLE_DEADLINE = "2026-11-10T07:59:00.000Z";
 
 function timeRemaining(deadline: string) {
