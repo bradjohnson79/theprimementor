@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getExpressService, type ExpressServiceId } from "@wisdom/utils";
-import { EXPRESS_TIME_ZONE, nextBusinessDayDeadline, parseHolidayList } from "./businessDayDeadline.js";
+import { EXPRESS_TIME_ZONE, deadlineOnDate, nextBusinessDayDeadline, parseHolidayList, vancouverDateKey } from "./businessDayDeadline.js";
 import {
   confirmPaidExpressOrder,
   expressDownloadUrl,
@@ -38,6 +38,7 @@ export interface ExpressRepository {
   save(order: StoredExpressOrder): Promise<void>;
   list(): Promise<StoredExpressOrder[]>;
   getNotice(key: string): Promise<StoredNotice | null>;
+  findNoticeByProviderMessageId(messageId: string): Promise<StoredNotice | null>;
   insertNotice(notice: StoredNotice): Promise<boolean>;
   saveNotice(notice: StoredNotice): Promise<void>;
   listNotices(orderId: string): Promise<StoredNotice[]>;
@@ -65,6 +66,10 @@ export function createMemoryExpressRepository(): ExpressRepository {
     },
     async getNotice(key) {
       const notice = notices.get(key);
+      return notice ? copy(notice) : null;
+    },
+    async findNoticeByProviderMessageId(messageId) {
+      const notice = [...notices.values()].find((item) => item.providerMessageId === messageId);
       return notice ? copy(notice) : null;
     },
     async insertNotice(notice) {
@@ -282,14 +287,15 @@ export async function ensureExpressDemoOrder(repo: ExpressRepository) {
   return order;
 }
 
-export async function queueExpressDelay(input: { repo: ExpressRepository; orderId: string; message: string }) {
+export async function queueExpressDelay(input: { repo: ExpressRepository; orderId: string; message: string; completionDate: string; now?: Date }) {
   const order = await input.repo.get(input.orderId);
   if (!order) throw new Error("Express order was not found");
+  if (order.fulfillmentStatus === "delivered") throw new Error("Completed Express orders do not need a delay notice");
   const message = input.message.trim();
-  if (!message) throw new Error("A delay message is required");
-  const deadlineAt = order.deadlineAt;
-  const deliveryDate = order.deliveryDate;
-  const digest = createHash("sha256").update(message).digest("hex").slice(0, 12);
+  if (!message) throw new Error("A reason is required");
+  const scheduled = deadlineOnDate(input.completionDate);
+  if (scheduled.deliveryDate < vancouverDateKey(input.now ?? new Date())) throw new Error("Choose a future business day");
+  const digest = createHash("sha256").update(`${scheduled.deliveryDate}\n${message}`).digest("hex").slice(0, 12);
   const email = await composeExpressEmail("customer_delay", {
     customerName: order.customerName,
     customerEmail: order.customerEmail,
@@ -297,7 +303,7 @@ export async function queueExpressDelay(input: { repo: ExpressRepository; orderI
     orderId: order.id,
     amountLabel: "",
     transcription: order.transcription,
-    deadlineLabel: order.deliveryDate ? `${order.deliveryDate} at 11:59 PM Pacific` : "",
+    deadlineLabel: `${scheduled.deliveryDate} at 11:59 PM Pacific`,
     paidAtLabel: order.paidAt ?? "",
     adminUrl: "",
     delayMessage: message,
@@ -317,16 +323,59 @@ export async function queueExpressDelay(input: { repo: ExpressRepository; orderI
     lastError: null,
   };
   const existing = await input.repo.getNotice(notice.key);
-  if (existing?.status === "sent") return { order, notice: existing, duplicate: true as const };
+  if (existing?.status === "sent") return { order, notice: existing, duplicate: true as const, completionDate: scheduled.deliveryDate };
   if (!existing) await input.repo.insertNotice(notice);
   else await input.repo.saveNotice({ ...notice, attempts: existing.attempts, status: "pending" });
-  const saved = await input.repo.get(order.id);
-  if (saved && (saved.deadlineAt !== deadlineAt || saved.deliveryDate !== deliveryDate)) {
-    saved.deadlineAt = deadlineAt;
-    saved.deliveryDate = deliveryDate;
-    await input.repo.save(saved);
-  }
-  return { order: saved ?? order, notice, duplicate: false as const };
+  return { order, notice, duplicate: false as const, completionDate: scheduled.deliveryDate };
+}
+
+export async function applyExpressDelay(repo: ExpressRepository, orderId: string, completionDate: string) {
+  const order = await repo.get(orderId);
+  if (!order) throw new Error("Express order was not found");
+  const scheduled = deadlineOnDate(completionDate);
+  order.deliveryDate = scheduled.deliveryDate;
+  order.deadlineAt = scheduled.deadlineAt.toISOString();
+  order.delayNotified = true;
+  order.refundReview = false;
+  await repo.save(order);
+  return order;
+}
+
+export async function prepareDelayReceipt(repo: ExpressRepository, messageId: string) {
+  const notice = await repo.findNoticeByProviderMessageId(messageId);
+  if (!notice || notice.eventType !== "express_customer_delay") return { action: "ignore" as const };
+  const order = await repo.get(notice.entityId);
+  if (!order) return { action: "ignore" as const };
+  const key = notificationKey("express_delay_receipt", messageId, EXPRESS_ADMIN_EMAIL);
+  const existing = await repo.getNotice(key);
+  if (existing?.status === "sent") return { action: "duplicate" as const };
+  const email = await composeExpressEmail("admin_delay_receipt", {
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    serviceName: order.serviceName,
+    orderId: order.id,
+    amountLabel: "",
+    transcription: order.transcription,
+    deadlineLabel: order.deliveryDate ? `${order.deliveryDate} at 11:59 PM Pacific` : "",
+    paidAtLabel: "",
+    adminUrl: "",
+  });
+  const receipt: StoredNotice = {
+    key,
+    eventType: "express_delay_receipt",
+    entityId: order.id,
+    recipient: EXPRESS_ADMIN_EMAIL,
+    channel: "email",
+    status: "pending",
+    attempts: existing?.attempts ?? 0,
+    subject: email.subject,
+    body: email.text,
+    source: "template",
+    providerMessageId: null,
+    lastError: null,
+  };
+  if (!existing) await repo.insertNotice(receipt);
+  return { action: "send" as const, notice: receipt };
 }
 
 export function signExpressDownload(orderId: string, kind: "mp3" | "transcript", expiresMs: number, secret = downloadSecret()) {

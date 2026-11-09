@@ -9,6 +9,8 @@ import {
   loadExpressDownload,
   queueExpressDelivery,
   queueExpressDelay,
+  applyExpressDelay,
+  prepareDelayReceipt,
   readExpressDownload,
   runExpressReminderPass,
   signExpressDownload,
@@ -122,20 +124,35 @@ test("deadline reminders are stored once and overdue orders are flagged without 
   assert.equal(afterDelivery.queued.length, 0);
 });
 
-test("a delay email keeps the original deadline", async () => {
+test("a delay email sets the new completion day and keeps a late order non-refundable", async () => {
   const repo = createMemoryExpressRepository();
   const saved = await confirmExpressPayment(repo, payment({ id: "cs_delay" }));
-  const deadline = saved.order.deadlineAt;
-  const first = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
+  const original = saved.order.deadlineAt;
+  const first = await queueExpressDelay({
+    repo,
+    orderId: saved.order.id,
+    message: "I need one more business day.",
+    completionDate: "2026-03-12",
+    now: new Date("2026-03-09T18:00:00.000Z"),
+  });
   assert.equal(first.duplicate, false);
-  assert.match(first.notice.body, /I need one more business day/);
-  assert.match(first.notice.body, /2026-03-09 at 11:59 PM Pacific/);
-  assert.equal((await repo.get(saved.order.id))?.deadlineAt, deadline);
-  const repeat = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
-  assert.equal(repeat.duplicate, false);
+  assert.match(first.notice.body, /Reason: I need one more business day/);
+  assert.match(first.notice.body, /2026-03-12 at 11:59 PM Pacific/);
+  assert.equal((await repo.get(saved.order.id))?.deadlineAt, original);
   first.notice.status = "sent";
+  first.notice.providerMessageId = "msg_delay";
   await repo.saveNotice(first.notice);
-  const sentAgain = await queueExpressDelay({ repo, orderId: saved.order.id, message: "I need one more business day." });
-  assert.equal(sentAgain.duplicate, true);
-  assert.equal((await repo.get(saved.order.id))?.deadlineAt, deadline);
+  const updated = await applyExpressDelay(repo, saved.order.id, "2026-03-12");
+  assert.equal(updated.deliveryDate, "2026-03-12");
+  assert.equal(updated.delayNotified, true);
+  assert.equal(updated.refundReview, false);
+  const late = await runExpressReminderPass(repo, new Date("2026-03-13T20:00:00.000Z"));
+  assert.equal(late.review.find((item) => item.id === saved.order.id)?.action, "skipped");
+  assert.equal((await repo.get(saved.order.id))?.refundReview, false);
+  const receipt = await prepareDelayReceipt(repo, "msg_delay");
+  assert.equal(receipt.action, "send");
+  if (receipt.action === "send") {
+    assert.equal(receipt.notice.recipient, "bradjohnson79@gmail.com");
+    assert.match(receipt.notice.body, /received the delay email/);
+  }
 });

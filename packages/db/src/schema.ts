@@ -1976,6 +1976,7 @@ export const expressOrders = pgTable("express_orders", {
   mp3_key: text("mp3_key"),
   transcript_key: text("transcript_key"),
   refund_review: boolean("refund_review").default(false).notNull(),
+  delay_notified: boolean("delay_notified").default(false).notNull(),
   ...timestamps,
 });
 

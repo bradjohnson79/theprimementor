@@ -38,6 +38,16 @@ function weekday(dateKey: string) {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
+export function deadlineOnDate(dateKey: string) {
+  if (!DATE_KEY.test(dateKey)) throw new Error("Choose a completion date");
+  const day = weekday(dateKey);
+  if (day === 0 || day === 6) throw new Error("Choose a business day");
+  return {
+    deliveryDate: dateKey,
+    deadlineAt: fromZonedTime(`${dateKey}T23:59:00`, EXPRESS_TIME_ZONE),
+  };
+}
+
 /** Next Monday–Friday at 11:59 PM Pacific, after the Vancouver calendar date of paidAt. */
 export function nextBusinessDayDeadline(paidAt: Date, holidays: readonly string[] = []) {
   const holidaySet = new Set(holidays);

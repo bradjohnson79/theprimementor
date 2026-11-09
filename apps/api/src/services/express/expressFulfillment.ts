@@ -30,6 +30,8 @@ export interface ExpressOrderRecord {
   customerEmail: string;
   mp3Key: string | null;
   transcriptKey: string | null;
+  /** A sent Delay email makes the order non-refundable, including when it is late. */
+  delayNotified?: boolean;
 }
 
 export interface NotificationRow {
@@ -75,7 +77,7 @@ export function visibleFulfillmentStatus(order: ExpressOrderRecord, now: Date): 
 
 export function reviewExpressDeadlines(orders: ExpressOrderRecord[], now: Date) {
   return orders.map((order) => {
-    if (order.fulfillmentStatus === "delivered" || order.paymentStatus === "refunded") {
+    if (order.fulfillmentStatus === "delivered" || order.paymentStatus === "refunded" || order.delayNotified) {
       return { id: order.id, action: "skipped" as const };
     }
     const displayStatus = visibleFulfillmentStatus(order, now);

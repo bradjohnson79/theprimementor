@@ -5,6 +5,7 @@ export type ExpressEmailKind =
   | "admin_purchase"
   | "customer_delivery"
   | "customer_delay"
+  | "admin_delay_receipt"
   | "admin_reminder_morning"
   | "admin_reminder_afternoon"
   | "admin_overdue";
@@ -87,9 +88,22 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
       text: [
         `Hello ${fields.customerName},`,
         `Your ${fields.serviceName} order ${fields.orderId} needs a little more time.`,
-        `Original delivery deadline: ${fields.deadlineLabel}.`,
-        fields.delayMessage?.trim() || "I need a little more time to complete this session.",
+        `New completion day: ${fields.deadlineLabel}.`,
+        `Reason: ${fields.delayMessage?.trim() || "I need a little more time to complete this session."}`,
         "You do not need to place the order again. The session will still arrive by email.",
+      ].join("\n"),
+    };
+  }
+  if (kind === "admin_delay_receipt") {
+    return {
+      subject: `Express delay notice received - ${fields.serviceName}`,
+      text: [
+        `${fields.customerEmail} received the delay email.`,
+        `Customer: ${fields.customerName}`,
+        `Service: ${fields.serviceName}`,
+        `Order: ${fields.orderId}`,
+        `New completion day: ${fields.deadlineLabel}.`,
+        "This receipt confirms the client’s mail service accepted the message.",
       ].join("\n"),
     };
   }

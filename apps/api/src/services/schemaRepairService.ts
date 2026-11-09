@@ -1262,6 +1262,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "mp3_key" text,
     "transcript_key" text,
     "refund_review" boolean DEFAULT false NOT NULL,
+    "delay_notified" boolean DEFAULT false NOT NULL,
     "created_at" timestamptz DEFAULT now() NOT NULL,
     "updated_at" timestamptz DEFAULT now() NOT NULL
   );`,
@@ -1281,6 +1282,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "updated_at" timestamptz DEFAULT now() NOT NULL
   );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "express_notifications_dedupe_uidx" ON "express_notifications" ("dedupe_key");`,
+  `ALTER TABLE "express_orders" ADD COLUMN IF NOT EXISTS "delay_notified" boolean DEFAULT false NOT NULL;`,
   `CREATE TABLE IF NOT EXISTS "express_files" (
     "key" text PRIMARY KEY,
     "bytes" bytea NOT NULL,

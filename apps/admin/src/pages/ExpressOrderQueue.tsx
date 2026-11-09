@@ -17,6 +17,7 @@ interface ExpressOrderView {
   mp3Key: string | null;
   transcriptKey: string | null;
   refundReview: boolean;
+  delayNotified?: boolean;
   intake: {
     birthdate: string;
     guide: string;
@@ -29,6 +30,27 @@ interface ExpressOrderView {
 
 function money(cents: number) {
   return `$${(cents / 100).toFixed(0)} CAD`;
+}
+
+function orderStatus(order: ExpressOrderView) {
+  if (order.fulfillmentStatus === "delivered") return "Completed";
+  if (order.refundReview) return "Refund review";
+  return "Pending";
+}
+
+function upcomingBusinessDays() {
+  const dates: Array<{ value: string; label: string }> = [];
+  const cursor = new Date();
+  for (let offset = 1; dates.length < 15 && offset < 40; offset += 1) {
+    const day = new Date(cursor.getTime() + offset * 24 * 60 * 60 * 1000);
+    const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Vancouver", weekday: "short" }).format(day);
+    if (weekday === "Sat" || weekday === "Sun") continue;
+    dates.push({
+      value: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver", year: "numeric", month: "2-digit", day: "2-digit" }).format(day),
+      label: new Intl.DateTimeFormat("en-US", { timeZone: "America/Vancouver", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(day),
+    });
+  }
+  return dates;
 }
 
 function ordersFrom(response: { data?: ExpressOrderView[] | { data?: ExpressOrderView[] } }) {
@@ -45,7 +67,9 @@ export default function ExpressOrderQueue() {
   const [busy, setBusy] = useState(false);
   const [mp3, setMp3] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<File | null>(null);
-  const [delayMessage, setDelayMessage] = useState("I need a little more time to complete this session.");
+  const [delayOrderId, setDelayOrderId] = useState("");
+  const [completionDate, setCompletionDate] = useState("");
+  const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState<"send" | "delay" | null>(null);
   const selectedId = params.get("order");
   const tab = params.get("expressTab") === "delay" ? "delay" : "orders";
@@ -94,7 +118,7 @@ export default function ExpressOrderQueue() {
       if (mp3) await sendFile(mp3, "mp3");
       if (transcript) await sendFile(transcript, "transcript");
       await api.post(`/admin/express/orders/${encodeURIComponent(selected.id)}/deliver`, {}, token);
-      setNotice(`Resend accepted the session email to ${selected.customerEmail}.`);
+      setNotice(`Resend accepted the session email to ${selected.customerEmail}. This order is Completed.`);
       setOrders((current) => current.map((order) => order.id === selected.id ? { ...order, fulfillmentStatus: "delivered" } : order));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The email did not send.");
@@ -105,12 +129,15 @@ export default function ExpressOrderQueue() {
   }
 
   async function sendDelay() {
-    if (!selected) return;
+    const order = orders.find((item) => item.id === delayOrderId);
+    if (!order) return;
     setBusy(true);
     try {
       const token = await getToken();
-      await api.post(`/admin/express/orders/${encodeURIComponent(selected.id)}/delay`, { message: delayMessage }, token);
-      setNotice(`Resend accepted the delay email to ${selected.customerEmail}. The original due date is unchanged.`);
+      await api.post(`/admin/express/orders/${encodeURIComponent(order.id)}/delay`, { message: reason, completionDate }, token);
+      setNotice(`The delay email was sent to ${order.customerEmail}. A receipt goes to bradjohnson79@gmail.com when the client’s mail service accepts it.`);
+      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, deliveryDate: completionDate, delayNotified: true, refundReview: false } : item));
+      setReason("");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The delay email did not send.");
     } finally {
@@ -147,7 +174,20 @@ export default function ExpressOrderQueue() {
         ))}
       </div>
       {notice ? <p className="rounded-2xl border border-amber-100/20 bg-amber-100/10 px-4 py-3 text-sm text-amber-50">{notice}</p> : null}
-      {!selected ? (
+      {tab === "delay" ? (
+        <DelayWizard
+          orders={orders.filter((order) => orderStatus(order) === "Pending")}
+          delayOrderId={delayOrderId}
+          completionDate={completionDate}
+          reason={reason}
+          busy={busy}
+          dates={upcomingBusinessDays()}
+          onOrder={setDelayOrderId}
+          onDate={setCompletionDate}
+          onReason={setReason}
+          onSubmit={() => setConfirming("delay")}
+        />
+      ) : !selected ? (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm text-white/80">
@@ -170,7 +210,7 @@ export default function ExpressOrderQueue() {
                     <td className="px-4 py-3">{order.customerEmail}</td>
                     <td className="px-4 py-3">{money(order.amountCents)}</td>
                     <td className="px-4 py-3">{order.deliveryDate ?? "—"}</td>
-                    <td className="px-4 py-3">{order.refundReview ? "Refund review" : order.fulfillmentStatus.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3">{orderStatus(order)}</td>
                     <td className="px-4 py-3">{order.transcription ? "Yes" : "No"}</td>
                   </tr>
                 ))}
@@ -183,7 +223,7 @@ export default function ExpressOrderQueue() {
           <button type="button" className="text-sm text-cyan-100" onClick={() => updateQuery({ order: null })}>Back to Express orders</button>
           <div>
             <h2 className="text-xl font-semibold text-white">{selected.serviceName}</h2>
-            <p className="text-sm text-slate-300">Due {selected.deliveryDate} at 11:59 PM Pacific. This date stays fixed.</p>
+            <p className="text-sm text-slate-300">Due {selected.deliveryDate} at 11:59 PM Pacific. Status: {orderStatus(selected)}.</p>
           </div>
           <dl className="grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
             <div><dt className="text-white/45">Customer</dt><dd>{selected.customerName}</dd></div>
@@ -207,40 +247,119 @@ export default function ExpressOrderQueue() {
                   </label>
                 ) : null}
               </div>
-              <button type="button" disabled={busy} onClick={requestSend} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50">
+              <button type="button" disabled={busy || orderStatus(selected) === "Completed"} onClick={requestSend} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50">
                 Send
               </button>
             </>
-          ) : (
-            <>
-              <label className="block text-sm text-slate-300">Message to the client
-                <textarea className="mt-1 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-white" value={delayMessage} onChange={(event) => setDelayMessage(event.target.value)} />
-              </label>
-              <button type="button" disabled={busy || delayMessage.trim().length === 0} onClick={() => setConfirming("delay")} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50">
-                Send
-              </button>
-            </>
-          )}
+          ) : null}
         </Card>
       )}
-      {confirming && selected ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <Card className="max-w-md space-y-4 p-5">
-            <h2 className="text-lg font-semibold text-white">{confirming === "send" ? "Send this session?" : "Send a delay notice?"}</h2>
-            <p className="text-sm text-slate-300">
-              {confirming === "send"
-                ? `Resend will email the MP3 link to ${selected.customerEmail}.`
-                : `Resend will email ${selected.customerEmail} that this order needs more time. The due date stays ${selected.deliveryDate}.`}
-            </p>
-            <div className="flex gap-3">
-              <button type="button" disabled={busy} className="rounded-full bg-cyan-200 px-4 py-2 text-sm font-semibold text-[#07111f]" onClick={() => void (confirming === "send" ? uploadAndSend() : sendDelay())}>
-                {busy ? "Sending…" : "Send"}
-              </button>
-              <button type="button" disabled={busy} className="rounded-full bg-white/10 px-4 py-2 text-sm text-white" onClick={() => setConfirming(null)}>Cancel</button>
-            </div>
-          </Card>
-        </div>
+      {confirming === "send" && selected ? (
+        <ConfirmSend
+          title="Send this session?"
+          body={`Resend will email the MP3 link to ${selected.customerEmail}. The order will be marked Completed.`}
+          busy={busy}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void uploadAndSend()}
+        />
       ) : null}
+      {confirming === "delay" ? (
+        <ConfirmSend
+          title="Submit this delay notice?"
+          body={`Resend will email ${orders.find((order) => order.id === delayOrderId)?.customerEmail ?? "the client"} the new completion day and your reason. A receipt is sent to bradjohnson79@gmail.com when the client receives it.`}
+          busy={busy}
+          confirmLabel="Submit"
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void sendDelay()}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DelayWizard({
+  orders,
+  delayOrderId,
+  completionDate,
+  reason,
+  busy,
+  dates,
+  onOrder,
+  onDate,
+  onReason,
+  onSubmit,
+}: {
+  orders: ExpressOrderView[];
+  delayOrderId: string;
+  completionDate: string;
+  reason: string;
+  busy: boolean;
+  dates: Array<{ value: string; label: string }>;
+  onOrder: (value: string) => void;
+  onDate: (value: string) => void;
+  onReason: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const ready = Boolean(delayOrderId && completionDate && reason.trim());
+  return (
+    <Card className="space-y-4 p-5">
+      <div>
+        <h2 className="text-xl font-semibold text-white">Delay notice</h2>
+        <p className="text-sm text-slate-300">Email a pending client the new completion day and the reason. Express orders stay non-refundable once this notice is sent.</p>
+      </div>
+      <label className="block text-sm text-slate-300">Express order
+        <select className="mt-1 w-full rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2 text-white" value={delayOrderId} onChange={(event) => onOrder(event.target.value)}>
+          <option value="">Select a pending order</option>
+          {orders.map((order) => (
+            <option key={order.id} value={order.id}>{order.serviceName} — {order.customerName}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm text-slate-300">New completion day
+        <select className="mt-1 w-full rounded-2xl border border-white/10 bg-[#0b1220] px-3 py-2 text-white" value={completionDate} onChange={(event) => onDate(event.target.value)}>
+          <option value="">Select a date</option>
+          {dates.map((date) => (
+            <option key={date.value} value={date.value}>{date.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm text-slate-300">Reason
+        <textarea className="mt-1 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-white" value={reason} onChange={(event) => onReason(event.target.value)} />
+      </label>
+      <button type="button" disabled={busy || !ready} onClick={onSubmit} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-cyan-300 to-violet-300 px-5 py-3 text-sm font-semibold text-[#07111f] disabled:opacity-50">
+        Submit
+      </button>
+    </Card>
+  );
+}
+
+function ConfirmSend({
+  title,
+  body,
+  busy,
+  confirmLabel = "Send",
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  body: string;
+  busy: boolean;
+  confirmLabel?: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <Card className="max-w-md space-y-4 p-5">
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <p className="text-sm text-slate-300">{body}</p>
+        <div className="flex gap-3">
+          <button type="button" disabled={busy} className="rounded-full bg-cyan-200 px-4 py-2 text-sm font-semibold text-[#07111f]" onClick={onConfirm}>
+            {busy ? "Sending…" : confirmLabel}
+          </button>
+          <button type="button" disabled={busy} className="rounded-full bg-white/10 px-4 py-2 text-sm text-white" onClick={onCancel}>Cancel</button>
+        </div>
+      </Card>
     </div>
   );
 }

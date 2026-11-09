@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { Webhook } from "svix";
 import { validateExpressCheckout, type ExpressCheckoutInput } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
 import { createHttpError } from "../services/booking/errors.js";
@@ -6,7 +7,7 @@ import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRec
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
 import { createExpressCheckoutSession } from "../services/express/expressStripe.js";
 import { createDatabaseRecordingStore, createPostgresExpressRepository } from "../services/express/expressOrderRepository.js";
-import { attachExpressRecording, dispatchExpressNotice, dispatchPendingExpressEmails, ensureExpressDemoOrder, loadExpressDownload, queueExpressDelay, queueExpressDelivery, runExpressReminderPass } from "../services/express/expressOrderService.js";
+import { attachExpressRecording, applyExpressDelay, dispatchExpressNotice, dispatchPendingExpressEmails, ensureExpressDemoOrder, loadExpressDownload, prepareDelayReceipt, queueExpressDelay, queueExpressDelivery, runExpressReminderPass } from "../services/express/expressOrderService.js";
 import { sendResendEmail } from "../services/notifications/providers/resendProvider.js";
 import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 
@@ -113,20 +114,51 @@ export async function expressRoutes(app: FastifyInstance) {
     requireAdmin(request);
     const repo = createPostgresExpressRepository(requireDatabase(app.db));
     const orderId = (request.params as { id: string }).id;
-    const message = typeof (request.body as { message?: unknown })?.message === "string"
-      ? (request.body as { message: string }).message
-      : "";
+    const body = request.body as { message?: unknown; completionDate?: unknown } | undefined;
+    const message = typeof body?.message === "string" ? body.message : "";
+    const completionDate = typeof body?.completionDate === "string" ? body.completionDate : "";
     try {
-      const queued = await queueExpressDelay({ repo, orderId, message });
+      const queued = await queueExpressDelay({ repo, orderId, message, completionDate });
       if (queued.duplicate) return ok({ duplicate: true, order: queued.order });
       const saved = await dispatchExpressNotice(repo, queued.notice, sendNotice);
       if (saved.status !== "sent") {
         return sendApiError(reply, 502, saved.lastError || "Resend did not accept the delay email");
       }
-      return ok({ duplicate: false, order: await repo.get(orderId) });
+      const order = await applyExpressDelay(repo, orderId, queued.completionDate);
+      return ok({ duplicate: false, order });
     } catch (error) {
       return sendApiError(reply, 400, error instanceof Error ? error.message : "Express delay email failed");
     }
+  });
+
+  app.post("/webhooks/resend", { config: { rawBody: true } }, async (request, reply) => {
+    const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+    if (!secret) return sendApiError(reply, 503, "Resend webhook secret is not configured");
+    const svixId = request.headers["svix-id"];
+    const svixTimestamp = request.headers["svix-timestamp"];
+    const svixSignature = request.headers["svix-signature"];
+    if (typeof svixId !== "string" || typeof svixTimestamp !== "string" || typeof svixSignature !== "string") {
+      return sendApiError(reply, 400, "Missing Resend signature");
+    }
+    let event: { type?: string; data?: { email_id?: string } };
+    try {
+      event = new Webhook(secret).verify((request as { rawBody?: string }).rawBody ?? "", {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      }) as typeof event;
+    } catch {
+      return sendApiError(reply, 400, "Resend webhook verification failed");
+    }
+    if (event.type !== "email.delivered" || !event.data?.email_id) return ok({ ignored: true });
+    const repo = createPostgresExpressRepository(requireDatabase(app.db));
+    const prepared = await prepareDelayReceipt(repo, event.data.email_id);
+    if (prepared.action !== "send") return ok(prepared);
+    const saved = await dispatchExpressNotice(repo, prepared.notice, sendNotice);
+    if (saved.status !== "sent") {
+      return sendApiError(reply, 502, saved.lastError || "Receipt email was not accepted");
+    }
+    return ok({ received: true });
   });
 
   app.get("/express/downloads/:token", async (request, reply) => {

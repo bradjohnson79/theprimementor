@@ -38,6 +38,7 @@ function toOrder(row: typeof expressOrders.$inferSelect): StoredExpressOrder {
     transcriptKey: row.transcript_key,
     intake: asIntake(row.intake),
     refundReview: row.refund_review,
+    delayNotified: row.delay_notified,
   };
 }
 
@@ -84,6 +85,7 @@ export function createPostgresExpressRepository(db: Database): ExpressRepository
         mp3_key: order.mp3Key,
         transcript_key: order.transcriptKey,
         refund_review: order.refundReview,
+        delay_notified: order.delayNotified ?? false,
       }).onConflictDoNothing().returning({ id: expressOrders.id });
       return inserted.length > 0;
     },
@@ -94,6 +96,9 @@ export function createPostgresExpressRepository(db: Database): ExpressRepository
         mp3_key: order.mp3Key,
         transcript_key: order.transcriptKey,
         refund_review: order.refundReview,
+        delay_notified: order.delayNotified ?? false,
+        delivery_date: order.deliveryDate ?? undefined,
+        deadline_at: order.deadlineAt ? new Date(order.deadlineAt) : undefined,
         payment_status: order.paymentStatus,
         updated_at: new Date(),
       }).where(eq(expressOrders.id, order.id));
@@ -104,6 +109,10 @@ export function createPostgresExpressRepository(db: Database): ExpressRepository
     },
     async getNotice(key) {
       const [row] = await db.select().from(expressNotifications).where(eq(expressNotifications.dedupe_key, key)).limit(1);
+      return row ? toNotice(row) : null;
+    },
+    async findNoticeByProviderMessageId(messageId) {
+      const [row] = await db.select().from(expressNotifications).where(eq(expressNotifications.provider_message_id, messageId)).limit(1);
       return row ? toNotice(row) : null;
     },
     async insertNotice(notice) {
