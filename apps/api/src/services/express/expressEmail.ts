@@ -15,6 +15,7 @@ export interface ExpressEmailFields {
   orderId: string;
   amountLabel: string;
   transcription: boolean;
+  quantity?: number;
   deadlineLabel: string;
   paidAtLabel: string;
   adminUrl: string;
@@ -38,6 +39,7 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
       text: [
         `Hello ${fields.customerName},`,
         `Your ${fields.serviceName} order ${fields.orderId} is confirmed.`,
+        `Quantity: ${fields.quantity ?? 1}.`,
         `Total paid: ${fields.amountLabel}.`,
         `Transcription: ${transcription}.`,
         `Delivery deadline: ${fields.deadlineLabel} (America/Vancouver).`,
@@ -54,6 +56,7 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
         `Order ID: ${fields.orderId}`,
         `Purchased: ${fields.paidAtLabel}`,
         `Paid: ${fields.amountLabel}`,
+        `Quantity: ${fields.quantity ?? 1}`,
         `Transcription requested: ${transcription}`,
         `Delivery deadline: ${fields.deadlineLabel}`,
         `Admin: ${fields.adminUrl}`,

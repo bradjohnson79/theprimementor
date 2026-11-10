@@ -29,6 +29,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
   const [email, setEmail] = useState("");
   const [birthdate, setBirthdate] = useState("");
   const [transcription, setTranscription] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const [guide, setGuide] = useState<ExpressGuide | "">("");
   const [question, setQuestion] = useState("");
   const [focusAreas, setFocusAreas] = useState(["", "", "", "", ""]);
@@ -38,9 +39,10 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const sessionQuantity = serviceId === "ask" ? quantity : 1;
   const amountCents = useMemo(
-    () => service.priceCents + (transcription ? EXPRESS_TRANSCRIPTION_CENTS : 0),
-    [service.priceCents, transcription],
+    () => service.priceCents * sessionQuantity + (transcription ? EXPRESS_TRANSCRIPTION_CENTS : 0),
+    [service.priceCents, sessionQuantity, transcription],
   );
 
   async function onSubmit(event: FormEvent) {
@@ -51,6 +53,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
       email,
       birthdate,
       transcription,
+      quantity: sessionQuantity,
       guide,
       question,
       focusAreas,
@@ -72,6 +75,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
         email,
         birthdate,
         transcription,
+        quantity: sessionQuantity,
         guide,
         question,
         focusAreas: focusAreas.map((area) => area.trim()).filter(Boolean),
@@ -103,6 +107,7 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
       <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">{service.detail}</p>
       <p className="mt-2 text-sm text-cyan-100">
         {formatExpressPrice(service.priceCents)}
+        {serviceId === "ask" ? ` each × ${sessionQuantity}` : ""}
         {transcription ? ` + transcription ${formatExpressPrice(EXPRESS_TRANSCRIPTION_CENTS)}` : ""}
         {" · "}
         Due today {formatExpressPrice(amountCents)}
@@ -121,6 +126,18 @@ function ExpressCheckoutForm({ serviceId }: { serviceId: ExpressServiceId }) {
 
         {serviceId === "ask" ? (
           <>
+            <label className="block text-sm text-white/80">Quantity
+              <select
+                className={FIELD_CLASS}
+                value={quantity}
+                onChange={(event) => setQuantity(Number(event.target.value))}
+              >
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+              </select>
+              <span className="mt-1 block text-xs leading-5 text-white/50">Each quantity is one Ask Brad / Adronis session. Three is the maximum.</span>
+            </label>
             <fieldset className="space-y-2">
               <legend className="text-sm text-white/80">Who should answer?</legend>
               {(["brad", "adronis"] as const).map((value) => (
