@@ -1965,6 +1965,7 @@ export const expressOrders = pgTable("express_orders", {
   amount_cents: integer("amount_cents").notNull(),
   currency: text("currency").default("CAD").notNull(),
   transcription: boolean("transcription").notNull(),
+  quantity: integer("quantity").default(1).notNull(),
   payment_status: text("payment_status").notNull(),
   fulfillment_status: text("fulfillment_status").notNull(),
   paid_at: timestamp("paid_at", { withTimezone: true }).notNull(),

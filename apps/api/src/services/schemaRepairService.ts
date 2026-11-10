@@ -1251,6 +1251,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "amount_cents" integer NOT NULL,
     "currency" text DEFAULT 'CAD' NOT NULL,
     "transcription" boolean NOT NULL,
+    "quantity" integer DEFAULT 1 NOT NULL,
     "payment_status" text NOT NULL,
     "fulfillment_status" text NOT NULL,
     "paid_at" timestamptz NOT NULL,
@@ -1283,6 +1284,7 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
   );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "express_notifications_dedupe_uidx" ON "express_notifications" ("dedupe_key");`,
   `ALTER TABLE "express_orders" ADD COLUMN IF NOT EXISTS "delay_notified" boolean DEFAULT false NOT NULL;`,
+  `ALTER TABLE "express_orders" ADD COLUMN IF NOT EXISTS "quantity" integer DEFAULT 1 NOT NULL;`,
   `CREATE TABLE IF NOT EXISTS "express_files" (
     "key" text PRIMARY KEY,
     "bytes" bytea NOT NULL,

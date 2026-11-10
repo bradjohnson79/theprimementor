@@ -93,6 +93,7 @@ export interface ExpressPaymentInput {
   customerEmail: string;
   amountCents: number;
   transcription: boolean;
+  quantity?: number;
   paidAt: Date;
   intake: ExpressIntake;
   adminEmail?: string;
@@ -109,6 +110,7 @@ export async function confirmExpressPayment(repo: ExpressRepository, input: Expr
     serviceId: input.serviceId,
     customerName: input.customerName,
     transcription: input.transcription,
+    quantity: input.quantity,
     paidAt: input.paidAt,
     holidays: parseHolidayList(process.env.EXPRESS_HOLIDAYS),
     customerEmail: input.customerEmail,
@@ -264,6 +266,7 @@ export async function ensureExpressDemoOrder(repo: ExpressRepository) {
     customerEmail: "anointproductions@gmail.com",
     amountCents: service.priceCents,
     transcription: false,
+    quantity: 1,
     paymentStatus: "paid",
     fulfillmentStatus: "awaiting_fulfillment",
     paidAt: paidAt.toISOString(),

@@ -1,4 +1,4 @@
-import { formatExpressPrice, expressAmountCents, getExpressService, type ExpressServiceId } from "@wisdom/utils";
+import { formatExpressPrice, expressAmountCents, expressSessionQuantity, getExpressService, type ExpressServiceId } from "@wisdom/utils";
 import { EXPRESS_TIME_ZONE, nextBusinessDayDeadline, vancouverDateKey } from "./businessDayDeadline.js";
 import {
   composeExpressEmail,
@@ -20,6 +20,8 @@ export interface ExpressOrderRecord {
   customerName: string;
   amountCents: number;
   transcription: boolean;
+  /** Ask Brad / Adronis may be 1–3. Other Express services stay at 1. */
+  quantity?: number;
   paymentStatus: ExpressPaymentStatus;
   fulfillmentStatus: ExpressFulfillmentStatus;
   paidAt: string | null;
@@ -110,6 +112,7 @@ function emailFields(order: ExpressOrderRecord, extra: Partial<ExpressEmailField
     orderId: order.id,
     amountLabel: formatExpressPrice(order.amountCents),
     transcription: order.transcription,
+    quantity: order.quantity ?? 1,
     deadlineLabel: order.deliveryDate ? `${order.deliveryDate} at 11:59 PM Pacific` : "",
     paidAtLabel: order.paidAt ?? "",
     adminUrl: expressAdminOrderUrl(order.id),
@@ -140,6 +143,7 @@ export interface ConfirmExpressOrderInput {
   serviceId: ExpressServiceId;
   customerName: string;
   transcription: boolean;
+  quantity?: number;
   paidAt: Date;
   holidays?: readonly string[];
   customerEmail: string;
@@ -162,14 +166,17 @@ export async function confirmPaidExpressOrder(input: ConfirmExpressOrderInput) {
 
   const service = getExpressService(input.serviceId);
   if (!service) throw new Error("Unknown Express service");
+  const quantity = expressSessionQuantity(service.id, input.quantity);
+  if (!quantity) throw new Error("Choose a quantity from 1 to 3.");
   const deadline = nextBusinessDayDeadline(input.paidAt, input.holidays ?? []);
   const order: ExpressOrderRecord = {
     id: input.id,
     serviceId: service.id,
     serviceName: service.name,
     customerName: input.customerName,
-    amountCents: expressAmountCents(service.id, input.transcription),
+    amountCents: expressAmountCents(service.id, input.transcription, quantity),
     transcription: input.transcription,
+    quantity,
     paymentStatus: "paid",
     fulfillmentStatus: "awaiting_fulfillment",
     paidAt: input.paidAt.toISOString(),

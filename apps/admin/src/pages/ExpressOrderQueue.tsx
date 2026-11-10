@@ -11,6 +11,7 @@ interface ExpressOrderView {
   customerEmail: string;
   amountCents: number;
   transcription: boolean;
+  quantity?: number;
   fulfillmentStatus: string;
   deliveryDate: string | null;
   deadlineAt: string | null;
@@ -193,7 +194,7 @@ export default function ExpressOrderQueue() {
             <table className="min-w-full text-left text-sm text-white/80">
               <thead className="text-xs uppercase tracking-wide text-white/45">
                 <tr>
-                  {["Service", "Customer", "Email", "Paid", "Due", "Status", "Transcription"].map((heading) => (
+                  {["Service", "Qty", "Customer", "Email", "Paid", "Due", "Status", "Transcription"].map((heading) => (
                     <th key={heading} className="px-4 py-3 font-medium">{heading}</th>
                   ))}
                 </tr>
@@ -206,6 +207,7 @@ export default function ExpressOrderQueue() {
                         {order.serviceName}
                       </button>
                     </td>
+                    <td className="px-4 py-3">{order.quantity ?? 1}</td>
                     <td className="px-4 py-3">{order.customerName}</td>
                     <td className="px-4 py-3">{order.customerEmail}</td>
                     <td className="px-4 py-3">{money(order.amountCents)}</td>
@@ -229,6 +231,7 @@ export default function ExpressOrderQueue() {
             <div><dt className="text-white/45">Customer</dt><dd>{selected.customerName}</dd></div>
             <div><dt className="text-white/45">Email</dt><dd>{selected.customerEmail}</dd></div>
             <div><dt className="text-white/45">Paid</dt><dd>{money(selected.amountCents)}</dd></div>
+            <div><dt className="text-white/45">Quantity</dt><dd>{selected.quantity ?? 1}</dd></div>
             <div><dt className="text-white/45">Transcription</dt><dd>{selected.transcription ? "Ordered" : "Not ordered"}</dd></div>
             <div><dt className="text-white/45">Birthdate</dt><dd>{selected.intake.birthdate || "—"}</dd></div>
             <div><dt className="text-white/45">Guide</dt><dd>{selected.intake.guide || "—"}</dd></div>

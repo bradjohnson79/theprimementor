@@ -1490,10 +1490,12 @@ async function handleCheckoutSessionCompleted(
     const { sendResendEmail } = await import("../notifications/providers/resendProvider.js");
     const repo = createPostgresExpressRepository(db as Database);
     const raw = metadata.raw;
-    const { isExpressServiceId } = await import("@wisdom/utils");
+    const { expressSessionQuantity, isExpressServiceId } = await import("@wisdom/utils");
     if (!isExpressServiceId(raw.serviceId) || !raw.customerEmail && !session.customer_email) {
       throw new Error("Express checkout is missing its service or customer");
     }
+    const quantity = expressSessionQuantity(raw.serviceId, raw.quantity);
+    if (!quantity) throw new Error("Express checkout has an invalid quantity");
     const saved = await confirmExpressPayment(repo, {
       id: session.id,
       serviceId: raw.serviceId,
@@ -1501,6 +1503,7 @@ async function handleCheckoutSessionCompleted(
       customerEmail: raw.customerEmail || session.customer_email || "",
       amountCents: Number(raw.amountCents || session.amount_total || 0),
       transcription: raw.transcription === "yes",
+      quantity,
       paidAt: new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000),
       intake: {
         birthdate: raw.birthdate || "",

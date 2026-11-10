@@ -39,6 +39,9 @@ test("Express prices stay separate from the existing email and past-life product
   assert.equal(expressAmountCents("healing", true), 4800);
   assert.equal(expressAmountCents("past-life", true), 5800);
   assert.equal(expressAmountCents("ask", true) - expressAmountCents("ask", false), EXPRESS_TRANSCRIPTION_CENTS);
+  assert.equal(expressAmountCents("ask", false, 3), 5700);
+  assert.equal(expressAmountCents("ask", true, 2), 4700);
+  assert.equal(expressAmountCents("healing", false, 3), 3900);
   assert.equal(getActiveSessionOfferingByBookingTypeId("email-session")?.amountCents, 5900);
   assert.equal(getActiveSessionOfferingByBookingTypeId("past-life-akashic-reading")?.amountCents, 7900);
 });
@@ -49,6 +52,14 @@ test("Express checkout requires an email and does not ask for a phone or SMS cho
   const ready = validateExpressCheckout(checkoutBase());
   assert.equal(ready.ok, true);
   if (ready.ok) assert.equal(ready.amountCents, 1900);
+  const three = validateExpressCheckout({ ...checkoutBase(), quantity: 3, transcription: true });
+  assert.equal(three.ok, true);
+  if (three.ok) {
+    assert.equal(three.quantity, 3);
+    assert.equal(three.amountCents, 6600);
+  }
+  const tooMany = validateExpressCheckout({ ...checkoutBase(), quantity: 4 });
+  assert.equal(tooMany.ok, false);
   assert.equal("mobile" in checkoutBase(), false);
 });
 
@@ -67,13 +78,16 @@ test("payment confirmation emails the customer and admin once", async () => {
     notices,
   });
   assert.equal(first.order.amountCents, 2800);
+  assert.equal(first.order.quantity, 1);
   assert.equal(first.order.deliveryDate, "2026-03-09");
   assert.equal(notices.length, 2);
   assert.equal(notices.every((notice) => notice.channel === "email"), true);
   const customer = notices.find((notice) => notice.eventType === "express_customer_confirmation");
   const admin = notices.find((notice) => notice.eventType === "express_admin_purchase");
   assert.equal(customer?.subject, "Your Prime Mentor Express Order Is Confirmed");
+  assert.match(customer?.body ?? "", /Quantity: 1/);
   assert.match(customer?.body ?? "", /personalized MP3 will arrive by email/);
+  assert.match(admin?.body ?? "", /Quantity: 1/);
   assert.match(customer?.body ?? "", /2026-03-09/);
   assert.equal(admin?.recipient, EXPRESS_ADMIN_EMAIL);
   assert.equal(admin?.subject, "NICE! YOU JUST GOT AN EXPRESS ORDER - Ask Brad / Adronis");

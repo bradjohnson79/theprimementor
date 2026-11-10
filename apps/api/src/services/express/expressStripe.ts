@@ -1,4 +1,4 @@
-import { expressAmountCents, getExpressService, type ExpressCheckoutInput, type ExpressServiceId } from "@wisdom/utils";
+import { expressAmountCents, expressSessionQuantity, getExpressService, type ExpressCheckoutInput, type ExpressServiceId } from "@wisdom/utils";
 import type Stripe from "stripe";
 import { getFrontendUrl } from "../../config/membershipBilling.js";
 import { createHttpError } from "../booking/errors.js";
@@ -34,13 +34,31 @@ export function expressTranscriptionPriceId(env: Record<string, string | undefin
   return env[TRANSCRIPTION_PRICE_ENV]?.trim() || TRANSCRIPTION_PRICE_FALLBACK;
 }
 
-export async function createExpressCheckoutSession(input: ExpressCheckoutInput) {
+export function expressCheckoutSelection(input: Pick<ExpressCheckoutInput, "serviceId" | "transcription" | "quantity">) {
   const service = getExpressService(input.serviceId);
   if (!service) throw createHttpError(400, "Unknown Express service");
+  const quantity = expressSessionQuantity(service.id, input.quantity);
+  if (!quantity) throw createHttpError(400, "Choose a quantity from 1 to 3.");
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    { price: expressLivePriceId(service.id), quantity },
+  ];
+  if (input.transcription) {
+    lineItems.push({ price: expressTranscriptionPriceId(), quantity: 1 });
+  }
+  return {
+    service,
+    quantity,
+    amountCents: expressAmountCents(service.id, input.transcription, quantity),
+    lineItems,
+  };
+}
+
+export async function createExpressCheckoutSession(input: ExpressCheckoutInput) {
   const secret = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secret) throw createHttpError(503, "Stripe is not configured for Express checkout");
 
-  const priceId = expressLivePriceId(service.id);
+  const selection = expressCheckoutSelection(input);
+  const { service, quantity, amountCents, lineItems } = selection;
   const stripe = createStripeClient(secret);
   const frontendUrl = getFrontendUrl();
   const metadata: Record<string, string> = {
@@ -50,24 +68,21 @@ export async function createExpressCheckoutSession(input: ExpressCheckoutInput) 
     customerName: clip(input.name, 200),
     customerEmail: clip(input.email, 200),
     transcription: input.transcription ? "yes" : "no",
+    quantity: String(quantity),
     guide: input.guide,
     birthdate: clip(input.birthdate, 40),
     question: clip(input.question),
     focusAreas: clip(input.focusAreas.filter(Boolean).join(" | ")),
     healingContext: clip(input.healingContext),
     pastLifeInterest: clip(input.pastLifeInterest),
-    amountCents: String(expressAmountCents(service.id, input.transcription)),
+    amountCents: String(amountCents),
   };
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [{ price: priceId, quantity: 1 }];
-  if (input.transcription) {
-    lineItems.push({ price: expressTranscriptionPriceId(), quantity: 1 });
-  }
 
   return stripe.checkout.sessions.create({
     ...checkoutPaymentMethodTypesParam(),
     mode: "payment",
     customer_email: input.email.trim(),
-    client_reference_id: `express:${service.id}`,
+    client_reference_id: `express:${service.id}:${quantity}`,
     line_items: lineItems,
     metadata,
     payment_intent_data: { metadata },
@@ -84,6 +99,8 @@ export async function fulfillPaidExpressCheckout(session: { id: string; created?
   const customerName = metadata.customerName?.trim();
   if (!customerEmail || !customerName) throw new Error("Express checkout is missing the customer");
 
+  const quantity = expressSessionQuantity(service.id, metadata.quantity);
+  if (!quantity) throw new Error("Express checkout has an invalid quantity");
   const paidAt = new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000);
   const notices: NotificationRow[] = [];
   await confirmPaidExpressOrder({
@@ -91,6 +108,7 @@ export async function fulfillPaidExpressCheckout(session: { id: string; created?
     serviceId: service.id,
     customerName,
     transcription: metadata.transcription === "yes",
+    quantity,
     paidAt,
     customerEmail,
     adminEmail: resolveAdminExpressEmail(),
