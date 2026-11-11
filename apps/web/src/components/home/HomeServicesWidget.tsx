@@ -51,7 +51,7 @@ const PREMIUM_ITEMS: Array<{ id: PremiumId; label: string; title: string; descri
 
 const EXPRESS_COPY: Record<ExpressServiceId, { description: string }> = {
   ask: {
-    description: "Have one personal question answered through a customized MP3 audio recording. Choose to receive guidance from Brad through his Higher Self connection or through an Adronis transmission.",
+    description: "Have one personal question answered through a customized MP3 audio recording. Choose to receive guidance from Brad through his Higher Self connection or through an Adronis transmission. You can order a quantity of 1, 2, or 3.",
   },
   healing: {
     description: "Receive personalized energetic work focused on up to five areas of your choosing. This experience may include energetic cord cutting, cellular recharge, and the application of assumed healthy states within your energetic field.",
@@ -299,9 +299,6 @@ function ExpressPanel({ selected, onSelect }: { selected: ExpressServiceId; onSe
         <p className="text-pretty text-sm leading-7 text-slate-300 sm:text-[0.95rem]">{EXPRESS_COPY[service.id].description}</p>
         <p className="text-sm leading-6 text-slate-300">Delivery: MP3 Audio | No Appointment Required</p>
         <p className="text-xs leading-5 text-slate-300 sm:text-sm">Delivered by the end of the next business day. Optional written transcription +$9 CAD.</p>
-        {service.id === "ask" ? (
-          <p className="text-xs leading-5 text-slate-300 sm:text-sm">Choose a quantity of 1, 2, or 3 on the next step. Each one is a separate session.</p>
-        ) : null}
         <p className="text-sm font-semibold text-cyan-100">{formatExpressPrice(service.priceCents)}</p>
         <Link to={`/express/${service.id}`} className={BUTTON_CLASS}>
           Continue with {service.name}
