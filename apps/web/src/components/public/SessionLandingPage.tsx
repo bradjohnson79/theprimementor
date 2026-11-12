@@ -53,6 +53,10 @@ export interface SessionLandingContent {
     callout: SessionLandingCallout;
   };
   sections: SessionLandingSection[];
+  testimonial?: {
+    quote: string;
+    name: string;
+  };
   finalCta: {
     eyebrow: string;
     title: string;
@@ -400,7 +404,20 @@ export default function SessionLandingPage({
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,5,15,0.18),rgba(4,5,15,0.58))]" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 py-16 sm:py-20 lg:py-24">
+        <div className="relative mx-auto max-w-6xl px-6 py-12 sm:py-16 lg:py-20">
+          {content.testimonial ? (
+            <figure className="mb-10 rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-10 sm:py-9">
+              <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
+                Recent session
+              </p>
+              <blockquote className="mt-4 text-lg leading-8 text-white/88 sm:text-xl sm:leading-9">
+                “{content.testimonial.quote}”
+              </blockquote>
+              <figcaption className="mt-5 text-sm font-semibold tracking-wide text-cyan-100">
+                {content.testimonial.name}
+              </figcaption>
+            </figure>
+          ) : null}
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
             <div className="max-w-3xl">
               <p className={`text-[0.72rem] font-semibold uppercase tracking-[0.34em] ${styles.eyebrow}`}>
