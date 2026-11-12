@@ -173,7 +173,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const initialExpress = searchParams.get("category") === "express";
-  const [activeTab, setActiveTab] = useState<"all" | OrderType>(initialExpress ? "session" : "all");
+  const [activeTab, setActiveTab] = useState<"all" | OrderType | "express">(initialExpress ? "express" : "all");
   const [orderSearchInput, setOrderSearchInput] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [orderCategory, setOrderCategory] = useState(initialExpress ? "express" : "all");
@@ -613,9 +613,13 @@ export default function Orders() {
                   type="button"
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setOrderCategory(tab.id === "report" ? "divin8_reports" : "all");
+                    setOrderCategory(tab.id === "express" ? "express" : tab.id === "report" ? "divin8_reports" : "all");
                     setPage(1);
                     setSelectedOrderIds([]);
+                    const nextParams = new URLSearchParams(searchParams);
+                    if (tab.id === "express") nextParams.set("category", "express");
+                    else nextParams.delete("category");
+                    setSearchParams(nextParams, { replace: true });
                   }}
                   className={`rounded-full border px-4 py-2 text-sm transition ${
                     isActive
@@ -748,7 +752,7 @@ export default function Orders() {
           </div>
 
           {orderCategory === "express" ? (
-            <ExpressOrderQueue />
+            <ExpressOrderQueue search={orderSearch} />
           ) : (
           <Card className="overflow-hidden p-0">
             {orders.length === 0 ? (

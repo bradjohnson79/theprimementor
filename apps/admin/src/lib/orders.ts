@@ -338,7 +338,7 @@ export interface AdminInvoiceResponse {
   data: AdminInvoice;
 }
 
-export const ORDER_TYPE_TABS: Array<{ id: "all" | OrderType; label: string }> = [
+export const ORDER_TYPE_TABS: Array<{ id: "all" | OrderType | "express"; label: string }> = [
   { id: "all", label: "All" },
   { id: "session", label: "Sessions" },
   { id: "report", label: "Reports" },
@@ -347,6 +347,7 @@ export const ORDER_TYPE_TABS: Array<{ id: "all" | OrderType; label: string }> = 
   { id: "mentor_training", label: "Mentor Training" },
   { id: "regeneration_offer", label: "Regeneration Offer" },
   { id: "shop", label: "Shop" },
+  { id: "express", label: "Express" },
 ];
 
 export function formatOrderMoney(amount: number, currency: string) {

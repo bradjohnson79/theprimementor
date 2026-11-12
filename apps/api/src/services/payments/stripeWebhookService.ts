@@ -1486,7 +1486,7 @@ async function handleCheckoutSessionCompleted(
       return;
     }
     const { fulfillPaidExpressCheckout } = await import("../express/expressStripe.js");
-    await fulfillPaidExpressCheckout(session);
+    await fulfillPaidExpressCheckout(session, db as Database);
     logger.info({ checkoutSessionId: session.id, serviceId: metadata.raw.serviceId }, "express_checkout_confirmed");
     return;
   }

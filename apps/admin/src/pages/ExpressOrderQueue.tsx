@@ -1,54 +1,114 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/react";
 import Card from "../components/Card";
+import EmptyState from "../components/EmptyState";
+import { api } from "../lib/api";
 
-const SAMPLE_DEADLINE = "2026-11-10T07:59:00.000Z";
-
-function timeRemaining(deadline: string) {
-  const ms = Date.parse(deadline) - Date.now();
-  if (Number.isNaN(ms)) return "—";
-  if (ms < 0) return "Past deadline";
-  const hours = Math.floor(ms / 3_600_000);
-  const days = Math.floor(hours / 24);
-  return days > 0 ? `${days}d ${hours % 24}h` : `${hours}h`;
+interface ExpressOrderRow {
+  id: string;
+  serviceName: string;
+  customerName: string;
+  customerEmail: string;
+  amountCents: number;
+  transcription: boolean;
+  quantity: number;
+  fulfillmentStatus: string;
+  paidAt: string;
+  deliveryDate: string | null;
 }
 
-export default function ExpressOrderQueue() {
-  const sample = {
-    service: "Ask Brad / Adronis",
-    customer: "Sample client",
-    paidAt: "2026-11-08T20:00:00.000Z",
-    deadline: SAMPLE_DEADLINE,
-    payment: "paid",
-    fulfillment: "awaiting fulfillment",
-    transcription: "No",
-    contact: "Email",
-  };
+function money(cents: number) {
+  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(cents / 100);
+}
+
+function when(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Vancouver",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export default function ExpressOrderQueue({ search }: { search: string }) {
+  const { getToken } = useAuth();
+  const [orders, setOrders] = useState<ExpressOrderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = await getToken();
+        const response = await api.get("/admin/express/orders", token) as { data?: ExpressOrderRow[] };
+        if (!cancelled) setOrders(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load Express orders.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
+
+  const query = search.trim().toLowerCase();
+  const visible = query
+    ? orders.filter((order) => [order.customerName, order.customerEmail, order.serviceName, order.id].join(" ").toLowerCase().includes(query))
+    : orders;
+
+  if (loading) {
+    return <Card className="p-6 text-sm text-white/60">Loading Express orders…</Card>;
+  }
+  if (error) {
+    return <Card className="p-6 text-sm text-rose-200">{error}</Card>;
+  }
+  if (visible.length === 0) {
+    return (
+      <Card className="overflow-hidden p-0">
+        <EmptyState
+          title={query ? "No matching Express orders" : "No Express orders yet"}
+          message={query ? "No Express purchase matches that search." : "Paid Express orders will appear here."}
+        />
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden p-0">
-      <div className="border-b border-white/10 px-4 py-3 text-sm text-amber-100/90">
-        Live Express orders stay on the isolated API. The row below is a labeled sample so the columns can be reviewed. It is not a customer order.
-      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-sm text-white/80">
           <thead className="text-xs uppercase tracking-wide text-white/45">
             <tr>
-              {["Service", "Customer", "Paid", "Deadline", "Time remaining", "Payment", "Fulfillment", "Transcription", "Email"].map((heading) => (
+              {["Service", "Customer", "Email", "Paid", "Amount", "Quantity", "Transcription", "Delivery", "Status"].map((heading) => (
                 <th key={heading} className="px-4 py-3 font-medium">{heading}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            <tr className="border-t border-white/10">
-              <td className="px-4 py-3">{sample.service}</td>
-              <td className="px-4 py-3">{sample.customer}</td>
-              <td className="px-4 py-3">{sample.paidAt}</td>
-              <td className="px-4 py-3">{sample.deadline}</td>
-              <td className="px-4 py-3">{timeRemaining(sample.deadline)}</td>
-              <td className="px-4 py-3">{sample.payment}</td>
-              <td className="px-4 py-3">{sample.fulfillment}</td>
-              <td className="px-4 py-3">{sample.transcription}</td>
-              <td className="px-4 py-3">{sample.contact}</td>
-            </tr>
+            {visible.map((order) => (
+              <tr key={order.id} className="border-t border-white/10">
+                <td className="px-4 py-3">{order.serviceName}</td>
+                <td className="px-4 py-3">{order.customerName}</td>
+                <td className="px-4 py-3">{order.customerEmail}</td>
+                <td className="px-4 py-3">{when(order.paidAt)}</td>
+                <td className="px-4 py-3">{money(order.amountCents)}</td>
+                <td className="px-4 py-3">{order.quantity}</td>
+                <td className="px-4 py-3">{order.transcription ? "Yes" : "No"}</td>
+                <td className="px-4 py-3">{order.deliveryDate ?? "—"}</td>
+                <td className="px-4 py-3 capitalize">{order.fulfillmentStatus.replace(/_/g, " ")}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

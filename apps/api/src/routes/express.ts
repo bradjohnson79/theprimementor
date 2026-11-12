@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { sql } from "drizzle-orm";
 import { validateExpressCheckout, type ExpressCheckoutInput } from "@wisdom/utils";
 import { ok, sendApiError } from "../apiContract.js";
+import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin, requireDatabase } from "../routeAssertions.js";
 import { createHttpError } from "../services/booking/errors.js";
 import { reviewExpressDeadlines, planExpressReminderEmails, type ExpressOrderRecord, type NotificationRow } from "../services/express/expressFulfillment.js";
 import { resolveAdminExpressEmail } from "../services/express/expressEmail.js";
@@ -46,6 +49,29 @@ export async function expressRoutes(app: FastifyInstance) {
     if (!result.ok) return sendApiError(reply, 400, result.errors.join(" "));
     const session = await createExpressCheckoutSession(request.body as ExpressCheckoutInput);
     return ok({ data: { amountCents: result.amountCents, currency: "CAD", requiresPayment: true, sessionId: session.id, url: session.url } });
+  });
+
+  app.get("/admin/express/orders", { preHandler: requireAuth }, async (request) => {
+    requireAdmin(request);
+    const db = requireDatabase(app.db);
+    const result = await db.execute(sql`
+      SELECT
+        id,
+        service_name AS "serviceName",
+        customer_name AS "customerName",
+        customer_email AS "customerEmail",
+        amount_cents AS "amountCents",
+        transcription,
+        quantity,
+        fulfillment_status AS "fulfillmentStatus",
+        paid_at AS "paidAt",
+        delivery_date AS "deliveryDate",
+        deadline_at AS "deadlineAt"
+      FROM express_orders
+      ORDER BY paid_at DESC
+    `);
+    const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows ?? [];
+    return ok(rows);
   });
 
   app.post("/internal/express/reminders", async (request, reply) => {

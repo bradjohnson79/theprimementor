@@ -1242,6 +1242,31 @@ const KNOWN_DATA_REPAIR_STATEMENTS = [
     "updated_at" = now();`,
   ...BOOKING_INTAKE_IMAGE_REPAIR,
   ...REGENERATION_PERIOD_BENEFIT_REPAIR,
+  `CREATE TABLE IF NOT EXISTS "express_orders" (
+    "id" text PRIMARY KEY,
+    "service_id" text NOT NULL,
+    "service_name" text NOT NULL,
+    "customer_name" text NOT NULL,
+    "customer_email" text NOT NULL,
+    "amount_cents" integer NOT NULL,
+    "currency" text DEFAULT 'CAD' NOT NULL,
+    "transcription" boolean NOT NULL,
+    "quantity" integer DEFAULT 1 NOT NULL,
+    "payment_status" text NOT NULL,
+    "fulfillment_status" text NOT NULL,
+    "paid_at" timestamptz NOT NULL,
+    "timezone" text NOT NULL,
+    "delivery_date" date NOT NULL,
+    "deadline_at" timestamptz NOT NULL,
+    "delivered_at" timestamptz,
+    "intake" jsonb NOT NULL,
+    "mp3_key" text,
+    "transcript_key" text,
+    "refund_review" boolean DEFAULT false NOT NULL,
+    "delay_notified" boolean DEFAULT false NOT NULL,
+    "created_at" timestamptz DEFAULT now() NOT NULL,
+    "updated_at" timestamptz DEFAULT now() NOT NULL
+  );`,
 ] as const;
 
 export function canRepairKnownSchemaGaps(missingEntries: string[]) {

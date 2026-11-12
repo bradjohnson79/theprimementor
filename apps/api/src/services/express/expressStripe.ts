@@ -1,3 +1,5 @@
+import type { Database } from "@wisdom/db";
+import { sql } from "drizzle-orm";
 import { expressAmountCents, expressSessionQuantity, getExpressService, type ExpressCheckoutInput, type ExpressServiceId } from "@wisdom/utils";
 import type Stripe from "stripe";
 import { getFrontendUrl } from "../../config/membershipBilling.js";
@@ -5,7 +7,7 @@ import { createHttpError } from "../booking/errors.js";
 import { sendResendEmail } from "../notifications/providers/resendProvider.js";
 import { checkoutPaymentMethodTypesParam, createStripeClient } from "../stripe/stripeClientFactory.js";
 import { resolveAdminExpressEmail } from "./expressEmail.js";
-import { confirmPaidExpressOrder, type NotificationRow } from "./expressFulfillment.js";
+import { confirmPaidExpressOrder, type ExpressOrderRecord, type NotificationRow } from "./expressFulfillment.js";
 
 const LIVE_PRICE_ENV: Record<ExpressServiceId, string> = {
   ask: "STRIPE_LIVE_PRICE_EXPRESS_ASK",
@@ -91,7 +93,39 @@ export async function createExpressCheckoutSession(input: ExpressCheckoutInput) 
   });
 }
 
-export async function fulfillPaidExpressCheckout(session: { id: string; created?: number | null; metadata?: Stripe.Metadata | null }) {
+export async function savePaidExpressOrder(db: Database, order: ExpressOrderRecord, intake: Record<string, string>) {
+  if (!order.paidAt || !order.deliveryDate || !order.deadlineAt) return;
+  await db.execute(sql`
+    INSERT INTO express_orders (
+      id, service_id, service_name, customer_name, customer_email,
+      amount_cents, currency, transcription, quantity, payment_status,
+      fulfillment_status, paid_at, timezone, delivery_date, deadline_at, intake
+    ) VALUES (
+      ${order.id},
+      ${order.serviceId},
+      ${order.serviceName},
+      ${order.customerName},
+      ${order.customerEmail},
+      ${order.amountCents},
+      'CAD',
+      ${order.transcription},
+      ${order.quantity ?? 1},
+      ${order.paymentStatus},
+      ${order.fulfillmentStatus},
+      ${order.paidAt},
+      ${order.timezone},
+      ${order.deliveryDate},
+      ${order.deadlineAt},
+      CAST(${JSON.stringify(intake)} AS jsonb)
+    )
+    ON CONFLICT (id) DO NOTHING
+  `);
+}
+
+export async function fulfillPaidExpressCheckout(
+  session: { id: string; created?: number | null; metadata?: Stripe.Metadata | null },
+  db?: Database,
+) {
   const metadata = session.metadata ?? {};
   const service = getExpressService(metadata.serviceId);
   if (!service) throw new Error("Express checkout is missing its service");
@@ -103,7 +137,7 @@ export async function fulfillPaidExpressCheckout(session: { id: string; created?
   if (!quantity) throw new Error("Express checkout has an invalid quantity");
   const paidAt = new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000);
   const notices: NotificationRow[] = [];
-  await confirmPaidExpressOrder({
+  const confirmed = await confirmPaidExpressOrder({
     id: session.id,
     serviceId: service.id,
     customerName,
@@ -115,6 +149,16 @@ export async function fulfillPaidExpressCheckout(session: { id: string; created?
     orders: [],
     notices,
   });
+  if (db) {
+    await savePaidExpressOrder(db, confirmed.order, {
+      birthdate: metadata.birthdate ?? "",
+      guide: metadata.guide ?? "",
+      question: metadata.question ?? "",
+      focusAreas: metadata.focusAreas ?? "",
+      healingContext: metadata.healingContext ?? "",
+      pastLifeInterest: metadata.pastLifeInterest ?? "",
+    });
+  }
 
   for (const notice of notices) {
     const sent = await sendResendEmail({
