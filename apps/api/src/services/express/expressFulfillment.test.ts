@@ -87,6 +87,7 @@ test("payment confirmation emails the customer and admin once", async () => {
   assert.equal(customer?.subject, "Your Prime Mentor Express Order Is Confirmed");
   assert.match(customer?.body ?? "", /Quantity: 1/);
   assert.match(customer?.body ?? "", /personalized MP3 will arrive by email/);
+  assert.match(customer?.body ?? "", /responded to within 24 hours/);
   assert.match(admin?.body ?? "", /Quantity: 1/);
   assert.match(customer?.body ?? "", /2026-03-09/);
   assert.equal(admin?.recipient, EXPRESS_ADMIN_EMAIL);
@@ -128,6 +129,7 @@ test("confirmation emails use the fixed template", async () => {
   assert.match(notices[0]?.body ?? "", /Prime Body Healing Express/);
   assert.match(notices[0]?.body ?? "", /2026-03-09/);
   assert.match(notices[0]?.body ?? "", /personalized MP3 will arrive by email/);
+  assert.match(notices[0]?.body ?? "", /responded to within 24 hours/);
 });
 
 test("failed emails are retried on the same row", () => {

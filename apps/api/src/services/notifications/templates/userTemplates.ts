@@ -95,6 +95,7 @@ function renderGuestPurchaseTemplate(input: {
   templateVersion: string;
   rows: Array<{ label: string; value: string | null | undefined }>;
   detailNote?: string | null;
+  footerNote?: string | null;
 }): RenderedTemplate {
   const { links } = input;
   const product = text(links.productLabel, "your order");
@@ -131,7 +132,7 @@ function renderGuestPurchaseTemplate(input: {
         ? { label: `Complete your ${formLabel}`, url: links.intakeUrl as string }
         : viewAction,
       secondaryCallToAction: intakePending ? viewAction : { label: "Contact Support", url: buildFrontendUrl("/contact") },
-      footerNote: "If you have any questions, simply reply to this email and we will help.",
+      footerNote: input.footerNote ?? "If you have any questions, simply reply to this email and we will help.",
     }),
   };
 }
@@ -144,7 +145,7 @@ function guestDetailNote(sessionType: string | null | undefined) {
     return "Brad will review your details and email a booking window for Level 1 Live, or a delivery turnaround for Level 1 Pre-Recorded and Level 2.";
   }
   if (sessionType === "star_initiation") {
-    return "Once your intake is in, Adronis will meet you for a private Star Initiation of about 20–30 minutes on Zoom or by phone, using the availability you selected.";
+    return "Once your intake is in, Adronis will meet you for a private Star Initiation of about 20–30 minutes on Zoom or by phone, using the availability you selected. If you reply to this email, your message will be responded to within 24 hours.";
   }
   if (sessionType === "qa_session" || sessionType === "mentoring" || sessionType === "regeneration") {
     return "Once your intake is in, Brad will review it and follow up with the scheduling details based on your availability.";
@@ -238,6 +239,7 @@ export function renderPaymentFailedTemplate(
 }
 
 const SESSION_24H_FOOTER = "If you do not hear from Brad Johnson within 24 hours, please contact us through our Contact page.";
+const REPLY_WITHIN_24_HOURS = "If you reply to this email, your message will be responded to within 24 hours.";
 
 function formatDurationLabel(minutes: number | null | undefined) {
   return typeof minutes === "number" && minutes > 0 ? `${minutes} Minutes` : "Selected duration";
@@ -353,6 +355,7 @@ function renderStarInitiationBookingCreatedTemplate(
         ),
         renderInfoCard("Intake summary", renderIntakeSummary(payload.intakeSummaryLines)),
         renderParagraph("Adronis will use the availability and session method you selected. This is a spiritual service. Experiences are personal, and individual outcomes are not guaranteed."),
+        renderParagraph(REPLY_WITHIN_24_HOURS),
       ],
       callToAction: {
         label: "Contact Support",
@@ -380,9 +383,11 @@ export function renderBookingCreatedTemplate(
         { label: "Email", value: payload.email ?? undefined },
         { label: "Service", value: payload.bookingType ?? payload.guestLinks.productLabel },
         { label: "Duration", value: payload.sessionType === "star_initiation" ? "20–30 minutes" : (payload.durationMinutes ? formatDurationLabel(payload.durationMinutes) : undefined) },
+        { label: "Price", value: payload.sessionType === "star_initiation" ? "$99.00 CAD" : undefined },
         { label: "Booking reference", value: text(payload.bookingId, "Unavailable") },
       ],
       detailNote: guestDetailNote(payload.sessionType),
+      footerNote: payload.sessionType === "star_initiation" ? REPLY_WITHIN_24_HOURS : undefined,
     });
   }
   if (payload.purchaseConfirmed && payload.sessionType === "qa_session") {

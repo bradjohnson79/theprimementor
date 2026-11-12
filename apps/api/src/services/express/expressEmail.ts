@@ -59,6 +59,7 @@ export function expressEmailTemplate(kind: ExpressEmailKind, fields: ExpressEmai
         `Transcription: ${transcription}.`,
         `Delivery deadline: ${fields.deadlineLabel} (America/Vancouver).`,
         "Your personalized MP3 will arrive by email.",
+        "If you reply to this email, your message will be responded to within 24 hours.",
       ].join("\n"),
     };
   }
