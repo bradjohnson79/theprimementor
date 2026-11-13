@@ -6,6 +6,17 @@ export interface ApparelModelShot {
   source: "spreadshop" | "mockup";
 }
 
+export type ModelGender = "male" | "female" | "unisex" | "kids" | "unknown";
+
+/** Detect gender from product label */
+export function detectModelGender(label: string): ModelGender {
+  if (/\b(?:kids|toddler|baby)\b/i.test(label)) return "kids";
+  if (/\bunisex\b/i.test(label)) return "unisex";
+  if (/\b(?:women|female)\b/i.test(label)) return "female";
+  if (/\b(?:men|male)\b/i.test(label)) return "male";
+  return "unknown";
+}
+
 export const APPAREL_MODEL_SHOTS: Record<string, ApparelModelShot[]> = {
   "gold-rosette-mandala": [
     { file: "01-women-s-t-shirt.webp", label: "Women's T-Shirt", alt: "Gold Rosette Mandala – Sacred Geometry Overlapping Circles printed on a Women's T-Shirt", source: "spreadshop" },
@@ -218,16 +229,70 @@ export function getApparelGalleryShots(slug: string, limit = 4): ApparelModelSho
 }
 
 /**
- * Card image. Worn tee when one exists. Designs with no on-model photo
+ * Card image with gender preference. Worn tee when one exists. Designs with no on-model photo
  * (the pearl-wheel pieces) fall back to the first Spreadshop product photo,
  * still not the bare mandala artwork.
  */
-export function getApparelCardImage(slug: string): { src: string; alt: string; onModel: boolean } | undefined {
-  const spotlight = getApparelSpotlight(slug);
-  if (spotlight) {
-    return { src: apparelModelSrc(slug, spotlight.file), alt: spotlight.alt, onModel: true };
+export function getApparelCardImage(slug: string, preferGender?: ModelGender): { src: string; alt: string; onModel: boolean; gender: ModelGender } | undefined {
+  const wornShots = getWornApparelShots(slug);
+  
+  // If gender preference specified, try to find a match
+  if (preferGender && wornShots.length > 0) {
+    const preferred = wornShots.find(shot => detectModelGender(shot.label) === preferGender);
+    if (preferred) {
+      return { 
+        src: apparelModelSrc(slug, preferred.file), 
+        alt: preferred.alt, 
+        onModel: true,
+        gender: preferGender
+      };
+    }
   }
+  
+  // Fall back to spotlight (highest ranked)
+  const spotlight = wornShots[0];
+  if (spotlight) {
+    return { 
+      src: apparelModelSrc(slug, spotlight.file), 
+      alt: spotlight.alt, 
+      onModel: true,
+      gender: detectModelGender(spotlight.label)
+    };
+  }
+  
   const fallback = getApparelModelShots(slug)[0];
   if (!fallback) return undefined;
-  return { src: apparelModelSrc(slug, fallback.file), alt: fallback.alt, onModel: false };
+  return { 
+    src: apparelModelSrc(slug, fallback.file), 
+    alt: fallback.alt, 
+    onModel: false,
+    gender: detectModelGender(fallback.label)
+  };
+}
+
+/**
+ * Get balanced gender mix for card display. Alternates between male and female models
+ * where available to show that designs are unisex.
+ */
+export function getBalancedCardImages(slugs: string[]): Map<string, ReturnType<typeof getApparelCardImage>> {
+  const result = new Map<string, ReturnType<typeof getApparelCardImage>>();
+  let preferFemale = true; // Start with female to maintain current first card
+  
+  slugs.forEach(slug => {
+    const wornShots = getWornApparelShots(slug);
+    const hasFemale = wornShots.some(shot => detectModelGender(shot.label) === "female");
+    const hasMale = wornShots.some(shot => detectModelGender(shot.label) === "male");
+    
+    // If design has both genders, alternate preference
+    if (hasFemale && hasMale) {
+      const cardImage = getApparelCardImage(slug, preferFemale ? "female" : "male");
+      result.set(slug, cardImage);
+      preferFemale = !preferFemale; // Alternate for next eligible design
+    } else {
+      // Use default (highest ranked)
+      result.set(slug, getApparelCardImage(slug));
+    }
+  });
+  
+  return result;
 }

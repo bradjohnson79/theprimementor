@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { pageCanonical, DEFAULT_OG_IMAGE } from "../lib/siteMeta";
@@ -9,7 +9,7 @@ import {
   getDesignsByTopic,
   type ApparelTopic,
 } from "../data/apparel";
-import { getApparelCardImage } from "../data/apparelModels";
+import { getBalancedCardImages } from "../data/apparelModels";
 import ApparelInstructionManual from "../components/shop/ApparelInstructionManual";
 
 export default function ApparelLanding() {
@@ -25,6 +25,11 @@ export default function ApparelLanding() {
   const displayedDesigns = activeTopic
     ? getDesignsByTopic(activeTopic)
     : [...APPAREL_DESIGNS].sort((a, b) => a.featuredRank - b.featuredRank);
+  
+  const cardImages = useMemo(() => {
+    const slugs = displayedDesigns.map(d => d.slug);
+    return getBalancedCardImages(slugs);
+  }, [displayedDesigns]);
 
   return (
     <main id="top" className="min-h-screen text-white">
@@ -81,7 +86,8 @@ export default function ApparelLanding() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {displayedDesigns.map((design) => {
               const fromPrice = formatApparelFromPrice(design);
-              const card = getApparelCardImage(design.slug);
+              const card = cardImages.get(design.slug);
+              const isKids = design.slug.startsWith("kids-");
               return (
               <article key={design.slug} className="glass-card flex h-full flex-col rounded-3xl p-6">
                 <Link to={`/shop/apparel/${design.slug}`} className="group">
@@ -94,9 +100,16 @@ export default function ApparelLanding() {
                       decoding="async"
                     />
                   </div>
-                  <h2 className="mt-4 text-xl font-semibold text-white group-hover:text-accent-cyan transition-colors">
-                    {design.title}
-                  </h2>
+                  <div className="mt-4 flex items-start gap-2">
+                    <h2 className="min-w-0 flex-1 text-xl font-semibold leading-snug text-white group-hover:text-accent-cyan transition-colors">
+                      {design.title}
+                    </h2>
+                    {!isKids && (
+                      <span className="shrink-0 rounded-full bg-cyan-400/15 border border-cyan-300/40 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-cyan-100">
+                        Unisex
+                      </span>
+                    )}
+                  </div>
                   {fromPrice ? (
                     <p className="mt-2 text-sm font-semibold tabular-nums text-amber-100">{fromPrice}</p>
                   ) : null}

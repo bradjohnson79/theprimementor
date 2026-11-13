@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { trackCtaClick } from "../../lib/analytics";
@@ -9,7 +9,7 @@ import {
   formatApparelFromPrice,
   type ApparelDesign,
 } from "../../data/apparel";
-import { getApparelCardImage } from "../../data/apparelModels";
+import { getBalancedCardImages } from "../../data/apparelModels";
 
 const FEATURED_APPAREL_COUNT = 4;
 const FEATURED_DIGITAL_COUNT = 4;
@@ -99,22 +99,27 @@ function DigitalCardSkeleton() {
   );
 }
 
-function ApparelCard({ design }: { design: ApparelDesign }) {
+function ApparelCard({ design, cardImage }: { design: ApparelDesign; cardImage: ReturnType<typeof getBalancedCardImages> extends Map<string, infer T> ? T : never }) {
   const href = `/shop/apparel/${design.slug}`;
   const title = apparelShortTitle(design.title);
-  const card = getApparelCardImage(design.slug);
+  const isKids = design.slug.startsWith("kids-");
+  const isBestSeller = design.featuredRank === 1;
+  
+  // Show "Best seller" or "Unisex", with best seller taking priority
+  const badge = isBestSeller ? "Best seller" : (!isKids ? "Unisex" : undefined);
+  
   return (
     <ShopProductCard
       href={href}
       eyebrow="Sacred Apparel"
       title={title}
-      imageSrc={card?.src ?? null}
-      imageAlt={card?.alt ?? design.title}
+      imageSrc={cardImage?.src ?? null}
+      imageAlt={cardImage?.alt ?? design.title}
       frameClassName="bg-[#ececef]"
       price={formatApparelFromPrice(design)}
       summary={design.description}
       cta="View design"
-      badge={design.featuredRank === 1 ? "Best seller" : undefined}
+      badge={badge}
       onClick={() => trackCtaClick("home_shop_apparel", "home_shop", {
         href,
         title: design.title,
@@ -147,6 +152,11 @@ function DigitalCard({ product }: { product: ShopPublicProduct }) {
 export default function HomeShopSection() {
   const [products, setProducts] = useState<ShopPublicProduct[] | null>(null);
   const [failed, setFailed] = useState(false);
+  
+  const apparelCardImages = useMemo(() => {
+    const slugs = featuredApparel.map(d => d.slug);
+    return getBalancedCardImages(slugs);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,7 +211,11 @@ export default function HomeShopSection() {
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {featuredApparel.map((design) => (
-            <ApparelCard key={design.slug} design={design} />
+            <ApparelCard 
+              key={design.slug} 
+              design={design} 
+              cardImage={apparelCardImages.get(design.slug)} 
+            />
           ))}
         </div>
       </div>
