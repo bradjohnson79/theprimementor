@@ -1,5 +1,5 @@
-import { motion, useReducedMotion } from "framer-motion";
-import type { ReactNode } from "react";
+import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
+import { type ReactNode, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { trackCtaClick } from "../../lib/analytics";
 import type { SessionLandingType } from "../../lib/sessionLandingPaths";
@@ -174,6 +174,66 @@ function densityClass(theme: LandingTheme, density: SessionLandingSection["densi
   if (theme === "focus") return "py-14";
   if (theme === "mentoring") return "py-20";
   return "py-16";
+}
+
+function TestimonialRotator({
+  testimonials,
+  styles,
+}: {
+  testimonials: Array<{ quote: string; name: string }>;
+  styles: { eyebrow: string };
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % testimonials.length);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [testimonials.length]);
+
+  return (
+    <div className="mb-10">
+      <p className={`mb-6 text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
+        Recent sessions
+      </p>
+      <div className="relative min-h-[16rem] sm:min-h-[14rem]">
+        <AnimatePresence mode="wait">
+          <motion.figure
+            key={currentIndex}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? false : { opacity: 0, y: -10 }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="absolute inset-0 rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-10 sm:py-9"
+          >
+            <blockquote className="text-base leading-8 text-white/88 sm:text-lg sm:leading-9">
+              "{testimonials[currentIndex].quote}"
+            </blockquote>
+            <figcaption className="mt-5 text-sm font-semibold tracking-wide text-cyan-100">
+              {testimonials[currentIndex].name}
+            </figcaption>
+          </motion.figure>
+        </AnimatePresence>
+      </div>
+      <div className="mt-4 flex justify-center gap-2">
+        {testimonials.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setCurrentIndex(index)}
+            className={`h-2 rounded-full transition-all ${
+              index === currentIndex 
+                ? "w-8 bg-cyan-300/80" 
+                : "w-2 bg-cyan-300/30 hover:bg-cyan-300/50"
+            }`}
+            aria-label={`View testimonial ${index + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function LandingCta({
@@ -410,26 +470,7 @@ export default function SessionLandingPage({
 
         <div className="relative mx-auto max-w-6xl px-6 py-12 sm:py-16 lg:py-20">
           {content.testimonials && content.testimonials.length > 0 ? (
-            <div className="mb-10">
-              <p className={`mb-6 text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
-                Recent sessions
-              </p>
-              <div className="grid gap-6 lg:grid-cols-2">
-                {content.testimonials.map((testimonial, index) => (
-                  <figure 
-                    key={index}
-                    className="rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-8 sm:py-8"
-                  >
-                    <blockquote className="text-base leading-8 text-white/88 sm:text-lg sm:leading-9">
-                      "{testimonial.quote}"
-                    </blockquote>
-                    <figcaption className="mt-5 text-sm font-semibold tracking-wide text-cyan-100">
-                      {testimonial.name}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            </div>
+            <TestimonialRotator testimonials={content.testimonials} styles={styles} />
           ) : content.testimonial ? (
             <figure className="mb-10 rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-10 sm:py-9">
               <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
