@@ -22,8 +22,8 @@ export const starInitiationSessionLandingContent: SessionLandingContent = {
     },
   },
   testimonial: {
-    quote: "I just recently completed my private one-to-one Star Initiation session with Adronis, and the experience provided me with clarity and confirmation with the answers I was seeking. It provided me news of such profound connections I would never have known! It has me searching and exploring new areas and motivated me to pursue current interests even further. I definitely look forward to another session!",
-    name: "Shahzad",
+    quote: "What a Blessing to be introduced to my Cosmic Family!. The energies of the celestial connections have stayed with since my session and continue to grow daily. Thank you for bringing such clarity to my extended family!",
+    name: "Craig Stickler",
   },
   sections: [
     {
