@@ -57,6 +57,10 @@ export interface SessionLandingContent {
     quote: string;
     name: string;
   };
+  testimonials?: Array<{
+    quote: string;
+    name: string;
+  }>;
   finalCta: {
     eyebrow: string;
     title: string;
@@ -405,13 +409,34 @@ export default function SessionLandingPage({
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-12 sm:py-16 lg:py-20">
-          {content.testimonial ? (
+          {content.testimonials && content.testimonials.length > 0 ? (
+            <div className="mb-10">
+              <p className={`mb-6 text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
+                Recent sessions
+              </p>
+              <div className="grid gap-6 lg:grid-cols-2">
+                {content.testimonials.map((testimonial, index) => (
+                  <figure 
+                    key={index}
+                    className="rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-8 sm:py-8"
+                  >
+                    <blockquote className="text-base leading-8 text-white/88 sm:text-lg sm:leading-9">
+                      "{testimonial.quote}"
+                    </blockquote>
+                    <figcaption className="mt-5 text-sm font-semibold tracking-wide text-cyan-100">
+                      {testimonial.name}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          ) : content.testimonial ? (
             <figure className="mb-10 rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-10 sm:py-9">
               <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.3em] ${styles.eyebrow}`}>
                 Recent session
               </p>
               <blockquote className="mt-4 text-lg leading-8 text-white/88 sm:text-xl sm:leading-9">
-                “{content.testimonial.quote}”
+                "{content.testimonial.quote}"
               </blockquote>
               <figcaption className="mt-5 text-sm font-semibold tracking-wide text-cyan-100">
                 {content.testimonial.name}
