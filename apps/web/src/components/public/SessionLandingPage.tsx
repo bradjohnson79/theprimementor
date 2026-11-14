@@ -203,9 +203,9 @@ function TestimonialRotator({
         <AnimatePresence mode="wait">
           <motion.figure
             key={currentIndex}
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={prefersReducedMotion ? false : { opacity: 0, y: -10 }}
+            exit={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="absolute inset-0 rounded-[1.5rem] border border-cyan-200/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_42%),linear-gradient(180deg,rgba(8,10,28,0.72),rgba(4,5,16,0.55))] px-6 py-7 shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:px-10 sm:py-9"
           >
