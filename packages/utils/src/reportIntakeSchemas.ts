@@ -11,7 +11,6 @@ const requiredText = (fieldName: string) => z.string({ message: `${fieldName} is
 const birthDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Birth date must use YYYY-MM-DD");
 const birthTime = z.string().trim().optional().nullable().transform((value) => value?.slice(0, 5) || "00:00");
 const birthLocation = requiredText("Birth location");
-const timezone = optionalText;
 const ianaTimezone = z
   .string({ message: "Timezone is required" })
   .trim()
