@@ -305,7 +305,13 @@ export default function ReportOrder() {
           <input className={fieldClassName(errors[key("birthPlaceName")] ?? errors.birthPlaceName)} placeholder="City, region, country" value={String(resolvedForm[key("birthPlaceName")] ?? "")} onChange={(event) => update(key("birthPlaceName"), event.target.value)} />
         </Label>
         <Label label="Birth timezone">
-          <input className={fieldClassName()} value={String(resolvedForm[key("birthTimezone")] ?? browserTimezone())} onChange={(event) => update(key("birthTimezone"), event.target.value)} />
+          <input 
+            className={`${fieldClassName()} opacity-75`} 
+            value={String(resolvedForm[key("birthTimezone")] ?? browserTimezone())} 
+            readOnly 
+            title="Auto-detected from your browser. Contact support if this needs to be changed."
+          />
+          <span className="mt-1 block text-xs text-white/50">Auto-detected from your browser</span>
         </Label>
         <Label label="Current location, optional">
           <input className={fieldClassName()} value={String(resolvedForm[key("currentLocation")] ?? "")} onChange={(event) => update(key("currentLocation"), event.target.value)} />

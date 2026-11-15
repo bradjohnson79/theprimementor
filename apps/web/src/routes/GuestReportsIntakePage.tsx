@@ -220,7 +220,13 @@ function ReportsIntakeForm({ token, view, onDone }: { token: string; view: Guest
           <input className={fieldClassName(err("birthPlaceName"))} placeholder="City, region, country" value={String(form[key("birthPlaceName")] ?? "")} onChange={(e) => update(key("birthPlaceName"), e.target.value)} />
         </Label>
         <Label label="Birth timezone">
-          <input className={fieldClassName()} value={String(form[key("birthTimezone")] ?? "")} onChange={(e) => update(key("birthTimezone"), e.target.value)} />
+          <input 
+            className={`${fieldClassName()} opacity-75`} 
+            value={String(form[key("birthTimezone")] ?? browserTimezone())} 
+            readOnly 
+            title="Auto-detected from your browser. Contact support if this needs to be changed."
+          />
+          <span className="mt-1 block text-xs text-white/50">Auto-detected from your browser</span>
         </Label>
         <Label label="Current location, optional">
           <input className={fieldClassName()} value={String(form[key("currentLocation")] ?? "")} onChange={(e) => update(key("currentLocation"), e.target.value)} />

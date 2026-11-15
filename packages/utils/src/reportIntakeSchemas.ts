@@ -12,6 +12,21 @@ const birthDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Birth date mus
 const birthTime = z.string().trim().optional().nullable().transform((value) => value?.slice(0, 5) || "00:00");
 const birthLocation = requiredText("Birth location");
 const timezone = optionalText;
+const ianaTimezone = z
+  .string({ message: "Timezone is required" })
+  .trim()
+  .min(1, "Timezone is required")
+  .refine(
+    (value) => {
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: value });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Invalid timezone. Use a valid IANA timezone." }
+  );
 const question = z
   .string()
   .trim()
@@ -34,7 +49,7 @@ const personSchema = z.object({
   birthPlaceName: birthLocation,
   birthLat: z.number().optional().nullable(),
   birthLng: z.number().optional().nullable(),
-  birthTimezone: timezone,
+  birthTimezone: ianaTimezone,
   currentLocation: optionalText,
 });
 
@@ -47,7 +62,7 @@ export const premiumReportIntakeSchema = z.object({
   birthPlaceName: birthLocation,
   birthLat: z.number().optional().nullable(),
   birthLng: z.number().optional().nullable(),
-  birthTimezone: requiredText("Birth timezone"),
+  birthTimezone: ianaTimezone,
   timezoneSource: z.enum(["user", "suggested", "fallback"]).default("user"),
   primaryFocus: optionalText,
   notes: optionalText,
