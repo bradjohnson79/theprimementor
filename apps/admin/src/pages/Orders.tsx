@@ -7,7 +7,6 @@ import Card from "../components/Card";
 import Loading from "../components/Loading";
 import EmptyState from "../components/EmptyState";
 import OrderStatusBadge from "../components/OrderStatusBadge";
-import ExpressOrderQueue from "./ExpressOrderQueue";
 import { api } from "../lib/api";
 import type { AdminClientsResponse, ClientOption } from "../lib/clients";
 import { toClientOption } from "../lib/clients";
@@ -218,12 +217,6 @@ export default function Orders() {
   const loadOrders = useCallback(async (options: { clearSelection?: boolean } = {}) => {
     setLoading(true);
     setError(null);
-    if (orderCategory === "express") {
-      setOrders([]);
-      setPagination(null);
-      setLoading(false);
-      return;
-    }
     try {
       const token = await getToken();
       const offset = (page - 1) * PAGE_SIZE;
@@ -751,9 +744,6 @@ export default function Orders() {
             ) : null}
           </div>
 
-          {orderCategory === "express" ? (
-            <ExpressOrderQueue search={orderSearch} />
-          ) : (
           <Card className="overflow-hidden p-0">
             {orders.length === 0 ? (
               <EmptyState
@@ -774,9 +764,8 @@ export default function Orders() {
               />
             )}
           </Card>
-          )}
 
-          {orderCategory !== "express" && pagination && pagination.total > pagination.limit ? (
+          {pagination && pagination.total > pagination.limit ? (
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
