@@ -23,6 +23,10 @@ export const starInitiationSessionLandingContent: SessionLandingContent = {
   },
   testimonials: [
     {
+      quote: "This was the most enlightening session I've experienced. The fact is, I'm still quite new to all of the subjects that you and Adronis teach and I'm often not sure what questions to ask. After my Star Initiation Session, however, I now possess a ton of actionable data. Adronis revealed surprising detail that not only identified my origins, but unexpectedly helped to explain certain behaviors and tendencies I've had throughout my life. It's awesome to have a clue, finally, as well as a framework for personal advancement. Thank you.",
+      name: "Carl Jr.",
+    },
+    {
       quote: "I just recently completed my private one-to-one Star Initiation session with Adronis, and the experience provided me with clarity and confirmation with the answers I was seeking. It provided me news of such profound connections I would never have known! It has me searching and exploring new areas and motivated me to pursue current interests even further. I definitely look forward to another session!",
       name: "Shahzad",
     },
