@@ -122,8 +122,33 @@ export async function savePaidExpressOrder(db: Database, order: ExpressOrderReco
   `);
 }
 
+function expressPaymentIntentId(session: {
+  id: string;
+  payment_intent?: string | { id?: string | null } | null;
+}) {
+  const paymentIntent = session.payment_intent;
+  if (typeof paymentIntent === "string" && paymentIntent.trim()) return paymentIntent.trim();
+  if (paymentIntent && typeof paymentIntent === "object" && typeof paymentIntent.id === "string") {
+    return paymentIntent.id.trim() || null;
+  }
+  return session.id.startsWith("pi_") ? session.id : null;
+}
+
+function sqlRows(result: unknown) {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object" && "rows" in result && Array.isArray(result.rows)) {
+    return result.rows;
+  }
+  return [];
+}
+
 export async function fulfillPaidExpressCheckout(
-  session: { id: string; created?: number | null; metadata?: Stripe.Metadata | null },
+  session: {
+    id: string;
+    created?: number | null;
+    metadata?: Stripe.Metadata | null;
+    payment_intent?: string | { id?: string | null } | null;
+  },
   db?: Database,
 ) {
   const metadata = session.metadata ?? {};
@@ -136,9 +161,15 @@ export async function fulfillPaidExpressCheckout(
   const quantity = expressSessionQuantity(service.id, metadata.quantity);
   if (!quantity) throw new Error("Express checkout has an invalid quantity");
   const paidAt = new Date((session.created ?? Math.floor(Date.now() / 1000)) * 1000);
+  const orderId = expressPaymentIntentId(session) ?? session.id;
+  if (db) {
+    const existing = await db.execute(sql`select id from express_orders where id = ${orderId} limit 1`);
+    if (sqlRows(existing).length > 0) return;
+  }
+
   const notices: NotificationRow[] = [];
   const confirmed = await confirmPaidExpressOrder({
-    id: session.id,
+    id: orderId,
     serviceId: service.id,
     customerName,
     transcription: metadata.transcription === "yes",
@@ -149,26 +180,82 @@ export async function fulfillPaidExpressCheckout(
     orders: [],
     notices,
   });
+  const intake = {
+    birthdate: metadata.birthdate ?? "",
+    guide: metadata.guide ?? "",
+    question: metadata.question ?? "",
+    focusAreas: metadata.focusAreas ?? "",
+    healingContext: metadata.healingContext ?? "",
+    pastLifeInterest: metadata.pastLifeInterest ?? "",
+  };
   if (db) {
-    await savePaidExpressOrder(db, confirmed.order, {
-      birthdate: metadata.birthdate ?? "",
-      guide: metadata.guide ?? "",
-      question: metadata.question ?? "",
-      focusAreas: metadata.focusAreas ?? "",
-      healingContext: metadata.healingContext ?? "",
-      pastLifeInterest: metadata.pastLifeInterest ?? "",
-    });
+    await savePaidExpressOrder(db, confirmed.order, intake);
+    await recordExpressAdminOrder(db, confirmed.order, intake);
   }
 
   for (const notice of notices) {
-    const sent = await sendResendEmail({
-      to: [notice.recipient],
-      subject: notice.subject,
-      text: notice.body,
-      html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
-    });
-    if (!sent.success) {
-      throw new Error(sent.error || "Express confirmation email failed");
+    try {
+      const sent = await sendResendEmail({
+        to: [notice.recipient],
+        subject: notice.subject,
+        text: notice.body,
+        html: notice.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>"),
+      });
+      if (!sent.success) {
+        console.warn("express_confirmation_email_failed", notice.recipient, sent.error);
+      }
+    } catch (error) {
+      console.warn("express_confirmation_email_failed", notice.recipient, error);
     }
   }
+}
+
+async function recordExpressAdminOrder(
+  db: Database,
+  order: ExpressOrderRecord,
+  intake: Record<string, string>,
+) {
+  const paymentIntentId = order.id.startsWith("pi_") ? order.id : null;
+  const metadata = JSON.stringify({
+    sessionType: "express",
+    session_type: "express",
+    product_name: order.serviceName,
+    serviceId: order.serviceId,
+    customerName: order.customerName,
+    price_snapshot_cents: order.amountCents,
+    price_snapshot_currency: "CAD",
+    intake,
+  });
+  await db.execute(sql`
+    insert into clients (user_id, full_birth_name, birth_date)
+    select users.id, ${order.customerName}, nullif(${intake.birthdate ?? ""}, '')
+    from users
+    where lower(users.email) = lower(${order.customerEmail})
+      and not exists (select 1 from clients where clients.user_id = users.id)
+  `);
+  await db.execute(sql`
+    insert into orders (
+      user_id, type, label, amount, currency, status,
+      payment_reference, stripe_payment_intent_id, metadata, created_at, updated_at
+    )
+    select
+      users.id,
+      'session',
+      ${order.serviceName},
+      ${order.amountCents},
+      'CAD',
+      'completed',
+      ${paymentIntentId ?? order.id},
+      ${paymentIntentId},
+      cast(${metadata} as jsonb),
+      ${order.paidAt ? new Date(order.paidAt) : new Date()},
+      now()
+    from users
+    where lower(users.email) = lower(${order.customerEmail})
+      and not exists (
+        select 1 from orders existing
+        where existing.stripe_payment_intent_id = ${paymentIntentId}
+          or existing.payment_reference = ${order.id}
+      )
+  `);
 }
