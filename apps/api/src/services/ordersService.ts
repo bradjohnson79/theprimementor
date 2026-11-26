@@ -859,7 +859,7 @@ function orderMatchesSubscriptionCategory(order: AdminOrder, category: string) {
 function orderMatchesCategory(order: AdminOrder, category: string) {
   const normalized = normalizeFilterText(category);
   if (!normalized || normalized === "all") return true;
-  if (normalized === "qa_session" || normalized === "mentoring_session" || normalized === "star_initiation") {
+  if (normalized === "qa_session" || normalized === "mentoring_session" || normalized === "star_initiation" || normalized === "express") {
     return orderMatchesSessionCategory(order, normalized);
   }
   if (normalized === "divin8_reports") {
@@ -916,9 +916,6 @@ function formatSessionTypeLabel(value: string | null, fallbackName?: string | nu
   }
   if (value === "past_life_akashic") {
     return "Past Life Akashic Reading";
-  }
-  if (value === "star_initiation") {
-    return "Star Initiation Session";
   }
   return titleCase(value);
 }
@@ -1488,8 +1485,8 @@ function buildAdminOrder(candidate: OrderCandidate, payment: PaymentCandidate | 
     email: candidate.email,
     type: candidate.type,
     status: finalizeOrderStatus(sourceStatus, paymentStatus, Boolean(payment)),
-    amount: payment ? payment.amountCents / 100 : 0,
-    currency: payment?.currency ?? "",
+    amount: payment ? payment.amountCents / 100 : (getNumber(candidate.metadata.price_snapshot_cents) ?? 0) / 100,
+    currency: payment?.currency ?? getString(candidate.metadata.price_snapshot_currency) ?? "",
     product_name: productName,
     stripe_payment_id: payment?.providerPaymentIntentId ?? null,
     payment_status: payment?.status ?? null,
@@ -2413,6 +2410,99 @@ function createSessionCandidate(
   };
 }
 
+function sqlRows(result: unknown) {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object" && "rows" in result && Array.isArray(result.rows)) {
+    return result.rows;
+  }
+  return [];
+}
+
+function createExpressCandidate(row: {
+  id: string;
+  service_name: string;
+  customer_name: string;
+  customer_email: string;
+  amount_cents: number;
+  payment_status: string;
+  paid_at: Date | string | null;
+  created_at: Date | string;
+  intake: unknown;
+}, userId: string | null): OrderCandidate {
+  const createdAt = new Date(row.paid_at ?? row.created_at);
+  const intake = parseObject(row.intake);
+  const orderId = getOrderId("session", row.id);
+  const notes = [
+    getString(intake.question),
+    getString(intake.focusAreas),
+    getString(intake.healingContext),
+    getString(intake.pastLifeInterest),
+  ].filter((value): value is string => Boolean(value));
+  const paid = row.payment_status === "paid";
+  return {
+    id: orderId,
+    type: "session",
+    sourceId: row.id,
+    userId: userId ?? row.id,
+    archived: false,
+    clientName: row.customer_name,
+    email: row.customer_email,
+    sourceStatus: paid ? "paid" : "pending_payment",
+    sourceCreatedAt: createdAt,
+    membershipTier: null,
+    availableActions: getAvailableActions("session", row.service_name),
+    execution: buildOrderExecution(null, orderId, userId ?? row.id),
+    recordingLink: null,
+    recordingAddedAt: null,
+    refundedAt: null,
+    refundReason: null,
+    refundNote: null,
+    metadata: {
+      source_status: paid ? "paid" : "pending_payment",
+      source_created_at: createdAt.toISOString(),
+      product_name: row.service_name,
+      birth_date: getString(intake.birthdate),
+      birth_time: null,
+      birth_location: null,
+      intake: {
+        ...createEmptyIntakeMetadata(),
+        birth_date: getString(intake.birthdate),
+        notes: notes.join("\n\n") || null,
+        submitted_questions: notes,
+        concerns: getString(intake.healingContext) ?? getString(intake.pastLifeInterest),
+        healing_areas: getString(intake.focusAreas) ? [getString(intake.focusAreas) as string] : [],
+      },
+      availability: null,
+      report_type: null,
+      report_type_id: null,
+      training_package: null,
+      training_package_id: null,
+      selected_systems: [],
+      delivery_status: null,
+      session_type: row.service_name,
+      session_type_id: "express",
+      session_duration_minutes: null,
+      scheduled_at: null,
+      meeting_link: null,
+      plan_name: null,
+      billing_cycle: null,
+      renewal_date: null,
+      event_name: null,
+      event_date: null,
+      access_link: null,
+      stripe_subscription_id: null,
+      price_snapshot_cents: row.amount_cents,
+      price_snapshot_currency: "CAD",
+      ...getEmptyInvoiceMetadata(),
+      ...getEmptyRecoveryInvoiceMetadata(),
+      payment_match_strategy: "express_order",
+    },
+    directBookingId: null,
+    sourcePaymentIntentIds: row.id.startsWith("pi_") ? [row.id] : [],
+    metadataMatchKeys: [row.id],
+  };
+}
+
 function createReportCandidate(
   row: ReportSourceRow,
   usersById: Map<string, UserRow>,
@@ -2924,7 +3014,7 @@ function createPersistedAdminOrder(
     archived: row.archived,
     client_name: resolveClientName({
       userId: row.userId,
-      explicitName: client?.fullBirthName ?? null,
+      explicitName: getString(orderMetadata?.customerName) ?? client?.fullBirthName ?? null,
       email: user.email,
     }),
     email: user.email,
@@ -3161,6 +3251,32 @@ async function buildAllOrders(db: Database, options: { showArchived?: boolean } 
     } catch (error) {
       logger.warn("orders_booking_aggregation_failed", { sourceId: row.id, userId: row.userId, error });
     }
+  }
+  const recordedExpressIds = new Set(
+    persistedOrderRows.flatMap((row) => [row.stripePaymentIntentId, row.paymentReference].filter((value): value is string => Boolean(value))),
+  );
+  try {
+    const expressOrderRows = sqlRows(await db.execute(sql`
+      select id, service_name, customer_name, customer_email, amount_cents, payment_status, paid_at, created_at, intake
+      from express_orders
+    `)) as Array<{
+      id: string;
+      service_name: string;
+      customer_name: string;
+      customer_email: string;
+      amount_cents: number;
+      payment_status: string;
+      paid_at: Date | string | null;
+      created_at: Date | string;
+      intake: unknown;
+    }>;
+    for (const row of expressOrderRows) {
+      if (recordedExpressIds.has(row.id)) continue;
+      const user = userRows.find((entry) => entry.email.toLowerCase() === row.customer_email.toLowerCase());
+      candidates.push(createExpressCandidate(row, user?.id ?? null));
+    }
+  } catch (error) {
+    logger.warn("orders_express_aggregation_failed", { error });
   }
   for (const row of reportRows) {
     try {

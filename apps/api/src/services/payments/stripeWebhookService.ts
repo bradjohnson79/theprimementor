@@ -2626,6 +2626,18 @@ async function processEventByType(db: DbExecutor, event: Stripe.Event, logger: W
       return;
     }
     case "payment_intent.succeeded":
+      if ((event.data.object as Stripe.PaymentIntent).metadata?.type === "express") {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const { fulfillPaidExpressCheckout } = await import("../express/expressStripe.js");
+        await fulfillPaidExpressCheckout({
+          id: paymentIntent.id,
+          created: paymentIntent.created,
+          metadata: paymentIntent.metadata,
+          payment_intent: paymentIntent.id,
+        }, db as Database);
+        logger.info({ paymentIntentId: paymentIntent.id, serviceId: paymentIntent.metadata?.serviceId }, "express_payment_intent_confirmed");
+        return;
+      }
       if (await handleRegenerationPaymentIntentSucceeded(db as Database, event.data.object as Stripe.PaymentIntent, logger)) {
         return;
       }
